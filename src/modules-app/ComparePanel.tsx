@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { diffSummaryLine, formatFieldChange, type Analysis, type ChangedEntry, type DiffEntry, type DocumentDiff } from '@iark/kernel';
 import { elementOf } from './compare';
+import { useBulkInsert } from './bulkInsert';
 import { readFile } from './files';
 import { FilePicker } from './panels';
 
@@ -44,6 +45,8 @@ const SECTIONS = [
  */
 export function ComparePanel({ accept, analysis, compare, onLoad, onClear, onFocus }: ComparePanelProps) {
   const [pasted, setPasted] = useState('');
+  const pasteArea = useRef<HTMLTextAreaElement>(null);
+  useBulkInsert(pasteArea, setPasted);
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
 
@@ -75,7 +78,7 @@ export function ComparePanel({ accept, analysis, compare, onLoad, onClear, onFoc
       </div>
       <details className="wb-compare-paste" open={!compare}>
         <summary>…o pega aquí el JSON de la otra versión</summary>
-        <textarea aria-label="JSON de la versión con la que comparar" spellCheck={false} rows={5} value={pasted} onChange={(e) => setPasted(e.target.value)} disabled={!hasCurrent} />
+        <textarea ref={pasteArea} aria-label="JSON de la versión con la que comparar" spellCheck={false} rows={5} value={pasted} onChange={(e) => setPasted(e.target.value)} disabled={!hasCurrent} />
         <button type="button" disabled={busy || !hasCurrent || !pasted.trim()} onClick={() => void load(pasted, 'JSON pegado')} data-testid="compare-run">
           Comparar con este JSON
         </button>

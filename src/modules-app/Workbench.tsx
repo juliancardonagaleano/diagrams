@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { WorkbenchController } from './controller';
 import { canRender, countBySeverity, diffDocuments, diffSummaryLine, locateId, type AttachmentSpec } from '@iark/kernel';
+import { useBulkInsert } from './bulkInsert';
 import { readFile } from './files';
 import { AttachmentsPanel } from './attachments';
 import { DiagramCanvas } from './canvas/DiagramCanvas';
@@ -61,6 +62,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
   const [toast, setToast] = useState<string | undefined>();
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const jsonEditor = useRef<HTMLTextAreaElement>(null);
+  useBulkInsert(jsonEditor, (value) => controller.setText(value));
 
   const notify = useCallback((message: string) => {
     setToast(message);

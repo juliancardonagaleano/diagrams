@@ -171,6 +171,8 @@ function CommandCard({ controller, command, notify }: { controller: WorkbenchCon
   const [args, setArgs] = useState<string[]>(() => command.args.map(() => ''));
   const [options, setOptions] = useState<Record<string, string | boolean>>({});
   const [source, setSource] = useState('');
+  const sourceArea = useRef<HTMLTextAreaElement>(null);
+  useBulkInsert(sourceArea, setSource);
   const [result, setResult] = useState<CommandOutput | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -220,7 +222,7 @@ function CommandCard({ controller, command, notify }: { controller: WorkbenchCon
         {convert && (
           <label className="wb-field">
             {command.inputDescription ?? 'Documento de origen (JSON)'}
-            <textarea value={source} spellCheck={false} onChange={(e) => setSource(e.target.value)} placeholder="Pega aquí el documento de origen" />
+            <textarea ref={sourceArea} value={source} spellCheck={false} onChange={(e) => setSource(e.target.value)} placeholder="Pega aquí el documento de origen" />
           </label>
         )}
         <div className="wb-row">

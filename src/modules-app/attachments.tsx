@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { pretty, type AttachmentDetail, type AttachmentDiagnostic, type AttachmentInfo, type AttachmentLanguage, type AttachmentSpec, type EditResult } from '@iark/kernel';
+import { useBulkInsert } from './bulkInsert';
 import { Field } from './canvas/Inspector';
 import type { EditHistory } from './canvas/history';
 import { copyText, downloadText, fileStem } from './files';
@@ -110,6 +111,7 @@ function AttachmentEditor({ attachments, document, detail, readOnly, commit, not
   const [draft, setDraft] = useState(detail.text);
   const [confirming, setConfirming] = useState<'template' | 'delete' | undefined>();
   const area = useRef<HTMLTextAreaElement>(null);
+  useBulkInsert(area, setDraft);
   useEffect(() => setDraft(detail.text), [detail.text]);
 
   const format = attachments.formats.find((f) => f.id === detail.format);

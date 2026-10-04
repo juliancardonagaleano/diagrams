@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -330,5 +330,19 @@ describe('cursorOffset', () => {
     expect(cursorOffset(text, 4, 9)).toBe(9);
     expect(cursorOffset(text, 99, 99)).toBe(9);
     expect(cursorOffset(text, 0, 0)).toBe(0);
+  });
+});
+
+describe('texto del adjunto', () => {
+  it('una inserción sintética muy grande entra de una vez en el borrador', () => {
+    mount({ selectedId: 'roto' });
+    const text = Array.from({ length: 1500 }, (_, i) => `// línea ${i + 1}`).join('\n');
+    const event = new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text });
+    area().setSelectionRange(0, area().value.length);
+    act(() => {
+      area().dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(true);
+    expect(area().value).toBe(text);
   });
 });

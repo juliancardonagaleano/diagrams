@@ -103,3 +103,46 @@ describe('cuadro «Texto a importar» del banco de trabajo', () => {
     await waitFor(() => expect(importado).toEqual([text]));
   });
 });
+
+describe('el resto de cuadros grandes del banco de trabajo', () => {
+  const SOURCES: ModuleSource[] = [{ id: 'fake', label: 'Fake', load: async () => fakeModule as never, example: async () => pretty(FAKE_DOC) }];
+  const openWorkbench = async () => {
+    const controller = new WorkbenchController(SOURCES, { renderDelay: 0 });
+    await controller.selectModule('fake');
+    render(<Workbench controller={controller} />);
+    await waitFor(() => expect(screen.getByTestId('node-api')).toBeInTheDocument());
+    return controller;
+  };
+
+  it('«Documento JSON»: una inserción sintética grande entra de una vez en el documento del controlador', async () => {
+    const controller = await openWorkbench();
+    const area = screen.getByLabelText('Documento JSON') as HTMLTextAreaElement;
+    area.setSelectionRange(0, area.value.length);
+    const text = lines(2000);
+    expect(beforeInput(area, text).defaultPrevented).toBe(true);
+    expect(area.value).toBe(text);
+    expect(controller.getState().text).toBe(text);
+  });
+
+  it('«Comparar»: el JSON de la otra versión se pega de una vez', async () => {
+    await openWorkbench();
+    await userEvent.click(screen.getByRole('tab', { name: /^Comparar/ }));
+    const area = screen.getByLabelText('JSON de la versión con la que comparar') as HTMLTextAreaElement;
+    const text = lines(1000);
+    expect(beforeInput(area, text).defaultPrevented).toBe(true);
+    expect(area.value).toBe(text);
+    expect(area.selectionStart).toBe(text.length);
+  });
+  it('«Documento de origen» de una conversión: una inserción sintética grande entra de una vez', async () => {
+    const convertir = { ...fakeModule, cliCommands: [{ name: 'convertir', kind: 'convert', description: 'Convierte', input: { description: 'documento de origen (JSON)' }, options: [], run: () => '{}' }] };
+    const controller = new WorkbenchController([{ ...SOURCES[0], load: async () => convertir as never }], { renderDelay: 0 });
+    await controller.selectModule('fake');
+    render(<Workbench controller={controller} />);
+    await waitFor(() => expect(screen.getByTestId('node-api')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('tab', { name: 'Informes' }));
+    const area = screen.getByPlaceholderText('Pega aquí el documento de origen') as HTMLTextAreaElement;
+    const text = lines(1000);
+    expect(beforeInput(area, text).defaultPrevented).toBe(true);
+    expect(area.value).toBe(text);
+  });
+});
