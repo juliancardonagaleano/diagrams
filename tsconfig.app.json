@@ -5,6 +5,6 @@
     "jsx": "react-jsx",
     "types": ["vite/client"]
   },
-  "include": ["src/app", "src/modules-app", "src/mermaid-preview", "src/shell", "packages/*/src", "src/embed", "vite-env.d.ts"],
+  "include": ["src/app", "src/modules-app", "src/mermaid-preview", "src/shell", "src/trace-app", "packages/*/src", "src/embed", "vite-env.d.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "packages/*/src/**/*.test.ts"]
 }

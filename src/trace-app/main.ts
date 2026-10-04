@@ -1,6 +1,6 @@
 import '../modules-app/workbench.css';
 import './trace.css';
-import { traceMermaid, traceReach, traceReachReport, traceReport, traceSvg, type Reached, type TraceDirection, type TraceGraph, type TraceNode } from '@iark/kernel';
+import { traceMermaid, traceReach, traceReachReport, traceReport, traceSvg, type Reached, type TraceDirection, type TraceGraph, type TraceNode, type TraceProblemReason } from '@iark/kernel';
 import { downloadText, readFile, svgDataUrl } from '../modules-app/files';
 import { MODULE_SOURCES } from '../modules-app/modules';
 import { TraceBoard } from './board';
@@ -181,7 +181,9 @@ function renderLinks(graph: TraceGraph): void {
   );
 }
 
-const REASONS = { dangling: 'no existe', unresolved: 'módulo sin documento', invalid: 'URN inválida' } as const;
+// Un `Record` completo: si el núcleo añade un motivo nuevo, `tsc` obliga a darle texto aquí (el chip «Motivo» no puede salir vacío).
+const REASONS: Record<TraceProblemReason, string> = { dangling: 'no existe', unresolved: 'módulo sin documento', invalid: 'URN inválida', ambiguous: 'definido en varios documentos' };
+const REASON_TONE: Record<TraceProblemReason, 'info' | 'warning' | 'error'> = { dangling: 'error', unresolved: 'info', invalid: 'error', ambiguous: 'warning' };
 
 function renderProblems(graph: TraceGraph): void {
   const panel = panels.get('problems')!;
@@ -192,7 +194,7 @@ function renderProblems(graph: TraceGraph): void {
       'table',
       { class: 'tr-table' },
       h('thead', {}, h('tr', {}, h('th', {}, 'Elemento'), h('th', {}, 'Referencia'), h('th', {}, 'Motivo'))),
-      h('tbody', {}, ...graph.problems.map((p) => h('tr', {}, h('td', {}, nodeLabel(byUrn.get(p.from)!)), h('td', {}, h('code', {}, p.ref)), h('td', {}, h('span', { class: `wb-chip ${p.reason === 'unresolved' ? 'info' : 'error'}` }, REASONS[p.reason]), ' ', h('small', {}, p.message))))),
+      h('tbody', {}, ...graph.problems.map((p) => h('tr', {}, h('td', {}, nodeLabel(byUrn.get(p.from)!)), h('td', {}, h('code', {}, p.ref)), h('td', {}, h('span', { class: `wb-chip ${REASON_TONE[p.reason]}` }, REASONS[p.reason]), ' ', h('small', {}, p.message))))),
     ),
   );
 }
