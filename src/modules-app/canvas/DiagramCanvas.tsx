@@ -179,6 +179,13 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   useEffect(() => {
     void relayout();
   }, [signature, relayout]);
+  // Al desmontar, un autolayout en vuelo (ELK tarda) deja de ser el último: su respuesta tardía no toca el estado de un lienzo que ya no está.
+  useEffect(
+    () => () => {
+      layoutSeq.current++;
+    },
+    [],
+  );
 
   const built = useMemo(() => (graph ? buildFlow(spec, graph, layout, moved) : { nodes: [] as FlowNode[], edges: [] as FlowEdge[] }), [spec, graph, layout, moved]);
   const builtRef = useRef(built);

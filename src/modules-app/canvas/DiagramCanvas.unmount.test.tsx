@@ -160,4 +160,26 @@ describe('lienzo: el encuadre sigue asentándose igual con el lienzo montado', (
     expect(canvas()).toHaveAttribute('data-layout', 'ready');
     expect(cam.fitView).toHaveBeenCalledTimes(1); // la cámara se tocó una sola vez
   });
+  // Mismo fallo con el autolayout: ELK responde tarde, tras desmontar, y `apply` pintaba estado de un lienzo que ya no está
+  // (con el entorno destruido, `setLayout` lanzaba «window is not defined» y el `catch` volvía a lanzarlo desde `fail`).
+  it('con el entorno ya destruido, la respuesta tardía del autolayout tampoco dispara ningún error', async () => {
+    cam.fitView = vi.fn(() => new Promise(() => undefined));
+    let place: (layout: GraphLayout) => void = () => undefined;
+    const slow = { ...spec, layout: () => new Promise<GraphLayout>((resolve) => (place = resolve)) } as EditorSpec<unknown>;
+    const view = render(<DiagramCanvas moduleId="fake" spec={slow} document={FAKE_DOC} text={pretty(FAKE_DOC)} views={[]} onView={vi.fn()} readOnly={false} history={new EditHistory()} onText={vi.fn()} notify={vi.fn()} />);
+    await advance(0); // la colocación queda en vuelo
+    view.unmount();
+    const real = window;
+
+    const errors = await unhandledDuring(async () => {
+      vi.stubGlobal('window', undefined);
+      try {
+        place(LAYOUT);
+        await vi.advanceTimersByTimeAsync(5000);
+      } finally {
+        vi.stubGlobal('window', real);
+      }
+    });
+    expect(errors).toEqual([]);
+  });
 });
