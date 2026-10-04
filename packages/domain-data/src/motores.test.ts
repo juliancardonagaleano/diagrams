@@ -172,7 +172,8 @@ describe('avisos del modelo por motor', () => {
         const found = keyIssues(mysql([{ name: 'sku', type, keys: ['pk'] }]));
         expect(found, type).toHaveLength(1);
         expect(found[0].severity).toBe('warning');
-        expect(found[0].message).toBe(`La columna «sku» de Tabla «Líneas» es clave primaria de tipo «${type}», que MySQL no admite como clave: su CREATE TABLE falla. Usa varchar(n) o una clave sustituta.`);
+        const advice = type.endsWith('blob') ? 'Usa varbinary(n) o una clave sustituta.' : 'Usa varchar(n) o una clave sustituta.';
+        expect(found[0].message).toBe(`La columna «sku» de Tabla «Líneas» es clave primaria de tipo «${type}», que MySQL no admite como clave: su CREATE TABLE falla. ${advice}`);
       }
     });
 
@@ -208,11 +209,13 @@ describe('avisos del modelo por motor', () => {
     const pk = (engineLabel: string, type: string, advice: string) => `La columna «k» de Tabla «Líneas» es clave primaria de tipo «${type}», que ${engineLabel} no admite como clave: su CREATE TABLE falla. ${advice}`;
 
     it('Oracle: los LOB, long y long raw no sirven de clave; varchar2, number y raw sí', () => {
-      for (const type of ['clob', 'CLOB', 'nclob', 'blob', 'Blob', 'long', 'long raw', 'LONG  RAW']) expect(key('oracle', type), type).toEqual([pk('Oracle', type, 'Usa varchar2(n) o una clave sustituta.')]);
+      for (const type of ['clob', 'CLOB', 'nclob', 'long']) expect(key('oracle', type), type).toEqual([pk('Oracle', type, 'Usa varchar2(n) o una clave sustituta.')]);
+      // Una clave binaria (BLOB, long raw) se arregla con `raw(n)`, no con un texto: `varchar2(n)` cambiaría lo que guarda la columna.
+      for (const type of ['blob', 'Blob', 'long raw', 'LONG  RAW']) expect(key('oracle', type), type).toEqual([pk('Oracle', type, 'Usa raw(n) o una clave sustituta.')]);
       for (const type of ['varchar2(40)', 'varchar2', 'nvarchar2(30)', 'number(19)', 'raw(16)', 'char(10)', 'date', 'timestamp']) expect(key('oracle', type), type).toEqual([]);
       // Un tipo que Oracle no tiene se escribe como su equivalente (`text` → `clob`, `bytea` → `blob`), y eso es lo que avisa.
       expect(key('oracle', 'text')).toEqual([pk('Oracle', 'clob', 'Usa varchar2(n) o una clave sustituta.')]);
-      expect(key('oracle', 'bytea')).toEqual([pk('Oracle', 'blob', 'Usa varchar2(n) o una clave sustituta.')]);
+      expect(key('oracle', 'bytea')).toEqual([pk('Oracle', 'blob', 'Usa raw(n) o una clave sustituta.')]);
     });
 
     it('PostgreSQL: json, xml y los geométricos no tienen operadores btree; jsonb, text, bytea y los arrays de tipos ordenables sí', () => {
@@ -222,7 +225,9 @@ describe('avisos del modelo por motor', () => {
     });
 
     it('SQL Server: los tipos de objeto grande no sirven de clave, pero varchar(255) sí; hay que distinguir el parámetro, las mayúsculas y los espacios', () => {
-      for (const type of ['text', 'ntext', 'image', 'xml', 'varchar(max)', 'nvarchar(max)', 'varbinary(max)', 'VARCHAR(MAX)', 'NVarChar(Max)', 'varchar (max)', 'varchar( max )', ' varbinary(  MAX) ']) expect(key('sqlserver', type), type).toEqual([pk('SQL Server', type.trim(), 'Usa nvarchar(n) o una clave sustituta.')]);
+      for (const type of ['text', 'ntext', 'xml', 'varchar(max)', 'nvarchar(max)', 'VARCHAR(MAX)', 'NVarChar(Max)', 'varchar (max)', 'varchar( max )']) expect(key('sqlserver', type), type).toEqual([pk('SQL Server', type.trim(), 'Usa nvarchar(n) o una clave sustituta.')]);
+      // Las claves binarias se arreglan con `varbinary(n)` (una clave sustituta también sirve), no con `nvarchar(n)`.
+      for (const type of ['image', 'varbinary(max)', ' varbinary(  MAX) ']) expect(key('sqlserver', type), type).toEqual([pk('SQL Server', type.trim(), 'Usa varbinary(n) o una clave sustituta.')]);
       for (const type of ['varchar(255)', 'varchar(900)', 'nvarchar(450)', 'varchar', 'nvarchar', 'varbinary(16)', 'varbinary', 'char(10)', 'uniqueidentifier', 'bigint', 'int', 'datetime2']) expect(key('mssql', type), type).toEqual([]);
       // `jsonb` no existe en SQL Server y se escribe como `nvarchar(max)`.
       expect(key('sqlserver', 'jsonb')).toEqual([pk('SQL Server', 'nvarchar(max)', 'Usa nvarchar(n) o una clave sustituta.')]);
@@ -240,7 +245,8 @@ describe('avisos del modelo por motor', () => {
       const uk = (engineLabel: string, type: string, advice = 'Usa varchar(n) o una clave sustituta.') => `La columna «k» de Tabla «Líneas» es clave única de tipo «${type}», que ${engineLabel} no admite como clave: su CREATE TABLE falla. ${advice}`;
 
       it('MySQL y MariaDB: una columna única de tipo text, blob o json avisa con el arreglo', () => {
-        for (const type of ['text', 'TEXT', 'longtext', 'tinytext', 'blob', 'longblob', 'json']) expect(key('mysql', type, ['uk']), type).toEqual([uk('MySQL', type)]);
+        for (const type of ['text', 'TEXT', 'longtext', 'tinytext', 'json']) expect(key('mysql', type, ['uk']), type).toEqual([uk('MySQL', type)]);
+        for (const type of ['blob', 'longblob']) expect(key('mysql', type, ['uk']), type).toEqual([uk('MySQL', type, 'Usa varbinary(n) o una clave sustituta.')]);
         expect(key('mariadb', 'text', ['uk'])).toEqual([uk('MySQL', 'text')]);
         const found = keyIssues(mysql([{ name: 'k', type: 'text', keys: ['uk'] }])).filter((i) => i.message.includes('no admite como clave'));
         expect(found).toHaveLength(1);
@@ -531,7 +537,7 @@ describe('DDL por motor', () => {
       const { text, warnings } = toDdl(d);
       expect(warnings).toEqual([
         'La clave única «T.email» es de tipo «text», que MySQL no admite como clave: su CREATE TABLE falla. Usa varchar(n) o una clave sustituta.',
-        'La clave única «T.bin» es de tipo «BLOB», que MySQL no admite como clave: su CREATE TABLE falla. Usa varchar(n) o una clave sustituta.',
+        'La clave única «T.bin» es de tipo «BLOB», que MySQL no admite como clave: su CREATE TABLE falla. Usa varbinary(n) o una clave sustituta.',
       ]);
       expect(text).toBe(
         [

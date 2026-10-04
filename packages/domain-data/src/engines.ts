@@ -404,7 +404,14 @@ export function unkeyableType(engine: EngineDef, type: string | undefined, kind:
   return banned.some((b) => [base, full].includes(withParams(b))) ? written : undefined;
 }
 
-/** Cómo arreglar una clave de un tipo que el motor no admite: un tipo de texto con longitud (`varchar(n)`, `varchar2(n)`) o una clave sustituta. */
-export function keyTypeAdvice(engine: EngineDef): string {
+/**
+ * Cómo arreglar una clave de un tipo que el motor no admite: un tipo de texto con longitud (`varchar(n)`, `varchar2(n)`) o, si la clave
+ * es binaria (`blob`, `varbinary(max)`, `long raw`), el binario acotado del motor (`varbinary(n)`, `raw(n)`); en ambos casos, una clave sustituta.
+ */
+export function keyTypeAdvice(engine: EngineDef, type?: string): string {
+  if (type && conceptOf(type) === 'binary') {
+    const bounded = ['varbinary', 'raw', 'binary'].find((t) => engine.types.includes(t));
+    return bounded ? `Usa ${bounded}(n) o una clave sustituta.` : 'Usa una clave sustituta.';
+  }
   return `Usa ${parseType(engine.concepts.string).base}(n) o una clave sustituta.`;
 }

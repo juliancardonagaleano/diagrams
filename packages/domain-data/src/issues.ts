@@ -79,7 +79,7 @@ function engineIssues(doc: DataDocument, contracts: Map<string, { name: string; 
       // Una columna `pk` y `uk` a la vez es solo clave primaria: el DDL no repite el UNIQUE.
       const kind = c.keys?.includes('pk') ? 'pk' : c.keys?.includes('uk') ? 'uk' : undefined;
       const type = kind ? unkeyableType(engine, c.type, kind) : undefined;
-      if (type) issues.push({ severity: 'warning', elementId: a.id, message: `La columna «${c.name}» de ${label(a)} es clave ${kind === 'pk' ? 'primaria' : 'única'} de tipo «${type}», que ${engine.label} no admite como clave: su CREATE TABLE falla. ${keyTypeAdvice(engine)}` });
+      if (type) issues.push({ severity: 'warning', elementId: a.id, message: `La columna «${c.name}» de ${label(a)} es clave ${kind === 'pk' ? 'primaria' : 'única'} de tipo «${type}», que ${engine.label} no admite como clave: su CREATE TABLE falla. ${keyTypeAdvice(engine, type)}` });
     }
     const contract = a.contractId ? contracts.get(a.contractId) : undefined;
     const declared = contract?.content ? contractEngine(contract.content) : undefined;

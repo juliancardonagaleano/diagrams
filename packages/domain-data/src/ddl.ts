@@ -96,7 +96,7 @@ function columnType(engine: EngineDef, table: DdlTable, column: DdlColumn, warni
 /** Aviso de una clave primaria o única cuyo tipo el motor no admite como clave (una línea, para poder ir en un comentario SQL). */
 function keyNotice(engine: EngineDef, table: DdlTable, column: DdlColumn, kind: 'pk' | 'uk'): string[] {
   const type = unkeyableType(engine, column.type, kind);
-  return type ? [oneLine(`La clave ${kind === 'pk' ? 'primaria' : 'única'} «${table.name}.${column.name}» es de tipo «${type}», que ${engine.label} no admite como clave: su CREATE TABLE falla. ${keyTypeAdvice(engine)}`)] : [];
+  return type ? [oneLine(`La clave ${kind === 'pk' ? 'primaria' : 'única'} «${table.name}.${column.name}» es de tipo «${type}», que ${engine.label} no admite como clave: su CREATE TABLE falla. ${keyTypeAdvice(engine, type)}`)] : [];
 }
 
 function sqlTable(engine: EngineDef, table: DdlTable, schema: string | undefined, warnings: string[], cql = false): string {
