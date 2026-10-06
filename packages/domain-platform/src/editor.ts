@@ -1,5 +1,6 @@
 import { uniqueId, type EdgeNotation, type EditResult, type EditorAction, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
 import { duplicateEnvironment, findEnvironment, nextEnvironment, promoteDeployments, scaleReplicas, toggleApproval } from './actions';
+import { counterpartErrors, dropCounterparts } from './counterparts';
 import { formatCost } from './costs';
 import { drawMatrix, matrixIsDrawn } from './export/matrix';
 import { DEPENDENCY_STYLES, EXPOSURE_ZONES, EXTERNAL_COLOR, RESOURCE_COLORS, RESOURCE_SHAPES, SERVICE_COLORS, SERVICE_SHAPES, buildScene } from './export/render';
@@ -105,6 +106,25 @@ const MEMORY: FieldSpec = { key: 'memoryLimit', label: 'Límite de memoria', typ
 const EXPIRES: FieldSpec = { key: 'expiresAt', label: 'Caduca el', type: 'text', hint: 'AAAA-MM-DD; con ella el análisis avisa cuando está cerca' };
 const DEPLOYMENT_FIELDS: FieldSpec[] = [...INSTANCE_FIELDS, COST, CPU, MEMORY];
 
+/**
+ * Selector del equivalente en otro entorno (`counterpartOf`): los recursos de los demás entornos, primero los de la misma clase. La
+ * pista recuerda que basta declararlo en uno de los dos y dice quién declara a este como suyo, porque ese enlace no se ve en su propio campo.
+ */
+function counterpartField(doc: PlatformDocument, values?: Record<string, unknown>): FieldSpec {
+  const [id, environmentId, kind] = [values?.id, values?.environmentId, values?.kind];
+  const environmentName = (envId: string): string => doc.environments.find((e) => e.id === envId)?.name ?? envId;
+  const others = doc.resources.filter((r) => r.id !== id && r.environmentId !== environmentId);
+  const declaredBy = typeof id === 'string' ? doc.resources.filter((r) => r.counterpartOf === id) : [];
+  return {
+    key: 'counterpartOf',
+    label: 'Equivalente en otro entorno',
+    type: 'select',
+    options: [...others.filter((r) => r.kind === kind), ...others.filter((r) => r.kind !== kind)].map((r) => ({ value: r.id, label: `${r.name} (${environmentName(r.environmentId)})` })),
+    allowEmpty: true,
+    hint: `El mismo recurso en otro entorno: al comparar entornos manda sobre la deducción por nombre. Basta declararlo en uno de los dos.${declaredBy.length > 0 ? ` Lo declaran como suyo: ${declaredBy.map((r) => `${r.name} (${environmentName(r.environmentId)})`).join(', ')}.` : ''}`,
+  };
+}
+
 function nodeFields(kind: string, doc: PlatformDocument, values?: Record<string, unknown>): FieldSpec[] {
   const environment: FieldSpec = { key: 'environmentId', label: 'Entorno', type: 'select', options: doc.environments.map((e) => ({ value: e.id, label: e.name })) };
   const network = (key: string, label: string): FieldSpec => ({ key, label, type: 'select', options: doc.networks.map((n) => ({ value: n.id, label: `${n.name} (${doc.environments.find((e) => e.id === n.environmentId)?.name ?? n.environmentId})` })), allowEmpty: true });
@@ -136,6 +156,7 @@ function nodeFields(kind: string, doc: PlatformDocument, values?: Record<string,
       { key: 'version', label: 'Versión', type: 'text' },
       { key: 'status', label: 'Estado', type: 'select', options: options(RESOURCE_STATUSES, STATUS_LABELS), allowEmpty: true, hint: 'si no se indica, aprovisionado' },
       { key: 'iac', label: 'Gestionado como código (IaC)', type: 'boolean' },
+      counterpartField(doc, values),
       { key: 'owner', label: 'Responsable', type: 'text' },
       COST,
       { key: 'region', label: 'Región', type: 'text' },
@@ -599,7 +620,7 @@ export const platformEditor: EditorSpec<PlatformDocument> = {
         }
         if (e.kind === 'resource') {
           const current = e.item as Resource;
-          const patched = reconcileIcon(doc, patchObject(current, patch, ['name', 'description', 'kind', 'environmentId', 'networkId', 'technology', 'version', 'status', 'iac', 'owner', 'ref', 'tags', 'monthlyCost', 'region', 'cpuLimit', 'memoryLimit', 'expiresAt', 'provider', 'service']), patch, subjectOfResource);
+          const patched = reconcileIcon(doc, patchObject(current, patch, ['name', 'description', 'kind', 'environmentId', 'networkId', 'technology', 'version', 'status', 'iac', 'owner', 'ref', 'tags', 'monthlyCost', 'region', 'cpuLimit', 'memoryLimit', 'expiresAt', 'provider', 'service', 'counterpartOf']), patch, subjectOfResource);
           if (!patched.ok) return fail(patched.reason);
           const next = patched.value;
           if (next.expiresAt !== undefined && !resourceSchema.shape.expiresAt.safeParse(next.expiresAt).success) return fail('La fecha de caducidad debe tener la forma AAAA-MM-DD (p. ej. 2026-12-31).');
@@ -611,7 +632,14 @@ export const platformEditor: EditorSpec<PlatformDocument> = {
           if (next.networkId && !network) return fail(`No existe la red «${next.networkId}».`);
           if (network && network.environmentId !== next.environmentId) return fail(`La red «${network.name}» es del entorno «${network.environmentId}», no de «${next.environmentId}».`);
           if (!doc.environments.some((x) => x.id === next.environmentId)) return fail(`No existe el entorno «${next.environmentId}».`);
-          return ok({ ...doc, resources: doc.resources.map((r) => (r.id === e.id ? next : r)) }, id);
+          const updated = { ...doc, resources: doc.resources.map((r) => (r.id === e.id ? next : r)) };
+          // Cambiar el equivalente o el entorno no puede dejar una equivalencia rota o ambigua; solo se avisa de lo que el cambio introduce.
+          if (next.counterpartOf !== current.counterpartOf || next.environmentId !== current.environmentId) {
+            const known = new Set(counterpartErrors(doc).map((x) => x.message));
+            const introduced = counterpartErrors(updated).find((x) => !known.has(x.message));
+            if (introduced) return fail(introduced.message);
+          }
+          return ok(updated, id);
         }
         if (e.kind === 'network') {
           const patchedNetwork = reconcileIcon(doc, patchObject(e.item as Network, patch, ['name', 'description', 'environmentId', 'parentId', 'exposure', 'cidr', 'provider', 'service']), patch, subjectOfNetwork);
@@ -755,7 +783,7 @@ function removeElement(doc: PlatformDocument, id: string): PlatformDocument {
     case 'resource':
       return {
         ...doc,
-        resources: doc.resources.filter((r) => r.id !== id),
+        resources: dropCounterparts(doc.resources, new Set([id])),
         deployments: doc.deployments.filter((d) => d.hostId !== id),
         dependencies: doc.dependencies.filter((d) => d.sourceId !== id && d.targetId !== id),
         pipelines: doc.pipelines.map((p) => (p.provisions ? { ...p, provisions: p.provisions.filter((r) => r !== id) } : p)),
@@ -776,7 +804,7 @@ function removeElement(doc: PlatformDocument, id: string): PlatformDocument {
         ...doc,
         environments: doc.environments.filter((x) => x.id !== id),
         networks: doc.networks.filter((n) => n.environmentId !== id),
-        resources: doc.resources.filter((r) => r.environmentId !== id),
+        resources: dropCounterparts(doc.resources, gone),
         deployments: doc.deployments.filter((d) => d.environmentId !== id),
         dependencies: doc.dependencies.filter((d) => !gone.has(d.sourceId) && !gone.has(d.targetId)),
         pipelines: doc.pipelines.map((p) => ({ ...p, stages: p.stages.filter((s) => s.environmentId !== id), ...(p.provisions ? { provisions: p.provisions.filter((r) => !gone.has(r)) } : {}) })),
