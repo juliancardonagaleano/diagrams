@@ -1,121 +1,25 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import type { Server } from 'node:http';
-import { createServer as createNetServer, type AddressInfo } from 'node:net';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBundle, MemoryProjectStore, bundleToText } from '@iark/kernel';
 import { GithubOAuth } from './accounts/github';
-import { Accounts, type AccountsOptions } from './accounts/service';
+import { Accounts } from './accounts/service';
 import { AccountStore } from './accounts/store';
 import { createDefaultRegistry } from './registry';
-import { createSuiteServer, type ServeOptions } from './serve';
-import { createToken, TokenStore } from './tokens';
-import { FolderProjectStore } from './workspace';
-import { challengeOf, FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, newVerifier, startFakeGithub, type FakeGithub, type FakeProfile } from '../../tests/helpers/fakeGithub';
+import { createSuiteServer } from './serve';
+import { challengeOf, FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, newVerifier, startFakeGithub, type FakeProfile } from '../../tests/helpers/fakeGithub';
 import { loginWithGithub } from '../../tests/helpers/githubLogin';
+import { ANA, BETO, call, CARLA, cleanupCloud, example, JSON_TYPE, signIn, startCloud, tracked, type Cloud } from '../../tests/helpers/cloud';
 
 /**
  * `iark serve --accounts`: el inicio de sesión de GitHub (contra un GitHub de mentira que corre en la propia prueba), las sesiones y el
  * alcance de cada persona sobre los proyectos. El servidor es el de verdad (`createSuiteServer`); lo único falso es GitHub.
  */
 
-const JSON_TYPE = { 'Content-Type': 'application/json' };
-const example = (file: string): string => readFileSync(`examples/${file}`, 'utf8');
-
-const folders: string[] = [];
-const servers: Server[] = [];
-const fakes: FakeGithub[] = [];
-afterEach(async () => {
-  vi.useRealTimers();
-  for (const server of servers.splice(0)) server.close();
-  for (const fake of fakes.splice(0)) await fake.stop();
-  for (const dir of folders.splice(0)) rmSync(dir, { recursive: true, force: true });
-});
-
-const ANA: FakeProfile = { id: 583231, login: 'ana', name: 'Ana Pérez' };
-const BETO: FakeProfile = { id: 202, login: 'beto' };
-const CARLA: FakeProfile = { id: 303, login: 'carla' };
-
-async function freePort(): Promise<number> {
-  return new Promise((resolve) => {
-    const probe = createNetServer();
-    probe.listen(0, '127.0.0.1', () => {
-      const { port } = probe.address() as AddressInfo;
-      probe.close(() => resolve(port));
-    });
-  });
-}
-
-interface Cloud {
-  base: string;
-  root: string;
-  file: string;
-  fake: FakeGithub;
-  accounts: Accounts;
-  tokens?: { admin: string };
-}
-
-interface CloudOptions extends Partial<Omit<AccountsOptions, 'store' | 'github' | 'publicUrl'>> {
-  tokens?: boolean;
-  cors?: string[];
-  serve?: Partial<ServeOptions>;
-}
-
-async function startCloud(options: CloudOptions = {}): Promise<Cloud> {
-  const fake = await startFakeGithub();
-  fakes.push(fake);
-  const dir = mkdtempSync(join(tmpdir(), 'iark-cuentas-api-'));
-  folders.push(dir);
-  const root = join(dir, 'espacio');
-  mkdirSync(root);
-  const file = join(dir, 'cuentas.json');
-  const port = await freePort();
-  const { tokens: withTokens, cors, serve, ...rest } = options;
-  const accounts = new Accounts({
-    store: AccountStore.open(file),
-    github: new GithubOAuth({ clientId: FAKE_CLIENT_ID, clientSecret: FAKE_CLIENT_SECRET, baseUrl: fake.url, apiUrl: fake.url }),
-    publicUrl: `http://127.0.0.1:${port}`,
-    signup: 'invite',
-    admins: [String(ANA.id)],
-    allowedOrigins: cors,
-    ...rest,
-  });
-  let tokenStore: TokenStore | undefined;
-  let adminToken: string | undefined;
-  if (withTokens) {
-    const tokenFile = join(dir, 'tokens.json');
-    adminToken = createToken(tokenFile, { name: 'servicio', role: 'admin' }).token;
-    tokenStore = TokenStore.open(tokenFile);
-  }
-  const server = createSuiteServer({ registry: createDefaultRegistry(), version: '1', projects: new FolderProjectStore(root), accounts, tokens: tokenStore, cors, ...serve });
-  servers.push(server);
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
-  return { base: `http://127.0.0.1:${port}`, root, file, fake, accounts, ...(adminToken ? { tokens: { admin: adminToken } } : {}) };
-}
-
-/** Una persona entra y devuelve su token de sesión. */
-async function signIn(cloud: Cloud, profile: FakeProfile): Promise<string> {
-  const result = await loginWithGithub(cloud.base, cloud.fake, profile);
-  if (!result.token) throw new Error(`no entró (${profile.login}): ${result.fragment}`);
-  return result.token;
-}
-
-function call(base: string, token?: string) {
-  const send = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) =>
-    fetch(`${base}${path}`, {
-      method,
-      headers: { ...(body !== undefined || method !== 'GET' ? JSON_TYPE : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
-      body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
-    });
-  return {
-    get: (path: string, headers?: Record<string, string>) => send('GET', path, undefined, headers),
-    post: (path: string, body?: unknown, headers?: Record<string, string>) => send('POST', path, body ?? {}, headers),
-    put: (path: string, body?: unknown) => send('PUT', path, body ?? {}),
-    patch: (path: string, body?: unknown) => send('PATCH', path, body ?? {}),
-    del: (path: string) => send('DELETE', path),
-  };
-}
+const { folders, servers, fakes } = tracked;
+afterEach(cleanupCloud);
 
 describe('iark serve --accounts: formas de entrar y manifiesto', () => {
   it('providers dice qué ofrece la instancia, sin pedir nada, con y sin cuentas', async () => {

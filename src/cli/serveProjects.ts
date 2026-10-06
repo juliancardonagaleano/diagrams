@@ -1,7 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { bundleFileName, bundleToText, checkProject, createBundle, importBundle, ProjectError, parseBundle, snapshotProject, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
-import { AccountError, projectRoleAllows, type ProjectRole } from './accounts/store';
+import { accountHttpError } from './accounts/errors';
+import { createMembersApi } from './accounts/members';
 import type { Accounts } from './accounts/service';
+import { AccountError, loginKey, projectRoleAllows, type ProjectRole } from './accounts/store';
+import { allow, bodyObject, isJson } from './httpBody';
 import { HttpError } from './httpError';
 import type { Authenticator, Identity } from './serveAuth';
 import { roleAllows, type TokenRole } from './tokens';
@@ -24,6 +27,9 @@ import { isWorkspaceId } from './workspace';
  *   GET    /api/projects/<p>/bundle                   archivo único (iark.project/1), con Content-Disposition
  *   POST   /api/projects/import[?name=]               cuerpo: el archivo único → importa (nunca pisa un proyecto)
  *   GET    /api/projects/<p>/check                    comprobación del proyecto (checkProject)
+ *   GET    /api/projects/<p>/members                  quién pertenece al proyecto (solo con `--accounts`; ver `accounts/members.ts`)
+ *   PUT    /api/projects/<p>/members/<login>          { role } → comparte el proyecto o cambia el rol
+ *   DELETE /api/projects/<p>/members/<login>          quita a alguien (o la persona se va ella misma)
  *
  * Seguridad: `iark serve` escucha en localhost, y una página ajena abierta en el navegador podría intentar leer o escribir
  * en el disco del usuario a través de él. Por eso, en estas rutas (y solo en ellas):
@@ -84,8 +90,6 @@ export function projectOriginAllowed(origin: string, host: string | undefined, c
   }
 }
 
-const isJson = (req: IncomingMessage): boolean => (req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() === 'application/json';
-
 /** Sin autenticación: `Host`, `Origin` y `Content-Type`. Con ella (`authenticated`), solo `Content-Type`: ver el comentario de arriba. */
 function guard(req: IncomingMessage, cors: string[], authenticated: boolean): void {
   if (!authenticated && isLoopbackAddress(req.socket.localAddress) && !LOOPBACK_HOSTS.has(hostName(req.headers.host))) {
@@ -105,7 +109,7 @@ function guard(req: IncomingMessage, cors: string[], authenticated: boolean): vo
  *
  *   viewer  leer: cualquier GET (lista, resumen, diagrama, archivo único, comprobación)
  *   editor  además: crear, guardar, renombrar y borrar diagramas; crear y renombrar proyectos; importar
- *   admin   además: borrar proyectos
+ *   admin   además: borrar proyectos y gestionar quién pertenece a ellos (`PUT` y `DELETE` en `members`)
  *
  * Lo que no es una lectura exige editor, también un método o una ruta que no existen (un viewer no escribe ni «probando»): la
  * respuesta a un rol insuficiente no depende de si la ruta existe. Se decide **antes** de leer el cuerpo y de tocar el disco.
@@ -113,6 +117,7 @@ function guard(req: IncomingMessage, cors: string[], authenticated: boolean): vo
 export function requiredRole(method: string, parts: string[]): TokenRole {
   if (method === 'GET' || method === 'HEAD') return 'viewer';
   if (method === 'DELETE' && parts.length === 1) return 'admin'; // borrar un proyecto (incluso uno que se llame `import`)
+  if (parts[1] === 'members') return 'admin'; // compartir y dejar de compartir (irse uno mismo es la excepción: ver `scopeFor`)
   return 'editor';
 }
 
@@ -120,13 +125,7 @@ const STATUS: Record<ProjectError['code'], number> = { 'not-found': 404, exists:
 
 /** Los errores del almacén se responden con el código HTTP que les corresponde y su `code`; el resto se deja como está. */
 function toHttpError(error: unknown): unknown {
-  if (error instanceof AccountError) {
-    if (error.code === 'invalid') return new HttpError(400, error.message, { code: 'invalid' });
-    if (error.code === 'not-found') return new HttpError(404, error.message, { code: 'not-found' });
-    if (error.code === 'limit') return new HttpError(409, error.message, { code: 'limit' });
-    process.stderr.write(`error de las cuentas: ${error.message}\n`);
-    return new HttpError(500, 'El servicio no puede guardar las cuentas ahora mismo (permisos o disco). Avise a quien lo administra.', { code: 'unavailable' });
-  }
+  if (error instanceof AccountError) return accountHttpError(error);
   if (!(error instanceof ProjectError)) return error;
   if (error.code === 'unavailable') {
     process.stderr.write(`error del espacio de trabajo: ${error.message}\n`); // la ruta del disco no se le cuenta a quien llama
@@ -135,26 +134,9 @@ function toHttpError(error: unknown): unknown {
   return new HttpError(STATUS[error.code], error.message, { code: error.code });
 }
 
-const allow = (methods: string): never => {
-  throw new HttpError(405, `Este endpoint solo admite ${methods}.`, { allow: methods });
-};
-
 function id(value: string, what: string): string {
   if (!isWorkspaceId(value)) throw new HttpError(400, `Identificador de ${what} inválido «${String(value).slice(0, 60)}».`);
   return value;
-}
-
-/** El cuerpo como objeto JSON. */
-async function bodyObject(ctx: ProjectsApiContext, req: IncomingMessage): Promise<Record<string, unknown>> {
-  const raw = await ctx.readBody(req);
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    throw new HttpError(400, 'El cuerpo debe ser JSON.');
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, 'El cuerpo debe ser un objeto JSON.');
-  return value as Record<string, unknown>;
 }
 
 function text(body: Record<string, unknown>, field: string, options: { required?: boolean } = {}): string | undefined {
@@ -172,6 +154,8 @@ function text(body: Record<string, unknown>, field: string, options: { required?
  * token, que vale para toda la carpeta) `route` no filtra nada y las respuestas no cambian.
  */
 interface Scope {
+  /** La cuenta de quien llama. */
+  userId: string;
   /** Ve todos los proyectos (administrador de la instancia); si no, solo aquellos en los que `roleIn` da un rol. */
   all: boolean;
   /** Su rol en ese proyecto (para filtrar y para ponerlo en la respuesta), o `undefined` si no pertenece. */
@@ -193,7 +177,9 @@ function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accou
   const { user, siteRole } = identity;
   const siteAdmin = siteRole === 'admin';
   const roles = siteAdmin ? new Map<string, ProjectRole>() : accounts.store.rolesOf(user.id);
-  const needed = requiredRole(method, parts);
+  // Dejar un proyecto es de quien se va: basta con pertenecer a él (los demás cambios de miembros exigen administrarlo).
+  const leaving = method === 'DELETE' && parts.length === 3 && parts[1] === 'members' && loginKey(parts[2]) === loginKey(user.login);
+  const needed = leaving ? 'viewer' : requiredRole(method, parts);
   const creating = method === 'POST' && (parts.length === 0 || (parts.length === 1 && parts[0] === 'import'));
   if (creating) {
     if (siteRole === 'guest') throw forbidden('Tu cuenta es de invitado: puedes entrar a los proyectos que te compartan, pero no crear proyectos.');
@@ -209,6 +195,7 @@ function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accou
     }
   }
   return {
+    userId: user.id,
     all: siteAdmin,
     roleIn: (projectId) => (siteAdmin ? 'admin' : roles.get(projectId)),
     created: (projectId) => {
@@ -228,6 +215,7 @@ function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accou
  */
 export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessage, res: ServerResponse, url: URL, parts: string[]) => Promise<void> {
   const { store, sendJson } = ctx;
+  const members = createMembersApi({ accounts: ctx.accounts, readBody: ctx.readBody, sendJson });
 
   /** Con sesión de persona, cada proyecto trae el rol de quien llama. Con un token o sin autenticación, la respuesta no cambia. */
   const withRole = <T extends { id: string }>(scope: Scope | undefined, project: T): T | (T & { role: ProjectRole }) => {
@@ -256,7 +244,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
         return sendJson(res, 200, scope && !scope.all ? all.filter((p) => scope.roleIn(p.id)).map((p) => withRole(scope, p)) : scope ? all.map((p) => withRole(scope, p)) : all);
       }
       if (method === 'POST') {
-        const body = await bodyObject(ctx, req);
+        const body = await bodyObject(ctx.readBody, req);
         const created = await projects.createProject({ name: text(body, 'name', { required: true })!, description: text(body, 'description') });
         await register(scope, created.id, projects);
         return sendJson(res, 201, scope ? withRole(scope, created) : created, { Location: `/api/projects/${created.id}` });
@@ -277,7 +265,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
         if (!found) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
         return sendJson(res, 200, withRole(scope, found));
       }
-      if (method === 'PATCH') return sendJson(res, 200, withRole(scope, await projects.renameProject(projectId, text(await bodyObject(ctx, req), 'name', { required: true })!)));
+      if (method === 'PATCH') return sendJson(res, 200, withRole(scope, await projects.renameProject(projectId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!)));
       if (method === 'DELETE') {
         await projects.deleteProject(projectId);
         scope?.deleted(projectId);
@@ -286,6 +274,10 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       return allow('GET, PATCH, DELETE');
     }
 
+    if (second === 'members') {
+      if (!(await projects.getProject(projectId))) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
+      return members(req, res, projectId, parts.slice(2), scope?.userId);
+    }
     if (second === 'bundle' && parts.length === 2) {
       if (method !== 'GET') return allow('GET');
       const snapshot = await snapshotProject(projects, projectId);
@@ -298,7 +290,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     }
     if (second === 'diagrams' && parts.length === 2) {
       if (method !== 'POST') return allow('POST');
-      const body = await bodyObject(ctx, req);
+      const body = await bodyObject(ctx.readBody, req);
       const created = await projects.saveDiagram(projectId, { module: text(body, 'module', { required: true }), name: text(body, 'name'), text: text(body, 'text', { required: true })! });
       return sendJson(res, 201, created, { Location: `/api/projects/${projectId}/diagrams/${created.id}` });
     }
@@ -310,10 +302,10 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
         return sendJson(res, 200, diagram);
       }
       if (method === 'PUT') {
-        const body = await bodyObject(ctx, req);
+        const body = await bodyObject(ctx.readBody, req);
         return sendJson(res, 200, await projects.saveDiagram(projectId, { id: diagramId, text: text(body, 'text', { required: true })!, ifUpdatedAt: text(body, 'ifUpdatedAt') }));
       }
-      if (method === 'PATCH') return sendJson(res, 200, await projects.renameDiagram(projectId, diagramId, text(await bodyObject(ctx, req), 'name', { required: true })!));
+      if (method === 'PATCH') return sendJson(res, 200, await projects.renameDiagram(projectId, diagramId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!));
       if (method === 'DELETE') {
         await projects.deleteDiagram(projectId, diagramId);
         return sendJson(res, 200, { deleted: diagramId });
