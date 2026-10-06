@@ -24,6 +24,8 @@ import {
   type TraceDirection,
   type TraceInput,
 } from '@iark/kernel';
+import { createAuthApi } from './accounts/routes';
+import type { Accounts } from './accounts/service';
 import { HttpError } from './httpError';
 import { createAuthenticator, type FailureLimiterOptions } from './serveAuth';
 import { createProjectsApi } from './serveProjects';
@@ -60,6 +62,13 @@ import type { TokenStore } from './tokens';
  * Con tokens (`--tokens <archivo>`, ver `serveAuth.ts`) esas rutas y `/api/whoami` exigen `Authorization: Bearer <token>` y aplican los
  * roles `viewer`, `editor` y `admin`; el resto de la API sigue siendo pública (no toca el disco):
  *   GET  /api/whoami                                    { auth: true, name, role } con tokens (401 sin uno válido) · { auth: false } sin ellos
+ *
+ * Con cuentas (`--accounts <archivo>` y una OAuth App de GitHub, ver `accounts/`) la sesión de una persona sirve igual que un token, pero su
+ * rol sale de a qué proyectos pertenece, y `/api/auth` ofrece el inicio de sesión (ver `accounts/routes.ts`):
+ *   GET  /api/auth/providers                            público: formas de entrar que ofrece la instancia
+ *   GET  /api/auth/github/login · /callback             el flujo de GitHub (redirecciones)
+ *   POST /api/auth/exchange · /logout                   cambia el código por una sesión · la cierra
+ *   GET  /api/whoami                                    con una sesión: { auth: true, name, role: <rol en la instancia>, user }
  */
 export interface ServeOptions {
   registry: ModuleRegistry;
@@ -74,6 +83,8 @@ export interface ServeOptions {
   projects?: ProjectStore;
   /** Los tokens de acceso (`--tokens`). Con ellos, `/api/projects…` y `/api/whoami` exigen un token y respetan su rol; sin ellos, no hay autenticación. */
   tokens?: TokenStore;
+  /** Las cuentas de GitHub (`--accounts`): con ellas, las sesiones de las personas valen como credencial y `/api/auth` ofrece el inicio de sesión. */
+  accounts?: Accounts;
   /** Hay un proxy de confianza delante (`--trust-proxy`): el freno de intentos fallidos distingue a quien llama por `X-Forwarded-For` y no por la dirección del proxy. */
   trustProxy?: boolean;
   /** Ajustes del freno de intentos fallidos (los de por omisión, salvo en las pruebas). */
@@ -83,7 +94,7 @@ export interface ServeOptions {
 const API = '/api';
 const MANIFEST_PATH = '/.well-known/iark.json';
 
-/** Las rutas que exigen token cuando lo hay: la API de proyectos y `/api/whoami` (se leen los segmentos igual que `api()`, ya decodificados). */
+/** Las rutas que exigen token cuando lo hay: la API de proyectos, `/api/whoami` y `/api/auth` (se leen los segmentos igual que `api()`, ya decodificados). */
 function isAuthRoute(pathname: string): boolean {
   if (pathname !== API && !pathname.startsWith(`${API}/`)) return false;
   const parts = pathname.slice(API.length).split('/').filter(Boolean).map((segment) => {
@@ -93,7 +104,7 @@ function isAuthRoute(pathname: string): boolean {
       return segment; // la petición se rechazará con 400 más adelante
     }
   });
-  return parts[0] === 'projects' || (parts[0] === 'whoami' && parts.length === 1);
+  return parts[0] === 'projects' || parts[0] === 'auth' || (parts[0] === 'whoami' && parts.length === 1);
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -126,7 +137,7 @@ export function createSuiteServer(options: ServeOptions): Server {
   const maxBody = options.maxBodyBytes ?? 5 * 1024 * 1024;
   const staticRoot = options.staticDir ? resolve(options.staticDir) : undefined;
   const cors = options.cors ?? [];
-  const auth = options.tokens ? createAuthenticator({ tokens: options.tokens, trustProxy: options.trustProxy, limits: options.authLimits }) : undefined;
+  const auth = options.tokens || options.accounts ? createAuthenticator({ tokens: options.tokens, accounts: options.accounts, trustProxy: options.trustProxy, limits: options.authLimits }) : undefined;
 
   const send = (res: ServerResponse, status: number, body: string | Buffer, headers: Record<string, string> = {}): void => {
     res.writeHead(status, { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', ...headers });
@@ -177,7 +188,8 @@ export function createSuiteServer(options: ServeOptions): Server {
     });
   }
 
-  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, readBody, send, sendJson });
+  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, readBody, send, sendJson });
+  const authApi = createAuthApi({ accounts: options.accounts, auth, tokens: !!options.tokens, trustProxy: options.trustProxy ?? false, readBody, send, sendJson });
 
   const requireMethod = (req: IncomingMessage, allowed: 'GET' | 'POST'): void => {
     if (req.method !== allowed) throw new HttpError(405, `Este endpoint solo admite ${allowed}.`, { allow: allowed });
@@ -254,11 +266,13 @@ export function createSuiteServer(options: ServeOptions): Server {
   async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const parts = url.pathname.slice(API.length).split('/').filter(Boolean).map(decodeSegment);
     if (parts[0] === 'projects') return projectsApi(req, res, url, parts.slice(1));
+    if (parts[0] === 'auth') return authApi(req, res, url, parts.slice(1));
     if (parts.length === 1 && parts[0] === 'whoami') {
       requireMethod(req, 'GET');
       if (!auth) return sendJson(res, 200, { auth: false });
-      const { name, role } = auth.identify(req);
-      return sendJson(res, 200, { auth: true, name, role });
+      const who = auth.identify(req);
+      if (who.kind === 'token') return sendJson(res, 200, { auth: true, name: who.name, role: who.role });
+      return sendJson(res, 200, { auth: true, name: who.user.name ?? who.user.login, role: who.siteRole, user: who.user });
     }
     if (parts.length === 1 && parts[0] === 'modules') {
       requireMethod(req, 'GET');

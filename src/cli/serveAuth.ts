@@ -1,5 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 import { performance } from 'node:perf_hooks';
+import type { Accounts, PublicUser } from './accounts/service';
+import { SESSION_PREFIX, type SiteRole } from './accounts/store';
 import { HttpError } from './httpError';
 import type { TokenIdentity, TokenStore } from './tokens';
 
@@ -13,7 +15,9 @@ import type { TokenIdentity, TokenStore } from './tokens';
  *  - 503 `{ error, code: 'unavailable' }`: el archivo de tokens no se puede leer o está dañado. Se deniega todo, pero con otro
  *    código que el 401: así un cliente no confunde un servidor mal configurado con un token revocado (y no se lo olvida).
  *
- * Un token nunca se anota en ningún registro ni se devuelve en ninguna respuesta.
+ * Con cuentas (`--accounts`, ver `accounts/`) la cabecera puede traer también una sesión de GitHub (`iark_s_…`): se busca en el almacén
+ * de cuentas y quien llama es una persona, con su rol en la instancia, no un token con un rol para toda la carpeta. Lo demás (401, 429, 503)
+ * es igual. Un token o una sesión nunca se anota en ningún registro ni se devuelve en ninguna respuesta.
  */
 
 export interface FailureLimiterOptions {
@@ -127,13 +131,19 @@ const rateLimited = (seconds: number): HttpError =>
 const unavailable = (): HttpError =>
   new HttpError(503, 'El servicio no puede comprobar los tokens ahora mismo (el archivo de tokens no está disponible). Avise a quien lo administra.', { code: 'unavailable' });
 
+/** Quién llama: un token de `iark auth` (un rol para toda la carpeta de trabajo) o una persona con sesión de GitHub (su rol en cada proyecto lo da su pertenencia). */
+export type Identity =
+  | ({ kind: 'token' } & TokenIdentity)
+  | { kind: 'user'; user: PublicUser; siteRole: SiteRole; /** El token de la sesión, para cerrarla. */ session: string };
+
 export interface Authenticator {
-  /** Quién llama: el dueño del token de la petición, o lanza el `HttpError` 401, 429 o 503. */
-  identify(req: IncomingMessage): TokenIdentity;
+  /** Quién llama: el dueño del token o de la sesión de la petición, o lanza el `HttpError` 401, 429 o 503. */
+  identify(req: IncomingMessage): Identity;
 }
 
 export interface AuthenticatorOptions {
-  tokens: TokenStore;
+  tokens?: TokenStore;
+  accounts?: Accounts;
   /** Identifica a quien llama por `X-Forwarded-For` (ver `clientAddress`). */
   trustProxy?: boolean;
   limits?: Partial<FailureLimiterOptions>;
@@ -147,9 +157,15 @@ export function createAuthenticator(options: AuthenticatorOptions): Authenticato
       const wait = limiter.retryAfter(address);
       if (wait > 0) throw rateLimited(wait);
       const header = req.headers.authorization;
-      const found = options.tokens.lookup(bearerToken(header));
-      if (found.status === 'unavailable') throw unavailable();
-      if (found.status === 'ok') return { name: found.name, role: found.role };
+      const token = bearerToken(header);
+      if (options.accounts && token?.startsWith(SESSION_PREFIX)) {
+        const user = options.accounts.store.lookupSession(token);
+        if (user) return { kind: 'user', user: options.accounts.publicUser(user), siteRole: options.accounts.siteRoleOf(user), session: token };
+      } else if (options.tokens) {
+        const found = options.tokens.lookup(token);
+        if (found.status === 'unavailable') throw unavailable();
+        if (found.status === 'ok') return { kind: 'token', name: found.name, role: found.role };
+      }
       // Solo cuenta como intento fallido el que presentó credenciales: una petición sin cabecera no adivina nada.
       if (header !== undefined) limiter.fail(address);
       throw unauthorized();
