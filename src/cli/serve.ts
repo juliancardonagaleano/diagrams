@@ -24,6 +24,7 @@ import {
   type TraceDirection,
   type TraceInput,
 } from '@iark/kernel';
+import { createAdminApi } from './accounts/admin';
 import { createAuthApi } from './accounts/routes';
 import type { Accounts } from './accounts/service';
 import { HttpError } from './httpError';
@@ -69,6 +70,8 @@ import type { TokenStore } from './tokens';
  *   GET  /api/auth/github/login · /callback             el flujo de GitHub (redirecciones)
  *   POST /api/auth/exchange · /logout                   cambia el código por una sesión · la cierra
  *   GET  /api/whoami                                    con una sesión: { auth: true, name, role: <rol en la instancia>, user }
+ *   GET|PUT|DELETE /api/projects/<p>/members[/<login>]  quién pertenece a un proyecto y con qué rol (ver `accounts/members.ts`)
+ *   GET|PUT|DELETE /api/admin/users[/<login>]           las cuentas de la instancia, solo para quien la administra (ver `accounts/admin.ts`)
  */
 export interface ServeOptions {
   registry: ModuleRegistry;
@@ -94,7 +97,7 @@ export interface ServeOptions {
 const API = '/api';
 const MANIFEST_PATH = '/.well-known/iark.json';
 
-/** Las rutas que exigen token cuando lo hay: la API de proyectos, `/api/whoami` y `/api/auth` (se leen los segmentos igual que `api()`, ya decodificados). */
+/** Las rutas que exigen token cuando lo hay: la API de proyectos, `/api/whoami`, `/api/auth` y `/api/admin` (se leen los segmentos igual que `api()`, ya decodificados). */
 function isAuthRoute(pathname: string): boolean {
   if (pathname !== API && !pathname.startsWith(`${API}/`)) return false;
   const parts = pathname.slice(API.length).split('/').filter(Boolean).map((segment) => {
@@ -104,7 +107,7 @@ function isAuthRoute(pathname: string): boolean {
       return segment; // la petición se rechazará con 400 más adelante
     }
   });
-  return parts[0] === 'projects' || parts[0] === 'auth' || (parts[0] === 'whoami' && parts.length === 1);
+  return parts[0] === 'projects' || parts[0] === 'auth' || parts[0] === 'admin' || (parts[0] === 'whoami' && parts.length === 1);
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -189,6 +192,7 @@ export function createSuiteServer(options: ServeOptions): Server {
   }
 
   const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, readBody, send, sendJson });
+  const adminApi = createAdminApi({ accounts: options.accounts, auth, readBody, sendJson });
   const authApi = createAuthApi({ accounts: options.accounts, auth, tokens: !!options.tokens, trustProxy: options.trustProxy ?? false, readBody, send, sendJson });
 
   const requireMethod = (req: IncomingMessage, allowed: 'GET' | 'POST'): void => {
@@ -267,6 +271,7 @@ export function createSuiteServer(options: ServeOptions): Server {
     const parts = url.pathname.slice(API.length).split('/').filter(Boolean).map(decodeSegment);
     if (parts[0] === 'projects') return projectsApi(req, res, url, parts.slice(1));
     if (parts[0] === 'auth') return authApi(req, res, url, parts.slice(1));
+    if (parts[0] === 'admin') return adminApi(req, res, url, parts.slice(1));
     if (parts.length === 1 && parts[0] === 'whoami') {
       requireMethod(req, 'GET');
       if (!auth) return sendJson(res, 200, { auth: false });

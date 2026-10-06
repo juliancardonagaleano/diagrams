@@ -96,6 +96,10 @@ export type AccountErrorCode =
   | 'disabled'
   /** Se llegó a un tope (miembros de un proyecto, invitaciones pendientes). */
   | 'limit'
+  /** El cambio dejaría un proyecto sin ninguna persona administradora. */
+  | 'last-admin'
+  /** La operación no vale para el estado actual de la cuenta (por ejemplo, cancelar la invitación de quien ya entró). */
+  | 'conflict'
   /** El archivo existe pero no es un archivo de cuentas válido. */
   | 'corrupt'
   /** No se puede leer o escribir (permisos, disco, no es un archivo). */
@@ -285,6 +289,12 @@ export interface AccountStoreOptions {
   now?: () => Date;
 }
 
+/** Un cambio sobre una cuenta (ver `AccountStore.updateUser`). */
+export interface UserChange {
+  siteRole?: SiteRole;
+  disabled?: boolean;
+}
+
 export interface SignInPolicy {
   /** `open`: cualquiera con cuenta de GitHub entra como `member`. `invite`: solo quien ya tiene cuenta (invitada) o es administrador. */
   signup: 'open' | 'invite';
@@ -422,32 +432,73 @@ export class AccountStore {
     return this.commit(() => {
       const existing = this.state.users.find((u) => loginKey(u.login) === loginKey(login));
       if (existing) return { ...existing };
-      if (this.state.users.filter((u) => u.githubId === undefined).length >= MAX_PENDING_USERS) {
-        throw new AccountError('limit', `Hay ${MAX_PENDING_USERS} invitaciones sin aceptar: hace falta que alguien entre o que un administrador las limpie.`);
-      }
+      this.assertRoomForInvitation();
       const user: AccountUser = { id: newUserId(), login, siteRole, createdAt: this.now().toISOString() };
       this.state.users.push(user);
       return { ...user };
     });
   }
 
+  /** Aplica a una cuenta un cambio de rol de la instancia o de activación (desactivarla cierra todas sus sesiones). Solo dentro de `commit`. */
+  private applyUserChange(user: AccountUser, change: UserChange): void {
+    if (change.siteRole !== undefined) {
+      if (!isSiteRole(change.siteRole)) throw new AccountError('invalid', `Rol inválido: use ${SITE_ROLES.join(', ')}.`);
+      user.siteRole = change.siteRole;
+    }
+    if (change.disabled !== undefined) {
+      if (change.disabled) {
+        user.disabled = true;
+        this.state.sessions = this.state.sessions.filter((s) => s.userId !== user.id);
+      } else delete user.disabled;
+    }
+  }
+
   /** Cambia el rol de la instancia o activa o desactiva una cuenta (desactivarla cierra todas sus sesiones). */
-  updateUser(id: string, change: { siteRole?: SiteRole; disabled?: boolean }): AccountUser {
+  updateUser(id: string, change: UserChange): AccountUser {
     return this.commit(() => {
       const user = this.usersById.get(id);
       if (!user) throw new AccountError('not-found', 'No existe esa cuenta.');
-      if (change.siteRole !== undefined) {
-        if (!isSiteRole(change.siteRole)) throw new AccountError('invalid', `Rol inválido: use ${SITE_ROLES.join(', ')}.`);
-        user.siteRole = change.siteRole;
-      }
-      if (change.disabled !== undefined) {
-        if (change.disabled) {
-          user.disabled = true;
-          this.state.sessions = this.state.sessions.filter((s) => s.userId !== id);
-        } else delete user.disabled;
-      }
+      this.applyUserChange(user, change);
       return { ...user };
     });
+  }
+
+  /**
+   * Lo que hace un administrador sobre un nombre de usuario: si la cuenta existe, le aplica el cambio; si no, crea una invitación
+   * (cuenta pendiente) con ese rol —`member` por omisión— que reclamará quien entre con ese nombre. Todo en un solo guardado.
+   */
+  upsertUser(loginInput: string, change: UserChange): { user: AccountUser; created: boolean } {
+    const login = parseLogin(loginInput);
+    return this.commit(() => {
+      let user = this.state.users.find((u) => loginKey(u.login) === loginKey(login));
+      const created = !user;
+      if (!user) {
+        this.assertRoomForInvitation();
+        user = { id: newUserId(), login, siteRole: 'member', createdAt: this.now().toISOString() };
+        this.state.users.push(user);
+      }
+      this.applyUserChange(user, change);
+      return { user: { ...user }, created };
+    });
+  }
+
+  /** Cancela la invitación de alguien que todavía no ha entrado (con sus pertenencias a proyectos). Quien ya entró no se borra: se desactiva. */
+  removePending(userId: string): void {
+    this.commit(() => {
+      const user = this.state.users.find((u) => u.id === userId);
+      if (!user) throw new AccountError('not-found', 'No existe esa cuenta.');
+      if (user.githubId !== undefined) throw new AccountError('conflict', 'Esa persona ya entró: para quitarle el acceso, desactiva su cuenta.');
+      this.state.users = this.state.users.filter((u) => u !== user);
+      for (const [projectId, members] of Object.entries(this.state.projects)) {
+        if (members.some((m) => m.userId === userId)) this.state.projects[projectId] = members.filter((m) => m.userId !== userId);
+      }
+    });
+  }
+
+  private assertRoomForInvitation(): void {
+    if (this.state.users.filter((u) => u.githubId === undefined).length >= MAX_PENDING_USERS) {
+      throw new AccountError('limit', `Hay ${MAX_PENDING_USERS} invitaciones sin aceptar: hace falta que alguien entre o que un administrador las cancele.`);
+    }
   }
 
   // ───── sesiones ─────
@@ -538,36 +589,101 @@ export class AccountStore {
     });
   }
 
-  /** Añade a alguien al proyecto o cambia su rol. */
+  /** Un proyecto no se queda sin quien lo administre: quitar o bajar de rol a su única persona administradora falla con `last-admin`. */
+  private assertKeepsAdmin(members: MemberRecord[], member: MemberRecord, nextRole: ProjectRole | undefined): void {
+    if (member.role === 'admin' && nextRole !== 'admin' && members.filter((m) => m.role === 'admin').length === 1) {
+      throw new AccountError('last-admin', 'El proyecto se quedaría sin administrador: nombra antes a otra persona administradora.');
+    }
+  }
+
+  /** Añade a alguien al proyecto o cambia su rol. Falla con `last-admin` si bajara de rol a la única persona administradora. */
   setMember(projectId: string, userId: string, role: ProjectRole): void {
     this.commit(() => {
       if (!this.usersById.has(userId)) throw new AccountError('not-found', 'No existe esa cuenta.');
       if (!isProjectRole(role)) throw new AccountError('invalid', `Rol inválido: use ${PROJECT_ROLES.join(', ')}.`);
       const members = (this.state.projects[projectId] ??= []);
       const found = members.find((m) => m.userId === userId);
-      if (found) found.role = role;
-      else {
+      if (found) {
+        this.assertKeepsAdmin(members, found, role);
+        found.role = role;
+      } else {
         if (members.length >= MAX_MEMBERS_PER_PROJECT) throw new AccountError('limit', `Un proyecto admite hasta ${MAX_MEMBERS_PER_PROJECT} personas.`);
         members.push({ userId, role, addedAt: this.now().toISOString() });
       }
     });
   }
 
-  /** Quita a alguien del proyecto. Devuelve si pertenecía. */
+  /**
+   * Comparte un proyecto con un nombre de usuario de GitHub: si esa persona no tiene cuenta, se crea una invitación (cuenta pendiente
+   * con `newUserSiteRole`) que reclamará al entrar; luego se la añade con el rol o se le cambia. Un solo guardado: si el proyecto está
+   * lleno o el cambio dejaría al proyecto sin administrador, tampoco queda la invitación.
+   */
+  shareProject(projectId: string, loginInput: string, role: ProjectRole, newUserSiteRole: SiteRole): { user: AccountUser; added: boolean; invited: boolean } {
+    const login = parseLogin(loginInput);
+    if (!isProjectRole(role)) throw new AccountError('invalid', `Rol inválido: use ${PROJECT_ROLES.join(', ')}.`);
+    if (!isSiteRole(newUserSiteRole)) throw new AccountError('invalid', `Rol inválido: use ${SITE_ROLES.join(', ')}.`);
+    return this.commit(() => {
+      let user = this.state.users.find((u) => loginKey(u.login) === loginKey(login));
+      const invited = !user;
+      if (!user) {
+        this.assertRoomForInvitation();
+        user = { id: newUserId(), login, siteRole: newUserSiteRole, createdAt: this.now().toISOString() };
+        this.state.users.push(user);
+      }
+      const members = (this.state.projects[projectId] ??= []);
+      const found = members.find((m) => m.userId === user.id);
+      if (found) {
+        this.assertKeepsAdmin(members, found, role);
+        found.role = role;
+        return { user: { ...user }, added: false, invited };
+      }
+      if (members.length >= MAX_MEMBERS_PER_PROJECT) throw new AccountError('limit', `Un proyecto admite hasta ${MAX_MEMBERS_PER_PROJECT} personas.`);
+      members.push({ userId: user.id, role, addedAt: this.now().toISOString() });
+      return { user: { ...user }, added: true, invited };
+    });
+  }
+
+  /**
+   * Quita a alguien del proyecto. Devuelve si pertenecía. Falla con `last-admin` si era la única persona administradora. Si era una
+   * invitación de invitado que no ha entrado y ya no le queda ningún proyecto, la invitación se cancela: quitarla del proyecto
+   * también le quita la entrada a la instancia.
+   */
   removeMember(projectId: string, userId: string): boolean {
     const members = this.state.projects[projectId];
-    if (!members?.some((m) => m.userId === userId)) return false;
+    const found = members?.find((m) => m.userId === userId);
+    if (!members || !found) return false;
+    this.assertKeepsAdmin(members, found, undefined);
     this.commit(() => {
       this.state.projects[projectId] = members.filter((m) => m.userId !== userId);
+      this.pruneInvitations([userId]);
     });
     return true;
   }
 
-  /** El proyecto ya no existe: se olvidan sus miembros. */
+  /** El proyecto ya no existe: se olvidan sus miembros (y las invitaciones de invitado que solo estaban en él). */
   dropProject(projectId: string): void {
-    if (!this.state.projects[projectId]) return;
+    const members = this.state.projects[projectId];
+    if (!members) return;
     this.commit(() => {
       delete this.state.projects[projectId];
+      this.pruneInvitations(members.map((m) => m.userId));
     });
+  }
+
+  /** Cancela las invitaciones de invitado (cuenta pendiente con rol `guest`) que se quedaron sin ningún proyecto. Solo dentro de `commit`. */
+  private pruneInvitations(userIds: string[]): void {
+    for (const id of userIds) {
+      const user = this.state.users.find((u) => u.id === id);
+      if (!user || user.githubId !== undefined || user.siteRole !== 'guest') continue;
+      if (Object.values(this.state.projects).some((members) => members.some((m) => m.userId === id))) continue;
+      this.state.users = this.state.users.filter((u) => u !== user);
+    }
+  }
+
+  /** A cuántos proyectos pertenece cada cuenta (por id de cuenta). */
+  membershipCounts(): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const members of Object.values(this.state.projects)) for (const m of members) counts.set(m.userId, (counts.get(m.userId) ?? 0) + 1);
+    return counts;
   }
 }
