@@ -29,9 +29,17 @@ export interface ProjectMeta {
   updatedAt: string;
 }
 
+/** Rol de una persona en un proyecto de un servidor con cuentas: los mismos tres de los tokens (`viewer` lee, `editor` escribe, `admin` además borra y comparte). */
+export type ProjectRole = 'viewer' | 'editor' | 'admin';
+
 /** Un proyecto con la lista de sus diagramas (sin documentos), ordenados por nombre. */
 export interface ProjectSummary extends ProjectMeta {
   diagrams: DiagramMeta[];
+  /**
+   * Solo con un servidor con cuentas (`iark serve --accounts`) y una persona con sesión: el rol de quien pregunta en este proyecto.
+   * Con un token de `iark auth` o en un almacén local no viene (el rol del token vale para todo el espacio de trabajo).
+   */
+  role?: ProjectRole;
 }
 
 /** Un proyecto completo: todos sus diagramas con su documento. Es lo que se exporta a un solo archivo. */

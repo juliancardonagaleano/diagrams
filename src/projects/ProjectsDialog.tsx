@@ -3,7 +3,9 @@ import { ProjectError, type DiagramMeta, type ProjectSummary } from '@iark/kerne
 import { downloadText } from '../modules-app/files';
 import { loadBackend } from './backend';
 import { copyProject, copyTargetFor, type CopyTarget } from './copy';
+import { PROJECT_ROLE_HELP, PROJECT_ROLE_LABEL } from './people';
 import type { ProjectSession } from './session';
+import { ShareDialog } from './ShareDialog';
 import { StoragePanel, type StoragePanelProps } from './StoragePanel';
 import './projects.css';
 
@@ -26,7 +28,7 @@ export interface ProjectsDialogProps {
   /** A dónde ofrece copiar el proyecto. Por defecto, el otro almacén (este navegador si hay servidor; el servidor conocido si no). */
   copyTarget?: CopyTarget;
   /** Ajustes de «Dónde se guardan» (las pruebas ponen un `fetch` simulado, otros almacenes del navegador o una recarga falsa). */
-  storage?: Pick<StoragePanelProps, 'fetch' | 'areas' | 'page' | 'reload'>;
+  storage?: Pick<StoragePanelProps, 'fetch' | 'areas' | 'page' | 'reload' | 'startLogin' | 'detect'>;
 }
 
 const agoFormat = (iso: string): string => {
@@ -67,6 +69,12 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
   /** El proyecto que se quería copiar a un servidor aún no conectado (o que lo rechazó): el panel ofrece copiarlo al conectar. */
   const [copyIntent, setCopyIntent] = useState<{ id: string; name: string } | undefined>();
   const [serverVersion, setServerVersion] = useState(0);
+  /** El proyecto que se está compartiendo (el cuadro «Compartir…» abierto) y el de «¿Salir del proyecto?» pendiente de confirmar. */
+  const [sharing, setSharing] = useState<string | undefined>();
+  const [leaving, setLeaving] = useState<string | undefined>();
+  const shareButton = useRef<HTMLButtonElement>(null);
+  /** Hay una copia a otro almacén en curso: sus errores son del otro servidor, no de este. */
+  const copying = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const moduleLabel = useMemo(() => new Map(modules.map((m) => [m.id, m.label])), [modules]);
   const live = current?.();
@@ -85,7 +93,25 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     setEditing(undefined);
     setConfirming(undefined);
     setCopyIntent(undefined);
+    setLeaving(undefined);
+    setSharing(undefined);
   }, [selected?.id]);
+  // Si dejó de ser administrador (otra persona le cambió el rol) o el proyecto ya no está en su lista, el cuadro de compartir no tiene sentido.
+  useEffect(() => {
+    if (sharing && projects.find((p) => p.id === sharing)?.role !== 'admin') setSharing(undefined);
+  }, [sharing, projects]);
+  // Al cerrar «Compartir…» el foco vuelve al botón que lo abrió.
+  const wasSharing = useRef(false);
+  useEffect(() => {
+    if (wasSharing.current && !sharing) shareButton.current?.focus();
+    wasSharing.current = sharing !== undefined;
+  }, [sharing]);
+
+  /**
+   * ¿Este error se arregla con otro token o volviendo a entrar, en «Dónde se guardan»? Con una sesión de persona un 403 no es eso: es el rol que
+   * tiene en ese proyecto (se arregla pidiendo que se lo cambien), y mandarla a cambiar de token no la ayuda.
+   */
+  const needsCredential = (error: ProjectError): boolean => error.code === 'unauthorized' || (error.code === 'forbidden' && session.credential !== 'session');
 
   const act = async (work: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -96,8 +122,11 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     } catch (e) {
       setError((e as Error).message);
       // El servidor no aceptó el token (o su rol no alcanza): el formulario para escribir otro está en «Dónde se guardan».
-      if (e instanceof ProjectError && (e.code === 'unauthorized' || e.code === 'forbidden')) setStorageOpen(true);
+      if (e instanceof ProjectError && needsCredential(e)) setStorageOpen(true);
+      // Una sesión que dejó de valer se nota al escribir: se relee la lista para que el estado (y «Dónde se guardan») lo diga como es.
+      if (e instanceof ProjectError && e.code === 'unauthorized' && !copying.current && session.remote) void session.refresh({ background: true });
     } finally {
+      copying.current = false;
       setBusy(false);
     }
   };
@@ -112,6 +141,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     void act(async () => {
       await session.flush();
       const { store, close } = to.open();
+      copying.current = true;
       try {
         const imported = await copyProject(session.store, project.id, store);
         const text = `Copiado como «${imported.project.name}» ${to.where}${imported.renamedFrom ? `: ya había uno llamado «${imported.renamedFrom}»` : ''}.`;
@@ -120,7 +150,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         notify?.(text);
       } catch (error) {
         if (error instanceof ProjectError) {
-          if (error.code === 'unauthorized' || error.code === 'forbidden') {
+          if (needsCredential(error)) {
             setCopyIntent({ id: project.id, name: project.name });
             setStorageOpen(true);
           }
@@ -202,6 +232,15 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     });
   };
 
+  const leaveProject = (project: ProjectSummary): void =>
+    void act(async () => {
+      await session.leaveProject(project.id);
+      setLeaving(undefined);
+      const text = `Saliste de «${project.name}»: ya no aparece en tu lista.`;
+      setNote(text);
+      notify?.(text);
+    });
+
   const exportProject = (project: ProjectSummary): void =>
     void act(async () => {
       const { fileName, text } = await session.exportProject(project.id);
@@ -221,7 +260,8 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
   // Escape se escucha en el documento: al borrar algo el botón que tenía el foco desaparece y el foco cae en el `body`.
   const escape = useRef<() => void>(() => undefined);
   escape.current = () => {
-    if (editing) setEditing(undefined);
+    if (sharing) setSharing(undefined);
+    else if (editing) setEditing(undefined);
     else if (confirming) setConfirming(undefined);
     else if (storageOpen) setStorageOpen(false);
     else onClose();
@@ -294,7 +334,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
   };
 
   const isConfirming = (kind: Target['kind'], id: string): boolean => confirming?.kind === kind && confirming.id === id;
-  const deleteControls = (kind: Target['kind'], id: string, name: string, warning: string): ReactElement =>
+  const deleteControls = (kind: Target['kind'], id: string, name: string, warning: string, denied?: string): ReactElement =>
     isConfirming(kind, id) ? (
       <span className="pj-confirm" role="alert">
         {warning}{' '}
@@ -306,12 +346,21 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         </button>
       </span>
     ) : (
-      <button type="button" onClick={() => setConfirming({ kind, id })} disabled={busy} aria-label={`Borrar ${name}`}>
+      <button type="button" onClick={() => setConfirming({ kind, id })} disabled={busy || denied !== undefined} title={denied} aria-label={`Borrar ${name}`}>
         Borrar
       </button>
     );
 
+  // Lo que la persona puede hacer en el proyecto elegido. Sin `role` (este navegador, o un servidor con tokens: el rol del token vale para todo el
+  // espacio de trabajo) no se limita nada aquí y decide el servidor; con él se deshace lo que el servidor rechazaría de todos modos.
+  const role = selected?.role;
+  const canWrite = role !== 'viewer';
+  const readOnly = 'Tienes el rol de lector en este proyecto: puedes abrirlo, pero no cambiarlo.';
+  const sharable = session.canShare && role === 'admin';
+  const leavable = session.canShare && role !== undefined && role !== 'admin';
+
   return (
+    <>
     <div className="pj-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="pj-dialog" role="dialog" aria-modal="true" aria-labelledby="pj-title" ref={dialogRef} tabIndex={-1} onKeyDown={onKeyDown} data-testid="projects-dialog">
         <header className="pj-head">
@@ -324,7 +373,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         {!state.available && (
           <p className="pj-warn" role="alert">
             {remote
-              ? `No se pudo usar el servidor${host ? ` ${host}` : ''}${state.error ? `: ${state.error}` : ''}. Revisa «Dónde se guardan» aquí abajo.`
+              ? `No se pudo usar el servidor${host ? ` ${host}` : ''}${state.error ? `: ${state.error.replace(/\.+$/, '')}` : ''}. Revisa «Dónde se guardan» aquí abajo.`
               : `El almacenamiento del navegador no está disponible${state.error ? `: ${state.error}` : ''}. Los proyectos no se pueden guardar aquí; sí puedes exportar e importar archivos.`}
           </p>
         )}
@@ -373,6 +422,14 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                     <strong>{p.name}</strong>
                     <small>
                       {plural(p.diagrams.length, 'diagrama', 'diagramas')}
+                      {p.role && (
+                        <>
+                          {' · '}
+                          <span data-testid="project-role" data-role={p.role} title={`${PROJECT_ROLE_LABEL[p.role]}: ${PROJECT_ROLE_HELP[p.role]}`}>
+                            {PROJECT_ROLE_LABEL[p.role].toLowerCase()}
+                          </span>
+                        </>
+                      )}
                       {p.id === state.projectId ? ' · abierto' : ''}
                     </small>
                   </button>
@@ -412,8 +469,13 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                 <div className="pj-title-row">
                   <h3>{nameCell('project', selected.id, selected.name)}</h3>
                   <span className="pj-actions">
+                    {role && (
+                      <span className="pj-chip" data-testid="project-role-detail" data-role={role} title={`${PROJECT_ROLE_LABEL[role]}: ${PROJECT_ROLE_HELP[role]}`}>
+                        Tu rol: {PROJECT_ROLE_LABEL[role].toLowerCase()}
+                      </span>
+                    )}
                     {!(editing?.kind === 'project' && editing.id === selected.id) && (
-                      <button type="button" onClick={() => setEditing({ kind: 'project', id: selected.id, value: selected.name })} disabled={busy}>
+                      <button type="button" onClick={() => setEditing({ kind: 'project', id: selected.id, value: selected.name })} disabled={busy || !canWrite} title={canWrite ? undefined : readOnly}>
                         Renombrar
                       </button>
                     )}
@@ -423,10 +485,42 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                     <button type="button" onClick={() => copySelected(selected)} disabled={busy} data-testid="copy-project">
                       {target.label}
                     </button>
-                    {deleteControls('project', selected.id, selected.name, `¿Borrar «${selected.name}» y sus ${plural(selected.diagrams.length, 'diagrama', 'diagramas')}? No se puede deshacer.`)}
+                    {sharable && (
+                      <button type="button" ref={shareButton} onClick={() => setSharing(selected.id)} disabled={busy} data-testid="share-project">
+                        Compartir…
+                      </button>
+                    )}
+                    {leavable &&
+                      (leaving === selected.id ? (
+                        <span className="pj-confirm" role="alert">
+                          ¿Salir de «{selected.name}»? Dejará de aparecer en tu lista y alguien tendrá que volver a compartírtelo.{' '}
+                          <button type="button" className="pj-danger" onClick={() => leaveProject(selected)} disabled={busy}>
+                            Sí, salir
+                          </button>
+                          <button type="button" onClick={() => setLeaving(undefined)}>
+                            No
+                          </button>
+                        </span>
+                      ) : (
+                        <button type="button" onClick={() => setLeaving(selected.id)} disabled={busy} data-testid="leave-project">
+                          Salir del proyecto
+                        </button>
+                      ))}
+                    {deleteControls(
+                      'project',
+                      selected.id,
+                      selected.name,
+                      `¿Borrar «${selected.name}» y sus ${plural(selected.diagrams.length, 'diagrama', 'diagramas')}? No se puede deshacer.`,
+                      role !== undefined && role !== 'admin' ? 'Solo quien administra el proyecto puede borrarlo.' : undefined,
+                    )}
                   </span>
                 </div>
                 {selected.description && <p className="pj-desc">{selected.description}</p>}
+                {!canWrite && (
+                  <p className="pj-hint" data-testid="project-readonly">
+                    {readOnly}
+                  </p>
+                )}
 
                 {selected.diagrams.length === 0 ? (
                   <p className="pj-empty">Este proyecto no tiene diagramas todavía.</p>
@@ -456,7 +550,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                                 <button type="button" onClick={() => void open(selected.id, d)} disabled={busy} aria-label={`Abrir ${d.name}`}>
                                   Abrir
                                 </button>
-                                <button type="button" onClick={() => setEditing({ kind: 'diagram', id: d.id, value: d.name })} disabled={busy} aria-label={`Renombrar ${d.name}`}>
+                                <button type="button" onClick={() => setEditing({ kind: 'diagram', id: d.id, value: d.name })} disabled={busy || !canWrite} title={canWrite ? undefined : readOnly} aria-label={`Renombrar ${d.name}`}>
                                   Renombrar
                                 </button>
                                 <button
@@ -467,14 +561,15 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                                       notify?.(`Duplicado como «${copy.name}».`);
                                     })
                                   }
-                                  disabled={busy}
+                                  disabled={busy || !canWrite}
+                                  title={canWrite ? undefined : readOnly}
                                   aria-label={`Duplicar ${d.name}`}
                                 >
                                   Duplicar
                                 </button>
                               </>
                             )}
-                            {deleteControls('diagram', d.id, d.name, `¿Borrar «${d.name}»?`)}
+                            {deleteControls('diagram', d.id, d.name, `¿Borrar «${d.name}»?`, canWrite ? undefined : readOnly)}
                           </td>
                         </tr>
                       ))}
@@ -506,7 +601,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                         <option value="blank">Un documento vacío</option>
                       </select>
                     </label>
-                    <button type="submit" className="pj-primary" disabled={busy || !newDiagram.module}>
+                    <button type="submit" className="pj-primary" disabled={busy || !newDiagram.module || !canWrite} title={canWrite ? undefined : readOnly}>
                       Crear y abrir
                     </button>
                   </div>
@@ -520,7 +615,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                         Nombre
                         <input type="text" aria-label="Nombre del documento actual" value={saveName} placeholder={live.name || 'Sin título'} maxLength={120} onChange={(e) => setSaveName(e.target.value)} />
                       </label>
-                      <button type="submit" className="pj-primary" disabled={busy}>
+                      <button type="submit" className="pj-primary" disabled={busy || !canWrite} title={canWrite ? undefined : readOnly}>
                         Guardar en «{selected.name}»
                       </button>
                     </div>
@@ -545,5 +640,9 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         </footer>
       </div>
     </div>
+    {sharing && selected && selected.id === sharing && (
+      <ShareDialog session={session} project={{ id: selected.id, name: selected.name }} onClose={() => setSharing(undefined)} notify={notify} onLeft={() => setSelectedId(undefined)} />
+    )}
+    </>
   );
 }

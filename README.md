@@ -877,7 +877,7 @@ Límites: IndexedDB pertenece a **este navegador y a este sitio**. Borrar los da
 
 ## Guardar en la nube (servidor propio) desde el navegador
 
-Por omisión los proyectos de la app web viven en **este navegador** (IndexedDB). Para verlos desde otros equipos y compartirlos con otras personas se pueden guardar en un **servidor propio**: el mismo `iark serve --workspace` de la sección anterior, cuya API de proyectos ya es lo que usa el navegador. No hay un servicio gestionado ni cuentas en un tercero: el servidor es tuyo y su carpeta de trabajo (la misma de `iark project`, pensada para ir en git) es la fuente de verdad.
+Por omisión los proyectos de la app web viven en **este navegador** (IndexedDB). Para verlos desde otros equipos y compartirlos con otras personas se pueden guardar en un **servidor propio**: el mismo `iark serve --workspace` de la sección anterior, cuya API de proyectos ya es lo que usa el navegador. El servidor es tuyo y su carpeta de trabajo (la misma de `iark project`, pensada para ir en git) es la fuente de verdad; se entra con un token (`--tokens`) o, en una instancia con cuentas (`--accounts`), con **«Iniciar sesión con GitHub»** (ver el apartado «Iniciar sesión con GitHub» más abajo y «Servicio gestionado: inicio de sesión con GitHub»).
 
 **1. Arrancar el servidor.** El navegador solo deja que la página lea las respuestas de otro origen si el servidor lo autoriza, así que hay que darle el origen exacto de la página con `--cors` (sin barra final ni ruta):
 
@@ -897,6 +897,14 @@ iark serve --workspace ./iark-workspace --cors http://localhost:5173          # 
 3. **Conectar** guarda lo que haya pendiente, anota la configuración y **recarga la página**: es la forma más simple y segura de cambiar de almacén. **Volver a este navegador** lo deshace (los proyectos del navegador no se tocan: estaban aparte).
 
 Con un servidor, la barra del proyecto del banco y el chip del editor dicen «Guardado en «X» · servidor». El último diagrama abierto se recuerda por servidor.
+
+**2b. Iniciar sesión con GitHub (instancias con cuentas).** Si el servidor se arrancó con `--accounts`, *Dónde se guardan* ofrece **Iniciar sesión con GitHub** (y, si abriste la página desde esa misma instancia, su dirección ya aparece escrita). La página va al servidor, a GitHub y vuelve recargada con la sesión; en la barra de direcciones no queda ningún código. **Usar un token** sigue disponible, plegado.
+
+- **Qué se guarda y dónde.** La dirección y el nombre del servidor, en `localStorage` (`iark.projects.backend`), no son secretos. La sesión (`iark_s_…`) va en `localStorage` si dejas marcada **«Mantener la sesión en este equipo»** (marcada por omisión: las sesiones caducan y se pueden cerrar) y en `sessionStorage` si no (solo esa pestaña). El estado `iark.login.pending` existe solo durante el inicio de sesión. Nunca se guarda ninguna credencial de GitHub: el servidor usa su token una vez y lo revoca.
+- **Cerrar sesión** la cierra en el servidor (el token deja de valer aunque lo hubieran copiado), olvida el token del navegador y vuelve a «Este navegador», recordando solo la dirección.
+- **Si caduca** (o se cierra desde otro sitio), el guardado avisa «Tu sesión caducó», el texto se conserva en pantalla e *Iniciar sesión* la retoma. Mientras no vuelvas a entrar no se reintenta contra el servidor (cada intento fallido cuenta para el freno de la dirección).
+- **Roles y compartir.** La lista de proyectos trae tu rol en cada uno y la interfaz lo respeta (un lector no renombra, duplica, borra ni guarda; borrar un proyecto es del administrador). Quien administra un proyecto lo comparte desde **Compartir…** con el usuario de GitHub y un rol (lector, editor, administrador). Si la persona aún no ha entrado queda «pendiente» y lo tendrá al entrar con esa cuenta, también en instancias solo por invitación. Cualquiera puede salir con **Salir del proyecto**; un proyecto no se queda sin administrador. La API detrás es la de «Compartir proyectos».
+- **Límites.** Iniciar sesión recarga la página: lo que no se pudo guardar se pierde si lo confirmas (antes se pide confirmación y «Cancelar» lo conserva), y no hay ventana emergente. Hace falta https o `localhost` (la comprobación PKCE usa `crypto.subtle`), y el servidor debe aceptar el origen de la página con `--cors` si no es el suyo. Con tokens sin rol la interfaz no limita nada y decide el servidor.
 
 **3. Qué se guarda en el navegador y qué tan seguro es.**
 

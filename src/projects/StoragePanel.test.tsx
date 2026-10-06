@@ -142,7 +142,8 @@ describe('panel «Dónde se guardan»', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Conectar' }));
       expect(await screen.findByTestId('storage-test')).toHaveAttribute('data-problem', 'mixed-content');
       expect(reload).not.toHaveBeenCalled();
-      expect(server.log).toEqual([]);
+      // al servidor escrito no llegó nada (lo único que se pregunta es si la propia página la sirve una instancia gestionada)
+      expect(server.log.filter((entry) => entry !== 'GET /api/auth/providers')).toEqual([]);
 
       // con https, o con la propia máquina, no hay aviso
       await userEvent.clear(field('Dirección del servidor'));

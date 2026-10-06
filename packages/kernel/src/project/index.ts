@@ -2,7 +2,18 @@ export * from './types';
 export { ProjectError, type ProjectErrorCode, type ProjectErrorInfo } from './errors';
 export { cleanName, MAX_NAME_LENGTH, MODULE_ID, nameKey, requireModuleId, sameName, slugify, uniqueName, uniqueSlug } from './names';
 export { MemoryProjectStore } from './memory';
-export { HttpProjectStore, normalizeBaseUrl, type HttpProjectStoreOptions, type RemoteSession } from './http';
+export {
+  HttpProjectStore,
+  normalizeBaseUrl,
+  SESSION_TOKEN_PREFIX,
+  type AuthProviders,
+  type HttpProjectStoreOptions,
+  type LoginGrant,
+  type ProjectMember,
+  type PublicUser,
+  type RemoteSession,
+  type SiteRole,
+} from './http';
 export { duplicateDiagram, findDiagram, findProject, snapshotProject } from './operations';
 export {
   bundleFileName,
