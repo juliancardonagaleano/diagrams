@@ -159,4 +159,141 @@ describe('HttpProjectStore', () => {
     const locked = store(() => ({ status: 401, body: { error: 'Token inválido', code: 'unauthorized' } })).store;
     expect((await failure(locked.whoami())).code).toBe('unauthorized');
   });
+
+  it('los proyectos de un servidor con cuentas traen el rol de quien pregunta, tal cual', async () => {
+    const { store: s } = store(() => ({ body: [{ id: 'tienda', name: 'Tienda', diagrams: [], role: 'admin' }, { id: 'viejo', name: 'Viejo', diagrams: [] }] }), { token: 'iark_s_x' });
+    const [first, second] = await s.listProjects();
+    expect(first.role).toBe('admin');
+    expect(second.role).toBeUndefined();
+  });
+
+  it('whoami de una sesión de persona trae quién es; con un token de iark auth sigue sin `user`', async () => {
+    const user = { id: 'u_1', login: 'ana', name: 'Ana', avatarUrl: 'https://avatars.example/u/1', siteRole: 'member' };
+    const session = store(() => ({ body: { auth: true, name: 'Ana', role: 'member', user } }), { token: 'iark_s_x' }).store;
+    expect(await session.whoami()).toEqual({ auth: true, name: 'Ana', role: 'member', user });
+    const token = store(() => ({ body: { auth: true, name: 'ci', role: 'editor' } }), { token: 'iark_x' }).store;
+    expect(await token.whoami()).toEqual({ auth: true, name: 'ci', role: 'editor' });
+    expect((await token.whoami()).user).toBeUndefined();
+    // un `user` que no tiene lo mínimo se ignora y un rol desconocido es el de menos permisos
+    const broken = store(() => ({ body: { auth: true, name: 'x', role: 'admin', user: { login: 7 } } })).store;
+    expect((await broken.whoami()).user).toBeUndefined();
+    const odd = store(() => ({ body: { auth: true, user: { id: 'u', login: 'x', siteRole: 'superman' } } })).store;
+    expect((await odd.whoami()).user?.siteRole).toBe('guest');
+  });
+});
+
+describe('HttpProjectStore: inicio de sesión (cuentas)', () => {
+  it('providers consulta una ruta pública sin mandar el token, y lee lo que ofrece el servidor', async () => {
+    const { store: s, calls } = store(() => ({ body: { providers: [{ id: 'github', label: 'GitHub' }, { nope: 1 }], tokens: false, signup: 'invite' } }), { token: 'iark_s_viejo' });
+    expect(await s.providers()).toEqual({ providers: [{ id: 'github', label: 'GitHub' }], tokens: false, signup: 'invite' });
+    expect(calls[0].url).toBe('https://iark.example/api/auth/providers');
+    expect(calls[0].init.method).toBe('GET');
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBeUndefined();
+    const selfHosted = store(() => ({ body: { providers: [], tokens: true } })).store;
+    expect(await selfHosted.providers()).toEqual({ providers: [], tokens: true });
+  });
+
+  it('providers: un servidor anterior a las cuentas (o un sitio que no es IArk) no ofrece ningún inicio de sesión; la red caída sí es un fallo', async () => {
+    const legacy = store(() => ({ status: 404, body: { error: 'Ruta de la API desconocida. Ver /api/modules.' } })).store;
+    expect(await legacy.providers()).toEqual({ providers: [], tokens: true });
+    const pages = store(() => ({ status: 404, text: '<html>404 File not found</html>' })).store;
+    expect(await pages.providers()).toEqual({ providers: [], tokens: true });
+    expect((await failure(store(() => new TypeError('Failed to fetch')).store.providers())).info.network).toBe(true);
+    expect((await failure(store(() => ({ text: '<html>app</html>' })).store.providers())).message).toContain('no es JSON');
+    expect((await failure(store(() => ({ status: 500, body: { error: 'x' } })).store.providers())).code).toBe('unavailable');
+  });
+
+  it('exchangeLoginCode manda { code, verifier } como JSON, sin Authorization, y devuelve la sesión', async () => {
+    const grant = { token: 'iark_s_abc', expiresAt: '2026-11-05T00:00:00.000Z', user: { id: 'u_1', login: 'ana', siteRole: 'admin' } };
+    const { store: s, calls } = store(() => ({ body: grant }), { token: 'iark_s_viejo' });
+    expect(await s.exchangeLoginCode({ code: 'c0d3', verifier: 'v'.repeat(43) })).toEqual(grant);
+    expect(calls[0].url).toBe('https://iark.example/api/auth/exchange');
+    expect(calls[0].init.method).toBe('POST');
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/json');
+    expect(headers.Authorization).toBeUndefined(); // ni siquiera el token de antes: la ruta es pública
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ code: 'c0d3', verifier: 'v'.repeat(43) });
+  });
+
+  it('exchangeLoginCode: un código que no vale es `invalid` (con su código de servidor), el 429 dice cuánto esperar y una respuesta sin sesión no se da por buena', async () => {
+    const bad = await failure(store(() => ({ status: 400, body: { error: 'El código de inicio de sesión no es válido o caducó: vuelve a iniciar sesión.', code: 'invalid-grant' } })).store.exchangeLoginCode({ code: 'x', verifier: 'v' }));
+    expect(bad).toMatchObject({ code: 'invalid', info: { status: 400, serverCode: 'invalid-grant' } });
+    expect(bad.message).toContain('caducó');
+    const limited = await failure(store(() => ({ status: 429, body: { error: 'Demasiados intentos', code: 'rate-limited' }, headers: { 'Retry-After': '30' } })).store.exchangeLoginCode({ code: 'x', verifier: 'v' }));
+    expect(limited.code).toBe('unavailable');
+    expect(limited.message).toContain('Demasiados intentos');
+    const empty = await failure(store(() => ({ body: { ok: true } })).store.exchangeLoginCode({ code: 'x', verifier: 'v' }));
+    expect(empty.code).toBe('unavailable');
+    expect(empty.message).toContain('falta la sesión');
+  });
+
+  it('logout cierra la sesión que se usa (con su Authorization) y un token que no es una sesión lo rechaza', async () => {
+    const { store: s, calls } = store(() => ({ body: { loggedOut: true } }), { token: 'iark_s_abc' });
+    await s.logout();
+    expect(calls[0].url).toBe('https://iark.example/api/auth/logout');
+    expect(calls[0].init.method).toBe('POST');
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer iark_s_abc');
+    const notSession = store(() => ({ status: 400, body: { error: 'Este token no es una sesión', code: 'not-a-session' } }), { token: 'iark_x' }).store;
+    expect((await failure(notSession.logout())).code).toBe('invalid');
+    const expired = store(() => ({ status: 401, body: { error: 'Falta un token válido', code: 'unauthorized' } }), { token: 'iark_s_caducada' }).store;
+    expect((await failure(expired.logout())).code).toBe('unauthorized');
+  });
+});
+
+describe('HttpProjectStore: compartir un proyecto (cuentas)', () => {
+  const ana = { login: 'ana', name: 'Ana', avatarUrl: 'https://avatars.example/u/1', role: 'admin', pending: false, you: true };
+  const beto = { login: 'beto', role: 'editor', pending: true };
+
+  it('pide cada operación a su ruta, con el proyecto y el usuario codificados, y el cuerpo que espera la API', async () => {
+    const { store: s, calls } = store((_url, init) => (init.method === 'GET' ? { body: [ana, beto] } : init.method === 'DELETE' ? { body: { removed: 'beto' } } : { status: 201, body: beto }));
+    expect(await s.listMembers('a b')).toEqual([{ ...ana }, { login: 'beto', role: 'editor', pending: true }]);
+    expect(await s.setMember('a b', ' @beto ', 'editor')).toEqual({ login: 'beto', role: 'editor', pending: true });
+    await s.removeMember('p', 'be/to');
+    expect(calls.map((c) => `${c.init.method} ${c.url.replace('https://iark.example', '')}`)).toEqual([
+      'GET /api/projects/a%20b/members',
+      'PUT /api/projects/a%20b/members/beto',
+      'DELETE /api/projects/p/members/be%2Fto',
+    ]);
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ role: 'editor' });
+    expect((calls[2].init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+  });
+
+  it('lo que llega mal formado no rompe la lista: se descartan las entradas sin usuario y un rol desconocido es el de menos permisos', async () => {
+    const { store: s } = store(() => ({ body: [{ login: 'x', role: 'dios', pending: 'sí' }, { role: 'admin' }, 7, null] }));
+    expect(await s.listMembers('p')).toEqual([{ login: 'x', role: 'viewer', pending: false }]);
+    expect(await store(() => ({ body: { nope: 1 } })).store.listMembers('p')).toEqual([]);
+    expect((await failure(store(() => ({ body: { nope: 1 } })).store.setMember('p', 'x', 'viewer'))).code).toBe('unavailable');
+  });
+
+  it('un nombre de usuario vacío se rechaza sin llegar al servidor', async () => {
+    const { store: s, calls } = store(() => ({ body: {} }));
+    expect((await failure(s.setMember('p', '  @ ', 'viewer'))).code).toBe('invalid');
+    expect((await failure(s.removeMember('p', ''))).code).toBe('invalid');
+    expect(calls).toEqual([]);
+  });
+
+  it('traduce los errores de compartir: último administrador → conflict, tope → invalid (nunca forbidden), permiso → forbidden', async () => {
+    const cases: Array<[number, unknown, string, string | undefined]> = [
+      [409, { error: 'No se puede dejar al proyecto sin administrador.', code: 'last-admin' }, 'conflict', 'last-admin'],
+      [409, { error: 'Un proyecto admite hasta 50 personas.', code: 'limit' }, 'invalid', 'limit'],
+      [403, { error: 'Solo un administrador del proyecto puede compartirlo.', code: 'forbidden' }, 'forbidden', undefined],
+      [404, { error: 'No existe el proyecto «p».', code: 'not-found' }, 'not-found', undefined],
+      [400, { error: 'Nombre de usuario de GitHub inválido.', code: 'invalid' }, 'invalid', undefined],
+      [401, { error: 'Falta un token válido.', code: 'unauthorized' }, 'unauthorized', undefined],
+    ];
+    for (const [status, body, code, serverCode] of cases) {
+      const error = await failure(store(() => ({ status, body })).store.setMember('p', 'beto', 'editor'));
+      expect(error.code, JSON.stringify(body)).toBe(code);
+      expect(error.info.serverCode).toBe(serverCode);
+      expect(error.message).toContain((body as { error: string }).error);
+    }
+    const removed = await failure(store(() => ({ status: 409, body: { error: 'último', code: 'last-admin' } })).store.removeMember('p', 'ana'));
+    expect(removed.code).toBe('conflict');
+  });
+
+  it('el tope de proyectos al crear (403 `limit`) es `invalid` y no se confunde con un rol que no alcanza', async () => {
+    const error = await failure(store(() => ({ status: 403, body: { error: 'Ya administras 25 proyectos, el máximo por persona en esta instancia.', code: 'limit' } })).store.createProject({ name: 'Otro' }));
+    expect(error).toMatchObject({ code: 'invalid', info: { status: 403, serverCode: 'limit' } });
+    expect(error.message).toContain('Ya administras 25 proyectos');
+  });
 });

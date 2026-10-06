@@ -20,6 +20,11 @@ export interface ProjectErrorInfo {
   status?: number;
   /** `true` si ni siquiera hubo respuesta (red caída, tiempo agotado, o el navegador bloqueó la petición por CORS o por contenido mixto). */
   network?: boolean;
+  /**
+   * El `code` que mandó el servidor cuando no tiene un `ProjectErrorCode` propio y se tradujo a uno cercano (`limit`, `last-admin`,
+   * `invalid-grant`…): deja que una pantalla distinga, por ejemplo, un tope de proyectos de un contenido inválido.
+   */
+  serverCode?: string;
 }
 
 export class ProjectError extends Error {
