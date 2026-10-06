@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import example from '../../../examples/plataforma-ejemplo.json';
+import { compareEnvironments } from './compare';
 import { costsByEnvironment, formatCost } from './costs';
 import { parseScale } from './actions';
 import { platformEditor } from './editor';
@@ -60,6 +61,34 @@ describe('acciones sobre la selección', () => {
     expect(none.document.dependencies).toHaveLength(noDb.dependencies.length);
   });
 
+  it('«Promover a otro entorno» re-apunta la dependencia al equivalente declarado (counterpartOf), aunque otro encajara mejor por nombre', () => {
+    const promote = action('promote-environment');
+    const withAnalytics = {
+      ...doc,
+      resources: [
+        ...doc.resources.map((r) => (r.id === 'pedidos-db-dev' ? { ...r, counterpartOf: 'analitica-prod' } : r)),
+        { id: 'analitica-prod', name: 'Almacén analítico', kind: 'database' as const, environmentId: 'prod', technology: 'Redshift' },
+      ],
+      deployments: doc.deployments.filter((d) => d.id !== 'reportes-prod'),
+      dependencies: doc.dependencies.filter((d) => d.id !== 'reportes-db-p'),
+    };
+    expect(valid(withAnalytics)).toBe(true);
+    const result = promote.run(withAnalytics, ['i:reportes-dev'], 'prod');
+    if (!result.ok) throw new Error(result.reason);
+    const added = result.document.dependencies.filter((d) => !withAnalytics.dependencies.some((x) => x.id === d.id));
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ sourceId: 'reportes', targetId: 'analitica-prod' });
+    expect(valid(result.document)).toBe(true);
+    // También si lo declara el de destino, y un equivalente dado de baja no es destino de nada ni se sustituye por otro.
+    const reverse = { ...withAnalytics, resources: withAnalytics.resources.map((r) => (r.id === 'pedidos-db-dev' ? { ...r, counterpartOf: undefined } : r.id === 'analitica-prod' ? { ...r, counterpartOf: 'pedidos-db-dev' } : r)) };
+    const viaTarget = promote.run(reverse, ['i:reportes-dev'], 'prod');
+    expect(viaTarget.ok && viaTarget.document.dependencies.some((d) => d.sourceId === 'reportes' && d.targetId === 'analitica-prod')).toBe(true);
+    const retired = { ...withAnalytics, resources: withAnalytics.resources.map((r) => (r.id === 'analitica-prod' ? { ...r, status: 'decommissioned' as const } : r)) };
+    const none = promote.run(retired, ['i:reportes-dev'], 'prod');
+    if (!none.ok) throw new Error(none.reason);
+    expect(none.document.dependencies).toHaveLength(retired.dependencies.length);
+  });
+
   it('«Duplicar entorno» copia redes, recursos, instancias y las dependencias de los recursos, y añade la etapa a los pipelines', () => {
     const duplicate = action('duplicate-environment');
     expect(duplicate.disabled!(doc, ['tienda-web'])).toMatch(/Selecciona/);
@@ -83,6 +112,28 @@ describe('acciones sobre la selección', () => {
     expect(valid(copy)).toBe(true);
     expect(duplicate.run(doc, ['k8s-prod'], 'Producción')).toMatchObject({ ok: false });
     expect(duplicate.run(doc, ['k8s-prod', 'k8s-dev'], 'X')).toMatchObject({ ok: false });
+  });
+
+  it('«Duplicar entorno» declara cada recurso copiado como equivalente (counterpartOf) del original y conserva las equivalencias del original', () => {
+    const duplicate = action('duplicate-environment');
+    // En producción, la base declara que su equivalente en desarrollo es la de dev (con otro nombre y sin que nada más las empareje).
+    const declared = { ...doc, resources: doc.resources.map((r) => (r.id === 'pedidos-db-prod' ? { ...r, name: 'Almacén transaccional', counterpartOf: 'pedidos-db-dev' } : r)) };
+    const result = duplicate.run(declared, ['k8s-prod'], 'Preproducción');
+    if (!result.ok) throw new Error(result.reason);
+    const copy = result.document;
+    const env = copy.environments.find((e) => e.name === 'Preproducción')!;
+    const copies = copy.resources.filter((r) => r.environmentId === env.id);
+    expect(copies.length).toBeGreaterThan(0);
+    // Cada copia apunta a su original, no al equivalente que el original tuviera en otro entorno.
+    for (const r of copies) expect(declared.resources.find((o) => o.id === r.counterpartOf)).toMatchObject({ environmentId: 'prod' });
+    expect(copies.find((r) => r.kind === 'database')?.counterpartOf).toBe('pedidos-db-prod');
+    expect(valid(copy)).toBe(true);
+    // Comparar la copia con su origen los empareja uno a uno por esa declaración, aunque se renombren.
+    const renamed = { ...copy, resources: copy.resources.map((r) => (r.environmentId === env.id && r.kind === 'database' ? { ...r, name: 'Otra cosa', technology: 'MySQL' } : r)) };
+    const comparison = compareEnvironments(renamed, 'prod', env.id);
+    expect(comparison.resources.find((r) => r.a?.id === 'pedidos-db-prod')).toMatchObject({ b: { name: 'Otra cosa' }, matchedBy: 'declared' });
+    // Y la copia sigue siendo equivalente de la base de desarrollo, por transitividad.
+    expect(compareEnvironments(renamed, 'dev', env.id).resources.find((r) => r.a?.id === 'pedidos-db-dev')).toMatchObject({ b: { name: 'Otra cosa' }, matchedBy: 'declared' });
   });
 
   it('«Escalar réplicas» fija, suma, resta o multiplica y nunca baja de una réplica', () => {

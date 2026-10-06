@@ -263,6 +263,12 @@
               "string",
               "null"
             ]
+          },
+          "counterpartOf": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -281,7 +287,8 @@
           "region",
           "cpuLimit",
           "memoryLimit",
-          "expiresAt"
+          "expiresAt",
+          "counterpartOf"
         ],
         "additionalProperties": false
       }

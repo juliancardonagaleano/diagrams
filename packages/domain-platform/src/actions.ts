@@ -1,4 +1,5 @@
 import { uniqueId, type EditResult } from '@iark/kernel';
+import { counterpartsOf, type Counterparts } from './counterparts';
 import { ENVIRONMENT_KINDS, indexElements, isHost, statusOf, type Deployment, type Dependency, type Environment, type Network, type PlatformDocument, type Resource } from './types';
 
 /**
@@ -34,8 +35,14 @@ function hostFor(doc: PlatformDocument, source: Resource | undefined, environmen
   return candidates.find((r) => r.kind === source?.kind && exposure(r) === wanted) ?? candidates.find((r) => r.kind === source?.kind) ?? candidates[0];
 }
 
-/** Recurso del entorno destino que sustituye a `source`: el de su mismo nombre y clase o, si no, el único de su clase (y tecnología, si hay varios). */
-function counterpartResource(doc: PlatformDocument, source: Resource, environmentId: string): Resource | undefined {
+/**
+ * Recurso del entorno destino que sustituye a `source`: el que él (o quien lo declara) dice que es su equivalente (`counterpartOf`) y,
+ * si no hay, el de su mismo nombre y clase o, si no, el único de su clase (y tecnología, si hay varios). Un equivalente declarado que
+ * está dado de baja no se sustituye por otro: no hay equivalente.
+ */
+function counterpartResource(doc: PlatformDocument, source: Resource, environmentId: string, counterparts: Counterparts): Resource | undefined {
+  const declared = counterparts.in(source, environmentId);
+  if (declared) return statusOf(declared) === 'decommissioned' ? undefined : declared;
   const candidates = doc.resources.filter((r) => r.environmentId === environmentId && r.kind === source.kind && statusOf(r) !== 'decommissioned');
   const name = source.name.trim().toLowerCase();
   const tech = (source.technology ?? '').trim().toLowerCase();
@@ -47,7 +54,7 @@ function counterpartResource(doc: PlatformDocument, source: Resource, environmen
  * Lleva instancias desplegadas a otro entorno: si el servicio ya corre allí, le pasa la versión; si no, lo despliega en el
  * clúster o la máquina que mejor encaja (con la versión y los límites de la instancia de origen). Las dependencias del
  * servicio de recursos del entorno de origen (su base de datos, su cola) se repiten sobre el recurso equivalente del destino
- * (el del mismo nombre o el único de su clase); si no hay equivalente, no se inventa ninguna.
+ * (el que declara `counterpartOf`, el del mismo nombre o el único de su clase); si no hay equivalente, no se inventa ninguna.
  */
 export function promoteDeployments(doc: PlatformDocument, deploymentIds: string[], target: Environment): EditResult<PlatformDocument> {
   const sources = doc.deployments.filter((d) => deploymentIds.includes(d.id));
@@ -83,11 +90,12 @@ export function promoteDeployments(doc: PlatformDocument, deploymentIds: string[
   const dependencyIds = new Set(doc.dependencies.map((d) => d.id));
   const dependencies = [...doc.dependencies];
   const resourcesById = new Map(doc.resources.map((r) => [r.id, r]));
+  const counterparts = counterpartsOf(doc);
   for (const source of movable) {
     for (const dep of doc.dependencies.filter((d) => d.sourceId === source.serviceId)) {
       const resource = resourcesById.get(dep.targetId);
       if (!resource || resource.environmentId !== source.environmentId) continue;
-      const mirror = counterpartResource(doc, resource, target.id);
+      const mirror = counterpartResource(doc, resource, target.id, counterparts);
       if (!mirror || dependencies.some((d) => d.sourceId === dep.sourceId && d.targetId === mirror.id && d.kind === dep.kind)) continue;
       const id = uniqueId(`${dep.sourceId}-${mirror.id}`, dependencyIds);
       dependencyIds.add(id);
@@ -97,7 +105,11 @@ export function promoteDeployments(doc: PlatformDocument, deploymentIds: string[
   return ok({ ...doc, deployments, dependencies }, firstId ? `i:${firstId}` : undefined);
 }
 
-/** Copia un entorno con sus redes, recursos, instancias y las dependencias de sus recursos; los pipelines lo añaden como etapa tras el original. */
+/**
+ * Copia un entorno con sus redes, recursos, instancias y las dependencias de sus recursos; los pipelines lo añaden como etapa tras el original.
+ * Cada recurso copiado declara como equivalente (`counterpartOf`) al original, así que comparar la copia con su origen los empareja uno a uno
+ * aunque luego se renombren, y por transitividad también con los equivalentes que tuviera el original en otros entornos.
+ */
 export function duplicateEnvironment(doc: PlatformDocument, environmentId: string, name: string): EditResult<PlatformDocument> {
   const source = doc.environments.find((e) => e.id === environmentId);
   if (!source) return fail(`No existe el entorno «${environmentId}».`);
@@ -125,8 +137,8 @@ export function duplicateEnvironment(doc: PlatformDocument, environmentId: strin
     return { ...rest, id: networkIds.get(n.id)!, environmentId: newId, ...(n.parentId ? { parentId: networkIds.get(n.parentId)! } : {}) };
   });
   const resources: Resource[] = environmentResources.map((r) => {
-    const { networkId: _network, ref: _ref, ...rest } = r;
-    return { ...rest, id: resourceIds.get(r.id)!, environmentId: newId, ...(r.networkId ? { networkId: networkIds.get(r.networkId)! } : {}) };
+    const { networkId: _network, ref: _ref, counterpartOf: _counterpart, ...rest } = r;
+    return { ...rest, id: resourceIds.get(r.id)!, environmentId: newId, ...(r.networkId ? { networkId: networkIds.get(r.networkId)! } : {}), counterpartOf: r.id };
   });
   const deploymentIds = new Set(doc.deployments.map((d) => d.id));
   const deployments: Deployment[] = doc.deployments

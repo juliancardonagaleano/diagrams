@@ -81,4 +81,78 @@ describe('editor de plataforma', () => {
     expect(net.ok && net.document.resources.find((r) => r.id === 'pedidos-db-prod')?.networkId).toBe('vpc-prod');
     expect(net.ok && valid(net.document)).toBe(true);
   });
+
+  describe('equivalente en otro entorno (counterpartOf)', () => {
+    const select = (id: string, values?: Record<string, unknown>) => {
+      const node = platformEditor.read(doc, id)!;
+      return platformEditor.fields({ type: 'node', kind: node.kind, id }, doc, values ?? node.values).find((f) => f.key === 'counterpartOf')!;
+    };
+
+    it('el recurso ofrece un selector con los recursos de los demás entornos, los de su clase primero, y no el propio entorno', () => {
+      const field = select('kafka-dev');
+      expect(field).toMatchObject({ label: 'Equivalente en otro entorno', type: 'select', allowEmpty: true });
+      if (field.type !== 'select') throw new Error('no es un selector');
+      const values = field.options.map((o) => o.value);
+      expect(values).not.toContain('kafka-dev');
+      expect(values.some((v) => doc.resources.find((r) => r.id === v)?.environmentId === 'dev')).toBe(false);
+      expect(field.options[0]).toEqual({ value: 'kafka-prod', label: 'Kafka (prod) (Producción)' });
+      // Un servicio o una red no lo tienen.
+      expect(platformEditor.fields({ type: 'node', kind: 'service' }, doc, {}).some((f) => f.key === 'counterpartOf')).toBe(false);
+    });
+
+    it('elegir un equivalente lo guarda y vaciarlo lo quita; la pista dice quién declara a este recurso como suyo', () => {
+      const set = platformEditor.update(doc, 'pedidos-db-dev', { counterpartOf: 'kafka-prod' });
+      if (!set.ok) throw new Error(set.reason);
+      expect(set.document.resources.find((r) => r.id === 'pedidos-db-dev')?.counterpartOf).toBe('kafka-prod');
+      expect(valid(set.document)).toBe(true);
+      const cleared = platformEditor.update(set.document, 'pedidos-db-dev', { counterpartOf: '' });
+      if (!cleared.ok) throw new Error(cleared.reason);
+      expect(cleared.document.resources.find((r) => r.id === 'pedidos-db-dev')).not.toHaveProperty('counterpartOf');
+      const declared = { ...doc, resources: doc.resources.map((r) => (r.id === 'kafka-prod' ? { ...r, counterpartOf: 'kafka-dev' } : r)) };
+      const node = platformEditor.read(declared, 'kafka-dev')!;
+      const hint = platformEditor.fields({ type: 'node', kind: node.kind, id: 'kafka-dev' }, declared, node.values).find((f) => f.key === 'counterpartOf')!.hint;
+      expect(hint).toContain('Lo declaran como suyo: Kafka (prod) (Producción).');
+    });
+
+    it('rechaza un equivalente que no existe, que es del mismo entorno o que haría ambigua la equivalencia, pero tolera lo que ya estaba mal', () => {
+      expect(platformEditor.update(doc, 'kafka-dev', { counterpartOf: 'fantasma' })).toMatchObject({ ok: false, reason: expect.stringMatching(/inexistente/) });
+      expect(platformEditor.update(doc, 'kafka-dev', { counterpartOf: 'k8s-dev' })).toMatchObject({ ok: false, reason: expect.stringMatching(/mismo entorno/) });
+      expect(platformEditor.update(doc, 'kafka-dev', { counterpartOf: 'kafka-dev' })).toMatchObject({ ok: false });
+      // Dos recursos de desarrollo no pueden ser a la vez el equivalente de la misma cola de producción.
+      const first = platformEditor.update(doc, 'kafka-dev', { counterpartOf: 'kafka-prod' });
+      if (!first.ok) throw new Error(first.reason);
+      expect(platformEditor.update(first.document, 'pedidos-db-dev', { counterpartOf: 'kafka-prod' })).toMatchObject({ ok: false, reason: expect.stringMatching(/ambigua/) });
+      // Mover un recurso al entorno de su equivalente también rompe la equivalencia.
+      expect(platformEditor.update(first.document, 'kafka-dev', { environmentId: 'prod', networkId: '' })).toMatchObject({ ok: false, reason: expect.stringMatching(/mismo entorno/) });
+      // Un documento que ya incumple una regla sigue pudiendo editarse en lo demás.
+      const broken = { ...doc, resources: doc.resources.map((r) => (r.id === 'kafka-dev' ? { ...r, counterpartOf: 'fantasma' } : r)) };
+      expect(platformEditor.update(broken, 'kafka-dev', { description: 'cola de pruebas' })).toMatchObject({ ok: true });
+    });
+
+    it('quitar un recurso arrastra su equivalencia: el que lo declaraba pasa a declarar al siguiente de la cadena', () => {
+      const chain = {
+        ...doc,
+        environments: [...doc.environments, { id: 'stg', name: 'Preproducción', kind: 'staging' as const }],
+        resources: [
+          ...doc.resources.map((r) => (r.id === 'kafka-prod' ? { ...r, counterpartOf: 'kafka-stg' } : r)),
+          { id: 'kafka-stg', name: 'Mensajería', kind: 'queue' as const, environmentId: 'stg', counterpartOf: 'kafka-dev' },
+        ],
+      };
+      expect(valid(chain)).toBe(true);
+      const middle = platformEditor.remove(chain, 'kafka-stg');
+      if (!middle.ok) throw new Error(middle.reason);
+      expect(middle.document.resources.find((r) => r.id === 'kafka-prod')?.counterpartOf).toBe('kafka-dev');
+      expect(valid(middle.document)).toBe(true);
+      // Quitar el entorno entero hace lo mismo.
+      const environment = platformEditor.remove(chain, 'stg');
+      if (!environment.ok) throw new Error(environment.reason);
+      expect(environment.document.resources.find((r) => r.id === 'kafka-prod')?.counterpartOf).toBe('kafka-dev');
+      expect(valid(environment.document)).toBe(true);
+      // Quitar un extremo deja al que lo declaraba sin enlace en vez de apuntar a la nada.
+      const end = platformEditor.remove(chain, 'kafka-dev');
+      if (!end.ok) throw new Error(end.reason);
+      expect(end.document.resources.find((r) => r.id === 'kafka-stg')).not.toHaveProperty('counterpartOf');
+      expect(valid(end.document)).toBe(true);
+    });
+  });
 });
