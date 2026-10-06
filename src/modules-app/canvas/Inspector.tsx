@@ -142,7 +142,7 @@ export function Field({ field, value, readOnly, onCommit, attachment }: { field:
       <div className="cv-field">
         <label htmlFor={id}>{field.label}</label>
         <div className="cv-ref-row cv-wrap">
-          <select id={id} value={current} disabled={readOnly} onChange={(e) => onCommit(e.target.value)}>
+          <select id={id} value={current} disabled={readOnly} title={field.hint} onChange={(e) => onCommit(e.target.value)}>
             {field.allowEmpty && <option value="">—</option>}
             {field.options.map((o) => (
               <option key={o.value} value={o.value}>

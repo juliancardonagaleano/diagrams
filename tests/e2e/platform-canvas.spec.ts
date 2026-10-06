@@ -140,3 +140,63 @@ test.describe('lienzo de plataforma: iconos de proveedores de nube', () => {
     expect(await docText(page)).not.toContain('blob-storage');
   });
 });
+
+/** El ejemplo con una base analítica más en producción, que ningún nombre ni tecnología empareja con la de desarrollo. */
+async function loadWithAnalytics(page: Page): Promise<void> {
+  const doc = JSON.parse(readFileSync('examples/plataforma-ejemplo.json', 'utf8')) as Record<string, Array<Record<string, unknown>>>;
+  doc.resources.push({ id: 'analitica-prod', name: 'Almacén analítico', kind: 'database', environmentId: 'prod', technology: 'Redshift', version: '2' });
+  await page.getByRole('tab', { name: 'Vista SVG' }).click();
+  await page.getByLabel('Documento JSON').fill(JSON.stringify(doc, null, 2));
+  await page.getByRole('tab', { name: 'Lienzo' }).click();
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 20000 });
+}
+
+test.describe('lienzo de plataforma: equivalente en otro entorno (counterpartOf)', () => {
+  test('elegir el equivalente en las propiedades manda sobre la deducción al comparar entornos, y la comparación lo explica', async ({ page }) => {
+    const errors = await open(page);
+    await loadWithAnalytics(page);
+    await selectView(page, 'env:dev');
+    await page.getByTestId('node-pedidos-db-dev').click();
+    const inspector = page.getByTestId('inspector');
+    const field = inspector.getByLabel('Equivalente en otro entorno');
+    // Solo ofrece recursos de los demás entornos, primero los de su clase (bases de datos).
+    await expect(field.locator('option[value="analitica-prod"]')).toHaveText('Almacén analítico (Producción)');
+    await expect(field.locator('option[value="k8s-dev"]')).toHaveCount(0);
+    await field.selectOption('analitica-prod');
+    expect(await docText(page)).toContain('"counterpartOf": "analitica-prod"');
+
+    await selectView(page, 'compare:dev:prod');
+    // La base de desarrollo se empareja con la analítica porque lo declara; la «Base de pedidos» de producción queda sin pareja.
+    await expect(page.getByText('emparejado por equivalencia declarada')).toHaveCount(1);
+    await expect(page.getByText('emparejado por nombre normalizado')).toHaveCount(2);
+    await expect(page.locator('[data-testid="node-pedidos-db-prod"]')).toContainText('Solo en Producción');
+    await expect(page.locator('[data-testid="node-analitica-prod"]')).toContainText('Versión distinta');
+    await page.screenshot({ path: 'test-results/plataforma-equivalente-declarado.png' });
+
+    // En el recurso de producción, la pista dice quién lo declara como suyo; vaciar el campo deshace el emparejado.
+    await selectView(page, 'env:prod');
+    await page.getByTestId('node-analitica-prod').click();
+    await expect(inspector.getByLabel('Equivalente en otro entorno')).toHaveAttribute('title', /Lo declaran como suyo: Base de pedidos \(dev\) \(Desarrollo\)\./);
+    await selectView(page, 'env:dev');
+    await page.getByTestId('node-pedidos-db-dev').click();
+    await field.selectOption('');
+    await selectView(page, 'compare:dev:prod');
+    await expect(page.getByText('emparejado por equivalencia declarada')).toHaveCount(0);
+    await expect(page.getByText('emparejado por nombre normalizado')).toHaveCount(3);
+    expect(errors).toEqual([]);
+  });
+
+  test('«Duplicar entorno» declara las copias como equivalentes de sus originales', async ({ page }) => {
+    await open(page);
+    await selectView(page, 'env:dev');
+    await page.locator('[data-testid="node-pedidos-db-dev"]').click();
+    await page.getByTestId('action-duplicate-environment').click();
+    await page.getByTestId('action-prompt').getByRole('textbox').fill('Pruebas de carga');
+    await page.getByTestId('action-prompt').getByRole('button', { name: 'Aceptar' }).click();
+    const text = await docText(page);
+    expect(text).toContain('"counterpartOf": "pedidos-db-dev"');
+    await selectView(page, 'env:pruebas-de-carga');
+    await page.getByTestId('node-pedidos-db-dev-pruebas-de-carga').click();
+    await expect(page.getByTestId('inspector').getByLabel('Equivalente en otro entorno')).toHaveValue('pedidos-db-dev');
+  });
+});
