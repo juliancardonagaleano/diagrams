@@ -24,7 +24,7 @@ Lo que ya está hecho, para que sepas qué te ahorras:
 | La imagen corre como usuario `node` (no root), con la carpeta de datos `/data` lista | Elegir la dirección y crear el registro DNS |
 | `HEALTHCHECK` que sigue sirviendo con el inicio de sesión activo | Registrar la OAuth App en GitHub y copiar su Client ID y su Client secret |
 | Caddy con HTTPS automático y renovación de certificados | Contratar la máquina, abrir los puertos 80 y 443 |
-| `--trust-proxy`, sin publicar el puerto de IArk, sistema de archivos de solo lectura, sin capacidades, reinicio automático, límites de memoria y de CPU, registros con rotación | Rellenar `deploy/.env` y guardar el secreto en `deploy/secrets/` |
+| `IARK_TRUST_PROXY=true` (`--trust-proxy`), sin publicar el puerto de IArk, sistema de archivos de solo lectura, sin capacidades, reinicio automático, límites de memoria y de CPU, registros con rotación | Rellenar `deploy/.env` y guardar el secreto en `deploy/secrets/` |
 | Volumen `iark-data` para proyectos y cuentas; el secreto como Docker secret | `docker compose up -d --build`, las copias de seguridad y las actualizaciones |
 | Se niega a arrancar sin autenticación si hay proyectos (nunca los deja abiertos) | Decidir quién entra (`invite` u `open`) |
 
@@ -96,7 +96,7 @@ Sirve cualquiera que cumpla **todos** estos requisitos. **No he probado ninguna 
 2. **Un disco persistente montado en `/data`**, para que `IARK_WORKSPACE=/data/workspace` e `IARK_ACCOUNTS=/data/accounts.json` sobrevivan a cada despliegue. Sin disco, se pierde todo al actualizar.
 3. **HTTPS en la dirección pública**: la que te dé la plataforma o tu dominio. Esa misma es `IARK_PUBLIC_URL` y la base de la *callback URL* de la OAuth App (paso 1).
 4. **Construir la imagen desde el `Dockerfile` del repositorio** (no hay una imagen publicada en un registro). El puerto sale de la variable `PORT` (8787 por omisión): si la plataforma la define, funciona sin más; si no, apunta su puerto interno al 8787. La comprobación de salud puede ser `GET /api/modules` (público).
-5. **Argumentos de arranque** (el campo «command/args» de la plataforma; deben añadirse a los de la imagen, como los que van detrás del nombre de la imagen en `docker run`, no sustituir su `ENTRYPOINT`): `--trust-proxy`, y `--cors=https://juliancardonagaleano.github.io` si lo necesitas (paso 5). `--trust-proxy` solo vale si la plataforma deja la dirección real del cliente en la **última** entrada de `X-Forwarded-For`; si no lo tienes claro (Fly.io, por ejemplo, documenta la dirección del cliente en otra cabecera, `Fly-Client-IP`, que IArk no lee), déjalo sin activar: todas las personas compartirán entonces el freno de intentos fallidos.
+5. **Detrás de un proxy**: `IARK_TRUST_PROXY=true` (equivale a `--trust-proxy`) y, si lo necesitas, `IARK_CORS=https://juliancardonagaleano.github.io` (equivale a `--cors`; ver el apartado 5). `IARK_TRUST_PROXY` solo vale si la plataforma deja la dirección real del cliente en la **última** entrada de `X-Forwarded-For`; si no lo tienes claro (Fly.io, por ejemplo, documenta la dirección del cliente en otra cabecera, `Fly-Client-IP`, que IArk no lee), déjalo sin activar: todas las personas compartirán entonces el freno de intentos fallidos. Si la plataforma solo deja poner argumentos, `--trust-proxy` y `--cors=…` valen igual: deben añadirse a los de la imagen (como los que van detrás del nombre de la imagen en `docker run`), no sustituir su `ENTRYPOINT`.
 6. **Variables de entorno** (el Client secret, en el almacén de secretos de la plataforma, no en un archivo del repositorio):
 
 | Variable | Valor |
@@ -128,10 +128,10 @@ IArk - DIAgrams escuchando en http://0.0.0.0:8787 (sitio: dist/app)
   manifiesto: /.well-known/iark.json · módulos: /api/modules
   espacio de trabajo: /data/workspace · proyectos: /api/projects
   inicio de sesión: GitHub (Iv1.…) · callback https://iark.tudominio.org/api/auth/github/callback · cuentas: /data/accounts.json (0) · entrada: solo por invitación · administradores: 1
-aviso: este servicio no habla TLS: ponga delante un proxy con HTTPS (…)
+  detrás de un proxy de confianza (--trust-proxy): el HTTPS lo pone el proxy, compruebe que la dirección pública es https; …
 ```
 
-El **aviso de TLS es normal**: IArk habla HTTP y Caddy le pone el HTTPS por delante. Lo que sí debes comparar es la `callback` con la de la OAuth App.
+La última línea es un recordatorio, no un fallo: IArk habla HTTP y Caddy le pone el HTTPS por delante (sin `IARK_TRUST_PROXY` saldría un «aviso: este servicio no habla TLS»). Lo que sí debes comparar es la `callback` con la de la OAuth App.
 
 Desde cualquier equipo:
 
@@ -228,9 +228,9 @@ Siempre empieza por `docker compose ps` y `docker compose logs iark` (y `caddy`)
 | **GitHub muestra `redirect_uri_mismatch`** («The redirect_uri MUST match the registered callback URL…») | La *Authorization callback URL* de la OAuth App no es exactamente `<IARK_PUBLIC_URL>/api/auth/github/callback`: `http` en vez de `https`, otra dirección (`www.`, otro subdominio, un puerto), una barra al final. Compárala letra a letra con la línea `callback …` del registro de arranque y corrige la OAuth App |
 | Una página 404 de GitHub al pulsar «Iniciar sesión» | Suele ser un Client ID mal copiado (`IARK_GITHUB_CLIENT_ID`) |
 | Vuelves a la página con **`#iark_error=not_invited`** | Esa persona no es administradora ni está invitada y `IARK_SIGNUP=invite`. Invítala (paso 4) o usa `open`. Otros motivos: `access_denied` (canceló en GitHub), `disabled` (cuenta desactivada), `github_unavailable` (no se llegó a GitHub) |
-| Vuelves con **`#iark_error=login_failed`** | Casi siempre el **Client secret** no es el de esa OAuth App (o se regeneró) o el Client ID es otro. **IArk no escribe nada en el registro en este caso** (lo comprobamos): revisa el secreto, `docker compose restart iark` y prueba otra vez |
+| Vuelves con **`#iark_error=login_failed`** | Casi siempre el **Client secret** no es el de esa OAuth App (o se regeneró) o el Client ID es otro. El registro lo dice (`docker compose logs iark`: «inicio de sesión: GitHub no lo aceptó (rejected)…»; nunca incluye el secreto): revisa el secreto, `docker compose restart iark` y prueba otra vez |
 | **401** `Hace falta un token válido: envíe la cabecera «Authorization: Bearer <token>»` (`"code":"unauthorized"`) | La sesión caducó (30 días por omisión, `IARK_SESSION_DAYS`), se cerró o la cuenta se desactivó; también tras restaurar una copia anterior a esa sesión. Se vuelve a entrar con GitHub |
-| **429** `Demasiados intentos fallidos desde esta dirección: espere N s…` o `Demasiados intentos de iniciar sesión desde esta dirección: espere unos minutos.` | El freno de intentos (con cabecera `Retry-After`; vive en memoria y se borra al reiniciar). Si salta a **todas** las personas a la vez, IArk no ve la dirección real: falta `--trust-proxy` (el compose lo trae) o el proxy no anota `X-Forwarded-For` |
+| **429** `Demasiados intentos fallidos desde esta dirección: espere N s…` o `Demasiados intentos de iniciar sesión desde esta dirección: espere unos minutos.` | El freno de intentos (con cabecera `Retry-After`; vive en memoria y se borra al reiniciar). Si salta a **todas** las personas a la vez, IArk no ve la dirección real: falta `IARK_TRUST_PROXY=true` (el compose lo trae) o el proxy no anota `X-Forwarded-For` |
 | **`docker compose up` dice** `required variable IARK_ADMINS is missing a value: Falta …` | Falta esa variable en `deploy/.env` (también `IARK_DOMAIN` e `IARK_GITHUB_CLIENT_ID`) |
 | `external volume "iark-data" not found` | Falta crear el volumen: `docker volume create iark-data` |
 | `bind source path does not exist: …/secrets/github_client_secret` | Falta el archivo del secreto (paso 2.6) |

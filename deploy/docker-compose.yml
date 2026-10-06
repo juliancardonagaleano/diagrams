@@ -21,11 +21,13 @@ services:
       context: ..
     image: iark-diagrams
     restart: unless-stopped
-    # --trust-proxy: hay un proxy de confianza delante (Caddy). El freno de intentos fallidos usa la dirección real del cliente
-    # que Caddy anota en X-Forwarded-For; NO lo uses si publicas este servicio sin proxy. IARK_CORS (vacío: ningún otro origen)
-    # puede nombrar el sitio de GitHub Pages u otra aplicación que deba iniciar sesión contra esta instancia.
-    command: ["--trust-proxy", "--cors=${IARK_CORS:-}"]
     environment:
+      # IARK_TRUST_PROXY (= --trust-proxy): hay un proxy de confianza delante (Caddy). El freno de intentos fallidos usa la dirección real
+      # del cliente que Caddy anota en X-Forwarded-For; NO lo uses si publicas este servicio sin proxy.
+      IARK_TRUST_PROXY: "true"
+      # IARK_CORS (= --cors; vacío: ningún otro origen): puede nombrar el sitio de GitHub Pages u otra aplicación que deba iniciar sesión
+      # contra esta instancia.
+      IARK_CORS: "${IARK_CORS:-}"
       # Dónde se guarda todo: en el volumen de abajo, que es lo único que hay que copiar.
       IARK_WORKSPACE: /data/workspace
       IARK_ACCOUNTS: /data/accounts.json
