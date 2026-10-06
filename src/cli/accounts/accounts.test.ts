@@ -255,6 +255,115 @@ describe('AccountStore: pertenencia a proyectos', () => {
   });
 });
 
+describe('AccountStore: compartir proyectos y administrar cuentas', () => {
+  const carla = { id: 303, login: 'carla' };
+
+  it('un proyecto no se queda sin administrador: ni quitando ni bajando de rol a la única persona que lo administra', () => {
+    const { store } = open();
+    const a = store.signIn(ana, OPEN);
+    const b = store.signIn(beto, OPEN);
+    store.registerProject('p', a.id);
+    store.setMember('p', b.id, 'editor');
+    expect(() => store.removeMember('p', a.id)).toThrowError(expect.objectContaining({ code: 'last-admin' }));
+    expect(() => store.setMember('p', a.id, 'editor')).toThrowError(expect.objectContaining({ code: 'last-admin' }));
+    expect(() => store.shareProject('p', 'ana', 'viewer', 'guest')).toThrowError(expect.objectContaining({ code: 'last-admin' }));
+    expect(store.roleOf(a.id, 'p')).toBe('admin');
+    store.setMember('p', b.id, 'admin'); // con otra persona administradora, la primera puede irse o bajar
+    expect(store.removeMember('p', a.id)).toBe(true);
+    expect(() => store.setMember('p', b.id, 'viewer')).toThrowError(expect.objectContaining({ code: 'last-admin' }));
+  });
+
+  it('shareProject comparte con quien ya entró, invita a quien no tiene cuenta y cambia el rol si ya pertenece', () => {
+    const { store, file } = open();
+    const a = store.signIn(ana, OPEN);
+    store.registerProject('p', a.id);
+    store.signIn(beto, OPEN);
+    const known = store.shareProject('p', '@BETO', 'editor', 'guest');
+    expect(known).toMatchObject({ added: true, invited: false, user: { login: 'Beto', githubId: 202 } });
+    const invited = store.shareProject('p', 'carla', 'viewer', 'guest');
+    expect(invited).toMatchObject({ added: true, invited: true, user: { login: 'carla', siteRole: 'guest' } });
+    expect(invited.user.githubId).toBeUndefined();
+    const changed = store.shareProject('p', 'Carla', 'editor', 'guest');
+    expect(changed).toMatchObject({ added: false, invited: false });
+    expect(store.membersOf('p').map((m) => [m.user.login, m.role])).toEqual([['ana', 'admin'], ['Beto', 'editor'], ['carla', 'editor']]);
+    expect(() => store.shareProject('p', 'no es un usuario', 'viewer', 'guest')).toThrowError(expect.objectContaining({ code: 'invalid' }));
+    expect(() => store.shareProject('p', 'dani', 'dios' as never, 'guest')).toThrowError(expect.objectContaining({ code: 'invalid' }));
+    expect(store.findByLogin('dani')).toBeUndefined();
+    // la invitación se reclama al entrar: la misma cuenta, con sus proyectos
+    const claimed = store.signIn(carla, INVITE);
+    expect(claimed.id).toBe(invited.user.id);
+    expect(store.roleOf(claimed.id, 'p')).toBe('editor');
+    expect(JSON.parse(readFileSync(file, 'utf8')).users).toHaveLength(3);
+  });
+
+  it('shareProject es de un solo guardado: si el proyecto está lleno no queda la invitación, y tampoco un proyecto vacío', () => {
+    const { store } = open();
+    const owner = store.signIn(ana, OPEN);
+    store.registerProject('p', owner.id);
+    for (let i = 0; i < MAX_MEMBERS_PER_PROJECT - 1; i++) store.shareProject('p', `persona${i}`, 'viewer', 'guest');
+    expect(() => store.shareProject('p', 'una-mas', 'viewer', 'guest')).toThrowError(expect.objectContaining({ code: 'limit' }));
+    expect(store.findByLogin('una-mas')).toBeUndefined();
+    expect(() => store.shareProject('otro', 'una-mas', 'viewer', 'guest')).not.toThrow(); // este sí cabe
+    expect(() => store.shareProject('otro', 'x', 'viewer', 'dios' as never)).toThrowError(expect.objectContaining({ code: 'invalid' }));
+    expect(store.findByLogin('x')).toBeUndefined();
+  });
+
+  it('quitar a un invitado que no ha entrado de su último proyecto cancela su invitación; a un miembro que sí entró, no', () => {
+    const { store } = open();
+    const a = store.signIn(ana, OPEN);
+    store.registerProject('p', a.id);
+    store.registerProject('q', a.id);
+    const pending = store.shareProject('p', 'carla', 'viewer', 'guest').user;
+    store.shareProject('q', 'carla', 'viewer', 'guest');
+    store.removeMember('p', pending.id);
+    expect(store.findByLogin('carla')).toBeDefined(); // todavía le queda q
+    store.dropProject('q');
+    expect(store.findByLogin('carla')).toBeUndefined(); // sin proyectos, no le queda entrada a la instancia
+    // un invitado de la instancia (rol member) o quien ya entró se queda
+    const member = store.shareProject('p', 'dani', 'viewer', 'member').user;
+    store.removeMember('p', member.id);
+    expect(store.findByLogin('dani')).toBeDefined();
+    const b = store.signIn(beto, OPEN);
+    store.setMember('p', b.id, 'viewer');
+    store.removeMember('p', b.id);
+    expect(store.findByLogin('beto')).toBeDefined();
+  });
+
+  it('upsertUser crea una invitación con rol member (o el que se pida) y cambia las cuentas que existen, en un solo guardado', () => {
+    const { store } = open();
+    const created = store.upsertUser('@Carla', {});
+    expect(created).toMatchObject({ created: true, user: { login: 'Carla', siteRole: 'member' } });
+    expect(created.user.githubId).toBeUndefined();
+    expect(store.upsertUser('carla', { siteRole: 'guest' })).toMatchObject({ created: false, user: { siteRole: 'guest' } });
+    expect(store.upsertUser('dani', { siteRole: 'guest', disabled: true })).toMatchObject({ created: true, user: { siteRole: 'guest', disabled: true } });
+    expect(() => store.upsertUser('eva', { siteRole: 'rey' as never })).toThrowError(expect.objectContaining({ code: 'invalid' }));
+    expect(store.findByLogin('eva')).toBeUndefined();
+    expect(() => store.upsertUser('no es un usuario', {})).toThrowError(expect.objectContaining({ code: 'invalid' }));
+  });
+
+  it('removePending cancela una invitación y sus proyectos, y se niega con quien ya entró', () => {
+    const { store } = open();
+    const a = store.signIn(ana, OPEN);
+    store.registerProject('p', a.id);
+    const pending = store.shareProject('p', 'carla', 'viewer', 'member').user;
+    store.removePending(pending.id);
+    expect(store.findByLogin('carla')).toBeUndefined();
+    expect(store.membersOf('p').map((m) => m.user.login)).toEqual(['ana']);
+    expect(() => store.removePending(a.id)).toThrowError(expect.objectContaining({ code: 'conflict' }));
+    expect(() => store.removePending('u_nadie')).toThrowError(expect.objectContaining({ code: 'not-found' }));
+  });
+
+  it('membershipCounts cuenta los proyectos de cada cuenta', () => {
+    const { store } = open();
+    const a = store.signIn(ana, OPEN);
+    const b = store.signIn(beto, OPEN);
+    store.registerProject('p', a.id);
+    store.registerProject('q', a.id);
+    store.setMember('q', b.id, 'viewer');
+    expect([...store.membershipCounts()].sort()).toEqual([[a.id, 2], [b.id, 1]].sort());
+  });
+});
+
 describe('Accounts: reglas de la instancia', () => {
   const make = (admins: string[], extra: Partial<ConstructorParameters<typeof Accounts>[0]> = {}) => new Accounts({ store: open().store, publicUrl: 'https://iark.example.org/', admins, ...extra });
 
