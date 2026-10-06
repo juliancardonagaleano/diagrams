@@ -240,14 +240,17 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
   const rejected =
     remote && !!projectState && (projectState.errorCode === 'unauthorized' || projectState.syncErrorCode === 'unauthorized' || projectState.saveErrorCode === 'unauthorized');
   const forbidden = remote && !rejected && projectState?.saveErrorCode === 'forbidden';
+  // Con una sesión de persona (inicio de sesión de GitHub) no se «rechaza un token»: la sesión caducó, y un 403 es el rol en el proyecto, no un token que cambiar.
+  const withSession = projectSession?.credential === 'session';
+  const rejectedText = withSession ? 'Tu sesión caducó' : 'El servidor no aceptó el token';
   const projectStatus =
     remote && projectState && !projectState.available
       ? projectState.errorCode === 'unauthorized'
-        ? 'El servidor no aceptó el token'
+        ? rejectedText
         : 'Servidor no disponible'
       : attached && projectState
         ? projectState.save === 'error' && projectState.saveErrorCode === 'unauthorized'
-          ? 'El servidor no aceptó el token'
+          ? rejectedText
           : projectState.save === 'error' && projectState.saveErrorCode === 'forbidden'
             ? 'Sin permiso para guardar en el servidor'
             : `${SAVE_LABEL[projectState.save]}${projectState.save === 'saved' || projectState.save === 'idle' ? ` en «${openProject?.name}»${remote ? ' · servidor' : ''}` : ''}`
@@ -308,10 +311,10 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
       <div className="flex items-center gap-3 flex-none">
         {rejected && (
           <Button size="small" type="warning" onClick={() => projects?.onManage('storage')} data-testid="reconnect">
-            Volver a conectar
+            {withSession ? 'Iniciar sesión' : 'Volver a conectar'}
           </Button>
         )}
-        {forbidden && (
+        {forbidden && !withSession && (
           <Button size="small" type="warning" onClick={() => projects?.onManage('storage')} data-testid="reconnect">
             Cambiar de token
           </Button>

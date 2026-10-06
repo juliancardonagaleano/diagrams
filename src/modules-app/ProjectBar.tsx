@@ -27,6 +27,9 @@ export function ProjectBar({
   const where = remote ? ' · servidor' : '';
   const rejected = projects.errorCode === 'unauthorized' || projects.syncErrorCode === 'unauthorized' || projects.saveErrorCode === 'unauthorized';
   const forbidden = projects.saveErrorCode === 'forbidden';
+  // Con una sesión de persona (inicio de sesión de GitHub) no se «rechaza un token»: la sesión caducó, y un 403 es el rol en el proyecto, no un token que cambiar.
+  const withSession = session.credential === 'session';
+  const rejectedText = withSession ? 'Tu sesión caducó' : 'El servidor no aceptó el token';
   const run = (work: () => Promise<void>): void => void work().catch((error: Error) => notify(error.message));
 
   const byModule = new Map<string, NonNullable<typeof project>['diagrams']>();
@@ -79,7 +82,7 @@ export function ProjectBar({
         {!projects.available
           ? remote
             ? projects.errorCode === 'unauthorized'
-              ? 'El servidor no aceptó el token'
+              ? rejectedText
               : 'Servidor no disponible'
             : 'Almacenamiento no disponible'
           : attached
@@ -87,7 +90,7 @@ export function ProjectBar({
               ? 'Guardando…'
               : projects.save === 'error'
                 ? projects.saveErrorCode === 'unauthorized'
-                  ? `El servidor no aceptó el token: ${projects.saveError ?? 'no se guardaron los últimos cambios'}`
+                  ? `${rejectedText}: ${withSession ? 'los últimos cambios no se han guardado' : (projects.saveError ?? 'no se guardaron los últimos cambios')}`
                   : projects.saveErrorCode === 'forbidden'
                     ? `Sin permiso para guardar en el servidor: ${projects.saveError ?? 'el rol de este token no lo permite'}`
                     : `No se pudo guardar: ${projects.saveError ?? 'error desconocido'}`
@@ -100,10 +103,10 @@ export function ProjectBar({
       </span>
       {rejected && remote && (
         <button type="button" className="primary" onClick={() => onManage('storage')} data-testid="reconnect">
-          Volver a conectar
+          {withSession ? 'Iniciar sesión' : 'Volver a conectar'}
         </button>
       )}
-      {forbidden && remote && !rejected && (
+      {forbidden && remote && !rejected && !withSession && (
         <button type="button" onClick={() => onManage('storage')} data-testid="reconnect">
           Cambiar de token
         </button>

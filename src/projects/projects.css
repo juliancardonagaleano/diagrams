@@ -436,3 +436,66 @@ td.pj-actions > * {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ───────────── Compartir un proyecto ───────────── */
+.pj-share-overlay {
+  z-index: 2100;
+}
+.pj-share {
+  width: min(620px, 100%);
+}
+.pj-share-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow: auto;
+}
+.pj-members {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pj-member {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--pj-border);
+  border-radius: 8px;
+}
+.pj-member-who {
+  display: flex;
+  flex: 1 1 140px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+}
+.pj-member-who small {
+  flex-basis: 100%;
+  color: var(--pj-text-2);
+}
+.pj-avatar-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--pj-bg-2);
+  border: 1px solid var(--pj-border);
+  color: var(--pj-text-2);
+  font-size: 13px;
+}
+.pj-member .pj-avatar {
+  width: 32px;
+  height: 32px;
+}
+.pj-pending {
+  border-style: dashed;
+  color: var(--pj-text-2);
+}
