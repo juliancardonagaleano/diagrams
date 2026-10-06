@@ -23,6 +23,7 @@ import { registerTrace } from './trace';
 import { registerDiff } from './diff';
 import { registerProject } from './project';
 import { registerAuth } from './auth';
+import { setupAccounts } from './accounts/setup';
 import { TokenError, TokenStore } from './tokens';
 import { FolderProjectStore } from './workspace';
 import { genericExport, genericGenerate, genericPrompt, genericSchema, genericValidate, readModuleDocument } from './generic';
@@ -502,24 +503,34 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
         'Hace falta para escuchar fuera de loopback con --workspace',
       process.env.IARK_TOKENS || undefined,
     )
+    .option('--accounts <archivo>', 'activa el inicio de sesión con GitHub: archivo donde el servicio guarda las cuentas, las sesiones y a qué proyectos pertenece cada persona (o IARK_ACCOUNTS). Pide también --github-client-id, el secreto en IARK_GITHUB_CLIENT_SECRET, --public-url y --workspace', process.env.IARK_ACCOUNTS || undefined)
+    .option('--github-client-id <id>', 'Client ID de la OAuth App de GitHub (o IARK_GITHUB_CLIENT_ID); el Client secret va solo en IARK_GITHUB_CLIENT_SECRET o IARK_GITHUB_CLIENT_SECRET_FILE', process.env.IARK_GITHUB_CLIENT_ID || undefined)
+    .option('--github-url <url>', 'con GitHub Enterprise Server, su dirección (o IARK_GITHUB_URL); por omisión https://github.com', process.env.IARK_GITHUB_URL || undefined)
+    .option('--github-api-url <url>', 'con GitHub Enterprise Server, su API (o IARK_GITHUB_API_URL); por omisión https://api.github.com', process.env.IARK_GITHUB_API_URL || undefined)
+    .option('--public-url <url>', 'dirección pública de este servicio, https salvo localhost (o IARK_PUBLIC_URL): la «Authorization callback URL» de la OAuth App es <esta dirección>/api/auth/github/callback', process.env.IARK_PUBLIC_URL || undefined)
+    .option('--signup <modo>', '«invite» (por omisión): solo entran las personas invitadas y los administradores; «open»: entra cualquiera con cuenta de GitHub (o IARK_SIGNUP)', process.env.IARK_SIGNUP || undefined)
+    .option('--admins <lista>', 'administradores de la instancia, separados por comas: nombres de usuario de GitHub o, mejor, sus identificadores numéricos (o IARK_ADMINS)', process.env.IARK_ADMINS || undefined)
+    .option('--session-days <n>', 'días que dura una sesión (o IARK_SESSION_DAYS); por omisión 30', (v: string) => Number(v), process.env.IARK_SESSION_DAYS ? Number(process.env.IARK_SESSION_DAYS) : undefined)
+    .option('--max-projects <n>', 'proyectos que puede administrar cada persona (o IARK_MAX_PROJECTS); por omisión 25', (v: string) => Number(v), process.env.IARK_MAX_PROJECTS ? Number(process.env.IARK_MAX_PROJECTS) : undefined)
     .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy. No lo active sin proxy', false)
     .action(async (opts) => {
       if (opts.static && !existsSync(opts.static)) throw new CliError(`La carpeta del sitio «${opts.static}» no existe (¿falta \`npm run build\`?).`);
       if (opts.workspace && existsSync(opts.workspace) && !statSync(opts.workspace).isDirectory()) throw new CliError(`El espacio de trabajo «${opts.workspace}» no es una carpeta.`, 2);
       const cors = typeof opts.cors === 'string' ? opts.cors.split(',').map((o: string) => o.trim()).filter(Boolean) : [];
       const projects = opts.workspace ? new FolderProjectStore(opts.workspace) : undefined;
+      const accounts = setupAccounts(opts, { workspace: !!projects, cors });
       const loopback = isLoopbackHost(opts.host);
-      if (projects && !opts.tokens && !loopback) {
+      if (projects && !opts.tokens && !accounts && !loopback) {
         throw new CliError(
           `Con un espacio de trabajo, escuchar en ${opts.host} sin autenticación dejaría los proyectos al alcance de quien llegue a ese puerto: el servicio no arranca así. ` +
-            'Elija una de las dos salidas: exija un token con --tokens <archivo> (o IARK_TOKENS; se crea con `iark auth create <nombre> --role admin --tokens <archivo>`) o escuche solo en loopback con --host 127.0.0.1.',
+            'Elija una de las salidas: exija un token con --tokens <archivo> (o IARK_TOKENS; se crea con `iark auth create <nombre> --role admin --tokens <archivo>`), active el inicio de sesión con GitHub (--accounts, ver el README) o escuche solo en loopback con --host 127.0.0.1.',
           2,
         );
       }
       if (opts.tokens && !projects) info('aviso: --tokens protege la API de proyectos, y no hay espacio de trabajo (--workspace): se ignora.');
       // Al arrancar el archivo de tokens debe existir y ser válido (si no, error de uso): después se relee cuando cambia, y un problema deniega todo.
       const tokens = projects && opts.tokens ? TokenStore.open(opts.tokens) : undefined;
-      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, trustProxy: opts.trustProxy });
+      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy });
       await new Promise<void>((resolveListening, rejectListening) => {
         server.once('error', rejectListening);
         server.listen(opts.port, opts.host, resolveListening);
@@ -530,6 +541,10 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       info(`  manifiesto: /.well-known/iark.json · módulos: /api/modules`);
       if (projects) {
         info(`  espacio de trabajo: ${projects.root} · proyectos: /api/projects`);
+        if (accounts) {
+          info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
+          if (!loopback) info('aviso: este servicio no habla TLS: ponga delante un proxy con HTTPS (Caddy, nginx…); GitHub solo devuelve a la persona a la dirección pública, y las sesiones viajan por ella.');
+        }
         if (tokens) {
           info(`  autenticación: tokens de ${tokens.path} (${tokens.size}), roles viewer, editor y admin · /api/whoami`);
           if (tokens.size === 0) info('aviso: el archivo no tiene ningún token: cree uno con `iark auth create <nombre> --role admin` (no hace falta reiniciar).');
