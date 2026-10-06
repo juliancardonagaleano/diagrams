@@ -205,6 +205,62 @@
 .pj-connect-actions {
   padding-top: 2px;
 }
+.pj-login {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--pj-border);
+  border-radius: 8px;
+  background: var(--pj-bg-2);
+}
+.pj-dialog button.pj-github {
+  padding: 8px 16px;
+  font-weight: 600;
+}
+.pj-token {
+  border: 1px solid var(--pj-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.pj-token summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.pj-token-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.pj-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--pj-border);
+  border-radius: 8px;
+  background: var(--pj-bg-2);
+}
+.pj-account-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.pj-account-who small {
+  color: var(--pj-text-2);
+}
+.pj-avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--pj-bg);
+}
 .pj-results {
   display: flex;
   flex-direction: column;

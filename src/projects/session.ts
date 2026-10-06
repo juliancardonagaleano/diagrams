@@ -9,8 +9,11 @@ import {
   snapshotProject,
   type Diagram,
   type DiagramMeta,
+  type HttpProjectStore,
   type ImportedProject,
   type ProjectErrorCode,
+  type ProjectMember,
+  type ProjectRole,
   type ProjectStore,
   type ProjectSummary,
   type RemoteSession,
@@ -293,6 +296,21 @@ export class ProjectSession {
     return store.whoami ? store.whoami() : undefined;
   }
 
+  /** Con qué se identifica esta sesión ante el servidor: una sesión de persona (inicio de sesión de GitHub), un token o nada (un servidor abierto o este navegador). */
+  get credential(): 'session' | 'token' | 'none' {
+    return (this.store as { credential?: 'session' | 'token' | 'none' }).credential ?? 'none';
+  }
+
+  /**
+   * Cierra en el servidor la sesión de persona que usa este almacén (`POST /api/auth/logout`): deja de valer aunque alguien la hubiera copiado.
+   * Quien llama decide qué hacer con lo guardado en el navegador. `unauthorized` si ya no valía; `invalid` si no era una sesión (un token).
+   */
+  async logout(): Promise<void> {
+    const store = this.store as { logout?: () => Promise<void> };
+    if (!store.logout) throw new ProjectError('invalid', 'Este almacén no tiene una sesión que cerrar.');
+    await store.logout();
+  }
+
   /**
    * Usa un token nuevo (o ninguno) sin recargar la página, para no perder lo que está pendiente de guardar: relee la lista y
    * reintenta el guardado que falló por no tenerlo (o porque su rol no alcanzaba).
@@ -360,6 +378,50 @@ export class ProjectSession {
     await this.store.deleteProject(id);
     await this.refresh();
     this.announce();
+  }
+
+  // ───────────── compartir (solo con un servidor con cuentas) ─────────────
+
+  /** ¿Este almacén sabe compartir proyectos? Solo un servidor con cuentas; el servidor decide además a quién se lo deja hacer (administradores del proyecto). */
+  get canShare(): boolean {
+    return typeof (this.store as { listMembers?: unknown }).listMembers === 'function';
+  }
+
+  private get members(): Pick<HttpProjectStore, 'listMembers' | 'setMember' | 'removeMember'> {
+    if (!this.canShare) throw new ProjectError('invalid', 'Este almacén no permite compartir proyectos: hace falta un servidor con inicio de sesión de GitHub.');
+    return this.store as unknown as HttpProjectStore;
+  }
+
+  listMembers(projectId: string): Promise<ProjectMember[]> {
+    return this.members.listMembers(projectId);
+  }
+
+  /** Da acceso (o cambia el rol) y relee la lista: el rol de quien llama pudo cambiar (un administrador que se degrada a sí mismo). */
+  async setMember(projectId: string, login: string, role: ProjectRole): Promise<ProjectMember> {
+    const member = await this.members.setMember(projectId, login, role);
+    await this.refresh({ background: true });
+    return member;
+  }
+
+  /** Quita el acceso de una persona y relee la lista. */
+  async removeMember(projectId: string, login: string): Promise<void> {
+    await this.members.removeMember(projectId, login);
+    await this.refresh({ background: true });
+  }
+
+  /**
+   * Quien llama sale del proyecto (deja de pertenecer a él, sin borrarlo): el servidor lo quita de sus miembros y el proyecto desaparece de su lista.
+   * Se busca a quien llama por la marca `you` de la lista de miembros, así no depende de que se sepa su nombre de usuario.
+   */
+  async leaveProject(projectId: string): Promise<void> {
+    const me = (await this.members.listMembers(projectId)).find((m) => m.you);
+    if (!me) throw new ProjectError('not-found', 'Ya no perteneces a este proyecto.');
+    if (projectId === this.state.projectId) {
+      this.discardPending();
+      this.selectProject(undefined);
+    }
+    await this.members.removeMember(projectId, me.login);
+    await this.refresh({ background: true });
   }
 
   /** El proyecto completo en el archivo único: nombre sugerido y contenido. */

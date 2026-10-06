@@ -1,4 +1,4 @@
-import { HttpProjectStore, normalizeBaseUrl, ProjectError } from '@iark/kernel';
+import { HttpProjectStore, normalizeBaseUrl, ProjectError, type AuthProviders, type PublicUser } from '@iark/kernel';
 import { hostOf } from './backend';
 
 /**
@@ -20,7 +20,7 @@ export type ConnectionProblem =
   | 'server';
 
 export type ConnectionResult =
-  | { ok: true; url: string; auth: boolean; name?: string; role?: string; projects: number }
+  | { ok: true; url: string; auth: boolean; name?: string; role?: string; /** Con una sesión de persona (inicio de sesión de GitHub): quién es. */ user?: PublicUser; projects: number }
   | {
       ok: false;
       problem: ConnectionProblem;
@@ -115,8 +115,29 @@ export async function testConnection(input: { url: string; token?: string }, opt
   try {
     const who = await client.whoami();
     const projects = await client.listProjects();
-    return { ok: true, url: base, auth: who.auth, name: who.name, role: who.role, projects: projects.length };
+    return { ok: true, url: base, auth: who.auth, name: who.name, role: who.role, ...(who.user ? { user: who.user } : {}), projects: projects.length };
   } catch (error) {
     return explain(error, base, { ...options, timeoutMs }, page);
+  }
+}
+
+/**
+ * Qué formas de entrar ofrece un servidor (`GET /api/auth/providers`, pública), o `undefined` si no se pudo saber (sin red, no es IArk, o la
+ * dirección es http desde una página https). Un servidor anterior a las cuentas no ofrece ninguna. Nunca lanza: es una pista para elegir qué
+ * mostrar, y si falla se muestra lo de siempre (dirección y token).
+ */
+export async function loadProviders(url: string, options: ConnectionOptions = {}): Promise<AuthProviders | undefined> {
+  const page = options.page ?? currentPage();
+  let base: string;
+  try {
+    base = normalizeBaseUrl(url);
+  } catch {
+    return undefined;
+  }
+  if (isMixedContent(base, page)) return undefined;
+  try {
+    return await new HttpProjectStore({ baseUrl: base, fetch: options.fetch, timeoutMs: options.timeoutMs ?? 6000 }).providers();
+  } catch {
+    return undefined;
   }
 }
