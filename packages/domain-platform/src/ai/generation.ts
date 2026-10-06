@@ -53,6 +53,7 @@ const generatedResource = z.object({
   cpuLimit: nullable(z.string()),
   memoryLimit: nullable(z.string()),
   expiresAt: nullable(z.string()),
+  counterpartOf: nullable(z.string()),
 });
 
 const generatedService = z.object({
@@ -150,6 +151,9 @@ Recursos ("resources"), siempre de un entorno (y, si procede, de una red de ese 
 - status: "planned" (prevista), "provisioned" (por defecto) o "decommissioned". iac = true si se gestiona con Terraform/Pulumi.
 - Las bases de datos, cachés, colas y almacenes de secretos van en redes privadas o aisladas, nunca públicas.
 - Un recurso por entorno: la misma base de datos en dev y prod son dos recursos con ids distintos.
+- "counterpartOf" = id del recurso de OTRO entorno que es el mismo recurso (el equivalente). Ponlo solo cuando el nombre no delate la correspondencia
+  (p. ej. «Pedidos DB» en dev y «Aurora de pedidos» en prod); si se llaman igual o solo cambia el sufijo del entorno, déjalo en null. En cada
+  entorno solo puede haber un recurso por equivalencia, y el equivalente tiene que existir y ser de otro entorno. Al refinar, conserva los que ya haya.
 
 Servicios ("services"): lo que se construye y ejecuta. kind: "service", "worker", "job" o "frontend". criticality: low, medium,
 high, critical. owner = equipo responsable. external = true para servicios de terceros (SaaS), que no se despliegan.
@@ -193,6 +197,7 @@ export function toGenerated(doc: PlatformDocument): GeneratedPlatform {
       cpuLimit: n(r.cpuLimit),
       memoryLimit: n(r.memoryLimit),
       expiresAt: n(r.expiresAt),
+      counterpartOf: n(r.counterpartOf),
     })),
     services: doc.services.map((s) => ({
       id: s.id,
