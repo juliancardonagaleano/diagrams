@@ -335,6 +335,11 @@
           },
           "service": {
             "type": "string"
+          },
+          "counterpartOf": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
           }
         },
         "required": [

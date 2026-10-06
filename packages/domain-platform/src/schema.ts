@@ -1,5 +1,6 @@
 import { parseUrn } from '@iark/kernel';
 import { z } from 'zod';
+import { counterpartErrors } from './counterparts';
 import { iconPackSchema } from './icons/schema';
 import {
   CRITICALITIES,
@@ -69,6 +70,7 @@ export const resourceSchema = z.object({
   memoryLimit: z.string().optional(),
   provider: z.string().optional(),
   service: z.string().optional(),
+  counterpartOf: idSchema.optional(),
 });
 
 export const serviceSchema = z.object({
@@ -205,6 +207,9 @@ export const platformDocumentSchema = z
         else if (network.environmentId !== r.environmentId) issue(['resources', i, 'networkId'], `El recurso "${r.id}" y su red "${network.id}" están en entornos distintos`);
       }
     });
+
+    // `counterpartOf`: el equivalente de otro entorno tiene que existir, ser un recurso de otro entorno y no repetirse en su entorno.
+    for (const e of counterpartErrors(doc)) issue(['resources', doc.resources.findIndex((r) => r.id === e.resourceId), 'counterpartOf'], e.message);
 
     for (const [key, items] of [['resources', doc.resources], ['services', doc.services]] as const) {
       items.forEach((x, i) => {
