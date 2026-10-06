@@ -205,6 +205,62 @@
 .pj-connect-actions {
   padding-top: 2px;
 }
+.pj-login {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--pj-border);
+  border-radius: 8px;
+  background: var(--pj-bg-2);
+}
+.pj-dialog button.pj-github {
+  padding: 8px 16px;
+  font-weight: 600;
+}
+.pj-token {
+  border: 1px solid var(--pj-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.pj-token summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.pj-token-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.pj-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--pj-border);
+  border-radius: 8px;
+  background: var(--pj-bg-2);
+}
+.pj-account-who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.pj-account-who small {
+  color: var(--pj-text-2);
+}
+.pj-avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--pj-bg);
+}
 .pj-results {
   display: flex;
   flex-direction: column;
@@ -379,4 +435,67 @@ td.pj-actions > * {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ───────────── Compartir un proyecto ───────────── */
+.pj-share-overlay {
+  z-index: 2100;
+}
+.pj-share {
+  width: min(620px, 100%);
+}
+.pj-share-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow: auto;
+}
+.pj-members {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pj-member {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--pj-border);
+  border-radius: 8px;
+}
+.pj-member-who {
+  display: flex;
+  flex: 1 1 140px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+}
+.pj-member-who small {
+  flex-basis: 100%;
+  color: var(--pj-text-2);
+}
+.pj-avatar-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--pj-bg-2);
+  border: 1px solid var(--pj-border);
+  color: var(--pj-text-2);
+  font-size: 13px;
+}
+.pj-member .pj-avatar {
+  width: 32px;
+  height: 32px;
+}
+.pj-pending {
+  border-style: dashed;
+  color: var(--pj-text-2);
 }

@@ -81,6 +81,25 @@ describe('encabezado del editor C4 con proyectos', () => {
     expect(onManage).toHaveBeenCalledWith('storage');
   });
 
+  it('una sesión de persona que caducó dice «Tu sesión caducó» y ofrece «Iniciar sesión», que abre el panel de conexión', async () => {
+    const server = fakeServer({ accounts: true });
+    const token = server.openSession({ id: 'u_1', login: 'ana', siteRole: 'member' });
+    const project = await server.store.createProject({ name: 'Banca' });
+    const meta = await server.store.saveDiagram(project.id, { module: 'c4', name: 'Contexto', text: doc('Banca A') });
+    server.share(project.id, 'ana', 'admin');
+    localStorage.setItem(`iark.projects.last:${URL_}`, JSON.stringify({ projectId: project.id, diagramId: meta.id }));
+    const { onManage } = await setup(server, { remote: true, token });
+    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Guardado en «Banca» · servidor'));
+    server.sessions.delete(token); // caducó
+    act(() => useDocumentStore.getState().setWorkspaceName('Banca B'));
+    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Tu sesión caducó'), { timeout: 5000 });
+    expect(screen.getByTestId('save-status')).not.toHaveTextContent('token');
+    const button = screen.getByTestId('reconnect');
+    expect(button).toHaveTextContent('Iniciar sesión');
+    await userEvent.click(button);
+    expect(onManage).toHaveBeenCalledWith('storage');
+  });
+
   it('un corte de red al guardar deja «Reintentar», y al volver la conexión se guarda', async () => {
     const server = fakeServer();
     const project = await server.store.createProject({ name: 'Banca' });

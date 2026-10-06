@@ -81,6 +81,37 @@ describe('barra del proyecto: indicación del almacén', () => {
     session.dispose();
   });
 
+  it('una sesión de persona que caducó dice «Tu sesión caducó» y ofrece «Iniciar sesión» (no «token»); un rol de lector no manda a cambiar de token', async () => {
+    const server = fakeServer({ accounts: true });
+    const token = server.openSession({ id: 'u_1', login: 'ana', siteRole: 'member' });
+    const session = await remote(server, token);
+    const { onManage, project, meta } = await setup(session);
+    server.share(project.id, 'ana', 'admin');
+    server.sessions.delete(token); // caducó
+    session.queueSave('lo que escribí');
+    await waitFor(() => expect(status()).toHaveTextContent('Tu sesión caducó'));
+    expect(status()).not.toHaveTextContent('token');
+    await userEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+    expect(onManage).toHaveBeenCalledWith('storage');
+    expect(screen.queryByRole('button', { name: 'Volver a conectar' })).toBeNull();
+    expect(session.dirty).toBe(true);
+    expect(meta.id).toBeTruthy();
+    cleanup();
+
+    // con otra sesión que es lectora del proyecto, el 403 no ofrece «Cambiar de token»
+    const reader = server.openSession({ id: 'u_2', login: 'vic', siteRole: 'member' });
+    server.share(project.id, 'vic', 'viewer');
+    const readerSession = await remote(server, reader);
+    await readerSession.openDiagram(project.id, meta.id);
+    const controller = new WorkbenchController(SOURCES, { renderDelay: 0, projects: readerSession });
+    render(<ProjectBar controller={controller} state={controller.getState()} onManage={vi.fn()} notify={vi.fn()} />);
+    readerSession.queueSave('otra cosa');
+    await waitFor(() => expect(status()).toHaveTextContent('Sin permiso para guardar en el servidor'));
+    expect(screen.queryByRole('button', { name: 'Cambiar de token' })).toBeNull();
+    session.dispose();
+    readerSession.dispose();
+  });
+
   it('un servidor que no responde al abrir lo dice, y un token rechazado al abrir ofrece volver a conectar', async () => {
     const server = fakeServer({ token: 'secreto' });
     const session = await remote(server); // sin token

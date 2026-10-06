@@ -1,5 +1,5 @@
-import { ProjectError, type ProjectErrorCode } from './errors';
-import type { Diagram, DiagramMeta, ProjectStore, ProjectSummary, SaveDiagramInput } from './types';
+import { ProjectError, type ProjectErrorCode, type ProjectErrorInfo } from './errors';
+import type { Diagram, DiagramMeta, ProjectRole, ProjectStore, ProjectSummary, SaveDiagramInput } from './types';
 
 /**
  * Almacén de proyectos remoto: habla con la API `/api/projects` de `iark serve --workspace` (la carpeta de trabajo de un
@@ -10,6 +10,16 @@ import type { Diagram, DiagramMeta, ProjectStore, ProjectSummary, SaveDiagramInp
  * solo pasan aquí: `unauthorized` (el servidor pide un token, o el token no existe o ya no vale), `forbidden` (reconoce el
  * token, pero su rol no alcanza para esa operación) y `unavailable` (no se llega al servidor, responde con un fallo suyo o
  * no ofrece proyectos).
+ *
+ * Con cuentas (`iark serve --accounts`, inicio de sesión con GitHub) el mismo cliente sabe además qué formas de entrar ofrece el
+ * servidor (`providers`), cambiar el código que devuelve GitHub por una sesión (`exchangeLoginCode`), cerrarla (`logout`) y
+ * compartir un proyecto (`listMembers`, `setMember`, `removeMember`). La sesión es un token más: se da en `token`.
+ *
+ * Códigos del servidor sin equivalente local, traducidos al más cercano (el original queda en `error.info.serverCode`):
+ *   `last-admin` (409: no se puede quitar ni degradar al último administrador) → `conflict`: el estado del proyecto lo impide.
+ *   `limit` (409 al compartir; 403 al crear más proyectos de los permitidos) → `invalid`: la petición es válida pero no cabe; sobre
+ *   todo **no** es `forbidden`, que las pantallas leen como «el token no alcanza» y mandan a cambiar de token.
+ *   `invalid-grant` (400 al cambiar un código de inicio de sesión que no vale o caducó) → `invalid`, por su estado.
  */
 
 export interface HttpProjectStoreOptions {
@@ -30,15 +40,67 @@ export interface HttpProjectStoreOptions {
 /** Un navegador solo deja `keepalive` en peticiones de hasta 64 KB (entre todas las que estén en curso): se queda margen. */
 const KEEPALIVE_MAX_BYTES = 60_000;
 
+/** Rol de una persona en la instancia: `admin` (ve y administra todo), `member` (crea y comparte proyectos) o `guest` (solo entra a los que le comparten). */
+export type SiteRole = 'admin' | 'member' | 'guest';
+
+/** Lo que el servidor cuenta de una persona con sesión (nunca su id de GitHub). */
+export interface PublicUser {
+  id: string;
+  /** Nombre de usuario de GitHub, sin `@`. */
+  login: string;
+  name?: string;
+  /** Dirección de su foto; quien la muestre debe comprobar que es https. */
+  avatarUrl?: string;
+  siteRole: SiteRole;
+}
+
 /** Quién es el token ante el servidor (`GET /api/whoami`); sin autenticación en el servidor, `auth` es `false`. */
 export interface RemoteSession {
   auth: boolean;
   name?: string;
+  /** Con un token, su rol para todo el espacio de trabajo; con una sesión de persona, su rol en la instancia (`siteRole`). */
   role?: string;
+  /** Solo con una sesión de persona (inicio de sesión con GitHub): quién es. */
+  user?: PublicUser;
 }
+
+/** Qué formas de entrar ofrece un servidor (`GET /api/auth/providers`, público). */
+export interface AuthProviders {
+  /** Inicios de sesión con terceros que ofrece (`github`); vacío si solo entra con tokens. */
+  providers: Array<{ id: string; label: string }>;
+  /** El servidor también acepta tokens de `iark auth`. */
+  tokens: boolean;
+  /** Quién puede entrar con GitHub: `open` cualquiera, `invite` solo personas invitadas. */
+  signup?: 'open' | 'invite';
+}
+
+/** Una sesión recién creada con el código de inicio de sesión. El token es la credencial: no se muestra ni se registra. */
+export interface LoginGrant {
+  token: string;
+  expiresAt: string;
+  user: PublicUser;
+}
+
+/** Una persona con acceso a un proyecto compartido. */
+export interface ProjectMember {
+  /** Nombre de usuario de GitHub, sin `@`. */
+  login: string;
+  name?: string;
+  avatarUrl?: string;
+  role: ProjectRole;
+  /** La invitaron y todavía no ha entrado con su cuenta de GitHub. */
+  pending: boolean;
+  /** Es quien pregunta. */
+  you?: boolean;
+}
+
+/** Las sesiones de persona que reparte el inicio de sesión de GitHub empiezan así; los tokens de `iark auth` (`iark_…`), no. */
+export const SESSION_TOKEN_PREFIX = 'iark_s_';
 
 const API = '/api/projects';
 const LOCAL_CODES: ReadonlySet<string> = new Set<ProjectErrorCode>(['not-found', 'exists', 'invalid', 'conflict']);
+const ROLES: ReadonlySet<string> = new Set<ProjectRole>(['viewer', 'editor', 'admin']);
+const SITE_ROLES: ReadonlySet<string> = new Set<SiteRole>(['admin', 'member', 'guest']);
 
 /** `https://x.org/` o `https://x.org/api/projects/` → `https://x.org`. Lanza `invalid` si no es una dirección http(s). */
 export function normalizeBaseUrl(value: string): string {
@@ -64,8 +126,12 @@ interface Payload {
 function errorFromResponse(status: number, payload: Payload, retryAfter: string | null): ProjectError {
   const message = typeof payload.error === 'string' && payload.error ? payload.error : '';
   const code = typeof payload.code === 'string' ? payload.code : undefined;
-  const info = { status };
+  const info: ProjectErrorInfo = { status };
   if (code && LOCAL_CODES.has(code)) return new ProjectError(code as ProjectErrorCode, message || `Error ${status}.`, info);
+  // Antes que el estado: un `limit` llega como 403 al crear proyectos y no es un problema de rol.
+  if (code === 'last-admin') return new ProjectError('conflict', message || 'No se puede quitar ni degradar al último administrador del proyecto.', { ...info, serverCode: code });
+  if (code === 'limit') return new ProjectError('invalid', message || 'Se alcanzó el máximo que permite este servidor.', { ...info, serverCode: code });
+  if (code === 'invalid-grant') return new ProjectError('invalid', message || 'El código de inicio de sesión no es válido o caducó: vuelve a iniciar sesión.', { ...info, serverCode: code });
   if (status === 401 || code === 'unauthorized') return new ProjectError('unauthorized', message || 'El servidor pide un token de acceso válido.', info);
   if (status === 403 || code === 'forbidden') return new ProjectError('forbidden', message || 'Este token no tiene permiso para esa operación.', info);
   if (status === 429 || code === 'rate-limited') {
@@ -76,6 +142,41 @@ function errorFromResponse(status: number, payload: Payload, retryAfter: string 
   if (status === 400) return new ProjectError('invalid', message || 'El servidor rechazó la petición.', info);
   if (status === 404) return new ProjectError('unavailable', message || 'Ese servidor no ofrece proyectos (¿arrancó sin --workspace, o la dirección no es la de IArk?).', info);
   return new ProjectError('unavailable', `El servidor respondió ${status}${message ? `: ${message}` : ''}.`, info);
+}
+
+/** La persona de una respuesta (`user`), o `undefined` si no tiene lo mínimo. Un rol desconocido se lee como el de menos permisos. */
+function parseUser(value: unknown): PublicUser | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const user = value as { id?: unknown; login?: unknown; name?: unknown; avatarUrl?: unknown; siteRole?: unknown };
+  if (typeof user.id !== 'string' || typeof user.login !== 'string' || !user.login) return undefined;
+  return {
+    id: user.id,
+    login: user.login,
+    ...(typeof user.name === 'string' && user.name ? { name: user.name } : {}),
+    ...(typeof user.avatarUrl === 'string' && user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
+    siteRole: typeof user.siteRole === 'string' && SITE_ROLES.has(user.siteRole) ? (user.siteRole as SiteRole) : 'guest',
+  };
+}
+
+function parseMember(value: unknown): ProjectMember | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const member = value as { login?: unknown; name?: unknown; avatarUrl?: unknown; role?: unknown; pending?: unknown; you?: unknown };
+  if (typeof member.login !== 'string' || !member.login) return undefined;
+  return {
+    login: member.login,
+    ...(typeof member.name === 'string' && member.name ? { name: member.name } : {}),
+    ...(typeof member.avatarUrl === 'string' && member.avatarUrl ? { avatarUrl: member.avatarUrl } : {}),
+    role: typeof member.role === 'string' && ROLES.has(member.role) ? (member.role as ProjectRole) : 'viewer',
+    pending: member.pending === true,
+    ...(member.you === true ? { you: true } : {}),
+  };
+}
+
+/** Un nombre de usuario de GitHub como se escribe a mano (`@octocat`, con espacios) → `octocat`. Lanza `invalid` si queda vacío. */
+function cleanLogin(value: string): string {
+  const login = value.trim().replace(/^@/, '');
+  if (!login) throw new ProjectError('invalid', 'Falta el nombre de usuario de GitHub.');
+  return login;
 }
 
 export class HttpProjectStore implements ProjectStore {
@@ -95,6 +196,11 @@ export class HttpProjectStore implements ProjectStore {
     this.keepalive = options.keepalive === true;
   }
 
+  /** Con qué se identifica este cliente: una sesión de persona (inicio de sesión de GitHub), un token de `iark auth` o nada. */
+  get credential(): 'session' | 'token' | 'none' {
+    return !this.token ? 'none' : this.token.startsWith(SESSION_TOKEN_PREFIX) ? 'session' : 'token';
+  }
+
   /** Cambia el token de las peticiones siguientes (para reconectar sin recargar la página ni perder lo pendiente). */
   setToken(token: string | undefined): void {
     this.token = token?.trim() || undefined;
@@ -104,13 +210,82 @@ export class HttpProjectStore implements ProjectStore {
   async whoami(): Promise<RemoteSession> {
     try {
       const found = (await this.request('GET', '/api/whoami')) as Payload;
-      return { auth: found.auth === true, name: typeof found.name === 'string' ? found.name : undefined, role: typeof found.role === 'string' ? found.role : undefined };
+      const user = parseUser(found.user);
+      return { auth: found.auth === true, name: typeof found.name === 'string' ? found.name : undefined, role: typeof found.role === 'string' ? found.role : undefined, ...(user ? { user } : {}) };
     } catch (error) {
       // Un servidor anterior a la autenticación no tiene `/api/whoami` (404): basta con que ofrezca proyectos sin pedir token.
       if (!(error instanceof ProjectError) || error.code !== 'unavailable' || error.info.network) throw error;
       await this.listProjects();
       return { auth: false };
     }
+  }
+
+  // ───────────── cuentas: inicio de sesión de GitHub ─────────────
+
+  /**
+   * Qué formas de entrar ofrece el servidor (pública: no lleva el token). Un servidor anterior a las cuentas no tiene la ruta (404):
+   * no ofrece ningún inicio de sesión, y no se sabe si acepta tokens, así que se supone que sí. Los demás fallos (red, no es IArk) lanzan.
+   */
+  async providers(): Promise<AuthProviders> {
+    let found: Payload;
+    try {
+      found = (await this.request('GET', '/api/auth/providers', undefined, { anonymous: true })) as Payload;
+    } catch (error) {
+      if (error instanceof ProjectError && error.code === 'unavailable' && error.info.status === 404) return { providers: [], tokens: true };
+      throw error;
+    }
+    const providers = Array.isArray(found.providers)
+      ? found.providers.flatMap((entry: unknown) => {
+          const { id, label } = (entry && typeof entry === 'object' ? entry : {}) as { id?: unknown; label?: unknown };
+          return typeof id === 'string' && id ? [{ id, label: typeof label === 'string' && label ? label : id }] : [];
+        })
+      : [];
+    return { providers, tokens: found.tokens !== false, ...(found.signup === 'open' || found.signup === 'invite' ? { signup: found.signup } : {}) };
+  }
+
+  /**
+   * Cambia el código de un solo uso con el que el servidor devolvió a la persona (`#iark_code=`) por una sesión, demostrando con el
+   * `verifier` que es quien empezó el inicio de sesión (PKCE). Un código no vale una segunda vez, acierte o no el `verifier`.
+   * `invalid` (`serverCode: 'invalid-grant'`) si no vale o caducó; `unavailable` con el 429 si hay demasiados intentos fallidos.
+   */
+  async exchangeLoginCode(input: { code: string; verifier: string }): Promise<LoginGrant> {
+    const found = (await this.request('POST', '/api/auth/exchange', { code: input.code, verifier: input.verifier }, { anonymous: true })) as Payload;
+    const user = parseUser(found.user);
+    if (typeof found.token !== 'string' || !found.token || !user) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de IArk con inicio de sesión (falta la sesión en la respuesta).`);
+    return { token: found.token, expiresAt: typeof found.expiresAt === 'string' ? found.expiresAt : '', user };
+  }
+
+  /** Cierra la sesión que se está usando (`Authorization`): el servidor la invalida, así que no vale ni copiada. Con un token de `iark auth` falla (`invalid`): no es una sesión. */
+  async logout(): Promise<void> {
+    await this.request('POST', '/api/auth/logout');
+  }
+
+  // ───────────── cuentas: compartir un proyecto ─────────────
+
+  /** Quién tiene acceso al proyecto y con qué rol (cualquiera que lo vea puede pedirlo). */
+  async listMembers(projectId: string): Promise<ProjectMember[]> {
+    const found = await this.request('GET', `${API}/${encodeURIComponent(projectId)}/members`);
+    return (Array.isArray(found) ? found : []).flatMap((entry: unknown) => {
+      const member = parseMember(entry);
+      return member ? [member] : [];
+    });
+  }
+
+  /**
+   * Da acceso a una persona por su nombre de usuario de GitHub (si todavía no ha entrado, queda `pending` hasta que lo haga) o
+   * le cambia el rol. Solo un administrador del proyecto. `conflict` (`last-admin`) si dejaría al proyecto sin administrador;
+   * `invalid` (`limit`) si el servidor no admite más.
+   */
+  async setMember(projectId: string, login: string, role: ProjectRole): Promise<ProjectMember> {
+    const name = cleanLogin(login);
+    const member = parseMember(await this.request('PUT', `${API}/${encodeURIComponent(projectId)}/members/${encodeURIComponent(name)}`, { role }));
+    if (!member) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es un miembro del proyecto.`);
+    return member;
+  }
+
+  /** Quita el acceso de una persona (un administrador del proyecto) o, si es ella misma, sale del proyecto. `conflict` (`last-admin`) con el último administrador. */
+  async removeMember(projectId: string, login: string): Promise<void> {
+    await this.request('DELETE', `${API}/${encodeURIComponent(projectId)}/members/${encodeURIComponent(cleanLogin(login))}`);
   }
 
   async listProjects(): Promise<ProjectSummary[]> {
@@ -169,11 +344,12 @@ export class HttpProjectStore implements ProjectStore {
     }
   }
 
-  private async request(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<unknown> {
+  /** `anonymous`: una ruta pública (providers, exchange) a la que no hace falta —ni conviene— mandar el token. */
+  private async request(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown, options: { anonymous?: boolean } = {}): Promise<unknown> {
     // El servidor exige `Content-Type: application/json` en todo lo que modifica (también DELETE, con el cuerpo vacío).
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (method !== 'GET') headers['Content-Type'] = 'application/json';
-    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+    if (this.token && !options.anonymous) headers.Authorization = `Bearer ${this.token}`;
     let response: Response;
     const payloadText = body === undefined ? undefined : JSON.stringify(body);
     try {

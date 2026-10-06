@@ -165,6 +165,11 @@ describe('sesión con un almacén remoto', () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(server.log.filter((entry) => entry.startsWith('PUT'))).toEqual([]);
 
+      // tampoco `flush` (antes de cambiar de almacén o iniciar sesión): volver a llamar con una credencial que no vale solo suma fallos contra el servidor
+      await session.flush();
+      expect(server.log.filter((entry) => entry.startsWith('PUT'))).toEqual([]);
+      expect(session.dirty).toBe(true);
+
       await session.useToken('nuevo');
       expect(session.getState()).toMatchObject({ save: 'saved', saveError: undefined, saveErrorCode: undefined, available: true });
       expect((await server.store.getDiagram(project.id, meta.id))?.text).toBe('lo que escribí');
