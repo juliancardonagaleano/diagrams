@@ -10,6 +10,7 @@ import { useEmbedBridge } from './embed/useEmbedBridge';
 import { useActions } from './hooks/useActions';
 import { useProjectBinding } from './projects/useProjectBinding';
 import { MODULE_SOURCES } from '../modules-app/modules';
+import { getLoginNotice, setLoginNotice } from '../projects/login';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
 import { isEmbedMode, useDocumentStore } from './store/documentStore';
 
@@ -22,7 +23,16 @@ export default function App() {
   const actions = useActions();
   const projects = useProjectBinding();
   /** El gestor de proyectos: cerrado, abierto, o abierto con «Dónde se guardan» desplegado (para volver a conectar). */
-  const [showProjects, setShowProjects] = useState<false | 'list' | 'storage'>(false);
+  // Si el inicio de sesión de GitHub no pudo terminar, se abre directamente «Dónde se guardan», que dice por qué y deja volver a intentarlo.
+  const [showProjects, setShowProjects] = useState<false | 'list' | 'storage'>(() => (getLoginNotice()?.kind === 'error' ? 'storage' : false));
+
+  // Al volver de iniciar sesión con GitHub, se confirma con un aviso (el error, en cambio, se queda en el panel hasta que la persona lo descarte).
+  useEffect(() => {
+    const login = getLoginNotice();
+    if (login?.kind !== 'ok') return;
+    Toast.success(login.message);
+    setLoginNotice(undefined);
+  }, []);
 
   // Tema (mecanismo nativo de Semi UI) + parámetros de URL.
   useEffect(() => {

@@ -5,6 +5,7 @@ export { MemoryProjectStore } from './memory';
 export {
   HttpProjectStore,
   normalizeBaseUrl,
+  SESSION_TOKEN_PREFIX,
   type AuthProviders,
   type HttpProjectStoreOptions,
   type LoginGrant,

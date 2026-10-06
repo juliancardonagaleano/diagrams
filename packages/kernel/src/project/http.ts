@@ -94,6 +94,9 @@ export interface ProjectMember {
   you?: boolean;
 }
 
+/** Las sesiones de persona que reparte el inicio de sesión de GitHub empiezan así; los tokens de `iark auth` (`iark_…`), no. */
+export const SESSION_TOKEN_PREFIX = 'iark_s_';
+
 const API = '/api/projects';
 const LOCAL_CODES: ReadonlySet<string> = new Set<ProjectErrorCode>(['not-found', 'exists', 'invalid', 'conflict']);
 const ROLES: ReadonlySet<string> = new Set<ProjectRole>(['viewer', 'editor', 'admin']);
@@ -191,6 +194,11 @@ export class HttpProjectStore implements ProjectStore {
     this.doFetch = options.fetch ?? ((...args) => fetch(...args));
     this.timeoutMs = options.timeoutMs ?? 20_000;
     this.keepalive = options.keepalive === true;
+  }
+
+  /** Con qué se identifica este cliente: una sesión de persona (inicio de sesión de GitHub), un token de `iark auth` o nada. */
+  get credential(): 'session' | 'token' | 'none' {
+    return !this.token ? 'none' : this.token.startsWith(SESSION_TOKEN_PREFIX) ? 'session' : 'token';
   }
 
   /** Cambia el token de las peticiones siguientes (para reconectar sin recargar la página ni perder lo pendiente). */

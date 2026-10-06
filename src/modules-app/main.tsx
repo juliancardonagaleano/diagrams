@@ -7,6 +7,7 @@ import { WorkbenchController } from './controller';
 import { localDrafts, MODULE_SOURCES } from './modules';
 import { MODULE_PROTOCOL_VERSION } from '../embed/moduleProtocol';
 import { getProjectSession } from '../projects/factory';
+import { completeGithubLogin } from '../projects/login';
 
 /**
  * Banco de trabajo de los módulos de la suite (`modulos.html`). Con `?embed=1&proto=json&module=<id>&origin=<origen del
@@ -118,8 +119,12 @@ function Root() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <Root />
-  </React.StrictMode>,
-);
+// Si la página acaba de volver de GitHub (`#iark_code=…`), la sesión se termina de crear **antes** de montar nada: la sesión de proyectos que
+// crea `Root` lee la configuración al nacer. No espera nada si no se viene de un inicio de sesión; en modo embebido guarda el anfitrión.
+void (embed ? Promise.resolve() : completeGithubLogin()).then(() => {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <Root />
+    </React.StrictMode>,
+  );
+});

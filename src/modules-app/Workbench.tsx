@@ -13,6 +13,7 @@ import { DiagramPanel, ExportPanel, FilePicker, ImportPanel, IssuesPanel, Report
 import { compareMarks, readComparable } from './compare';
 import { ComparePanel, type CompareState } from './ComparePanel';
 import { ProjectBar } from './ProjectBar';
+import { getLoginNotice, setLoginNotice } from '../projects/login';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
 
 type PanelId = 'canvas' | 'attachments' | 'diagram' | 'issues' | 'reports' | 'compare' | 'export' | 'import';
@@ -58,7 +59,8 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
   useEffect(() => setBase(undefined), [state.moduleId]);
   const projects = controller.projects;
   /** El gestor de proyectos: cerrado, abierto, o abierto con «Dónde se guardan» desplegado (para volver a conectar). */
-  const [showProjects, setShowProjects] = useState<false | 'list' | 'storage'>(false);
+  // Si el inicio de sesión de GitHub no pudo terminar, se abre directamente «Dónde se guardan», que dice por qué y deja volver a intentarlo.
+  const [showProjects, setShowProjects] = useState<false | 'list' | 'storage'>(() => (getLoginNotice()?.kind === 'error' ? 'storage' : false));
   const [toast, setToast] = useState<string | undefined>();
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const jsonEditor = useRef<HTMLTextAreaElement>(null);
@@ -69,6 +71,14 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(undefined), 4000);
   }, []);
+
+  // Al volver de iniciar sesión con GitHub, se confirma con un aviso (el error, en cambio, se queda en el panel hasta que la persona lo descarte).
+  useEffect(() => {
+    const login = getLoginNotice();
+    if (login?.kind !== 'ok') return;
+    notify(login.message);
+    setLoginNotice(undefined);
+  }, [notify]);
 
   const goTo = useCallback(
     async (moduleId: string, elementId?: string, diagramId?: string): Promise<void> => {
