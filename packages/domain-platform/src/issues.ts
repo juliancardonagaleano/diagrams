@@ -178,6 +178,15 @@ export function analyzePlatform(doc: PlatformDocument, today: Date = new Date())
     if (CROSS_CUTTING_KINDS.includes(r.kind) && statusOf(r) === 'provisioned' && !related.has(r.id)) {
       add('info', r.id, `${label(e)}: no tiene ninguna dependencia, así que no se sabe a qué servicios o recursos afecta.`);
     }
+    // Equivalencia declarada con un recurso de otro entorno (counterpartOf): si el extremo no es válido, lo dice la validación del esquema.
+    const counterpart = r.counterpartOf === undefined ? undefined : resources.get(r.counterpartOf);
+    if (counterpart && counterpart.id !== r.id && counterpart.environmentId !== r.environmentId) {
+      if (counterpart.kind !== r.kind && !(isHost(r) && isHost(counterpart))) {
+        add('warning', r.id, `${label(e)} se declara equivalente de ${inline(at(counterpart.id))} (counterpartOf), que es de otra clase: ¿es el recurso que corresponde?`);
+      }
+      const retired = [r, counterpart].filter((x) => statusOf(x) === 'decommissioned');
+      if (retired.length > 0) add('info', r.id, `${label(e)} se declara equivalente de ${inline(at(counterpart.id))} (counterpartOf), pero ${retired.map((x) => `«${x.name}»`).join(' y ')} está${retired.length > 1 ? 'n' : ''} dado${retired.length > 1 ? 's' : ''} de baja: la comparación de entornos no cuenta esa equivalencia.`);
+    }
     if (r.kind === 'certificate' && statusOf(r) !== 'decommissioned') {
       const left = r.expiresAt ? daysUntil(r.expiresAt, today) : undefined;
       if (left === undefined) {

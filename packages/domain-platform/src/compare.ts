@@ -1,11 +1,12 @@
 import { findEnvironment, nextEnvironment } from './actions';
-import { ENVIRONMENT_KINDS, RESOURCE_LABELS, type Deployment, type Environment, type PlatformDocument, type Resource, type ResourceKind, type Service } from './types';
+import { counterpartsOf, type Counterparts } from './counterparts';
+import { ENVIRONMENT_KINDS, RESOURCE_LABELS, statusOf, type Deployment, type Environment, type PlatformDocument, type Resource, type ResourceKind, type Service } from './types';
 
 /**
  * Comparación de dos entornos (p. ej. preproducción y producción): qué servicios y recursos solo están en uno, y cuáles
  * están en los dos pero con otra versión o con otras réplicas. Es lo que dibuja la vista `compare:<A>:<B>` y lo que cuenta
- * el informe de diferencias. Los servicios se corresponden por id; los recursos, por nombre o, si no, por lo poco que se pueda
- * deducir con certeza (ver `pairResources`), y cada par dice cómo se emparejó (`MatchedBy`).
+ * el informe de diferencias. Los servicios se corresponden por id; los recursos, por lo que declaran (`counterpartOf`) o, si no, por
+ * nombre y por lo poco que se pueda deducir con certeza (ver `pairResources`), y cada par dice cómo se emparejó (`MatchedBy`).
  *
  * Con tres o más entornos (`compare:<A>:<B>:<C>…` o `compare:all`) la comparación es una matriz: una fila por servicio (o por
  * recurso emparejado) y una columna por entorno, y cada celda se compara con la de la referencia, que es el primer entorno de
@@ -31,16 +32,18 @@ export interface ServiceDifference {
 }
 
 /**
- * Con qué criterio se emparejó un recurso de un entorno con su equivalente del otro (de más a menos fiable): `name` = mismo
+ * Con qué criterio se emparejó un recurso de un entorno con su equivalente del otro (de más a menos fiable): `declared` = uno de los
+ * dos declara al otro como su equivalente (`counterpartOf`, directa o encadenada), y eso gana a cualquier deducción; `name` = mismo
  * nombre y clase; `normalized` = mismo nombre una vez quitado el del entorno («Kafka (dev)» y «Kafka (prod)»), los acentos y las
  * mayúsculas; `technology` = única pareja posible de su clase y tecnología; `similar-name` = varias parejas posibles de su clase y
  * tecnología, y se eligió la de nombre más parecido; `only-candidate` = único recurso de su clase en cada entorno, y de una clase
  * que no suele repetirse (un clúster, una pasarela).
  */
-export type MatchedBy = 'name' | 'normalized' | 'technology' | 'similar-name' | 'only-candidate';
+export type MatchedBy = 'declared' | 'name' | 'normalized' | 'technology' | 'similar-name' | 'only-candidate';
 
 /** Cómo se cuenta el criterio de emparejado en el informe y en el lienzo. */
 export const MATCH_NOTES: Record<MatchedBy, string> = {
+  declared: 'emparejado por equivalencia declarada',
   name: 'emparejado por nombre',
   normalized: 'emparejado por nombre normalizado',
   technology: 'emparejado por tecnología',
@@ -142,8 +145,17 @@ interface ResourcePair {
   matchedBy?: MatchedBy;
 }
 
+/** Qué recursos de cada lado no se emparejan por deducción porque ya tienen su sitio (en la matriz, los que ya están en la fila de su equivalencia declarada). */
+interface Taken {
+  left?: ReadonlySet<Resource>;
+  right?: ReadonlySet<Resource>;
+}
+
 /**
- * Empareja los recursos de dos entornos sin adivinar. Siempre dentro de la misma clase y por este orden:
+ * Empareja los recursos de dos entornos sin adivinar. Siempre dentro de la misma clase, salvo la primera regla, y por este orden:
+ * 0. por lo que declaran (`counterpartOf`, ver `Counterparts`): dos recursos que son equivalentes por declaración se emparejan sea
+ *    cual sea su nombre, tecnología o clase. Lo que declaran gana a todo lo demás, y un recurso cuyo equivalente declarado en el
+ *    otro lado está dado de baja se queda sin pareja en vez de buscarle otra por deducción;
  * 1. por nombre idéntico (sin distinguir mayúsculas);
  * 2. por nombre normalizado: sin el del entorno, los acentos ni las mayúsculas («Kafka (dev)» y «Kafka (prod)»); si dos recursos
  *    de un lado quedan con el mismo nombre normalizado, no decide entre ellos;
@@ -155,15 +167,25 @@ interface ResourcePair {
  * versión que no existen. Los grupos se cuentan sobre todos los recursos del entorno, no solo sobre los que quedan libres: si hay
  * dos colas Kafka y una ya se emparejó por nombre, la otra de cada lado no tiene por qué ser la misma.
  */
-function pairResources(left: Resource[], right: Resource[], a: Environment | Environment[], b: Environment | Environment[]): ResourcePair[] {
+function pairResources(left: Resource[], right: Resource[], a: Environment | Environment[], b: Environment | Environment[], counterparts: Counterparts, taken: Taken = {}): ResourcePair[] {
   const pairs: ResourcePair[] = [];
-  let restLeft = [...left];
-  let restRight = [...right];
+  let restLeft = left.filter((l) => !taken.left?.has(l));
+  let restRight = right.filter((r) => !taken.right?.has(r));
   const take = (l: Resource, r: Resource, matchedBy: MatchedBy): void => {
     pairs.push({ a: l, b: r, matchedBy });
     restLeft = restLeft.filter((x) => x !== l);
     restRight = restRight.filter((x) => x !== r);
   };
+  for (const l of [...restLeft]) {
+    const r = restRight.find((x) => counterparts.same(l, x));
+    if (r) take(l, r, 'declared');
+  }
+  // Un equivalente declarado en el otro lado que está dado de baja no es una pareja, pero tampoco deja que otro recurso ocupe su sitio.
+  const environmentIds = (e: Environment | Environment[]): Set<string> => new Set([e].flat().map((x) => x.id));
+  const [idsA, idsB] = [environmentIds(a), environmentIds(b)];
+  const retired = (r: Resource, otherSide: Set<string>): boolean => counterparts.mates(r).some((m) => otherSide.has(m.environmentId) && statusOf(m) === 'decommissioned');
+  const openLeft = (): Resource[] => restLeft.filter((l) => !retired(l, idsB));
+  const openRight = (): Resource[] => restRight.filter((r) => !retired(r, idsA));
   const [phrasesA, phrasesB] = [environmentPhrases(a), environmentPhrases(b)];
   const technologyOf = (r: Resource): string => tokensOf(r.technology ?? '').join(' ');
   /** Palabras que distinguen a un recurso de los demás de su grupo: su nombre sin entorno, nexos ni tecnología. */
@@ -174,19 +196,19 @@ function pairResources(left: Resource[], right: Resource[], a: Environment | Env
 
   /** Empareja por una clave de nombre, dentro de la misma clase. Con `unique`, solo si la clave no se repite entre los libres de ninguno de los dos lados. */
   const byName = (keyA: (r: Resource) => string, keyB: (r: Resource) => string, matchedBy: MatchedBy, unique: boolean): void => {
-    for (const l of [...restLeft]) {
+    for (const l of openLeft()) {
       const key = keyA(l);
-      const sameLeft = restLeft.filter((x) => x.kind === l.kind && keyA(x) === key);
-      const sameRight = restRight.filter((r) => r.kind === l.kind && keyB(r) === key);
+      const sameLeft = openLeft().filter((x) => x.kind === l.kind && keyA(x) === key);
+      const sameRight = openRight().filter((r) => r.kind === l.kind && keyB(r) === key);
       if (key && sameRight.length > 0 && (!unique || (sameLeft.length === 1 && sameRight.length === 1))) take(l, sameRight[0], matchedBy);
     }
   };
   byName((r) => r.name.trim().toLowerCase(), (r) => r.name.trim().toLowerCase(), 'name', false);
   byName((r) => nameWithoutEnvironment(r.name, phrasesA).join(' '), (r) => nameWithoutEnvironment(r.name, phrasesB).join(' '), 'normalized', true);
 
-  for (const group of new Set(restLeft.filter((r) => technologyOf(r)).map((r) => `${r.kind}|${technologyOf(r)}`))) {
+  for (const group of new Set(openLeft().filter((r) => technologyOf(r)).map((r) => `${r.kind}|${technologyOf(r)}`))) {
     const inGroup = (r: Resource): boolean => `${r.kind}|${technologyOf(r)}` === group;
-    const [freeLeft, freeRight] = [restLeft.filter(inGroup), restRight.filter(inGroup)];
+    const [freeLeft, freeRight] = [openLeft().filter(inGroup), openRight().filter(inGroup)];
     if (freeLeft.length === 0 || freeRight.length === 0) continue;
     if (left.filter(inGroup).length === 1 && right.filter(inGroup).length === 1) {
       take(freeLeft[0], freeRight[0], 'technology');
@@ -199,9 +221,9 @@ function pairResources(left: Resource[], right: Resource[], a: Environment | Env
     }
   }
 
-  for (const l of [...restLeft]) {
+  for (const l of openLeft()) {
     const inClass = (r: Resource): boolean => r.kind === l.kind;
-    const r = restRight.find(inClass);
+    const r = openRight().find(inClass);
     if (!r || !SINGLETON_KINDS.includes(l.kind) || left.filter(inClass).length !== 1 || right.filter(inClass).length !== 1) continue;
     const [techLeft, techRight] = [technologyOf(l), technologyOf(r)];
     if (techLeft && techRight && techLeft !== techRight) continue;
@@ -236,7 +258,7 @@ export function compareEnvironments(doc: PlatformDocument, aId: string, bId: str
     if (!pa && !pb) continue;
     services.push({ service, ...(pa ? { a: pa } : {}), ...(pb ? { b: pb } : {}), kinds: serviceKinds(pa, pb) });
   }
-  const resources = pairResources(liveResources(doc, a.id), liveResources(doc, b.id), a, b).map(({ a: ra, b: rb, matchedBy }): ResourceDifference => {
+  const resources = pairResources(liveResources(doc, a.id), liveResources(doc, b.id), a, b, counterpartsOf(doc)).map(({ a: ra, b: rb, matchedBy }): ResourceDifference => {
     return { ...(ra ? { a: ra } : {}), ...(rb ? { b: rb } : {}), kinds: resourceKinds(ra, rb), ...(ra && rb && matchedBy ? { matchedBy } : {}) };
   });
   return { a, b, services, resources };
@@ -298,7 +320,10 @@ export function compareReport(doc: PlatformDocument, comparison: EnvironmentComp
   const matchNote = (r: ResourceDifference): string => (r.matchedBy && r.matchedBy !== 'name' ? ` (${MATCH_NOTES[r.matchedBy]})` : '');
   section('Recursos con otra versión', comparison.resources.filter((r) => r.kinds.includes('version')).map((r) => `${resourceName(r.a!)}: ${a.name} ${r.a!.version ? `v${r.a!.version}` : 'sin versión'} · ${b.name} ${r.b!.version ? `v${r.b!.version}` : 'sin versión'}${matchNote(r)}`));
   // Las parejas que se dedujeron sin que el nombre las delate se listan aunque no difieran: es lo único que dice que se emparejaron.
-  section('Recursos emparejados por inferencia', comparison.resources.filter((r) => r.matchedBy && !['name', 'normalized'].includes(r.matchedBy)).map((r) => `${resourceName(r.a!)} con «${r.b!.name}»${matchNote(r)}`));
+  // Las declaradas (`counterpartOf`) no son una deducción: se listan aparte, y solo las de nombre distinto (las de igual nombre no sorprenden a nadie).
+  const sameName = (r: ResourceDifference): boolean => r.a!.name.trim().toLowerCase() === r.b!.name.trim().toLowerCase();
+  section('Recursos emparejados por equivalencia declarada (counterpartOf)', comparison.resources.filter((r) => r.matchedBy === 'declared' && !sameName(r)).map((r) => `${resourceName(r.a!)} con «${r.b!.name}»`));
+  section('Recursos emparejados por inferencia', comparison.resources.filter((r) => r.matchedBy && !['declared', 'name', 'normalized'].includes(r.matchedBy)).map((r) => `${resourceName(r.a!)} con «${r.b!.name}»${matchNote(r)}`));
   const totals = summarize(comparison);
   out.push(totals['only-a'] + totals['only-b'] + totals.version + totals.replicas === 0 ? 'Los dos entornos son equivalentes: mismos servicios, versiones y réplicas.' : `Iguales en ambos: ${totals.same} elemento(s).`);
   return out.join('\n').trimEnd();
@@ -396,7 +421,9 @@ export function resolveEnvironments(doc: PlatformDocument, text: string): Enviro
  * Compara tres o más entornos con el primero (la referencia). Cada servicio con despliegue en alguno es una fila; cada celda dice si
  * falta, sobra o difiere en versión o réplicas respecto a la de la referencia. Los recursos se emparejan con los de la referencia
  * como en la comparación de dos entornos (`pairResources`, con su `matchedBy`); los que no tiene la referencia se emparejan entre
- * sí (un balanceador que está en preproducción y en producción pero no en desarrollo es una sola fila).
+ * sí (un balanceador que está en preproducción y en producción pero no en desarrollo es una sola fila). Primero se arman las filas
+ * de las equivalencias declaradas (`counterpartOf`), que mandan: una fila por equivalencia, con un recurso por entorno; los que
+ * quedan se emparejan por deducción.
  */
 export function compareMatrix(doc: PlatformDocument, ids: string[]): EnvironmentMatrix {
   const environments = ids.map((id) => {
@@ -414,25 +441,62 @@ export function compareMatrix(doc: PlatformDocument, ids: string[]): Environment
     services.push({ service, cells: presences.map((presence, i) => ({ ...(presence ? { presence } : {}), kinds: i === 0 ? [] : serviceKinds(presences[0], presence) })) });
   }
 
+  const counterparts = counterpartsOf(doc);
   const columns = environments.map((e) => liveResources(doc, e.id));
+  const columnOf = new Map(columns.flatMap((resources, i) => resources.map((r): [Resource, number] => [r, i])));
   const blank = (): ResourceCell[] => environments.map(() => ({ kinds: [] }));
-  const rows: ResourceRow[] = columns[0].map((resource) => ({ cells: blank().map((cell, i) => (i === 0 ? { resource, kinds: [] } : cell)) }));
+  /** La fila de cada recurso de la referencia: la suya o la de su equivalencia declarada. */
+  const rowOf = new Map<Resource, ResourceRow>();
   const extras: ResourceRow[] = [];
+  /** Los recursos que ya tienen su fila por una equivalencia declarada: no se les busca pareja por deducción en las columnas donde la tienen. */
+  const placed = new Set<Resource>();
+  for (const group of counterparts.groups) {
+    const cells = blank();
+    // Un recurso por entorno (el primero del documento): si la equivalencia tuviera más, los demás se quedan para la deducción.
+    const members = new Set<number>();
+    for (const member of group) {
+      const column = columnOf.get(member);
+      if (column !== undefined && !cells[column].resource) {
+        cells[column] = { resource: member, kinds: [] };
+        members.add(column);
+      }
+    }
+    if (members.size < 2) continue;
+    const columnsOf = [...members].sort((x, y) => x - y);
+    const reference = cells[0].resource;
+    for (const column of columnsOf) {
+      const resource = cells[column].resource!;
+      placed.add(resource);
+      if (column === 0) continue;
+      // Frente a la referencia, si la equivalencia la tiene; si no, es de lo que la referencia no tiene (y el primero de la fila no se empareja con nadie).
+      cells[column] = reference ? { resource, kinds: resourceKinds(reference, resource), matchedBy: 'declared' } : { resource, kinds: ['only-b'], ...(column === columnsOf[0] ? {} : { matchedBy: 'declared' as const }) };
+    }
+    const row: ResourceRow = { cells };
+    if (reference) rowOf.set(reference, row);
+    else extras.push(row);
+  }
+  const rows: ResourceRow[] = columns[0].map((resource) => {
+    const row = rowOf.get(resource) ?? { cells: blank().map((cell, i) => (i === 0 ? { resource, kinds: [] } : cell)) };
+    rowOf.set(resource, row);
+    return row;
+  });
+  const firstColumn = (row: ResourceRow): number => row.cells.findIndex((c) => c.resource);
   environments.forEach((environment, i) => {
     if (i === 0) return;
+    const [filledRight, filledLeft] = [new Set(columns[i].filter((r) => placed.has(r))), new Set(columns[0].filter((r) => rowOf.get(r)!.cells[i].resource))];
     const leftovers: Resource[] = [];
-    for (const pair of pairResources(columns[0], columns[i], environments[0], environment)) {
-      if (pair.a) rows.find((row) => row.cells[0].resource === pair.a)!.cells[i] = { ...(pair.b ? { resource: pair.b, ...(pair.matchedBy ? { matchedBy: pair.matchedBy } : {}) } : {}), kinds: resourceKinds(pair.a, pair.b) };
+    for (const pair of pairResources(columns[0], columns[i], environments[0], environment, counterparts, { left: filledLeft, right: filledRight })) {
+      if (pair.a) rowOf.get(pair.a)!.cells[i] = { ...(pair.b ? { resource: pair.b, ...(pair.matchedBy ? { matchedBy: pair.matchedBy } : {}) } : {}), kinds: resourceKinds(pair.a, pair.b) };
       else leftovers.push(pair.b!);
     }
     // Lo que la referencia no tiene: se empareja con lo ya visto en los entornos anteriores y, si no, abre una fila.
-    const seen = extras.map((row) => row.cells.find((c) => c.resource)!.resource!);
+    const open = extras.filter((row) => !row.cells[i].resource && firstColumn(row) < i);
     const merged = new Set<Resource>();
-    if (seen.length > 0) {
+    if (open.length > 0) {
       const earlier = environments.slice(1, i);
-      for (const pair of pairResources(seen, leftovers, earlier, environment)) {
+      for (const pair of pairResources(open.map((row) => row.cells[firstColumn(row)].resource!), leftovers, earlier, environment, counterparts)) {
         if (!pair.a || !pair.b) continue;
-        extras.find((row) => row.cells.some((c) => c.resource === pair.a))!.cells[i] = { resource: pair.b, kinds: ['only-b'], ...(pair.matchedBy ? { matchedBy: pair.matchedBy } : {}) };
+        open.find((row) => row.cells.some((c) => c.resource === pair.a))!.cells[i] = { resource: pair.b, kinds: ['only-b'], ...(pair.matchedBy ? { matchedBy: pair.matchedBy } : {}) };
         merged.add(pair.b);
       }
     }

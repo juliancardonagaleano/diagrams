@@ -1,6 +1,7 @@
 export * from './types';
 export { platformDocumentSchema, platformJsonSchema, validatePlatformDocument, formatPlatformIssues, type PlatformValidation } from './schema';
 export { analyzePlatform } from './issues';
+export { counterpartsOf, counterpartErrors, dropCounterparts, type Counterparts, type CounterpartError } from './counterparts';
 export { dependencyGraph, reach, scoped, scopeEnvironment, deploymentEnvironments, callCycles, type DependencyGraph, type Reach, type ReachStep } from './graph';
 export { listViews, findView, traceView, compareView, type PlatformView } from './views';
 export {
