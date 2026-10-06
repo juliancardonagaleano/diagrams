@@ -95,6 +95,13 @@ export interface Resource {
    */
   provider?: string;
   service?: string;
+  /**
+   * Id del recurso de otro entorno que es el equivalente de este («Kafka (dev)» y «Kafka (prod)» son el mismo recurso en dos
+   * entornos). Al comparar entornos manda sobre toda deducción por nombre, tecnología o clase. Basta que lo declare uno de los
+   * dos y la equivalencia es simétrica y transitiva: dev → staging y staging → prod hacen equivalentes a dev y prod. En cada
+   * entorno solo puede haber un recurso (no dado de baja) de cada equivalencia (ver `counterpartErrors`).
+   */
+  counterpartOf?: string;
 }
 
 export interface Service {
