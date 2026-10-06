@@ -717,7 +717,29 @@ describe('generación con IA', () => {
     if (!failed.ok) expect(failed.issues).toContain('solo se despliega en un clúster o una máquina virtual');
   });
 
+  it('conserva el equivalente en otro entorno (counterpartOf) al refinar y rechaza el que no existe o es del mismo entorno', () => {
+    const declared = { ...doc, resources: doc.resources.map((r) => (r.id === 'pedidos-db-prod' ? { ...r, name: 'Almacén transaccional', counterpartOf: 'pedidos-db-dev' } : r)) };
+    expect(platformModule.schema.safeParse(declared).success).toBe(true);
+    const generated = toGenerated(declared);
+    expect(generated.resources.find((r) => r.id === 'pedidos-db-prod')?.counterpartOf).toBe('pedidos-db-dev');
+    // Los recursos sin equivalente declarado llevan null (la salida estructurada exige todos los campos) y vuelven a quedar sin el campo.
+    expect(generated.resources.find((r) => r.id === 'kafka-prod')?.counterpartOf).toBeNull();
+    const back = generatedToPlatform(generated);
+    expect(back.ok && back.document.resources.find((r) => r.id === 'pedidos-db-prod')?.counterpartOf).toBe('pedidos-db-dev');
+    expect(back.ok && back.document.resources.find((r) => r.id === 'kafka-prod')).not.toHaveProperty('counterpartOf');
+    const missing = generatedToPlatform({ ...generated, resources: generated.resources.map((r) => (r.id === 'pedidos-db-prod' ? { ...r, counterpartOf: 'no-existe' } : r)) });
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.issues).toContain('referencia un recurso equivalente inexistente: "no-existe"');
+    const sameEnvironment = generatedToPlatform({ ...generated, resources: generated.resources.map((r) => (r.id === 'pedidos-db-prod' ? { ...r, counterpartOf: 'kafka-prod' } : r)) });
+    expect(sameEnvironment.ok).toBe(false);
+    if (!sameEnvironment.ok) expect(sameEnvironment.issues).toContain('están en el mismo entorno');
+    const schema = platformAiSpec.generationJsonSchema() as { properties: { resources: { items: { properties: Record<string, unknown>; required: string[] } } } };
+    expect(schema.properties.resources.items.properties).toHaveProperty('counterpartOf');
+    expect(schema.properties.resources.items.required).toContain('counterpartOf');
+  });
+
   it('el prompt describe el dominio y el usuario incluye el modelo base al refinar', () => {
+    expect(platformAiSpec.system()).toContain('counterpartOf');
     expect(platformAiSpec.system()).toContain('arquitecto de plataforma');
     expect(platformAiSpec.system()).toContain('los ÚNICOS anfitriones');
     expect(platformAiSpec.user('Una tienda')).toContain('Una tienda');
