@@ -104,6 +104,14 @@ export class Accounts {
     return this.adminIds.has(profile.id) || this.adminLogins.has(loginKey(profile.login));
   }
 
+  /**
+   * ¿Esta cuenta figura en la lista de administradores de la instancia (`--admins`)? Su rol no se puede cambiar desde la API: lo manda
+   * la lista. Una cuenta pendiente también cuenta si su nombre está en la lista (cuando entre, será administradora).
+   */
+  isListedAdmin(user: Pick<AccountUser, 'githubId' | 'login'>): boolean {
+    return (user.githubId !== undefined && this.adminIds.has(user.githubId)) || this.adminLogins.has(loginKey(user.login));
+  }
+
   /** El rol que tiene ahora una cuenta en la instancia: si está en la lista de administradores es `admin`, aunque su cuenta guarde otro. */
   siteRoleOf(user: AccountUser): SiteRole {
     if (user.githubId !== undefined && this.adminIds.has(user.githubId)) return 'admin';

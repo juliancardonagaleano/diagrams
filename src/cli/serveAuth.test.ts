@@ -141,13 +141,14 @@ describe('cabeceras y direcciones', () => {
     for (const host of ['0.0.0.0', '::', '[::]', '192.168.1.5', '10.0.0.2', '203.0.113.7', 'example.org', '127.0.0.1.evil.example', 'localhost.evil.example', '', '1270.0.0.1', '::ffff:10.0.0.1']) expect(isLoopbackHost(host), host).toBe(false);
   });
 
-  it('requiredRole: viewer lee, editor escribe, admin borra proyectos; lo desconocido pide editor', () => {
+  it('requiredRole: viewer lee, editor escribe, admin borra proyectos y gestiona sus miembros; lo desconocido pide editor', () => {
     const table: Array<[string, string[], TokenRole]> = [
       ['GET', [], 'viewer'],
       ['GET', ['p'], 'viewer'],
       ['GET', ['p', 'bundle'], 'viewer'],
       ['GET', ['p', 'check'], 'viewer'],
       ['GET', ['p', 'diagrams', 'd'], 'viewer'],
+      ['GET', ['p', 'members'], 'viewer'], // ver quién pertenece
       ['HEAD', ['p'], 'viewer'],
       ['POST', [], 'editor'], // crear proyecto
       ['POST', ['import'], 'editor'],
@@ -158,6 +159,9 @@ describe('cabeceras y direcciones', () => {
       ['DELETE', ['p', 'diagrams', 'd'], 'editor'],
       ['DELETE', ['p'], 'admin'], // borrar proyecto
       ['DELETE', ['import'], 'admin'], // un proyecto que se llame así
+      ['PUT', ['p', 'members', 'ana'], 'admin'], // compartir y dejar de compartir
+      ['DELETE', ['p', 'members', 'ana'], 'admin'],
+      ['POST', ['p', 'members'], 'admin'],
       ['PUT', [], 'editor'], // lo que no existe: nunca un viewer
       ['PUT', ['p'], 'editor'],
       ['DELETE', [], 'editor'],
