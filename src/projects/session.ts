@@ -530,13 +530,18 @@ export class ProjectSession {
     this.pendingText = undefined;
   }
 
-  /** Guarda ya lo pendiente y espera a que termine (antes de cambiar de diagrama, exportar o salir). */
+  /**
+   * Guarda ya lo pendiente y espera a que termine (antes de cambiar de diagrama, exportar o salir). Un guardado que falló porque el servidor no
+   * acepta la credencial (`unauthorized`: un token revocado o una sesión caducada) no se vuelve a intentar aquí: volvería a fallar y cada fallo
+   * cuenta contra el límite de intentos fallidos del servidor, que frena a TODA la dirección (también a quien entre después con una sesión buena).
+   * Lo retoma `useToken`, o se pierde si la persona lo decide al cambiar de almacén.
+   */
   async flush(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = undefined;
       await this.run();
-    } else if (this.pendingText !== undefined && this.state.save === 'error') {
+    } else if (this.pendingText !== undefined && this.state.save === 'error' && this.state.saveErrorCode !== 'unauthorized') {
       await this.run();
     }
     await this.inFlight;

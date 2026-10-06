@@ -373,7 +373,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         {!state.available && (
           <p className="pj-warn" role="alert">
             {remote
-              ? `No se pudo usar el servidor${host ? ` ${host}` : ''}${state.error ? `: ${state.error}` : ''}. Revisa «Dónde se guardan» aquí abajo.`
+              ? `No se pudo usar el servidor${host ? ` ${host}` : ''}${state.error ? `: ${state.error.replace(/\.+$/, '')}` : ''}. Revisa «Dónde se guardan» aquí abajo.`
               : `El almacenamiento del navegador no está disponible${state.error ? `: ${state.error}` : ''}. Los proyectos no se pueden guardar aquí; sí puedes exportar e importar archivos.`}
           </p>
         )}
