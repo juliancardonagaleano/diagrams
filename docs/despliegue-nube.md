@@ -163,7 +163,7 @@ Ponlo en `deploy/.env` (`IARK_ADMINS=583231`; varias personas, separadas por com
 | `invite` (por omisión) | Solo las personas de `IARK_ADMINS` y las que invites por su nombre de GitHub | Un equipo conocido. Recomendado |
 | `open` | Cualquiera con cuenta de GitHub, como miembro (puede crear hasta `IARK_MAX_PROJECTS` proyectos) | Una comunidad abierta. IArk no impone una cuota de disco por persona: vigila el espacio libre |
 
-Invitar es compartir un proyecto con un nombre de usuario de GitHub, o invitarlo a la instancia (README, «Compartir proyectos» y «Administrar las cuentas de la instancia»). Quien no esté invitado vuelve a la página con `#iark_error=not_invited` (el sitio lo explica). Cambiar `IARK_SIGNUP`: edita `.env` y `docker compose up -d` (recrea el contenedor; las sesiones se conservan, están en el disco).
+**Invitar** a alguien es compartir un proyecto con su nombre de usuario de GitHub (*Compartir…* en el gestor de proyectos): queda como invitación y, al entrar con esa cuenta, tiene el proyecto con el rol que le diste (como invitado: no crea proyectos propios). Invitar a la instancia sin compartir un proyecto, desactivar una cuenta o cambiar su rol **todavía no tiene pantalla**: se hace con la API de administración (README, «Administrar las cuentas de la instancia»), con la sesión de una persona de `IARK_ADMINS` en `Authorization: Bearer`. Quien no esté invitado vuelve a la página con `#iark_error=not_invited` (el sitio lo explica). Cambiar `IARK_SIGNUP`: edita `.env` y `docker compose up -d` (recrea el contenedor; las sesiones se conservan, están en el disco).
 
 ## 5. El sitio de GitHub Pages también puede usar esta instancia — *Lo haces tú*
 
@@ -251,6 +251,7 @@ Siempre empieza por `docker compose ps` y `docker compose logs iark` (y `caddy`)
 - **Solo GitHub**: no hay SSO de empresa (SAML, OIDC) ni otros proveedores. Con GitHub Enterprise Server se puede apuntar `IARK_GITHUB_URL` y `IARK_GITHUB_API_URL` a su servidor.
 - **Sin permisos por organización o equipo de GitHub.** IArk no pide permisos, así que no lee a qué organizaciones perteneces: entra quien tiene cuenta (según `invite` u `open`) y los permisos se reparten por proyecto, por invitación.
 - **El token de sesión vive en el navegador** (en la pestaña, o en el equipo si se marca «Mantener la sesión en este equipo»): cualquier script que se ejecute en el sitio, una extensión o quien use ese equipo podría leerlo. Cierra la sesión en equipos ajenos; una cuenta desactivada pierde sus sesiones.
+- **No hay pantalla de administración de cuentas**: ver la lista de personas, invitar sin un proyecto, desactivar o cambiar un rol se hace con la API (`/api/admin/users`).
 - **Sin registro de accesos ni de quién cambió qué**, y sin edición simultánea en tiempo real (README, «Guardar en la nube»).
 - **Un diagrama muy grande bloquea el servicio mientras se calcula** (el cálculo de la distribución corre en el mismo proceso): en una prueba nuestra, en una máquina compartida, exportar a SVG con la API (`/api/<módulo>/export`) un diagrama de 300 contenedores y 600 relaciones tardó unos 90 s y dejó todo lo demás esperando. Guardar proyectos no calcula distribuciones.
 - **Las copias de seguridad son cosa tuya** (paso 6), y el servicio no ofrece cuotas de disco por persona.
