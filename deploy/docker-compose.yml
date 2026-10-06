@@ -1,0 +1,118 @@
+# IArk - DIAgrams como servicio gestionado, con inicio de sesión de GitHub y HTTPS automático: una máquina con Docker y un dominio.
+#
+# Guía completa, paso a paso (OAuth App de GitHub, DNS, primer arranque, copias de seguridad, actualizar):
+#   docs/despliegue-nube.md
+#
+# Lo mínimo, desde esta carpeta (deploy/):
+#   cp .env.example .env                       # y rellena el dominio, el Client ID de GitHub y los administradores
+#   nano secrets/github_client_secret          # pega el Client secret de la OAuth App (solo eso) y guarda
+#   chown 1000:1000 secrets/github_client_secret && chmod 400 secrets/github_client_secret    # (con sudo si no eres root) que lo lea el usuario de IArk
+#   docker volume create iark-data             # donde viven los proyectos y las cuentas (ver el volumen, abajo)
+#   docker compose up -d --build
+#
+# Dos servicios:
+#   - iark:  la imagen del repositorio (../Dockerfile). No publica ningún puerto: solo Caddy llega a él, por la red interna de compose.
+#   - caddy: HTTPS con certificado automático (Caddyfile, en esta carpeta) y proxy hacia iark. Es lo único expuesto: 80 y 443.
+name: iark
+
+services:
+  iark:
+    build:
+      context: ..
+    image: iark-diagrams
+    restart: unless-stopped
+    # --trust-proxy: hay un proxy de confianza delante (Caddy). El freno de intentos fallidos usa la dirección real del cliente
+    # que Caddy anota en X-Forwarded-For; NO lo uses si publicas este servicio sin proxy. IARK_CORS (vacío: ningún otro origen)
+    # puede nombrar el sitio de GitHub Pages u otra aplicación que deba iniciar sesión contra esta instancia.
+    command: ["--trust-proxy", "--cors=${IARK_CORS:-}"]
+    environment:
+      # Dónde se guarda todo: en el volumen de abajo, que es lo único que hay que copiar.
+      IARK_WORKSPACE: /data/workspace
+      IARK_ACCOUNTS: /data/accounts.json
+      # La OAuth App de GitHub. El Client secret NO va aquí: es el Docker secret de abajo.
+      IARK_GITHUB_CLIENT_ID: "${IARK_GITHUB_CLIENT_ID:?Falta IARK_GITHUB_CLIENT_ID en deploy/.env (el Client ID de la OAuth App de GitHub)}"
+      IARK_GITHUB_CLIENT_SECRET_FILE: /run/secrets/github_client_secret
+      # La dirección pública (de aquí sale la «Authorization callback URL» de la OAuth App: <esta dirección>/api/auth/github/callback).
+      IARK_PUBLIC_URL: "https://${IARK_DOMAIN:?Falta IARK_DOMAIN en deploy/.env (el dominio del servicio, sin https://)}"
+      # Quién administra la instancia: los identificadores numéricos de GitHub (mejor que los nombres), separados por comas.
+      IARK_ADMINS: "${IARK_ADMINS:?Falta IARK_ADMINS en deploy/.env (tu identificador numérico de GitHub; ver la guía)}"
+      # «invite» (por omisión): solo entran las personas invitadas y los administradores. «open»: entra cualquiera con cuenta de GitHub.
+      IARK_SIGNUP: "${IARK_SIGNUP:-invite}"
+      # Vacío = lo que decide el servicio (30 días de sesión y 25 proyectos por persona).
+      IARK_SESSION_DAYS: "${IARK_SESSION_DAYS:-}"
+      IARK_MAX_PROJECTS: "${IARK_MAX_PROJECTS:-}"
+      # Solo con GitHub Enterprise Server: su dirección y su API (vacío = github.com).
+      IARK_GITHUB_URL: "${IARK_GITHUB_URL:-}"
+      IARK_GITHUB_API_URL: "${IARK_GITHUB_API_URL:-}"
+    secrets:
+      - github_client_secret
+    volumes:
+      - iark-data:/data
+    expose:
+      - "8787"
+    # El HEALTHCHECK viene en la imagen (consulta /api/modules, que es público). Caddy espera a que esté sano para arrancar.
+    # Endurecido: la imagen ya corre como `node` (no root); el sistema de archivos es de solo lectura salvo /data y /tmp, y sin capacidades.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Límites de partida para una máquina pequeña (elegidos aquí, no impuestos por IArk): en pruebas el servicio usa unos 100 MB en
+    # reposo y llegó a unos 330 MB exportando un diagrama de 300 contenedores. Súbelos si la máquina da para más.
+    mem_limit: 768m
+    cpus: 1.5
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      iark:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      IARK_DOMAIN: "${IARK_DOMAIN:?Falta IARK_DOMAIN en deploy/.env (el dominio del servicio, sin https://)}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Los certificados (caddy-data) deben conservarse entre reinicios: las entidades que los emiten limitan cuántos se piden por dominio.
+      - caddy-data:/data
+      - caddy-config:/config
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  # Los proyectos y las cuentas. `external`: se crea una vez a mano (`docker volume create iark-data`) y NO lo borran ni
+  # `docker compose down` ni `docker compose down -v`. Un volumen con nombre hereda de la imagen /data con el dueño node (1000:1000).
+  iark-data:
+    external: true
+  caddy-data:
+  caddy-config:
+
+secrets:
+  # El Client secret de la OAuth App: un archivo con solo el secreto (el servicio recorta los espacios y saltos de línea).
+  # Está en deploy/secrets/, que git ignora. Compose lo monta tal cual, con el dueño y el modo que tenga en la máquina: lo lee el usuario
+  # node (uid 1000) del contenedor, así que el archivo debe ser de 1000:1000 (modo 400) o legible por todos; si no, IArk no arranca
+  # y dice «No se pudo leer el secreto de GitHub … (EACCES)». (`uid`, `gid` y `mode` de compose no se aplican a los secretos de archivo.)
+  github_client_secret:
+    file: ./secrets/github_client_secret

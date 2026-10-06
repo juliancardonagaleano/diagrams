@@ -1,0 +1,5 @@
+# Lo que se rellena al desplegar y no debe subirse nunca: la configuración propia (.env) y los secretos.
+.env
+secrets/*
+# .env.example sí se versiona (el .gitignore de la raíz ignora .env.*)
+!.env.example
