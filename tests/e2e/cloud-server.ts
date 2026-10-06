@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createToken, revokeToken } from '../../src/cli/tokens';
+import { FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, startFakeGithub, type FakeGithub, type FakeProfile } from '../helpers/fakeGithub';
 
 /**
  * Un `iark serve --workspace <carpeta temporal>` de verdad para las pruebas e2e de «guardar en la nube»: el CLI real
@@ -68,6 +70,95 @@ export async function startCloudServer(options: { cors?: string; people?: Array<
       }
       rmSync(workspace, { recursive: true, force: true });
       if (tokenDir) rmSync(tokenDir, { recursive: true, force: true });
+    },
+  };
+}
+
+/**
+ * Un servicio gestionado de verdad para las pruebas del inicio de sesión: `iark serve --workspace <carpeta> --accounts <archivo>` con una OAuth App
+ * que apunta a un GitHub de mentira (`startFakeGithub`, cuya pantalla de autorización acepta al instante, así que sirve a un navegador real).
+ * `--public-url` y `--cors` llevan direcciones que hay que conocer antes de arrancar, así que el puerto no es `0`: se elige uno libre de antemano.
+ * Cada prueba arranca el suyo (servidor, GitHub de mentira y carpetas) y lo para al terminar.
+ */
+export interface ManagedCloud {
+  /** `http://127.0.0.1:<puerto>`: la dirección pública del servicio y la que se escribe en «Dirección del servidor». */
+  url: string;
+  workspace: string;
+  github: FakeGithub;
+  /** La próxima persona que «acepte» en GitHub (el que inicie sesión a continuación entra como ella). */
+  signInAs(profile: FakeProfile): void;
+  stop(): Promise<void>;
+}
+
+async function freePort(): Promise<number> {
+  return new Promise((resolve) => {
+    const probe = createServer();
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = (probe.address() as { port: number });
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
+export async function startManagedCloud(options: { cors: string; admins?: FakeProfile[]; signup?: 'open' | 'invite' }): Promise<ManagedCloud> {
+  const github = await startFakeGithub();
+  const dir = mkdtempSync(join(tmpdir(), 'iark-e2e-gestionada-'));
+  const workspace = join(dir, 'espacio');
+  const port = await freePort();
+  const url = `http://127.0.0.1:${port}`;
+  const admins = (options.admins ?? []).map((admin) => String(admin.id)).join(',');
+  const args = [
+    'node_modules/tsx/dist/cli.mjs', 'src/cli/index.ts', 'serve',
+    '--workspace', workspace, '--accounts', join(dir, 'cuentas.json'),
+    '--github-client-id', FAKE_CLIENT_ID, '--public-url', url, '--cors', options.cors,
+    '--signup', options.signup ?? 'invite', '--host', '127.0.0.1', '-p', String(port),
+  ];
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    // lo de la suite que pudiera haber en el entorno de quien corre las pruebas no debe colarse
+    IARK_TOKENS: '', IARK_WORKSPACE: '', IARK_ACCOUNTS: '', IARK_GITHUB_CLIENT_ID: '', IARK_PUBLIC_URL: '', IARK_SIGNUP: '', IARK_GITHUB_CLIENT_SECRET_FILE: '',
+    IARK_GITHUB_URL: github.url, IARK_GITHUB_API_URL: github.url, IARK_GITHUB_CLIENT_SECRET: FAKE_CLIENT_SECRET, IARK_ADMINS: admins,
+  };
+  const child: ChildProcess = spawn(process.execPath, args, { cwd: process.cwd(), env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`El servidor no arrancó en 30 s:\n${output}`)), 30_000);
+      const onData = (chunk: Buffer): void => {
+        output += chunk.toString();
+        if (/escuchando en http:\/\//.test(output)) {
+          clearTimeout(timer);
+          resolve();
+        }
+      };
+      child.stdout!.on('data', onData);
+      child.stderr!.on('data', onData);
+      child.once('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error(`El servidor terminó (código ${code}) antes de escuchar:\n${output}`));
+      });
+    });
+  } catch (error) {
+    child.kill('SIGKILL');
+    await github.stop();
+    rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
+  return {
+    url,
+    workspace,
+    github,
+    signInAs: (profile) => github.signInAs(profile),
+    async stop() {
+      if (child.exitCode === null) {
+        await new Promise<void>((resolve) => {
+          child.once('exit', () => resolve());
+          child.kill('SIGTERM');
+          setTimeout(() => child.kill('SIGKILL'), 5000).unref();
+        });
+      }
+      await github.stop();
+      rmSync(dir, { recursive: true, force: true });
     },
   };
 }
