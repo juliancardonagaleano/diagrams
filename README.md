@@ -46,10 +46,14 @@ Requisitos: Node 20+.
   colocado la vista, React Flow la dibuja y la cámara ha terminado de encuadrar), y sus pruebas esperan con `c4Ready`,
   `openEditor` y `reloadEditor` en vez de `waitForTimeout` o `networkidle`. En las páginas con iframes se usa
   `domcontentloaded`, porque con iframes `networkidle` a veces no llega.
+- **Imagen Docker** (`npm run docker:smoke`, `scripts/docker-smoke-cuentas.ts`): construye la imagen (o usa una con `--image`), la ejecuta de verdad
+  y recorre el servicio gestionado contra un GitHub de mentira (`tests/helpers/fakeGithub.ts`): inicio de sesión, un proyecto en el volumen, reiniciar y
+  sustituir el contenedor, copia de seguridad y restauración, bind mount, secreto por archivo y que nada secreto salga en `docker logs`. Necesita Docker y Linux
+  (`--network host`); sin ellos se salta con un mensaje. No forma parte de `npm test`.
 
 ## Despliegue (GitHub Pages)
 
-La app es un sitio estático (`dist/app`), sin servidor: la generación con IA vive solo en el CLI. No hay workflow
+La app es un sitio estático (`dist/app`), sin servidor: la generación con IA vive solo en el CLI. (Para desplegar el **servicio con servidor** —la nube de proyectos con inicio de sesión de GitHub, HTTPS y disco— ver la [guía de despliegue](docs/despliegue-nube.md); esta sección es solo el sitio estático.) No hay workflow
 de GitHub Actions: el sitio compilado se entrega en la rama `gh-pages` con `npm run deploy:pages`, que construye la
 app con la ruta base `/<repositorio>/` y publica el resultado (solo el sitio compilado, más `.nojekyll`). La rama
 se reescribe en cada publicación.
@@ -723,6 +727,8 @@ docker run -d --name iark -p 127.0.0.1:8787:8787 \
 - La imagen escucha en `0.0.0.0`: con `IARK_WORKSPACE` y sin `IARK_TOKENS` se niega a arrancar. Un archivo de tokens creado en el anfitrión con otro usuario (modo 0600) no lo podrá leer el contenedor: créelo con la imagen, como arriba, o cámbiele el dueño (`chown 1000`).
 - Para revocar o listar: `docker run --rm -v "$PWD/datos/tokens:/tokens" --entrypoint node iark-diagrams dist/cli/index.js auth revoke "Ana García" --tokens /tokens/tokens.json`; el servidor en marcha lo nota solo.
 - El `HEALTHCHECK` de la imagen consulta `/api/modules`, que sigue siendo público.
+- La imagen trae `/data`, una carpeta vacía del usuario `node`: con un **volumen con nombre** (`-v iark-data:/data`) hereda ese dueño y sirve tal cual; con un bind mount de una carpeta del anfitrión, su dueño debe ser `1000:1000` (`chown 1000:1000 <carpeta>`). Es la carpeta que usa el servicio gestionado (`IARK_WORKSPACE=/data/workspace`, `IARK_ACCOUNTS=/data/accounts.json`).
+- **Con inicio de sesión de GitHub** en lugar de tokens (nube gestionada), la imagen y un `docker-compose.yml` con Caddy, el secreto como Docker secret y el volumen ya están preparados en [`deploy/`](deploy/); la guía paso a paso (OAuth App, dominio, primer arranque, copias de seguridad) es [`docs/despliegue-nube.md`](docs/despliegue-nube.md).
 
 Con HTTPS delante (Caddy), en un `docker-compose.yml`:
 
@@ -787,7 +793,7 @@ server {
 
 ## Servicio gestionado: inicio de sesión con GitHub
 
-Con `--accounts`, el mismo `iark serve --workspace` ofrece **«Iniciar sesión con GitHub»** en lugar de repartir tokens a mano: cada persona entra con su cuenta de GitHub, el servicio guarda quién es y a qué proyectos pertenece, y le da una **sesión** (un token que caduca) que se usa exactamente como un token de `iark auth`: `Authorization: Bearer <sesión>`. Lo que hace falta es una OAuth App de GitHub (la crea quien aloja el servicio, ver la guía de despliegue), un archivo para las cuentas y la dirección pública del servicio. `--tokens` sigue existiendo y puede usarse a la vez (cuentas de servicio, scripts y CLI con un rol para toda la carpeta).
+Con `--accounts`, el mismo `iark serve --workspace` ofrece **«Iniciar sesión con GitHub»** en lugar de repartir tokens a mano: cada persona entra con su cuenta de GitHub, el servicio guarda quién es y a qué proyectos pertenece, y le da una **sesión** (un token que caduca) que se usa exactamente como un token de `iark auth`: `Authorization: Bearer <sesión>`. Lo que hace falta es una OAuth App de GitHub (la crea quien aloja el servicio: [guía de despliegue](docs/despliegue-nube.md), con los valores exactos de cada campo), un archivo para las cuentas y la dirección pública del servicio. `--tokens` sigue existiendo y puede usarse a la vez (cuentas de servicio, scripts y CLI con un rol para toda la carpeta).
 
 ```bash
 export IARK_GITHUB_CLIENT_SECRET=…            # solo por entorno o por IARK_GITHUB_CLIENT_SECRET_FILE: nunca por la línea de comandos
@@ -807,9 +813,12 @@ iark serve --host 0.0.0.0 --port 8787 --static dist/app \
 | `--admins <lista>` | `IARK_ADMINS` | Administradores de la instancia, separados por comas: nombres de usuario de GitHub o, **mejor, sus identificadores numéricos** (el nombre de usuario puede pasar a otra persona si su dueña lo cambia; el id no). `curl https://api.github.com/users/<usuario>` lo da |
 | `--session-days <n>` | `IARK_SESSION_DAYS` | Duración de una sesión (30 por omisión) |
 | `--max-projects <n>` | `IARK_MAX_PROJECTS` | Proyectos que puede administrar cada persona (25 por omisión; los administradores no tienen tope) |
+| `--cors <orígenes>`, `--trust-proxy` | `IARK_CORS`, `IARK_TRUST_PROXY=true` | Orígenes que pueden llamar a la API desde un navegador y a los que se vuelve tras entrar (para volver hay que nombrarlos: un `*` no vale); y «hay un proxy de confianza delante» (solo con proxy: ver «Límites»). Sirven para plataformas que solo se configuran por entorno |
 | `--github-url`, `--github-api-url` | `IARK_GITHUB_URL`, `IARK_GITHUB_API_URL` | Con GitHub Enterprise Server, su dirección y su API (`https://git.empresa.com`, `https://git.empresa.com/api/v3`) |
 
 Con cuentas, el servicio puede escuchar fuera de loopback sin `--tokens` (hace falta una de las dos formas de autenticarse). Si falta algo de lo anterior, el arranque lo dice todo de una vez (código 2). Con `--signup invite` y sin administradores ni cuentas todavía, nadie podría entrar: no arranca.
+
+**Desplegarlo**: la imagen Docker ya sirve como servicio gestionado y [`deploy/`](deploy/) trae un `docker-compose.yml` de producción (IArk + Caddy con HTTPS automático, volumen de datos y el secreto de la OAuth App como Docker secret). La guía [`docs/despliegue-nube.md`](docs/despliegue-nube.md) lleva de cero a un servicio en marcha: registrar la OAuth App, DNS y firewall, primer arranque, entrar como administradora, usar el sitio de GitHub Pages contra la instancia, copias de seguridad, actualizar y los errores más frecuentes.
 
 ### Cómo es el inicio de sesión
 
@@ -1177,7 +1186,7 @@ Con `--workspace <carpeta>` añade además la API de proyectos (`/api/projects�
 
 #### Imagen Docker
 
-El `Dockerfile` (dos etapas sobre `node:22-alpine`) compila la biblioteca, el CLI y el sitio, deja solo las dependencias de producción y arranca `iark serve --host 0.0.0.0 --port $PORT --static dist/app` (`PORT` vale 8787 por defecto) como el usuario `node` (no root). La imagen pesa unos 207 MB (la base de Node, unos 160 MB; `node_modules`, 28 MB; el sitio, 9 MB; el CLI, 3 MB) y no guarda estado. Pesaba 355 MB mientras el frontend (react, Semi UI, xyflow, zustand…) estaba en `dependencies`: Vite ya lo empaqueta en `dist/app`, así que ahora es `devDependencies` y `npm prune --omit=dev` lo descarta; el paquete npm tampoco lo arrastra a quien lo instala (22 paquetes y 52 MB en vez de 209 y 271 MB).
+El `Dockerfile` (dos etapas sobre `node:22-alpine`) compila la biblioteca, el CLI y el sitio, deja solo las dependencias de producción y arranca `iark serve --host 0.0.0.0 --port $PORT --static dist/app` (`PORT` vale 8787 por defecto) como el usuario `node` (no root). La imagen pesa unos 210 MB (la base de Node, unos 165 MB; `node_modules`, 28 MB; el sitio, 9 MB; el CLI, 3 MB) y sin variables no guarda estado (la demo); lo que guarda el servicio gestionado va a `/data`. Pesaba 355 MB mientras el frontend (react, Semi UI, xyflow, zustand…) estaba en `dependencies`: Vite ya lo empaqueta en `dist/app`, así que ahora es `devDependencies` y `npm prune --omit=dev` lo descarta; el paquete npm tampoco lo arrastra a quien lo instala (22 paquetes y 52 MB en vez de 209 y 271 MB).
 
 ```bash
 docker build -t iark-diagrams .
@@ -1188,9 +1197,12 @@ docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges -p 8
 ```
 
 - Los argumentos tras el nombre de la imagen se añaden al `ENTRYPOINT` (`--cors`, `--static`…); si repites una opción, gana la última. Para cambiar el puerto de publicación basta `-p`. El puerto de dentro sale de la variable `PORT` (8787 por defecto), que usan igual el servidor y el `HEALTHCHECK` (consulta `/api/modules`): cámbialo con `-e PORT=9100`, no con `--port` (el servidor escucharía en otro puerto que el `HEALTHCHECK` no mira y el contenedor acabaría `unhealthy`; si aun así lo haces, sobrescribe el chequeo con `--health-cmd` o `--no-healthcheck`).
-- Para guardar proyectos y compartirlos entre personas (volúmenes, tokens, HTTPS), ver «Servidor para varias personas (nube autoalojada)»: la imagen escucha en `0.0.0.0`, así que con `IARK_WORKSPACE` y sin `IARK_TOKENS` se niega a arrancar.
+- Para guardar proyectos y compartirlos entre personas (volúmenes, tokens, HTTPS), ver «Servidor para varias personas (nube autoalojada)»: la imagen escucha en `0.0.0.0`, así que con `IARK_WORKSPACE` y sin autenticación (`IARK_TOKENS` o el inicio de sesión de GitHub, `IARK_ACCOUNTS`…) se niega a arrancar; por eso la imagen no fija `IARK_WORKSPACE`. Para el servicio con inicio de sesión de GitHub, ver «Servicio gestionado» y la [guía de despliegue](docs/despliegue-nube.md).
+- La carpeta `/data` de la imagen es del usuario `node` (1000:1000): un volumen con nombre la hereda; en un bind mount, la carpeta del anfitrión debe ser de `1000:1000`. Si una plataforma monta el disco con dueño root y no deja cambiarlo, `docker build --build-arg IARK_RUN_AS=root` construye la imagen para correr como root (último recurso).
+- El `HEALTHCHECK` sirve igual con la autenticación activada (`/api/modules` es público).
 - El contenedor pasa a `healthy` en unos segundos (`docker inspect --format '{{.State.Health.Status}}' <contenedor>`) y `docker stop` lo detiene en menos de un segundo con código 0: `iark serve` cierra el servidor al recibir `SIGTERM`, sin necesidad de `--init`.
 - Probado con Docker 29 (`docker build`, `docker run --network host` y `docker run -p` con red de puente e iptables, incluida la variante endurecida y `-e PORT` con otro `-p`): `/`, `/modulos.html?module=data`, `/suite.html`, `/trazabilidad.html`, `/.well-known/iark.json`, `/api/modules`, validar y exportar (SVG, Mermaid y draw.io) un ejemplo de cada módulo, importar Mermaid, `run/<comando>` y `POST /api/trace`.
+- Servicio gestionado, probado con Docker 29 (`npm run docker:smoke`, ver «Pruebas»; y `deploy/docker-compose.yml` levantado de verdad con Compose 5, con el HTTPS interno de Caddy sobre `localhost`, no con un certificado público): demo sin variables, negativa a arrancar sin autenticación, inicio de sesión completo contra un GitHub de mentira, un proyecto en el volumen `/data`, la sesión y el proyecto tras `docker restart` y tras sustituir el contenedor, corriendo como `node` con el sistema de archivos de solo lectura y sin capacidades, volumen con nombre y bind mount, secreto por archivo, copia y restauración, y que ni el secreto ni las sesiones salgan en `docker logs`.
 
 ## Estructura del proyecto
 
@@ -1215,6 +1227,8 @@ schema/                JSON Schema del documento y del formato de generación
 examples/              documentos de ejemplo por módulo y páginas anfitrionas de demostración
 public/.well-known/    manifiesto de federación publicado con el sitio (iark.json)
 Dockerfile             imagen del servicio (`iark serve` + sitio)
+deploy/                despliegue de la nube gestionada: docker-compose.yml (IArk + Caddy con HTTPS), Caddyfile, .env.example y secrets/ (ignorada por git)
+docs/despliegue-nube.md  guía de despliegue de la nube de proyectos con inicio de sesión de GitHub
 docs/roadmap.md        hoja de ruta de la suite (integraciones, datos, empresarial, plataforma…)
 tests/e2e/             pruebas Playwright
 ```

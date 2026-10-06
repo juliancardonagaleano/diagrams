@@ -127,4 +127,24 @@ describe('iark serve con inicio de sesión de GitHub (CLI empaquetado)', () => {
     expect(output()).toMatch(/entrada: abierta/);
     expect(output()).toMatch(/no habla TLS/);
   });
+
+  it('IARK_CORS e IARK_TRUST_PROXY valen como --cors y --trust-proxy (plataformas que solo se configuran por entorno); con proxy declarado el aviso de TLS es un recordatorio', async () => {
+    const dir = tmp();
+    const port = await freePort();
+    const common = { IARK_ACCOUNTS: join(dir, 'cuentas.json'), IARK_GITHUB_CLIENT_ID: FAKE_CLIENT_ID, IARK_GITHUB_CLIENT_SECRET: FAKE_CLIENT_SECRET, IARK_PUBLIC_URL: 'https://iark.example.org', IARK_ADMINS: String(ANA.id), IARK_WORKSPACE: join(dir, 'espacio') };
+    const { output } = await start(['--host', '0.0.0.0', '--port', String(port)], { ...common, IARK_CORS: 'https://app.example.org', IARK_TRUST_PROXY: 'true' });
+    expect(output()).toMatch(/detrás de un proxy de confianza \(--trust-proxy\)/);
+    expect(output()).not.toMatch(/no habla TLS/);
+    const preflight = await fetch(`http://127.0.0.1:${port}/api/projects`, { method: 'OPTIONS', headers: { Origin: 'https://app.example.org', 'Access-Control-Request-Method': 'GET' } });
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('https://app.example.org');
+    const other = await fetch(`http://127.0.0.1:${port}/api/projects`, { method: 'OPTIONS', headers: { Origin: 'https://otro.example.org', 'Access-Control-Request-Method': 'GET' } });
+    expect(other.headers.get('access-control-allow-origin')).toBeNull();
+
+    // un valor vacío (como lo deja un compose sin IARK_CORS) es «ninguno», y un IARK_TRUST_PROXY que no es verdadero no activa nada
+    const port2 = await freePort();
+    const empty = await start(['--host', '0.0.0.0', '--port', String(port2)], { ...common, IARK_CORS: '', IARK_TRUST_PROXY: 'no' });
+    expect(empty.output()).toMatch(/no habla TLS/);
+    const none = await fetch(`http://127.0.0.1:${port2}/api/projects`, { method: 'OPTIONS', headers: { Origin: 'https://app.example.org', 'Access-Control-Request-Method': 'GET' } });
+    expect(none.headers.get('access-control-allow-origin')).toBeNull();
+  });
 });

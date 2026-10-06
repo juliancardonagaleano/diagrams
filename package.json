@@ -50,6 +50,7 @@
     "cli": "tsx src/cli/index.ts",
     "e2e": "playwright test",
     "deploy:pages": "bash scripts/deploy-gh-pages.sh",
+    "docker:smoke": "tsx scripts/docker-smoke-cuentas.ts",
     "test:coverage": "vitest run --coverage",
     "verify": "npm run typecheck && npm test && npm run build && npm run e2e"
   },

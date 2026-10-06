@@ -490,7 +490,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     .option('-p, --port <n>', 'puerto (0 elige uno libre)', parsePort, 8787)
     .option('--host <host>', 'dirección en la que escucha (en un contenedor, 0.0.0.0)', '127.0.0.1')
     .option('--static <carpeta>', 'sirve también el sitio compilado (p. ej. dist/app), con el editor, el banco de trabajo y el shell', process.env.IARK_STATIC)
-    .option('--cors <orígenes>', 'orígenes autorizados a llamar a la API desde un navegador, separados por comas, o * (por defecto, ninguno). Para la API de proyectos hay que nombrar el origen: un * no basta')
+    .option('--cors <orígenes>', 'orígenes autorizados a llamar a la API desde un navegador, separados por comas, o * (por defecto, ninguno; o la variable IARK_CORS). Para la API de proyectos hay que nombrar el origen: un * no basta', process.env.IARK_CORS || undefined)
     .option(
       '-w, --workspace <carpeta>',
       'activa la API de proyectos (/api/projects) sobre esta carpeta de trabajo, la misma de `iark project` (o la variable IARK_WORKSPACE; sin ella, esas rutas responden 404). ' +
@@ -512,7 +512,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     .option('--admins <lista>', 'administradores de la instancia, separados por comas: nombres de usuario de GitHub o, mejor, sus identificadores numéricos (o IARK_ADMINS)', process.env.IARK_ADMINS || undefined)
     .option('--session-days <n>', 'días que dura una sesión (o IARK_SESSION_DAYS); por omisión 30', (v: string) => Number(v), process.env.IARK_SESSION_DAYS ? Number(process.env.IARK_SESSION_DAYS) : undefined)
     .option('--max-projects <n>', 'proyectos que puede administrar cada persona (o IARK_MAX_PROJECTS); por omisión 25', (v: string) => Number(v), process.env.IARK_MAX_PROJECTS ? Number(process.env.IARK_MAX_PROJECTS) : undefined)
-    .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy. No lo active sin proxy', false)
+    .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy (o IARK_TRUST_PROXY=true). No lo active sin proxy', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''))
     .action(async (opts) => {
       if (opts.static && !existsSync(opts.static)) throw new CliError(`La carpeta del sitio «${opts.static}» no existe (¿falta \`npm run build\`?).`);
       if (opts.workspace && existsSync(opts.workspace) && !statSync(opts.workspace).isDirectory()) throw new CliError(`El espacio de trabajo «${opts.workspace}» no es una carpeta.`, 2);
@@ -520,6 +520,9 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       const projects = opts.workspace ? new FolderProjectStore(opts.workspace) : undefined;
       const accounts = setupAccounts(opts, { workspace: !!projects, cors });
       const loopback = isLoopbackHost(opts.host);
+      // Fuera de loopback el servicio habla HTTP: con `--trust-proxy` quien lo opera dice que hay un proxy delante, y el aviso pasa a ser un recordatorio.
+      const tlsNote = (why: string): string =>
+        opts.trustProxy ? `  detrás de un proxy de confianza (--trust-proxy): el HTTPS lo pone el proxy, compruebe que la dirección pública es https; ${why}` : `aviso: este servicio no habla TLS: ponga delante un proxy con HTTPS (Caddy, nginx…); ${why}`;
       if (projects && !opts.tokens && !accounts && !loopback) {
         throw new CliError(
           `Con un espacio de trabajo, escuchar en ${opts.host} sin autenticación dejaría los proyectos al alcance de quien llegue a ese puerto: el servicio no arranca así. ` +
@@ -543,12 +546,12 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
         info(`  espacio de trabajo: ${projects.root} · proyectos: /api/projects`);
         if (accounts) {
           info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
-          if (!loopback) info('aviso: este servicio no habla TLS: ponga delante un proxy con HTTPS (Caddy, nginx…); GitHub solo devuelve a la persona a la dirección pública, y las sesiones viajan por ella.');
+          if (!loopback) info(tlsNote('GitHub solo devuelve a la persona a la dirección pública, y las sesiones viajan por ella.'));
         }
         if (tokens) {
           info(`  autenticación: tokens de ${tokens.path} (${tokens.size}), roles viewer, editor y admin · /api/whoami`);
           if (tokens.size === 0) info('aviso: el archivo no tiene ningún token: cree uno con `iark auth create <nombre> --role admin` (no hace falta reiniciar).');
-          if (!loopback) info('aviso: este servicio no habla TLS: ponga delante un proxy con HTTPS (Caddy, nginx…); si no, los tokens viajan en claro.');
+          if (!loopback) info(tlsNote('si no, los tokens viajan en claro.'));
         }
       }
       await new Promise<void>((resolveClosed) => {

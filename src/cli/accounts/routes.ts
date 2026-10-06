@@ -197,7 +197,11 @@ export function createAuthApi(ctx: AuthApiContext): (req: IncomingMessage, res: 
     } catch (error) {
       if (error instanceof AccountError && error.code === 'not-invited') return fail('not_invited');
       if (error instanceof AccountError && error.code === 'disabled') return fail('disabled');
-      if (error instanceof GithubError) return fail(error.code === 'unavailable' ? 'github_unavailable' : 'login_failed');
+      if (error instanceof GithubError) {
+        // Para quien opera el servicio (un Client secret equivocado es el error más común): el motivo, nunca el código ni el secreto.
+        process.stderr.write(`inicio de sesión: GitHub no lo aceptó (${error.code}): ${error.message}\n`);
+        return fail(error.code === 'unavailable' ? 'github_unavailable' : 'login_failed');
+      }
       process.stderr.write(`error al iniciar sesión: ${(error as Error).message}\n`);
       return fail('login_failed');
     }

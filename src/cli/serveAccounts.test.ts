@@ -110,8 +110,14 @@ describe('iark serve --accounts: el inicio de sesión', () => {
     const denied = await fetch(`${cloud.base}/api/auth/github/callback${new URL(authorize.headers.get('location')!).search}`, { redirect: 'manual', headers: { Cookie: cookie } });
     expect(new URL(denied.headers.get('location')!).hash).toBe('#iark_error=access_denied');
 
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     cloud.fake.failNext('token', 500);
     expect((await loginWithGithub(cloud.base, cloud.fake, ANA)).fragment.get('iark_error')).toBe('github_unavailable');
+    // quien opera el servicio ve el motivo en el registro (un secreto equivocado no tendría otro rastro), nunca un secreto ni un código
+    const logged = stderr.mock.calls.map(([chunk]) => String(chunk)).join('');
+    stderr.mockRestore();
+    expect(logged).toMatch(/inicio de sesión: GitHub no lo aceptó \(unavailable\)/);
+    expect(logged).not.toContain(FAKE_CLIENT_SECRET);
     cloud.fake.failNext('user', 502);
     expect((await loginWithGithub(cloud.base, cloud.fake, ANA)).fragment.get('iark_error')).toBe('github_unavailable');
     expect((await loginWithGithub(cloud.base, cloud.fake, ANA)).token).toBeDefined(); // y luego, con GitHub bien, entra
