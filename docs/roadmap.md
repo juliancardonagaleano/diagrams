@@ -73,6 +73,7 @@ Plan aprobado el 2026-09-29 con las recomendaciones de la propuesta (quinta espe
   - *Editor* (#92): selector «Equivalente en otro entorno» en las propiedades (con validación incremental), `duplicateEnvironment` declara cada copia equivalente de su original, `dropCounterparts` re-engancha la cadena al quitar un recurso o un entorno y promover re-apunta las dependencias al equivalente declarado. El `<select>` del panel de propiedades muestra ahora la pista (`FieldSpec.hint`) como tooltip.
   - *IA* (#94): `counterpartOf` en el esquema de generación y en el prompt (solo cuando el nombre no delata la correspondencia); se conserva al refinar.
   - Los importadores (Terraform, Kubernetes, Mermaid) no lo escriben a propósito: nada en esos formatos dice qué recurso es el equivalente de otro entorno, y la comparación ya empareja por nombre lo que se puede deducir.
+- **Despliegue automático a gh-pages** (2026-10-07; resuelto el problema de facturación de GitHub, se reintroducen los workflows de Actions, solo este): `.github/workflows/deploy-pages.yml` compila el sitio (`npm run build:app` con `BASE_PATH=/<repositorio>/`) en cada pull request hacia `master` y, en cada push a `master` o ejecución manual, lo publica en `gh-pages` con `scripts/deploy-gh-pages.sh` (que ahora admite `SKIP_BUILD=1` y funciona sin identidad de git) y lo comprueba con `scripts/verify-pages.sh` (espera a que Pages sirva el `assets/main-*.js` nuevo y que `/`, `modulos.html`, `suite.html`, `trazabilidad.html` y `/.well-known/iark.json` respondan 200). El origen de Pages sigue siendo la rama `gh-pages`. Detalle y ajustes de permisos en el README, «Despliegue (GitHub Pages)».
 - Pendientes menores conocidos:
   - Docker: no se ha probado un build en una máquina con red normal (sin el proxy de este entorno).
   - Nube gestionada: no hay pantalla de administración de cuentas (solo la API `/api/admin/users`: invitar sin un proyecto, desactivar, cambiar roles); el inicio de sesión recarga la página (sin ventana emergente); una sola réplica (las cuentas son un JSON con un único escritor); el freno de intentos solo lee la última entrada de `X-Forwarded-For` (plataformas con otra cabecera, como `Fly-Client-IP`, comparten freno); un diagrama muy grande exportado por la API bloquea el servicio mientras se calcula la distribución (~90 s con 300 contenedores); no se ha probado con un certificado público real ni en una plataforma concreta; sin cuotas de disco por persona.
@@ -89,7 +90,7 @@ Plan aprobado el 2026-09-29 con las recomendaciones de la propuesta (quinta espe
 - **CLI** `c4diagram` (`src/cli`, commander): `generate`, import/export, layout, esquema.
 - **Frontend** React + `@xyflow/react` + zustand (`src/app`).
 - **Embebido** por iframe + `postMessage` con protocolo versionado y validado con zod (`src/embed/protocol.ts`, SDK de anfitrión `c4-embed`).
-- Publicación: compilado estático a `gh-pages` con `npm run deploy:pages` (sin GitHub Actions).
+- Publicación: compilado estático a `gh-pages`, automático con el workflow `deploy-pages.yml` en cada push a `master` (o a mano con `npm run deploy:pages`).
 
 Conclusión: la base ya tiene las tres piezas que la suite necesita (núcleo puro, CLI, embebido por protocolo). Lo que falta es **generalizar el modelo más allá de C4** y **empaquetar cada especialidad como módulo independiente**.
 
@@ -196,7 +197,7 @@ Fase 1 (Mermaid) y Fase 0 (extracción del kernel) no dependen de ninguna decisi
 
 - **Un solo modelo genérico vs modelos por dominio**: propongo kernel genérico + esquemas por dominio; evita un "mega esquema" pero exige disciplina en el kernel.
 - **Compatibilidad**: el JSON C4 `1.0` actual debe seguir cargando sin cambios.
-- **Despliegue**: mantener publicación estática en `gh-pages` para el frontend; el servicio HTTP y los contenedores son opcionales y viven fuera de Pages. No se reintroducen workflows de Actions.
+- **Despliegue**: mantener publicación estática en `gh-pages` para el frontend (hoy automática con GitHub Actions; ver README «Despliegue (GitHub Pages)»); el servicio HTTP y los contenedores son opcionales y viven fuera de Pages.
 - **Tamaño del bundle** al añadir Mermaid y varios dominios: carga diferida por módulo.
 - **Alcance de "empresarial"**: definir cuánto de ArchiMate/TOGAF se cubre (recomiendo un subconjunto pequeño al inicio).
 
