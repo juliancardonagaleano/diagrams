@@ -1,11 +1,43 @@
 {
   "name": "@iark/domain-platform",
   "version": "0.1.0",
-  "private": true,
   "description": "IArk - DIAgrams: módulo de arquitectura de plataforma (entornos, redes, recursos, servicios, despliegues y pipelines)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/juliancardonagaleano/iark-diagrams.git",
+    "directory": "packages/domain-platform"
+  },
+  "homepage": "https://github.com/juliancardonagaleano/iark-diagrams#readme",
+  "bugs": {
+    "url": "https://github.com/juliancardonagaleano/iark-diagrams/issues"
+  },
+  "keywords": [
+    "iark",
+    "architecture",
+    "diagrams",
+    "platform"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepack": "node -e \"console.error('Este package.json es el de desarrollo (su exports apunta a src/*.ts): no se publica. Ejecuta npm run packages:build en la raíz y publica ./dist-packages/domain-platform'); process.exit(1)\""
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
   },
   "dependencies": {
     "@iark/kernel": "*",
