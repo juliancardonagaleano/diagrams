@@ -23,13 +23,13 @@ Abre la app con `?embed=1&proto=json[&origin=https://mi-host][&theme=dark][&ui=m
 | `autoLayout` | tras un autolayout pedido por el anfitrión | `{ viewId, direction }` |
 | `viewChange` | el usuario (o `setView`) cambió de vista | `{ viewId, level: 'C1' \| 'C2' \| 'C3', scopeId, title }` |
 | `exit` | salir | `{ modified }` |
-| `error` | documento inválido, acción desconocida… | `{ message, issues?, requestId? }` |
+| `error` | documento inválido, acción desconocida, protocolo incompatible… | `{ message, issues?, requestId?, code? }` (`code: 'incompatible-protocol'` si la versión mayor del protocolo no coincide) |
 
 **anfitrión → iframe (`action`)**
 
 | `action` | Parámetros |
 |---|---|
-| `load` | `document?` (objeto o JSON), `autosave?`, `title?`, `readOnly?`, `theme?`, `viewId?`, `autoLayout?` |
+| `load` | `document?` (objeto o JSON), `autosave?`, `title?`, `readOnly?`, `theme?`, `viewId?`, `autoLayout?`, `version?` (versión del protocolo del anfitrión; el SDK la añade siempre) |
 | `configure` | `theme?`, `ui?: 'full' \| 'min'`, `hideSidePanel?` |
 | `merge` | `document`, `autoLayout?` — fusiona elementos/relaciones/vistas y relanza el autolayout |
 | `export` | `format: 'json' \| 'drawio' \| 'svg' \| 'png'` (`svg` devuelve el SVG de la vista y `png` ese SVG rasterizado como data URL; sin `viewId`, la vista activa), `notation?: 'c4' \| 'card'` (solo `drawio`), `viewId?`, `requestId?` |
@@ -41,6 +41,17 @@ Abre la app con `?embed=1&proto=json[&origin=https://mi-host][&theme=dark][&ui=m
 | `exit` | — |
 
 Seguridad: solo se atienden mensajes cuyo `source` es `window.parent`; con `&origin=` se exige además ese `event.origin` y se usa como `targetOrigin` de las respuestas (sin él se usa `*`, solo recomendable en desarrollo). Los documentos recibidos se validan con el mismo esquema zod del núcleo.
+
+### Versión del protocolo
+
+El protocolo tiene versión `mayor.menor` (hoy `1.0`, `EMBED_PROTOCOL_VERSION` en `@iark/kernel`). El `init` del iframe la lleva en `version` y el `load` del anfitrión en `version`; un lado que no la envía (un anfitrión anterior a esta función) cuenta como `1.0`. Cada lado compara la del otro con la suya:
+
+- **Misma versión mayor** (`1.0` con `1.3`): se entienden; lo que un lado no conoce lo ignora. Es lo habitual cuando solo se añaden campos opcionales.
+- **Versión mayor distinta** (`1.x` con `2.x`): no hay forma de entenderse, así que ambos lados lo dicen en vez de funcionar a medias. El iframe responde un evento `error` con `code: 'incompatible-protocol'` y un mensaje que nombra las dos versiones y quién debe actualizarse, y mientras dure no aplica ninguna orden (salvo `exit`); un nuevo `load` compatible lo reanuda. El SDK de anfitrión rechaza `ready` (y `initialized`, y las peticiones pendientes o posteriores), no envía el `load` y llama a `onError({ message, code })`; `<iark-module>` lo emite como `iark-error` con `detail.code`.
+
+Un SDK o un iframe anteriores no conocen el código, pero el evento es un `error` más: lo tratan como cualquier otro error. Ver [Versionado de documentos](versionado-documentos.md#el-protocolo-embebido).
+
+Los documentos que llegan por `load` y `merge` pasan por las migraciones del módulo C4: uno guardado con una versión anterior del formato se acepta migrado, y uno de una versión más nueva se rechaza con «creado con una versión más nueva».
 
 ### SDK de anfitrión
 
@@ -107,4 +118,6 @@ Atributos: `manifest` (descubre el editor del módulo en la instancia) o `src` (
 
 ## Federación por manifiesto
 
-Cada instancia publica `/.well-known/iark.json` (esquema `iark.manifest/1`): módulos, versiones, formatos y **endpoints relativos** al manifiesto (`embed`, `schema`, `api`). El sitio estático lo incluye junto con los JSON Schema de cada módulo (`npm run manifest` lo regenera; una prueba comprueba que no se desincroniza), y `iark serve` lo genera al vuelo con la URL de su API. El shell y el Web Component solo dependen de ese manifiesto, no del código de los módulos.
+Cada instancia publica `/.well-known/iark.json` (esquema `iark.manifest/1`): módulos, versiones, formatos y **endpoints relativos** al manifiesto (`embed`, `schema`, `api`). Además publica la versión de su protocolo embebido (`protocol`, p. ej. `"1.0"`) y, por módulo, la del contrato `DomainModule` que implementa (`contractVersion`, p. ej. `1`); los dos son opcionales al leer (un manifiesto anterior vale `"1.0"` y `1`). El sitio estático lo incluye junto con los JSON Schema de cada módulo (`npm run manifest` lo regenera; una prueba comprueba que no se desincroniza), y `iark serve` lo genera al vuelo con la URL de su API. El shell y el Web Component solo dependen de ese manifiesto, no del código de los módulos.
+
+**Compatibilidad de versiones.** Al conectar con una instancia (el shell, y el Web Component con `manifest=`), un manifiesto cuyo esquema es de una versión mayor (`iark.manifest/2`) o cuyo `protocol` tiene otra versión mayor se rechaza entero con un mensaje que dice qué actualizar. Un módulo que exige un `contractVersion` mayor que el que entiende esta suite se aparta (el shell lo lista con su motivo y cuenta «N no compatibles») y los demás módulos de esa instancia siguen disponibles. Una diferencia de versión menor no es un problema.

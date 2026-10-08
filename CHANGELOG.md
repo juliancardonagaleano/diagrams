@@ -6,6 +6,18 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 
 - Cambios de la fase 1 del plan de robustecimiento en curso.
 
+### Añadido
+
+- **Migración de documentos por módulo.** `DomainModule.migrations` declara cómo llevar un documento de una versión anterior a la `documentVersion` actual; `migrateDocument` (en `@iark/kernel`) aplica la cadena sin modificar la entrada y `analyzeValue`/`analyzeText` migran antes de validar, así que el banco de trabajo, el servicio, los proyectos, los borradores del navegador y «Comparar» abren documentos antiguos con una nota «Documento migrado de la versión X a Y». Un documento de una versión más nueva se rechaza con «actualiza IArk». Ver [`docs/versionado-documentos.md`](docs/versionado-documentos.md).
+- **`iark migrate`** reescribe un documento en la versión actual del módulo (`--out`, `--stdin`, `--module`); con `--check` no escribe y sale con código 1 si necesita migración. `validate` informa «migrado de X a Y».
+- **`contractVersion` del contrato `DomainModule`** (`CONTRACT_VERSION`, `assertModuleContract`, `isContractCompatible`): `ModuleRegistry.register` rechaza un módulo escrito para un contrato más nuevo y una cadena de migraciones con huecos o ciclos. Los seis módulos lo declaran y las capacidades y el manifiesto lo publican.
+- **Negociación de la versión del protocolo embebido** (`EMBED_PROTOCOL_VERSION`, `negotiateProtocol`): `init` y `load` llevan la versión; una versión mayor distinta produce un `error` con `code: 'incompatible-protocol'` en ambos lados (SDKs, `<iark-module>` y editores) y una diferencia de menor se acepta. El manifiesto añade `protocol` y, por módulo, `contractVersion` (opcionales al leer; el esquema sigue siendo `iark.manifest/1`), y el shell rechaza con un mensaje claro una instancia de esquema o protocolo mayor y aparta los módulos que exigen un contrato más nuevo.
+- Pruebas con documentos antiguos congelados (`tests/fixtures/documentos/<módulo>-v1.0.json`): si un cambio de esquema los rompe, hace falta una migración.
+
+### Cambiado
+
+- El `persist` del editor C4 (`localStorage`) tiene `migrate` y pasa el documento por las migraciones del módulo C4; antes, lo guardado con otra versión de la forma persistida se descartaba. Los `load`/`merge` del protocolo del editor C4 aceptan documentos antiguos migrables en vez de rechazarlos por el literal de la versión.
+
 ## [0.1.0] - 2026-10-07
 
 Primera versión: reúne lo construido entre el 2026-09-24 (primer commit del repositorio, el núcleo C4 con CLI y exportación `.drawio`) y el 2026-10-07 (último commit de `master` al escribir este registro). El detalle de cada tanda, con sus PR, está en [`docs/roadmap.md`](docs/roadmap.md). No hay etiqueta `v0.1.0` en git todavía.

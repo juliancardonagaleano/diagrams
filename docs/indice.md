@@ -45,6 +45,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | Documento | Qué cuenta |
 |---|---|
 | [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, decisiones de diseño y trampas conocidas. |
+| [versionado-documentos.md](versionado-documentos.md) | Cómo evoluciona un esquema sin romper lo guardado: `documentVersion` y migraciones por módulo (`iark migrate`), `contractVersion` del contrato `DomainModule` y negociación de la versión del protocolo embebido y del manifiesto. |
 | [roadmap.md](roadmap.md) | Visión, estado actual, pendientes reales, límites conocidos y el plan de robustecimiento en cuatro fases. |
 | [historial.md](historial.md) | Lo ya hecho, por fases y por tandas, y el plan original de la suite. |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) · [SECURITY.md](../SECURITY.md) · [CHANGELOG.md](../CHANGELOG.md) · [LICENSE](../LICENSE) | Cómo contribuir, cómo informar de una vulnerabilidad, qué cambió en cada versión y la licencia. |

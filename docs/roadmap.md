@@ -66,7 +66,7 @@ Que lo que ya existe sea seguro y repetible de mantener antes de abrirlo a terce
 
 Que la suite se pueda ampliar desde fuera.
 
-- **Migración de documentos y versión del contrato**: cada módulo declara la versión de su documento (`documentVersion`), pero nada migra entre versiones todavía; el kernel debe migrar, y el contrato `DomainModule` ([`types.ts`](../packages/kernel/src/module/types.ts)) llevar su propia versión para poder cambiarlo sin romper módulos externos.
+- **Migración de documentos y versión del contrato** (**hecho**): cada módulo declara cómo migrar sus documentos (`DomainModule.migrations`, `iark migrate`), el contrato `DomainModule` ([`types.ts`](../packages/kernel/src/module/types.ts)) lleva su `contractVersion` y el protocolo embebido y el manifiesto negocian versiones; ver [versionado-documentos.md](versionado-documentos.md). Hoy los seis módulos siguen en `1.0` y no tienen migraciones reales: el mecanismo está probado con documentos antiguos congelados.
 - **Plugins e `iark.config` con paquetes publicables**: hoy los módulos se registran a mano en `src/cli/registry.ts` y los paquetes `@iark/*` se consumen desde su código fuente. El objetivo es publicarlos (declarando bien sus dependencias) y cargar módulos, importadores y paquetes de iconos desde una configuración.
 - **Trazabilidad v2**: evolución de la v1 (referencias por URN, referencias sin resolver y alcance de un elemento); su alcance se fija al empezar la fase.
 
