@@ -46,23 +46,25 @@ describe('trazabilidad entre módulos', () => {
   });
 
   it('refType se conserva en los seis esquemas junto a ref y se rechaza si no tiene la forma de un tipo', () => {
-    const cases: Array<{ module: AnyModule; file: string; edit: (d: any) => Array<Record<string, unknown>> }> = [
-      { module: c4Module, file: 'banca.json', edit: (d) => [d.model.elements[0]] },
-      { module: dataModule, file: 'ventas-datos.json', edit: (d) => [d.assets[0]] },
-      { module: enterpriseModule, file: 'empresa-arquitectura.json', edit: (d) => [d.applications[0], d.technologies[0]] },
-      { module: integrationModule, file: 'pedidos-integracion.json', edit: (d) => [d.nodes[0]] },
-      { module: platformModule, file: 'plataforma-ejemplo.json', edit: (d) => [d.services[0], d.resources[0]] },
-      { module: securityModule, file: 'seguridad-ejemplo.json', edit: (d) => [d.assets[0]] },
+    // rutas (`assets.0`) de los elementos del documento en bruto que declaran `ref`
+    const cases: Array<{ module: AnyModule; file: string; paths: string[] }> = [
+      { module: c4Module, file: 'banca.json', paths: ['model.elements.0'] },
+      { module: dataModule, file: 'ventas-datos.json', paths: ['assets.0'] },
+      { module: enterpriseModule, file: 'empresa-arquitectura.json', paths: ['applications.0', 'technologies.0'] },
+      { module: integrationModule, file: 'pedidos-integracion.json', paths: ['nodes.0'] },
+      { module: platformModule, file: 'plataforma-ejemplo.json', paths: ['services.0', 'resources.0'] },
+      { module: securityModule, file: 'seguridad-ejemplo.json', paths: ['assets.0'] },
     ];
-    for (const { module, file, edit } of cases) {
+    const at = (raw: unknown, path: string): Record<string, unknown> => path.split('.').reduce<unknown>((node, key) => (node as Record<string, unknown>)[key], raw) as Record<string, unknown>;
+    for (const { module, file, paths } of cases) {
       const typed = structuredClone(doc(file));
-      for (const item of edit(typed)) Object.assign(item, { ref: 'urn:iark:c4:x', refType: 'mi-tipo' });
+      for (const path of paths) Object.assign(at(typed, path), { ref: 'urn:iark:c4:x', refType: 'mi-tipo' });
       const parsed = module.schema.safeParse(typed);
       expect(parsed.success, `${module.id}: refType válido`).toBe(true);
       expect(JSON.stringify(parsed.data)).toContain('"refType":"mi-tipo"');
 
       const broken = structuredClone(doc(file));
-      for (const item of edit(broken)) Object.assign(item, { ref: 'urn:iark:c4:x', refType: 'Mal Tipo' });
+      for (const path of paths) Object.assign(at(broken, path), { ref: 'urn:iark:c4:x', refType: 'Mal Tipo' });
       const rejected = module.schema.safeParse(broken);
       expect(rejected.success, `${module.id}: refType mal formado`).toBe(false);
       expect(JSON.stringify(rejected.error?.issues.map((i) => i.path))).toContain('refType');
