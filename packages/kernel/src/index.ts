@@ -3,6 +3,7 @@ export * from './module/editor';
 export { ModuleRegistry, UnknownModuleError } from './module/registry';
 export * from './module/operations';
 export * from './module/contract';
+export * from './module/plugin';
 export * from './module/migrate';
 export * from './module/protocol';
 export { compareMajorMinor, parseMajorMinor, type MajorMinor } from './module/version';

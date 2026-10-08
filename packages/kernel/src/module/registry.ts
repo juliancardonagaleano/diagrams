@@ -1,4 +1,5 @@
 import { assertModuleContract } from './contract';
+import { MODULE_ID_PATTERN } from './plugin';
 import type { DomainModule, Importer } from './types';
 
 export class UnknownModuleError extends Error {
@@ -11,17 +12,26 @@ export class UnknownModuleError extends Error {
 /** Conjunto de módulos cargados en una instancia (CLI, app o servicio). */
 export class ModuleRegistry {
   private modules = new Map<string, DomainModule<any>>();
+  /** De dónde viene cada módulo que no es incorporado (el especificador del plugin que lo aportó); los incorporados no figuran. */
+  private origins = new Map<string, string>();
 
   /**
    * Registra un módulo. Falla si su id es inválido o está repetido, si se escribió para un contrato `DomainModule` más nuevo que
-   * el del anfitrión o si su cadena de migraciones de documento tiene huecos o ciclos (ver `assertModuleContract`).
+   * el del anfitrión o si su cadena de migraciones de documento tiene huecos o ciclos (ver `assertModuleContract`). `origin` anota
+   * de dónde viene un módulo de terceros (su especificador en `iark.config.json`) para `originOf`; los incorporados no lo llevan.
    */
-  register<TDoc>(module: DomainModule<TDoc>): this {
-    if (!/^[a-z][a-z0-9-]*$/.test(module.id)) throw new Error(`Identificador de módulo inválido: «${module.id}».`);
+  register<TDoc>(module: DomainModule<TDoc>, options: { origin?: string } = {}): this {
+    if (!MODULE_ID_PATTERN.test(module.id)) throw new Error(`Identificador de módulo inválido: «${module.id}».`);
     assertModuleContract(module);
     if (this.modules.has(module.id)) throw new Error(`El módulo «${module.id}» ya está registrado.`);
     this.modules.set(module.id, module);
+    if (options.origin !== undefined) this.origins.set(module.id, options.origin);
     return this;
+  }
+
+  /** El especificador del plugin que aportó el módulo, o `undefined` si es incorporado (o no existe). */
+  originOf(id: string): string | undefined {
+    return this.origins.get(id);
   }
 
   has(id: string): boolean {
