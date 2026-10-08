@@ -1,0 +1,302 @@
+# Historial de IArk - DIAgrams
+
+[← Índice de la documentación](indice.md)
+
+Lo que ya está hecho, en orden: las fases 0 a 6 del plan aprobado el 2026-09-29 y las tandas posteriores, con sus fechas y los números de PR (`#N`). Antes vivía en la hoja de ruta, mezclado con los pendientes; ahora [roadmap.md](roadmap.md) solo lleva lo que falta y el plan vigente. Al final se conserva lo que sigue siendo útil del plan original.
+
+Contenido:
+
+- [Fases 0 a 6](#fases-0-a-6-plan-aprobado-el-2026-09-29)
+- [Tandas posteriores](#tandas-posteriores-2026-10-01-en-adelante)
+- [Plan original de la suite (obsoleto)](#plan-original-de-la-suite-obsoleto)
+
+## Fases 0 a 6 (plan aprobado el 2026-09-29)
+
+Plan aprobado el 2026-09-29 con las recomendaciones de la propuesta (quinta especialidad: seguridad; monorepo con workspaces; federación por manifiesto).
+
+### Fase 0: Cimientos
+
+**Hecha en su primera parte**: monorepo con workspaces, `@iark/kernel` (contrato `DomainModule`, `ModuleRegistry`, URN `urn:iark:<módulo>:<id>`, manifiesto `iark.manifest/1`, utilidades de importación e IA) y `@iark/domain-c4` (todo el modelo C4 actual como módulo `c4`). El grafo genérico se extrajo en la Fase 2 (layout y SVG); un modelo de elementos y vistas común sigue sin hacer falta.
+
+### Fase 1: Mermaid + importadores unificados
+
+**Hecha**: `fromMermaid`/`toMermaid` en el núcleo, `iark import` unificado por módulo, `convert --to mermaid`, menús del frontend.
+
+- **Vista previa renderizada de Mermaid** (2026-09-29): Archivo ▸ Vista previa de Mermaid… en el editor C4 y Exportar ▸ Mermaid en el banco de trabajo, con la librería `mermaid` cargada solo al pedirla (`src/mermaid-preview`).
+
+### Fase 2: Primer módulo vertical, Integraciones
+
+**Hecha en el núcleo y el CLI** (2026-09-29): módulo `integration` (`packages/domain-integration`) con esquema, validación semántica, vistas derivadas (mapa y flujos), IA, import Mermaid, export Mermaid/SVG/draw.io y subcomandos `iark integration from-c4|catalog|matrix`. Para ello el kernel ganó lo genérico que pedía un segundo módulo: `AiSpec` + `generateStructured`, la sintaxis Mermaid compartida, layout ELK y render SVG de grafos, y el CLI acepta `--module` en `generate/import/convert/validate/schema/prompt`. El editor web y el widget embebido llegaron con la Fase 4 (banco de trabajo genérico y protocolo de módulos con `module` y `capabilities`).
+
+### Fase 3: Resto de módulos
+
+**Hecha en el núcleo y el CLI** (2026-09-29):
+
+- **Datos** hecho en el núcleo y el CLI (`packages/domain-data`): activos, dominios, pipelines con linaje aguas arriba y abajo, modelo entidad-relación, reglas de gobierno (clasificación y datos personales a lo largo del linaje), IA, import Mermaid (`flowchart` y `erDiagram`), export Mermaid/SVG/draw.io y `iark data lineage|catalog|pii|from-integration`. El kernel ganó el analizador común de `erDiagram`, fichas en el render SVG y `ModuleError` (los errores de módulo salen como mensaje limpio).
+- **Empresarial** hecho en el núcleo y el CLI (`packages/domain-enterprise`): unidades, capacidades en árbol con madurez e importancia, procesos, aplicaciones y tecnología con ciclo de vida, mapa de capacidades, paisaje y vistas de impacto/dependencias/unidad, reglas de gobierno (cobertura, responsables, obsolescencia, duplicidades), IA, import Mermaid (con los tipos en las clases de los nodos, que el analizador del kernel ahora conserva), export Mermaid/SVG/draw.io y `iark enterprise coverage|impact|lifecycle|from-integration`.
+- **Plataforma** hecho en el núcleo y el CLI (`packages/domain-platform`): entornos, redes anidadas, recursos con estado, servicios, despliegues en clústeres o máquinas del mismo entorno, dependencias (llamadas, mensajes, datos) y pipelines (CI, CD, IaC), topología, vista de despliegue por entorno (redes y anfitriones anidados), entrega continua y vistas de impacto acotadas al entorno, reglas de gobierno (servicio sin entorno, dependencia a recurso no aprovisionado o de otro entorno, paridad entre entornos, datos en red pública, puntos únicos de fallo, pipelines sin aprobación), IA, import Mermaid (entornos, redes y clústeres en los `subgraph`), export Mermaid/SVG/draw.io y `iark platform deployments|impact|from-integration`.
+- **Seguridad** (la quinta especialidad, tomada como seguridad al aprobar las recomendaciones) hecho en el núcleo y el CLI (`packages/domain-security`): zonas de confianza anidadas, activos (actores, sistemas externos, procesos, almacenes), flujos con cifrado, autenticación y clasificación, amenazas STRIDE con riesgo y estado, controles, diagrama de flujo de datos con fronteras, modelo de amenazas y vistas de alcance/exposición de un activo, reglas de gobierno (fronteras sin cifrar ni autenticar, datos sensibles sin proteger, amenazas mal cerradas, cobertura STRIDE), IA, import Mermaid (zonas en los `subgraph`, cifrado en el tipo de flecha), export Mermaid/SVG/draw.io y `iark security risks|stride|exposure|from-integration|from-platform`.
+- El kernel permite colorear los grupos del SVG.
+- Los editores web y el widget de los cinco módulos llegaron con la Fase 4.
+
+### Fase 4: Federación y servicio
+
+**Hecha** (2026-09-29): el contrato `DomainModule` ganó `views`, `traceViews` y avisos por elemento para las superficies web.
+
+- **Banco de trabajo** genérico `modulos.html` (`src/modules-app`, carga cada módulo bajo demanda) y **widget embebible** con un protocolo `postMessage` de módulos (acciones `load|configure|setView|export|validate|run|capabilities|…`, eventos con `requestId`, `capabilities` en el `init`) y SDK `createIarkModuleEmbed`.
+- **Federación por manifiesto**: `/.well-known/iark.json` (`iark.manifest/1`, endpoints relativos `embed|schema|api`), JSON Schema publicados con el sitio y shell `suite.html` que descubre y monta los módulos de cualquier instancia.
+- **Servicio HTTP** `iark serve` (`node:http`, sin dependencias; API por módulo y `/api/trace`; CORS opcional; sirve el sitio) y `Dockerfile`.
+- **Web Component** `<iark-module>`. Las operaciones que comparten el banco de trabajo, el puente `postMessage` y el servicio HTTP viven en el kernel (`operations.ts`).
+
+### Fase 5: Trazabilidad entre módulos
+
+**Hecha** (2026-09-29): referencias `ref: "urn:iark:<módulo>:<id>"` entre documentos, grafo transversal (`trace.ts` y su dibujo SVG `trace-svg.ts` en el kernel), `iark trace módulo=archivo… [--from --direction --depth --format markdown|mermaid|svg|json --strict]`, `POST /api/trace` (con SVG) y conservación de los `ref` al refinar con IA (`carryRefs`).
+
+- **Vista web** `trazabilidad.html` (`src/trace-app`): reúne los documentos de los módulos, dibuja el grafo, lista enlaces y referencias sin resolver y calcula el alcance de un elemento. Los ejemplos traen la cadena empresarial → integración, plataforma → integración y seguridad → plataforma.
+
+### Fase 6: Identidad e interactividad de los diagramadores
+
+**Estado al 2026-09-29: en curso.** Los módulos se veían todos igual (JSON + imagen SVG) frente al editor C4 interactivo. Al cierre de esa tanda los cinco módulos tenían ya lienzo propio; lo que siguió está en las tandas posteriores y lo que sigue abierto, en [roadmap.md](roadmap.md).
+
+- **Marco común**: el contrato `DomainModule` gana `editor` (`EditorSpec`: notación de nodos y relaciones con figuras `rect|rounded|cylinder|pill|hexagon|chevron|pipe|bar|circle|card|actor|document`, proyección del documento a grafo, campos de propiedades por tipo, operaciones `addNode|addEdge|update|remove|canConnect`). Sobre él, un único **lienzo** (`src/modules-app/canvas`, React Flow) con paleta de figuras por especialidad, tipo de relación al conectar, panel de propiedades, deshacer/rehacer, autolayout ELK, posiciones arrastrables guardadas por vista, minimapa y los mismos atajos del editor C4 (Ctrl+Z/Y, Ctrl+L, Supr, Esc, 0). El banco de trabajo abre en la pestaña «Lienzo» cuando el módulo tiene lienzo y deja el JSON y el SVG en «Vista SVG».
+- **Adoptado por Integración** (con la notación EIP completa de la ronda de profundización: ver [Ronda de profundización de Integración](#ronda-de-profundización-de-integración)).
+- **Adoptado por Datos** (linaje con pipelines como chevrones entre sus activos y contenedores como zonas; ERD con fichas de columnas editables como texto y relaciones con cardinalidad; clasificación en el borde y PII como insignia).
+- **C4 en el banco**: pestaña «C4» cuyo lienzo es el editor principal embebido (`C4EmbedCanvas`, protocolo `postMessage` existente) sincronizado con la pestaña JSON; el módulo C4 va en su propio trozo del bundle (`output.codeSplitting`) y sus elementos admiten `ref` opcional, así que entra en la trazabilidad.
+- **Enlaces entre diagramas** (`src/modules-app/links.ts`): un elemento con `ref` lleva insignia ⤷; doble clic o Alt+↓ abre el módulo destino con el elemento seleccionado y encuadrado, una miga de pan y Alt+↑ vuelven; el panel de propiedades elige el enlace por módulo y elemento (sin escribir URN) y lista «Referenciado por» con el grafo de trazabilidad del núcleo; en C4 los elementos enlazados se siguen desde una tira sobre el editor.
+- **Empresarial** (`packages/domain-enterprise/src/editor.ts`): notación de capas al estilo ArchiMate (capacidad redondeada, proceso como flecha, aplicación como caja, tecnología como barra); el mapa de capacidades se dibuja anidado con la cuadrícula propia del módulo (`EditorSpec.layout`, nuevo gancho del núcleo para vistas con colocación propia en vez del autolayout ELK), color por madurez y borde por importancia; el paisaje y las vistas por unidad van por capas con insignias de criticidad, ciclo de vida y fin de soporte; las relaciones aplican `RELATION_RULES` en cualquier sentido del arrastre (arrastrar capacidad → aplicación crea `application supports capability`) y las propiedades eligen unidad responsable, capacidad padre y madurez sin escribir ids.
+- **Plataforma** (`packages/domain-platform/src/editor.ts`): identidad de diagrama de despliegue reutilizando la escena del exportador (`buildScene`): en la vista de un entorno las redes son zonas anidadas coloreadas por exposición (roja pública, azul privada, gris aislada), los clústeres y máquinas contienen las instancias de los servicios, y cada clase de recurso tiene su figura (cilindro datos/caché/almacenamiento, píldora colas, hexágono balanceador y secretos, flecha pasarela, círculo DNS, ficha registro); la topología es plana y la entrega dibuja cada pipeline como zona con sus pasos. Relaciones: `llama a`/`envía mensajes a`/`usa los datos de` crean dependencias entre lo que hay detrás de cada nodo (una instancia es su servicio), `corre en` de un servicio a un clúster crea el despliegue en su entorno y `pasa por` añade un servicio a un pipeline o un recurso a un pipeline IaC. `EditorSpec.addNode` recibe ahora la vista abierta: un recurso o red nace en el entorno que se está viendo y un servicio nace desplegado en el anfitrión elegido.
+- **Seguridad** (`packages/domain-security/src/editor.ts`): identidad del diagrama de flujo de datos del modelado de amenazas: procesos como círculos, almacenes como tubos abiertos, actores como figuras humanas, sistemas externos discontinuos, zonas de confianza anidadas coloreadas del rojo (no confiable) al verde (restringida) y flujos que distinguen por color si van cifrados (tres tipos de relación: flujo, flujo cifrado, flujo sin cifrar). En el modelo de amenazas cada amenaza es un hexágono coloreado por riesgo con su categoría STRIDE, unida a lo que amenaza («amenaza a», que solo admite categorías aplicables al tipo de elemento) y a los controles que la mitigan («mitiga»); una amenaza nueva recae sobre el elemento seleccionado.
+- **Con esto los cinco módulos tienen lienzo propio.**
+- **Una sola geometría de figuras** (`packages/kernel/src/graph/shapes.ts`): `shapeParts` describe cada figura como trazados SVG y la usan el lienzo (React), el exportador SVG del núcleo (`renderGraphSvg`) y los exportadores `.drawio` (`drawioShapeStyle`), con un mapa de figuras por módulo compartido entre editor y exportadores; así el SVG y el `.drawio` muestran lo mismo que el lienzo.
+- **Exportación SVG/PNG de C4**: `toSvg` (`packages/domain-c4/src/export/svg`) dibuja una vista colocada con la misma geometría (persona como actor, base de datos como cilindro, cola como tubo, navegador como ficha, móvil redondeado) y es el exportador `svg` del módulo; el puente embebido responde `export('svg')` con ese SVG y `export('png')` rasterizándolo en el navegador (`src/app/embed/rasterize.ts`).
+- **Vista previa al importar**: la pestaña «Importar» dibuja con Mermaid el texto pegado cuando parece Mermaid, antes de sustituir el documento.
+
+## Tandas posteriores (2026-10-01 en adelante)
+
+Cada apartado es una tanda de trabajo; las líneas con `#N` son pull requests. Todo esto está hecho: lo que falta está en [roadmap.md](roadmap.md).
+
+### Ronda de profundización de Integración
+
+**hecha** (2026-10-01). Notación EIP completa (API hexágono, pasarela flecha, broker barra, cola tubo, tópico abanico, almacén cilindro) y nuevos tipos: conector, tarea programada, usuario final, servidor MCP y nodo de patrón. **Contratos editables como metadata de las figuras** (`Contract.content`, `contractId` en nodos e interacciones): editor en la pestaña «Contratos» con validación y formateo de CloudEvents (formateador propio), `.proto` de gRPC, OpenAPI (JSON/YAML), MCP, AsyncAPI, JSON Schema, Avro, GraphQL y WSDL, y comandos `iark integration contracts|contract-export|cloudevents`. Patrones EIP como insignia con icono sobre la línea y como nodo intermedio, con las acciones que convierten uno en otro; orden de las interacciones (`order`) numerado por vista; reglas de conexión por tipo; vista de un sistema (`system:<id>`) y zonas por dominio con selección múltiple y las acciones «Agrupar en dominio», «Sacar del dominio» y «Agrupar por responsable». El kernel gana las figuras abanico, reloj y rombo, las insignias sobre la línea del SVG y, en `EditorSpec`, `actions` (operaciones sobre la selección) y `attachments` (documentos de texto con editor propio); `AiSpec.carry` conserva al refinar con IA lo que el modelo no genera (el texto de los contratos).
+
+### Rondas de profundización de Seguridad, Datos, Empresarial y Plataforma
+
+**hechas con las opciones recomendadas (★)** de las preguntas D/E/P/S del hilo «Rondas de profundización de las otras especialidades» (2026-10-02). El usuario contestó después las de las cuatro especialidades y sus respuestas se aplican en PR nuevas desde master: Seguridad ya está cerrada (#27) y las de Datos, Empresarial y Plataforma están abiertas (#40-#43 y #45, ver [Ronda final](#ronda-final-respuestas-del-usuario-a-las-preguntas-dep) más abajo).
+
+- **Seguridad** (#19, #26, #27, #29): zonas de confianza anidadas (sin marcas rojas de frontera: respuesta S1 a, #27), sugerencia de amenazas, estándar de control en los controles, reglas de conexión y acciones de protección; matriz de calor 3×4 (probabilidad × impacto) con arrastre y riesgo residual tras los controles implementados (vistas `heatmap` y `heatmap:residual`), cobertura de estándares (`standards`, `standards:<estándar>`) y superficie de ataque; tipos de activo identidad, secreto y canal de confianza. En el CLI, `iark security risks` muestra el residual junto al inherente y los comandos nuevos `heatmap [--residual]` y `standards [--catalogo …]` imprimen lo mismo que el lienzo (el catálogo va como opción porque el CLI genérico pone los argumentos posicionales antes del archivo).
+- **Datos** (#20, #23): gobierno visible (clasificación y datos personales como insignias y mapa de calor), ERD con pata de gallo, reglas de conexión, acciones, contratos de datos y **linaje a nivel de columna** (mapeos por pipeline, vista de impacto de columna, avisos, editor, IA, ejemplo y `iark data column-impact`).
+- **Empresarial** (#21, #24, #31): capas ArchiMate con iconos, mapa de capacidades coloreable por madurez, importancia, criticidad o ciclo de vida, relaciones nuevas (`composes`, `flows-to`, `assigned-to`, `triggers`), metadatos (coste, usuarios, estrategia, fin de soporte), hoja de ruta del ciclo de vida, **flujos de valor** (etapas en cadena enlazables a capacidades) y servicios de negocio. La colocación del flujo de valor ordena las capacidades por baricentro de sus etapas y traza cada arista con un codo propio (0 cruces en el ejemplo, 11 antes); el lienzo pinta esas rutas (`EdgeRoute.sides` en el núcleo). Si una capacidad la comparten flujos no adyacentes, la arista sube por un pasillo libre con una ruta de más de un codo (`routePath` y `polylineMidpoint` en el núcleo, `valueStreamRoutes.ts`; el lienzo pinta tal cual las rutas de más de cuatro puntos) y el orden de las capacidades mejora con una búsqueda local (`refineOrder`) (#35).
+- **Plataforma** (#22, #25, #28): figuras de infraestructura, zonas por exposición, reglas, metadatos (coste, SLO/SLA, región), vista de costes y acciones (promover, duplicar entorno, escalar réplicas, puerta de aprobación); **comparar dos entornos** (`compare:<A>:<B>`, informe y `iark platform compare`) con un emparejado de recursos que no adivina (nombre, nombre normalizado sin sufijos de entorno, tecnología solo si es inequívoca, clase solo para las que no se repiten) y que dice cómo emparejó cada par (y, si el recurso declara su equivalente con `counterpartOf`, empareja por eso primero: ver [Equivalencias entre entornos](modulos/plataforma.md#equivalencias-entre-entornos-counterpartof)).
+
+### Ronda final: respuestas del usuario a las preguntas D/E/P
+
+*2026-10-02, PR abiertas.*
+
+- **Plataforma, iconografía de nubes** (#40, P1 b): registro de iconos ampliable (`registerIconPack`, `parseIconPack`, `iconCatalog`, `resolveIcon`, `suggestService`) con glifos originales de AWS (19) y Azure (16), no los logotipos oficiales; campos opcionales `provider` y `service` en los recursos, `workspace.iconPacks` para paquetes propios y `iark platform icons --pack` con su JSON Schema (`schema/platform-icon-pack.schema.json`); ejemplo `examples/plataforma-nubes.json`. El kernel gana `SvgNodeStyle.iconColor` e `iconTile`.
+- **Plataforma, comparar N entornos y avisos** (#43, P3 b y tipos de P2): `compare:<A>:<B>:<C>…` y `compare:all` dibujan una matriz de servicios y recursos por entorno con versión y réplicas por celda y las diferencias frente al primero (lienzo, SVG, draw.io, Mermaid, `iark platform compare` con lista o `todos`); `analyzePlatform` avisa de certificados caducados o a punto de caducar (campo opcional `expiresAt`), servicios de producción sin monitorización, recursos regionales sin región y recursos transversales sin dependencias.
+- **Empresarial, matriz de capacidades** (#41, E4 b): vista `matrix` (capacidades × aplicaciones; ● directo, ○ vía proceso, · heredado; huecos, solapes y transiciones), con doble clic o «Soporta ⇄» para alternar `supports` (`EditorSpec.activate`, `NodeNotation.bare`), export SVG/draw.io/Mermaid `block-beta` y `iark enterprise matrix [--format table|csv]`. Arrastrar una celda ● y reimportar el `block-beta` llegaron después (#57 y #58, ver [Pendientes menores resueltos](#pendientes-menores-resueltos)).
+- **Datos, ERD UML y motores** (#42, D2 b+c, D4 b): selector «Notación» del ERD (pata de gallo o UML, `erd:uml`) con multiplicidades y mínimos opcionales (`sourceMin`/`targetMin`), registro de 13 motores (`registerEngine`, campo `engine`), validación de `servers[].type` de los contratos con sugerencias, DDL (`iark data ddl`, `iark data engines`). Límite conocido: una clave primaria `text` en MySQL genera un DDL que MySQL rechaza sin avisar.
+- **Datos, tipos nuevos de activo** (#45, D7 b): producto de datos (puertos de entrada y salida, frescura, SLA, responsable), API de datos y glosario de negocio con términos enlazables a activos o columnas; vistas `products` y `glossary`, acciones «Agrupar en producto…» y «Enlazar término», avisos, IA, Mermaid de ida y vuelta, `iark data products|glossary` y `examples/datos-catalogo.json`. La columna de un enlace de término es texto validado, no desplegable (`fields()` no recibe el id de la arista).
+- Los cambios compartidos del núcleo y el lienzo siguen siendo aditivos y opcionales (documentos en 1.0): `EditorEdge.endLabels`, `ViewRef.variantsLabel`, `AttachmentSpec.check`/`suggestions`, `EditorSpec.activate`, `NodeNotation.bare`.
+
+### Importadores de formatos reales
+
+*2026-10-02, #44, #47, #48, #49; dirección que el usuario eligió en la tarjeta «¿Qué dirección sigo después de esta tanda?».*
+
+Cada especialidad importa ahora lo que ya existe, con un importador del núcleo (`module.importers`), errores propios (`ModuleError`), todo lo no mapeable en los avisos (nunca se descarta en silencio), ids estables (importar dos veces da el mismo documento), sin dependencias nuevas (`yaml` y `fast-xml-parser` ya estaban; HCL y SQL tienen analizador propio y tolerante) y el bloque del módulo de `public/.well-known/iark.json` regenerado:
+
+- **Plataforma** (#47): `terraform` (`.tf`, `.tf.json`, `.tfstate` v4 y `terraform show -json`, familias aws, azurerm y google) y `kubernetes` (YAML multidocumento, `kind: List`, JSON). Entornos, redes con CIDR y exposición, clústeres, recursos por clase, servicios con despliegue y dependencias; de un Secret solo se guardan el tipo y los nombres de clave, y los valores del estado o del plan no se leen.
+- **Datos** (#48): `ddl` (PostgreSQL, MySQL/MariaDB, SQL Server, Oracle y Snowflake: tablas, claves, relaciones con cardinalidad, vistas con pipeline y linaje por columna en las simples) y `dbt` (`manifest.json`: fuentes, modelos, semillas, pipelines, pruebas y exposiciones). La clasificación, los datos personales y el propietario solo se importan si el `meta` de dbt los declara.
+- **Empresarial** (#44): `archimate` (Exchange File Format del Open Group y formato de Archi, `.archimate`): unidades, capacidades, procesos, servicios, aplicaciones, tecnología y flujos de valor; las relaciones se convierten siempre a una que admite `RELATION_RULES`; las propiedades se leen a coste, estrategia, fin de soporte, madurez, etc.
+- **Retoques comunes** (#49): «Abrir archivo…» del banco de trabajo ofrece las extensiones de los importadores del módulo (`WorkbenchController.openText` decide entre cargar el JSON o importarlo), la ayuda de `iark import` habla de todos los formatos (la opción es `--format`) y el nombre de reserva del documento (`fallbackDocumentName`) quita las extensiones de los importadores.
+
+### Imagen Docker: construida y probada de verdad
+
+*2026-10-02, #30.*
+
+Se construyó con un dockerd local, corre como `node` (no root), sirve el sitio y la API, pasa el HEALTHCHECK y se detiene limpiamente. La prueba destapó que el CLI compilado (`dist/cli/index.js`) no arrancaba en master desde los contratos editables (`yaml` se incrustaba en el bundle ESM); corregido con `yaml` como dependencia externa y una prueba que empaqueta el CLI con la configuración de tsup (`tests/cli-bundle.test.ts`). **Segunda vuelta** (#34): se probó también `docker run -p` con red de puente (incluida la variante endurecida), el puerto de dentro sale de `PORT` (8787 por defecto) tanto en el servidor como en el `HEALTHCHECK`, y la imagen baja de 355 a 207 MB al pasar el frontend a `devDependencies` (Vite ya lo empaqueta en `dist/app`); `overrides.esbuild` corrige el aviso de `npm audit` que `tsup` arrastraba, y `tests/runtime-deps.test.ts` comprueba que cada import externo que queda en los bundles publicados (núcleo, CLI y embebido) es una dependencia de ejecución declarada.
+
+### Pruebas e2e estables
+
+*2026-10-02, #32.*
+
+El lienzo de los módulos publica `data-layout` (`pending` o `ready`: autolayout aplicado a la estructura actual y primer encuadre terminado) y las pruebas lo esperan con los ayudantes `canvasReady`/`selectView` (`tests/e2e/canvas-helpers.ts`) en vez de actuar sobre posiciones provisionales; se corrigió una carrera real del primer encuadre en `DiagramCanvas`; las páginas anfitrión con iframes usan `domcontentloaded` (con iframes `networkidle` no siempre llega) y `E2E_PORT` permite correr e2e en varios checkouts a la vez (por defecto 4173). Tres pasadas completas seguidas limpias (103 pruebas). **Siguiente vuelta** (#37 y #38): la intermitencia que seguía saliendo en `enterprise-canvas.spec.ts` («composición, flujo…», 5/20 y 10/30 con la máquina cargada) era otra carrera real de `DiagramCanvas`: un encuadre programado para la vista anterior (60 ms) podía dispararse tras cambiar de vista y gastar el encuadre pendiente de la nueva, que se quedaba en `pending` para siempre; el encuadre se decide ahora con el estado (`layoutReady` y `fittedFor`) y no con una marca mutable, y una prueba con relojes simulados la reproduce (0 fallos en 80 repeticiones tras el arreglo). El editor C4 publica también `data-layout` (`c4-canvas`, con los encuadres de la cámara anotados en `camera.ts`) y sus diez specs esperan a `c4Ready` y a aserciones con reintento: de 39 `waitForTimeout` y 26 `networkidle` a 0 y 0 (con 1,5 s de retraso inyectado en ELK fallaban 8 de 81 ejecuciones y ahora 0). El botón «Fusionar elemento» del anfitrión de ejemplo enviaba un fragmento inválido (`merge` valida el fragmento como un documento completo); corregido y cubierto por el e2e.
+
+### Build y pruebas del CLI
+
+*#36.*
+
+`vite build` ya no avisa de `advancedChunks` (ahora `output.codeSplitting`), del import dinámico inútil de `smartLayout` ni de chunks de más de 500 kB (`chunkSizeWarningLimit: 2000`, justificado: `domain-c4`, el layout ELK de mermaid y su parser son bajo demanda). Las pruebas que lanzan el CLI (`cli.test.ts`, `trace.test.ts`, `serve.test.ts`) ejecutan el bundle de tsup con `node` en lugar de `tsx` (`tests/helpers/cliBundle.ts`; `cli.test.ts` baja de 397 s a 143 s) y con 120 s de margen, así que ya no agotan los 30 s con la máquina cargada.
+
+### Versionado de diagramas
+
+*2026-10-03, #63 y #64; el usuario eligió «archivo y git».*
+
+`diffDocuments` (`packages/kernel/src/diff/`, sin DOM) compara dos versiones de un documento de cualquier módulo sin código por módulo: empareja los elementos de las listas por `id` (o por `name`, o por similitud) y compara el resto campo a campo, con `added`, `removed`, `changed`, `moved` y un resumen. No cuenta como cambio la maquetación guardada de C4 (coordenadas, tamaños, rutas y opciones de layout de las vistas) ni el orden de las listas (salen como «reordenados», con la subsecuencia creciente más larga); `DomainModule.diff?: { ignore, ordered }` es el gancho opcional para lo propio de cada módulo (`ordered`: pasos de un flujo de integración, etapas de un pipeline de plataforma, etapas de un flujo de valor). `iark diff <antes> [<después>] [--rev <revisión>] [--module] [--format text|markdown|json] [--exit-code] [--out]` compara dos archivos o un archivo contra su versión en una revisión de git (`git show`), valida con el esquema del módulo (salida 2) y acepta las fuentes importables; `POST /api/<módulo>/diff` devuelve el mismo `DocumentDiff`. En el banco de trabajo, la pestaña «Comparar (N)» (`ComparePanel.tsx`, `compare.ts`) lee la otra versión («Abrir archivo a comparar…» o pegando el JSON, también con importadores), lista lo añadido, quitado y modificado con cada campo antes → después y marca el lienzo: insignias **Nuevo** y **Modificado**, halo en las aristas y fantasmas punteados con **Quitado** para lo que ya no está; un clic en un cambio selecciona y encuadra el elemento, y un cambio en una columna o un paso marca como modificado el elemento del que cuelga. Sin comparar el lienzo no cambia. Capturas en `/mnt/project-files/versionado/`.
+
+### IA desde un repositorio
+
+*2026-10-03, #62.*
+
+`iark generate "<instrucción>" --from-repo <carpeta> [--repo-budget <kb>] [--dry-run] [--module <id>] [--from <doc>]` e `iark prompt … --from-repo` dibujan la arquitectura leyendo un repositorio; `--dry-run` y `prompt` muestran exactamente lo que se enviaría, sin modelo ni clave. El escáner (`src/cli/repo/`, solo del lado del CLI: el núcleo no toca el sistema de archivos y `serve` no lo expone, porque leería el disco del servidor) abre solo una lista blanca de lo que revela la arquitectura (README y docs, diagramas existentes, manifiestos, Dockerfile y compose, contratos OpenAPI/AsyncAPI/proto/GraphQL, Kubernetes/Helm/Terraform/CloudFormation, DDL y migraciones, puntos de entrada, CI, `.env.example` con solo los nombres) y envía lo demás como árbol de carpetas y rutas, con presupuesto estricto (60 KB por defecto, 1 a 1024) y cuotas por categoría. **Privacidad**: nunca se leen `.env*`, claves y certificados privados, `.npmrc`/`.netrc`, `*.tfstate`/`*.tfvars` ni los Secret de Kubernetes; todo el texto incluido pasa por una redacción de patrones de secretos (tokens de GitHub, GitLab, AWS, `sk-`, Slack, JWT, cabeceras `Authorization`, contraseñas en URLs y cadenas de conexión, claves privadas…) aplicada antes de recortar y otra vez sobre el resumen; no se ejecuta git ni nada del repositorio, no se siguen enlaces simbólicos, se respeta `.gitignore` con un intérprete propio y no se envían rutas absolutas. El contenido va al modelo en un bloque delimitado por un hash del propio contenido, como datos y no instrucciones (la instrucción del usuario se repite al final), con orientación por módulo; el contrato `AiSpec` no cambia. 130 pruebas nuevas, entre ellas secretos falsos plantados en un repositorio temporal y un cliente de IA falso. Después: `--from-repo` acepta también una **URL de git** (#65; `https://`, `ssh://` y `git@host:ruta`, `--repo-ref <rama|etiqueta>`): `source.ts` clasifica carpeta o URL sin tocar el disco ni la red y `clone.ts` ejecuta un único `spawn('git', args)` (sin shell) con clon superficial y endurecido (sin submódulos, hooks, plantillas ni etiquetas; `GIT_TERMINAL_PROMPT=0`; 120 s) en un directorio temporal que se borra siempre; se rechazan `http://`, `git://`, `file://`, `ext::`, URL con credenciales dentro y valores que empiezan por «-»; en un clon no se interpreta el `.gitignore`. El intérprete de `.gitignore` se reescribió **sin regex** (#70: coincidencia por tramos con dos punteros, O(n·m); la traducción a regex colgaba el comando más de 60 s con un `.gitignore` hostil; fuzz diferencial de 960 000 comparaciones contra la versión anterior, con tres diferencias deliberadas a favor de git: una clase no casa con `/`, un rango invertido no casa nada y `\` escapa dentro de una clase; se saltan líneas de más de 1024 caracteres y se aceptan 5000 reglas) y se añadieron `--repo-include` y `--repo-exclude` (#71: repetibles, formato `.gitignore`, solo reducen y se aplican después de las comprobaciones de secretos).
+
+### Pendientes menores resueltos
+
+*2026-10-03, #52 a #60.*
+
+Una PR por tema.
+
+- *Lienzo de módulos* (#52): `relayout()` captura el fallo del autolayout (ELK con un grafo raro, o la colocación propia del módulo): conserva el dibujo que ya hubiera de esa vista (o la cuadrícula de reserva), da la estructura por colocada para que `data-layout` llegue a `ready` y muestra un aviso breve en el lienzo (`canvas-layout-error`, `role="status"`) que se quita al reintentar con Autolayout o al cambiar de vista; antes se quedaba en `pending` para siempre y sin mensaje.
+- *Editor C4, deshacer y exportar* (#53, #60): `pauseHistory()` (`documentStore.ts`) sustituye a `temporal.pause()/resume()` sueltos: las pausas del historial se anidan y solo se reanuda cuando se han levantado todas (el autolayout inicial de `Canvas` y la exportación `.drawio` ya no se pisan: exportar con ELK lento dejaba «Deshacer» habilitado). Además `exportDrawio` ya no revierte lo que se edita mientras espera al autolayout de las vistas sin abrir: tras el `await` aplica al documento actual solo las vistas que la exportación cambió y que siguen idénticas a como estaban.
+- *Datos* (#54, #55, #56): el registro de motores declara los tipos que no admiten como clave (`EngineDef.sql.noKeyTypes`; `text`, `blob` y `json` en MySQL y MariaDB, extensible con `registerEngine`); `analyzeData` avisa de una clave primaria así con el arreglo (`varchar(n)` o una clave sustituta) y el DDL, sin cambiar el tipo, añade un comentario `-- AVISO:` y lo suma a los avisos del CLI. `iark data ddl --asset` acepta también un producto de datos (los activos de sus puertos), una API (los que expone) y un glosario (los activos con términos suyos enlazados). La columna de un enlace de término (`defines`) se elige en un desplegable con las columnas del activo enlazado y «Todo el activo» (`EditorTarget` gana, de forma aditiva, `id`, `source` y `target`, que el panel de propiedades rellena desde el grafo de la vista).
+- *Empresarial, matriz* (#57, #58): arrastrar una celda ● a otra mueve su relación `supports` a la pareja de la celda destino (misma fila cambia la aplicación, misma columna la capacidad, en diagonal las dos; un solo paso de Deshacer, conserva el criterio y las celdas vacías, ○ y · no se arrastran) con `EditorSpec.drop`, sin ganchos nuevos en el núcleo. El importador `mermaid` del módulo lee también el `block-beta` que exporta la matriz: cada ● es una relación `supports` y lo que el formato no lleva (ids, criticidad, ciclo de vida, ○ y ·) se resume en los avisos.
+- *Pruebas e2e* (#59): 22 `networkidle` en 14 specs de `modulos.html`, `trazabilidad.html` y `suite.html` pasan a `domcontentloaded` más una señal observable; ya no queda ninguno en `tests/e2e` (tampoco en las dos specs de la matriz, que nacieron en paralelo con ellos).
+
+### Ajustes de la tanda siguiente
+
+*2026-10-03, #65 a #82.*
+
+Una PR por tema.
+
+- *Datos* (#67): `noKeyTypes` declara también Oracle (`clob`, `nclob`, `blob`, `long`, `long raw`), PostgreSQL (`json`, `xml` y los geométricos) y SQL Server (`text`, `ntext`, `image`, `xml` y los `varchar(max)`, `nvarchar(max)` y `varbinary(max)`, con entradas que miran los parámetros); `unkeyableType(engine, type, kind)` distingue clave primaria de única y `analyzeData` avisa también de una clave única, con el DDL `-- AVISO:` correspondiente.
+- *Plataforma* (#68): el aviso de región usa `Resource.provider` y, si falta, el del entorno.
+- *Editor embebido y lienzo* (#73, #74): `save` del puente embebido solo apaga «Cambios sin guardar» si el documento del almacén sigue siendo el que se publicó (los documentos son inmutables, basta comparar la referencia) y `exit` informa el `modified` real; `settleCamera` de `DiagramCanvas` guarda sus plazos y los cancela al desmontar (se reprodujo el `window is not defined` con jsdom destruido).
+- *CLI y pruebas* (#75, #76): `genericGenerate` usa `DEFAULT_AI_MODEL`; `npm run typecheck` comprueba también las pruebas y los specs de Playwright con `tsconfig.test.json` (37 errores arreglados; dos pruebas de Datos comprobaban una promesa sin esperarla y ahora comprueban de verdad el draw.io).
+- *Importadores* (#79 a #82): los avisos de una importación viven en el controlador (`WorkbenchState.lastImport`) y se ven en la pestaña «Importar (N)» desde cualquier vía; el cuadro «Texto a importar» aplica de una vez las inserciones sintéticas de 200 líneas o más (`useBulkInsert`: el `insertText` de Chromium es cuadrático y un manifiesto de dbt de 128 KB tardaba ~55 s, ahora ~0,1 s; Ctrl+V no lo sufría); Terraform se importa desde varios `.tf` (`Importer.multiFile`, `iark import <carpeta|archivos>` y selección múltiple en el banco; el documento es idéntico al de los textos concatenados y los avisos llevan el archivo); `domain-platform` declara `yaml` y `domain-enterprise` `fast-xml-parser` (con `tests/dependencias-paquetes.test.ts`).
+
+### Proyectos: diagramas agrupados y guardados
+
+*2026-10-03, #66, #69, #72, #77, #78 y #84; el usuario pidió «la capacidad de almacenamiento de los diagramas agrupados por proyecto» y eligió «Nube» en la tarjeta «¿Dónde deben vivir los proyectos guardados?».*
+
+Una PR por tema:
+
+- *Núcleo* (#66, `packages/kernel/src/project/`): contrato `ProjectStore` asíncrono (nombres únicos sin distinguir mayúsculas; `saveDiagram` con `ifUpdatedAt` falla con `conflict`), `MemoryProjectStore`, archivo único `iark.project/1` (la importación nunca pisa: «Nombre (2)»; hasta 500 diagramas), `checkProject` y `projectTrace` (las URN se resuelven en todo el proyecto; un id repetido es `ambiguous`).
+- *Navegador* (#69) y *editor C4* (#72): almacén IndexedDB, sesión con autoguardado a los 500 ms, aviso de conflicto entre pestañas (`BroadcastChannel` + `ifUpdatedAt`), gestor *Proyectos…* en el banco y en *Archivo* del editor C4, `?project=&diagram=` y aviso con «Deshacer» al reemplazar un diagrama guardado. Ver [Proyectos en la app web](proyectos.md#proyectos-en-la-app-web-este-navegador).
+- *CLI y servidor* (#77): `FolderProjectStore` (una carpeta de trabajo por proyecto, sin enlaces simbólicos, escrituras atómicas), `iark project …` y la API `/api/projects` de `iark serve --workspace`.
+- *Nube autoalojada* (#78 y #84): `iark serve --tokens` con un token por persona y roles `viewer`/`editor`/`admin` (`iark auth create|list|revoke`, 401/403/429/503, `GET /api/whoami`, CORS con `Authorization`; se niega a escuchar fuera de loopback sin tokens) y `HttpProjectStore` para el navegador, con el código de error `forbidden` (token válido, rol insuficiente) distinto de `unauthorized`, «Dónde se guardan» (probar la conexión, copiar entre almacenes, cambiar de token sin perder lo pendiente), guardado con `keepalive` al cerrar la pestaña y reintento al volver la red.
+- La tarjeta «¿Dónde aloja y cómo inicia sesión la nube de proyectos?» se contestó con **servicio gestionado, inicio de sesión de GitHub e imagen Docker lista para desplegar** (2026-10-06): ver el apartado siguiente.
+
+### Nube gestionada con inicio de sesión de GitHub
+
+*2026-10-06; una PR por tema: #93, #96, #97 y la de la imagen Docker y el despliegue.*
+
+- *Login y sesiones*: `iark serve --accounts` + OAuth App de GitHub (`src/cli/accounts/`): flujo web con `state` ligado a la cookie del navegador, código de un solo uso en el fragmento y PKCE para cambiarlo por una sesión (`iark_s_…`, solo su hash en disco, 30 días), sin pedir permisos a GitHub y revocando su token tras leer el perfil; cuentas, sesiones y pertenencia a proyectos en un archivo JSON atómico (`AccountStore`); `--signup invite|open`, `--admins` (por id numérico o nombre), `--max-projects`; la API de proyectos filtra por pertenencia (404 para lo ajeno) y `--tokens` sigue valiendo. Diseño y límites en [Servicio gestionado: inicio de sesión con GitHub](cuentas-github.md).
+- *Compartir y administrar* (PR sobre la anterior): `GET|PUT|DELETE /api/projects/<p>/members[/<usuario>]` (el administrador del proyecto comparte con un nombre de GitHub, que si no tiene cuenta queda como invitación que se reclama al entrar; cualquiera puede irse de un proyecto; un proyecto no se queda sin administrador, 409 `last-admin`; quitar una invitación de invitado la cancela) y `GET|PUT|DELETE /api/admin/users[/<usuario>]` para quien administra la instancia (invitar, cambiar el rol, desactivar —cierra sus sesiones—, cancelar invitaciones; nadie se baja de rol a sí mismo ni a quien figura en `--admins`). `AccountStore` gana `shareProject`, `upsertUser`, `removePending` y las reglas `last-admin`; las pruebas de la nube comparten `tests/helpers/cloud.ts`. Ver [Compartir proyectos](cuentas-github.md#compartir-proyectos) y [Administrar las cuentas de la instancia](cuentas-github.md#administrar-las-cuentas-de-la-instancia).
+- *Cliente web* (PR sobre las anteriores): `login.ts` (PKCE en el navegador, el código se borra de la dirección antes de canjearlo), «Iniciar sesión con GitHub» en *Dónde se guardan* (la instancia de la que viene la página ya aparece escrita, «Usar un token» plegado, ficha de la persona, «Cerrar sesión», «Tu sesión caducó»), rol por proyecto en el gestor, «Compartir…» y «Salir del proyecto»; `HttpProjectStore` aprende `providers`, `exchangeLoginCode`, `logout` y los métodos de miembros. Con la sesión caducada no se reintenta el guardado (cada PUT 401 sumaba al freno de la dirección y acababa en 429 para todas las sesiones). e2e contra el servidor real con un GitHub de mentira (`tests/e2e/projects-cloud-github.spec.ts`).
+- *Imagen Docker y despliegue* (PR sobre las anteriores): el `Dockerfile` crea `/data` (dueño `node`, uid 1000) para el volumen del servicio gestionado y no fija `IARK_WORKSPACE` (un contenedor sin configurar nunca deja los proyectos abiertos); `deploy/` trae un `docker-compose.yml` de producción (servicio endurecido —solo lectura, sin capacidades, límites—, Caddy con HTTPS automático, el Client secret como Docker secret, volumen externo `iark-data`), `docs/despliegue-nube.md` explica paso a paso lo que solo hace quien aloja el servicio (OAuth App, DNS, VPS, copias de seguridad, actualizar, solución de problemas) y `npm run docker:smoke` prueba la imagen de verdad (68 comprobaciones: login completo contra un GitHub de mentira, persistencia, copia y restauración, secretos fuera de los registros). `--cors` y `--trust-proxy` también por entorno (`IARK_CORS`, `IARK_TRUST_PROXY`) y los fallos de GitHub al entrar dejan su motivo en el registro.
+
+### Tanda de arreglos tras publicar
+
+*2026-10-03, #86 a #89.*
+
+Una PR por tema.
+
+- *Trazabilidad* (#86): el chip «Motivo» de la vista de trazabilidad cubre el motivo `ambiguous` (antes salía vacío) y `src/trace-app` entra en `tsconfig.app.json`; `REASONS` y `REASON_TONE` son `Record<TraceProblemReason, …>`, así que un motivo nuevo del núcleo rompe `tsc` hasta que se le dé texto.
+- *Lienzo* (#87): al desmontar `DiagramCanvas` se sube `layoutSeq`, de modo que la respuesta tardía de ELK ya no pinta estado de un lienzo que no está (la prueba lo reproduce con el entorno destruido).
+- *Datos* (#88): `keyTypeAdvice(engine, type?)` sugiere `varbinary(n)` (MySQL, SQL Server) o `raw(n)` (Oracle) cuando la clave sin soporte es binaria, y `varchar(n)` cuando es texto o json.
+- *Cuadros grandes* (#89): el «Documento JSON» del banco, el JSON pegado de «Comparar», el «Documento de origen» de las conversiones y el texto de los adjuntos usan `useBulkInsert`, como «Texto a importar».
+
+### Plataforma: equivalencias entre entornos (`counterpartOf`)
+
+*2026-10-06, #91, #92 y #94; el usuario respondió «Añadirlo ya» a la tarjeta de `counterpartOf`.*
+
+Campo opcional `Resource.counterpartOf` (id del recurso de otro entorno que es el mismo) que gana a toda deducción al comparar entornos. Una PR por tema:
+
+- *Núcleo* (#91, `packages/domain-platform/src/counterparts.ts`): `counterpartsOf(doc)` agrupa los recursos en equivalencias simétricas y transitivas (basta que lo declare uno de los dos); `counterpartErrors` es lo que rechaza el esquema (equivalente inexistente, que no es un recurso, propio, del mismo entorno o **ambiguo**: dos recursos vivos de un entorno en la misma equivalencia; los dados de baja no cuentan) y `analyzePlatform` avisa de uno de otra clase (salvo máquina ↔ clúster) o dado de baja. `pairResources` gana un paso 0 (`MatchedBy` `declared`, «emparejado por equivalencia declarada»; un equivalente declarado dado de baja deja al recurso sin pareja en vez de buscarle otro por deducción) y `compareMatrix` arma primero una fila por equivalencia (también las que la referencia no tiene) y deja el resto a la deducción; el informe lista aparte las equivalencias declaradas de nombre distinto.
+- *Editor* (#92): selector «Equivalente en otro entorno» en las propiedades (con validación incremental), `duplicateEnvironment` declara cada copia equivalente de su original, `dropCounterparts` re-engancha la cadena al quitar un recurso o un entorno y promover re-apunta las dependencias al equivalente declarado. El `<select>` del panel de propiedades muestra ahora la pista (`FieldSpec.hint`) como tooltip.
+- *IA* (#94): `counterpartOf` en el esquema de generación y en el prompt (solo cuando el nombre no delata la correspondencia); se conserva al refinar.
+- Los importadores (Terraform, Kubernetes, Mermaid) no lo escriben a propósito: nada en esos formatos dice qué recurso es el equivalente de otro entorno, y la comparación ya empareja por nombre lo que se puede deducir.
+
+### Despliegue automático a gh-pages
+
+*2026-10-07; resuelto el problema de facturación de GitHub, se reintroducen los workflows de Actions, solo este.*
+
+`.github/workflows/deploy-pages.yml` compila el sitio (`npm run build:app` con `BASE_PATH=/<repositorio>/`) en cada pull request hacia `master` y, en cada push a `master` o ejecución manual, lo publica en `gh-pages` con `scripts/deploy-gh-pages.sh` (que ahora admite `SKIP_BUILD=1` y funciona sin identidad de git) y lo comprueba con `scripts/verify-pages.sh` (espera a que Pages sirva el `assets/main-*.js` nuevo y que `/`, `modulos.html`, `suite.html`, `trazabilidad.html` y `/.well-known/iark.json` respondan 200). El origen de Pages sigue siendo la rama `gh-pages`. Detalle y ajustes de permisos en [Despliegue en GitHub Pages](despliegue-pages.md).
+
+## Plan original de la suite (obsoleto)
+
+El plan aprobado el 2026-09-29 ocupaba las secciones 1 a 8 de la antigua hoja de ruta. Se ejecutó (las fases 0 a 5 de arriba lo cumplen), y su texto citaba nombres que ya no existen: aquí se conserva solo lo que sigue siendo útil, con los nombres de hoy.
+
+> **Nombres que cambiaron.** El kernel `@suite/kernel` es `@iark/kernel` (`packages/kernel`); el dominio `@suite/domain-c4` es `@iark/domain-c4` (`packages/domain-c4`) y `src/core` ya no existe: el núcleo C4 es `packages/domain-c4/src`, publicado como `iark-diagrams/core`. El CLI `c4diagram` es `iark` (con `c4diagram` como alias). Las URN `urn:suite:{módulo}:{id}` son `urn:iark:<módulo>:<id>`; el manifiesto `/.well-known/c4suite.json` es `/.well-known/iark.json` (`iark.manifest/1`); el servicio `POST /v1/{module}/…` es `POST /api/<módulo>/…`; el Web Component `<c4-suite>` es `<iark-module>`. De los paquetes propuestos (`packages/cli`, `packages/embed`, `apps/web`) quedaron `src/cli`, `src/embed` y `src/app`.
+
+### Punto de partida
+
+Al aprobar el plan, el repositorio era solo C4:
+
+- **Núcleo sin DOM** (entonces `src/core`, exportado como `iark-diagrams/core`): modelo `C4Document` (elementos, relaciones, vistas C1/C2/C3), validación con zod y JSON Schema, autolayout con ELK, export a `.drawio`, importadores de `.drawio` y de Structurizr DSL, y generación con IA (proveedores Anthropic, Foundry y OpenAI-compatible).
+- **CLI** `c4diagram` (commander): `generate`, import/export, layout, esquema.
+- **Frontend** React + `@xyflow/react` + zustand (`src/app`).
+- **Embebido** por iframe + `postMessage` con protocolo versionado y validado con zod (`src/embed/protocol.ts`, SDK de anfitrión).
+- Publicación: compilado estático a `gh-pages`, automático con el workflow `deploy-pages.yml` en cada push a `master` (o a mano con `npm run deploy:pages`).
+
+Conclusión de entonces: la base ya tenía las tres piezas que la suite necesita (núcleo puro, CLI, embebido por protocolo); faltaba **generalizar el modelo más allá de C4** y **empaquetar cada especialidad como módulo independiente**.
+
+### Arquitectura objetivo
+
+1. **`@iark/kernel`** (evolución de `core`): lo común a todas las especialidades. Grafo genérico de elementos y relaciones con `kind` y `metadata` extensibles, vistas, validación, autolayout, exportadores (drawio, SVG, PNG), interfaz de importadores. C4 pasa a ser *un dominio más* sobre el kernel (`@iark/domain-c4`), sin cambiar su JSON actual (compatibilidad con la versión `1.0`).
+2. **Módulos de dominio** (uno por especialidad), cada uno con: esquema propio (extiende el del kernel), reglas de validación, paleta/estilos, prompts de IA, importadores/exportadores específicos y sus vistas.
+3. **Adaptadores de entrada** (comunes): draw.io, Structurizr DSL, Mermaid.
+4. **Superficies**: frontend, CLI, servicio HTTP opcional y widget embebible.
+
+En lo que se hizo, el grafo genérico del kernel quedó en layout y SVG (Fase 2) y un modelo común de elementos y vistas no hizo falta (Fase 0).
+
+### Contrato de módulo: boceto superado
+
+El plan proponía este contrato mínimo, descubrible por manifiesto, para que el CLI y el frontend cargaran módulos sin conocer los dominios en tiempo de compilación:
+
+```ts
+interface DomainModule {
+  id: string;                 // 'integration' | 'data' | 'enterprise' | 'platform' | 'security' | ...
+  version: string;
+  schema: ZodType;            // documento del dominio
+  views: ViewKind[];          // vistas soportadas y su layout
+  validate(doc): Issue[];     // reglas del dominio
+  importers?: Importer[];     // desde drawio/structurizr/mermaid/otros
+  exporters?: Exporter[];
+  aiPrompt(ctx): PromptSpec;  // instrucciones y JSON Schema para la IA
+  cliCommands?: CommandSpec[];// subcomandos que el CLI registra dinámicamente
+}
+```
+
+**Este boceto está superado** por el contrato real, [`packages/kernel/src/module/types.ts`](../packages/kernel/src/module/types.ts) (`DomainModule`). Las diferencias: además de `id`, `version`, `schema`, `validate`, `importers`, `exporters` y `cliCommands`, el módulo real declara `name`, `documentVersion` y `jsonSchema()`; `views` es una función del documento (`views?(document)`) y se añadieron `traceViews`, `entities`, `diff` y `editor` (el `EditorSpec` del lienzo); `aiPrompt` es `ai?: AiSpec<TDoc>` (esquema de generación y prompts, con `generateStructured` en el kernel); `importers` y `exporters` son obligatorios (listas posiblemente vacías). La referencia es el archivo de tipos, no este bloque.
+
+### Cómo se hace «federado, embebible y desacoplado»
+
+- **Un paquete y una unidad desplegable por especialidad.** Monorepo con workspaces de npm: `packages/kernel` y `packages/domain-*`.
+- **Tres formas de consumirlo, todas con el mismo contrato:** *librería* (import ESM, en Node o en un frontend propio); *widget embebible* (el protocolo iframe/`postMessage` con un campo `module` y un handshake `capabilities`, más un Web Component para quien no quiera iframe); y *microservicio HTTP* opcional, sin estado, con el mismo JSON Schema y empaquetado en contenedor.
+- **Federación por manifiesto** (decidida así): cada instancia publica `/.well-known/iark.json` con id, versión, endpoints y URL del widget, y un *shell* ligero descubre e integra módulos sin acoplarse a su código. Module Federation de Vite se descartó como primer paso: solo se justifica para compartir componentes React en tiempo de ejecución y añade acoplamiento de versiones de React.
+- **Referencias entre módulos por id estable** (`urn:iark:<módulo>:<id>`), sin dependencia de código entre módulos: trazabilidad sin acoplar.
+- **Versionado y compatibilidad**: cada documento lleva su versión (`documentVersion` del módulo). La idea de que «el kernel migra entre versiones» sigue sin implementar: es la Fase 2 del plan de robustecimiento en [roadmap.md](roadmap.md).
+
+### Las especialidades
+
+| Módulo | Qué modela | Vistas iniciales | Reglas de validación de ejemplo |
+|---|---|---|---|
+| **Integraciones** | Sistemas, APIs, colas/tópicos, eventos, patrones EIP (router, transformador, agregador), contratos | Mapa de integración, flujo/secuencia de mensajes | Productor sin consumidor, contrato sin versión, dependencia circular síncrona |
+| **Datos** | Entidades, almacenes, pipelines, linaje, dominios de datos, calidad | ER lógico, linaje de datos, mapa de dominios/almacenes | Dato sin dueño, pipeline sin origen, PII sin clasificación |
+| **Empresarial** | Capacidades de negocio, procesos, aplicaciones, tecnología (estilo ArchiMate/TOGAF simplificado) | Mapa de capacidades, capacidad↔aplicación↔tecnología | Capacidad sin aplicación, aplicación sin dueño de negocio |
+| **Plataforma** | Clústeres, servicios, entornos, redes, CI/CD, dependencias de plataforma | Despliegue por entorno, topología | Servicio sin entorno, dependencia a recurso no aprovisionado |
+| **Seguridad** (quinta) | Zonas de confianza, activos, flujos de datos, amenazas STRIDE, controles | Flujos de datos con fronteras, modelo de amenazas | Cruce de frontera sin cifrar, dato sensible sin proteger, amenaza crítica abierta |
+
+**Sobre la repetición «arquitectura empresarial».** En el encargo original aparecía «arquitectura empresarial» dos veces, así que había cuatro especialidades claras y una quinta por decidir. Se propusieron, en orden: (1) **arquitectura de seguridad** (recomendada: límites de confianza, flujos de datos sensibles, amenazas STRIDE y controles; encaja con los otros módulos y se apoya en el mismo grafo), (2) arquitectura de soluciones/software (ya cubierta por el dominio `c4`) y (3) arquitectura de negocio (si «empresarial» se repartía en negocio y TI). Se aprobó la primera.
+
+### Propuestas de CLI y de Mermaid: cumplidas
+
+La sección de CLI proponía conservar los comandos, añadir el selector de módulo (`--module`) y los subcomandos que registra cada módulo (`iark data lineage …`), un `import` unificado con autodetección de formato, `generate --from` sobre una fuente importada y el modo agente (`--json` y JSON Schemas por módulo, para generar sin clave de API). La de Mermaid proponía importar y exportar el modelo, una vista previa renderizada con carga diferida y una pantalla «Importar» unificada. Todo está hecho (Fases 1 a 3; ver [cli.md](cli.md), [ia.md](ia.md) e [importadores.md](importadores.md)).
+
+### Riesgos y decisiones abiertas (al aprobar el plan)
+
+- **Un solo modelo genérico frente a modelos por dominio.** Se propuso un kernel genérico con esquemas por dominio: evita un «mega esquema» pero exige disciplina en el kernel. Es lo que se hizo.
+- **Compatibilidad.** El JSON C4 `1.0` debe seguir cargando sin cambios. Se mantiene: los cambios compartidos del núcleo y del lienzo han sido aditivos y opcionales (documentos en `1.0`).
+- **Despliegue.** Mantener la publicación estática en `gh-pages` para el frontend (hoy automática con GitHub Actions; ver [Despliegue en GitHub Pages](despliegue-pages.md)); el servicio HTTP y los contenedores son opcionales y viven fuera de Pages.
+- **Tamaño del bundle** al añadir Mermaid y varios dominios: carga diferida por módulo (`import()` dinámico), como se hizo.
+- **Alcance de «empresarial».** Definir cuánto de ArchiMate/TOGAF se cubre: se recomendó un subconjunto pequeño al inicio, y el módulo lo es (con importador de ArchiMate desde la tanda de importadores).
+
+### Decisiones tomadas
+
+El plan cerraba con cuatro preguntas; estas son las respuestas con las que se ejecutó (el encabezado de la hoja de ruta dice que se aprobó con las recomendaciones de la propuesta):
+
+1. **¿Cuál es la quinta especialidad?** Seguridad (la que se recomendaba).
+2. **¿Empezar por Fase 0 + Fase 1 (Mermaid) mientras se decide el resto?** Sí: así se ejecutaron (Fase 0 y Fase 1 primero, luego Fase 2).
+3. **¿Monorepo con workspaces o un solo paquete con subpaths?** Monorepo con workspaces de npm.
+4. **¿Federación por manifiesto (simple) o Module Federation (más acoplada)?** Federación por manifiesto.
