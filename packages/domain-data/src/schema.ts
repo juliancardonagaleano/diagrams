@@ -1,4 +1,4 @@
-import { parseUrn } from '@iark/kernel';
+import { parseUrn, refTypeSchema } from '@iark/kernel';
 import { z } from 'zod';
 import { exposeViolation, glossaryViolation, portViolation, termLinkViolation } from './links';
 import {
@@ -56,6 +56,7 @@ export const assetSchema = z.object({
   retention: z.string().optional(),
   external: z.boolean().optional(),
   ref: z.string().optional(),
+  refType: refTypeSchema.optional(),
   tags: z.array(z.string()).optional(),
   columns: z.array(columnSchema).optional(),
   contractId: idSchema.optional(),

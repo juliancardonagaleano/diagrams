@@ -1,4 +1,4 @@
-import { uniqueId, type EdgeNotation, type EditResult, type EditorAction, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
+import { REF_TYPE_FIELD, uniqueId, type EdgeNotation, type EditResult, type EditorAction, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
 import { capabilityChildren, stageCapabilities, streamStages } from './graph';
 import { buildMatrix, cellKey } from './matrix';
 import {
@@ -161,6 +161,7 @@ function nodeFields(kind: string, doc: EnterpriseDocument): FieldSpec[] {
         { key: 'endOfLife', label: 'Fin de soporte o retirada', type: 'text', hint: '2027-06 o 2027-06-30' },
         { key: 'external', label: 'Externa (SaaS o de terceros)', type: 'boolean' },
         REF_FIELD,
+        REF_TYPE_FIELD,
         TAGS_FIELD,
       ];
     case 'technology':
@@ -172,6 +173,7 @@ function nodeFields(kind: string, doc: EnterpriseDocument): FieldSpec[] {
         lifecycle,
         { key: 'endOfLife', label: 'Fin de soporte', type: 'text', hint: '2027-06 o 2027-06-30' },
         REF_FIELD,
+        REF_TYPE_FIELD,
         TAGS_FIELD,
       ];
     case 'stream':
@@ -207,8 +209,8 @@ const PATCHABLE: Record<ElementKind, string[]> = {
   unit: ['name', 'description', 'parentId', 'external'],
   capability: ['name', 'description', 'parentId', 'ownerId', 'importance', 'maturity', 'tags'],
   process: ['name', 'description', 'ownerId', 'tags'],
-  application: ['name', 'description', 'technology', 'vendor', 'ownerId', 'lifecycle', 'criticality', 'strategy', 'annualCost', 'users', 'endOfLife', 'external', 'ref', 'tags'],
-  technology: ['name', 'description', 'kind', 'version', 'ownerId', 'lifecycle', 'endOfLife', 'ref', 'tags'],
+  application: ['name', 'description', 'technology', 'vendor', 'ownerId', 'lifecycle', 'criticality', 'strategy', 'annualCost', 'users', 'endOfLife', 'external', 'ref', 'refType', 'tags'],
+  technology: ['name', 'description', 'kind', 'version', 'ownerId', 'lifecycle', 'endOfLife', 'ref', 'refType', 'tags'],
   stream: ['name', 'description', 'ownerId', 'stakeholder', 'tags'],
   stage: ['name', 'description', 'streamId', 'value', 'tags'],
   service: ['name', 'description', 'ownerId', 'audience', 'tags'],

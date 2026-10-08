@@ -1,4 +1,4 @@
-import { parseUrn } from '@iark/kernel';
+import { parseUrn, refTypeSchema } from '@iark/kernel';
 import { z } from 'zod';
 import {
   CRITICALITIES,
@@ -64,6 +64,7 @@ export const applicationSchema = z.object({
   strategy: z.enum(STRATEGIES).optional(),
   endOfLife: z.string().regex(END_OF_LIFE, 'El fin de soporte debe tener la forma AAAA-MM o AAAA-MM-DD').optional(),
   ref: z.string().optional(),
+  refType: refTypeSchema.optional(),
   tags: z.array(z.string()).optional(),
 });
 
@@ -77,6 +78,7 @@ export const technologySchema = z.object({
   lifecycle: z.enum(LIFECYCLES).optional(),
   endOfLife: z.string().regex(END_OF_LIFE, 'El fin de soporte debe tener la forma AAAA-MM o AAAA-MM-DD').optional(),
   ref: z.string().optional(),
+  refType: refTypeSchema.optional(),
   tags: z.array(z.string()).optional(),
 });
 

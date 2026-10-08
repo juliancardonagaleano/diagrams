@@ -191,7 +191,7 @@ describe('alcance con tipos', () => {
     const text = traceReachReport(traceReach(graph, 'urn:iark:integration:i1', { direction: 'referrers' }), 'referrers');
     expect(text).toMatch(/platform:s1 \(S1\) · service · enlace implements/);
     expect(text).toMatch(/platform:s2 \(S2\) · service\n/);
-    expect(text).toMatch(/security:a1 \(A1\) · asset · enlace protects · a 2 saltos/);
+    expect(text).toMatch(/security:a1 \(A1\) · asset · a 2 saltos · enlace protects/);
   });
 });
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { parseUrn } from '@iark/kernel';
+import { parseUrn, refTypeSchema } from '@iark/kernel';
 import {
   DOCUMENT_VERSION,
   PARENT_TYPE,
@@ -29,6 +29,7 @@ export const elementSchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, 'El color debe ser hexadecimal (#RRGGBB)')
     .optional(),
   ref: z.string().optional(),
+  refType: refTypeSchema.optional(),
 });
 
 export const relationshipSchema = z.object({

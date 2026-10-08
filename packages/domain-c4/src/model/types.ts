@@ -32,6 +32,8 @@ export interface C4Element {
   color?: string;
   /** Referencia a un elemento de otro módulo de la suite (`urn:iark:integration:pedidos`). */
   ref?: string;
+  /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
+  refType?: string;
 }
 
 export interface C4Relationship {

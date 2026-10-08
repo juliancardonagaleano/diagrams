@@ -1,4 +1,4 @@
-import { uniqueId, type EdgeNotation, type EditResult, type EditorAction, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
+import { REF_TYPE_FIELD, uniqueId, type EdgeNotation, type EditResult, type EditorAction, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
 import { duplicateEnvironment, findEnvironment, nextEnvironment, promoteDeployments, scaleReplicas, toggleApproval } from './actions';
 import { counterpartErrors, dropCounterparts } from './counterparts';
 import { formatCost } from './costs';
@@ -142,6 +142,7 @@ function nodeFields(kind: string, doc: PlatformDocument, values?: Record<string,
       { key: 'external', label: 'Externo (SaaS, no se despliega aquí)', type: 'boolean' },
       ...iconFields(doc, values),
       REF,
+      REF_TYPE_FIELD,
       TAGS,
     ];
   }
@@ -165,6 +166,7 @@ function nodeFields(kind: string, doc: PlatformDocument, values?: Record<string,
       MEMORY,
       ...iconFields(doc, values, kind as ResourceKind),
       REF,
+      REF_TYPE_FIELD,
       TAGS,
     ];
   }
@@ -614,13 +616,13 @@ export const platformEditor: EditorSpec<PlatformDocument> = {
       case 'element': {
         const e = all.get(target.id)!;
         if (e.kind === 'service') {
-          const patched = reconcileIcon(doc, patchObject(e.item as Service, patch, ['name', 'description', 'kind', 'technology', 'owner', 'repo', 'criticality', 'slo', 'sla', 'external', 'ref', 'tags', 'provider', 'service']), patch, subjectOfService);
+          const patched = reconcileIcon(doc, patchObject(e.item as Service, patch, ['name', 'description', 'kind', 'technology', 'owner', 'repo', 'criticality', 'slo', 'sla', 'external', 'ref', 'refType', 'tags', 'provider', 'service']), patch, subjectOfService);
           if (!patched.ok) return fail(patched.reason);
           return ok({ ...doc, services: doc.services.map((s) => (s.id === e.id ? patched.value : s)) }, id);
         }
         if (e.kind === 'resource') {
           const current = e.item as Resource;
-          const patched = reconcileIcon(doc, patchObject(current, patch, ['name', 'description', 'kind', 'environmentId', 'networkId', 'technology', 'version', 'status', 'iac', 'owner', 'ref', 'tags', 'monthlyCost', 'region', 'cpuLimit', 'memoryLimit', 'expiresAt', 'provider', 'service', 'counterpartOf']), patch, subjectOfResource);
+          const patched = reconcileIcon(doc, patchObject(current, patch, ['name', 'description', 'kind', 'environmentId', 'networkId', 'technology', 'version', 'status', 'iac', 'owner', 'ref', 'refType', 'tags', 'monthlyCost', 'region', 'cpuLimit', 'memoryLimit', 'expiresAt', 'provider', 'service', 'counterpartOf']), patch, subjectOfResource);
           if (!patched.ok) return fail(patched.reason);
           const next = patched.value;
           if (next.expiresAt !== undefined && !resourceSchema.shape.expiresAt.safeParse(next.expiresAt).success) return fail('La fecha de caducidad debe tener la forma AAAA-MM-DD (p. ej. 2026-12-31).');

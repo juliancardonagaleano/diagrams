@@ -98,6 +98,8 @@ export interface DataAsset {
   external?: boolean;
   /** Referencia a un elemento de otro módulo (`urn:iark:integration:pedidos-db`). */
   ref?: string;
+  /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
+  refType?: string;
   tags?: string[];
   columns?: Column[];
   /** Contrato de datos del activo (`DataDocument.contracts`). */

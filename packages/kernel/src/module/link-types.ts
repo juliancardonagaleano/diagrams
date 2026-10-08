@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { FieldSpec } from './editor';
 
 /**
  * Tipos de enlace de la trazabilidad. Un elemento que apunta a otro con `ref` puede decir además de qué clase es el enlace con
@@ -51,3 +52,9 @@ export const refTypeSchema = z
   .describe(
     `Tipo del enlace que declara \`ref\` (vocabulario abierto; sugeridos: ${TRACE_LINK_TYPES.map((t) => t.id).join(', ')}). Sin él, el enlace es «${DEFAULT_LINK_TYPE}».`,
   );
+
+/**
+ * El campo del formulario de un elemento para su `refType`, junto al de `ref`. El banco de trabajo lo sustituye por un selector
+ * (el vocabulario sugerido más el tipo que ya tenga el elemento); en cualquier otro panel es un campo de texto.
+ */
+export const REF_TYPE_FIELD: FieldSpec = { key: 'refType', label: 'Tipo de enlace', type: 'text', hint: `${TRACE_LINK_TYPES.map((t) => t.id).join(' · ')} · o uno propio` };

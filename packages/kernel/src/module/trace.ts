@@ -301,7 +301,7 @@ export function traceReachReport(reached: Reached[], direction: TraceDirection =
     const items = reached.filter((r) => r.direction === dir).sort((a, b) => a.distance - b.distance || a.node.urn.localeCompare(b.node.urn));
     out.push(`**${title}** (${items.length})`);
     if (items.length === 0) out.push('- ninguno');
-    for (const r of items) out.push(`${'  '.repeat(r.distance - 1)}- ${label(r.node)} · ${r.node.kind}${r.via && r.via.type !== DEFAULT_LINK_TYPE ? ` · enlace ${r.via.type}` : ''}${r.distance > 1 ? ` · a ${r.distance} saltos` : ''}`);
+    for (const r of items) out.push(`${'  '.repeat(r.distance - 1)}- ${label(r.node)} · ${r.node.kind}${r.distance > 1 ? ` · a ${r.distance} saltos` : ''}${r.via && r.via.type !== DEFAULT_LINK_TYPE ? ` · enlace ${r.via.type}` : ''}`);
     out.push('');
   }
   const modules = [...new Set(reached.slice(1).map((r) => r.node.module))];

@@ -1,4 +1,5 @@
 import {
+  REF_TYPE_FIELD,
   uniqueId,
   type EdgeMark,
   type EdgeNotation,
@@ -58,6 +59,7 @@ const NODE_FIELDS = (kind: string, doc: IntegrationDocument): FieldSpec[] => {
     { key: 'domain', label: 'Dominio o equipo (zona)', type: 'text', hint: 'Los nodos con el mismo valor se dibujan en la misma zona' },
     { key: 'contractId', label: 'Contrato', type: 'select', options: contractOptions(doc), allowEmpty: true, opensAttachment: true },
     { key: 'ref', label: 'Referencia (URN)', type: 'text', hint: 'urn:iark:<módulo>:<id>' },
+    REF_TYPE_FIELD,
     { key: 'tags', label: 'Etiquetas', type: 'list' },
   ];
 };
@@ -73,7 +75,7 @@ const EDGE_FIELDS = (doc: IntegrationDocument): FieldSpec[] => [
   { key: 'dataObjects', label: 'Datos que viajan', type: 'list' },
 ];
 
-const NODE_PATCH_KEYS = ['name', 'description', 'technology', 'owner', 'external', 'ref', 'tags', 'domain', 'contractId', 'pattern'];
+const NODE_PATCH_KEYS = ['name', 'description', 'technology', 'owner', 'external', 'ref', 'refType', 'tags', 'domain', 'contractId', 'pattern'];
 const EDGE_PATCH_KEYS = ['style', 'order', 'description', 'protocol', 'pattern', 'contractId', 'criticality', 'dataObjects'];
 
 const clean = (value: unknown): unknown => {
