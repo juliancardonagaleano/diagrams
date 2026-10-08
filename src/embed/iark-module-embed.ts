@@ -1,4 +1,5 @@
 import { resolveEndpointUrl } from '@iark/kernel/endpoint';
+import { EMBED_PROTOCOL_VERSION, INCOMPATIBLE_PROTOCOL_CODE, negotiateProtocol } from '@iark/kernel/protocol';
 import type {
   ModuleAction,
   ModuleCapabilitiesInfo,
@@ -54,16 +55,17 @@ export interface IarkModuleEmbedOptions<TDoc = unknown> {
   onExit?: (payload: { modified: boolean }) => void;
   onExport?: (payload: { module: string; format: string; data: string; mime: string; extension: string; viewId?: string }) => void;
   onResult?: (payload: { module: string; command: string; kind: 'report' | 'convert'; output: string; warnings: string[] }) => void;
-  onError?: (payload: { message: string; issues?: Array<{ path: string; message: string }> }) => void;
+  /** `code` está si el error es de una clase que el anfitrión puede tratar: `incompatible-protocol` (la versión mayor del protocolo difiere con la del iframe). */
+  onError?: (payload: { message: string; issues?: Array<{ path: string; message: string }>; code?: string }) => void;
   /** Recibe todos los eventos del iframe. */
   onEvent?: (event: ModuleEvent) => void;
 }
 
 export interface IarkModuleEmbed<TDoc = unknown> {
   iframe: HTMLIFrameElement;
-  /** Se resuelve con las capacidades de la instancia en cuanto el banco de trabajo responde al handshake. */
+  /** Se resuelve con las capacidades de la instancia en cuanto el banco de trabajo responde al handshake; se rechaza si su protocolo es incompatible. */
   initialized: Promise<SuiteCapabilitiesInfo>;
-  /** Se resuelve cuando se ha cargado el documento inicial. */
+  /** Se resuelve cuando se ha cargado el documento inicial; se rechaza si el protocolo del banco de trabajo es incompatible. */
   ready: Promise<void>;
   /** Abre un documento (y, si hace falta, el módulo). Resuelve con lo que devolvió el banco de trabajo. */
   load(document?: TDoc | string, options?: { module?: string; importer?: string; viewId?: string; autosave?: boolean; readOnly?: boolean }): Promise<ModuleLoadEvent>;
@@ -115,15 +117,36 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
   let counter = 0;
   let initialised = false;
   let queue: ModuleAction[] = [];
+  /** Se fija si el protocolo del banco de trabajo es incompatible con el de este SDK (versión mayor distinta): ya no se habla con él. */
+  let incompatible: Error | undefined;
 
   let resolveInit!: (c: SuiteCapabilitiesInfo) => void;
-  const initialized = new Promise<SuiteCapabilitiesInfo>((resolve) => (resolveInit = resolve));
+  let rejectInit!: (error: Error) => void;
+  const initialized = new Promise<SuiteCapabilitiesInfo>((resolve, reject) => {
+    resolveInit = resolve;
+    rejectInit = reject;
+  });
   let resolveReady!: () => void;
-  const ready = new Promise<void>((resolve) => (resolveReady = resolve));
+  let rejectReady!: (error: Error) => void;
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  // Un protocolo incompatible los rechaza; quien no los espera no debe ver un «unhandled rejection» (ya se avisó por `onError`).
+  initialized.catch(() => undefined);
+  ready.catch(() => undefined);
 
-  const post = (action: ModuleAction): void => iframe.contentWindow?.postMessage(JSON.stringify(action), targetOrigin);
+  // Todo `load` lleva la versión del protocolo que habla este SDK: así el iframe puede comprobarla (ver `negotiateProtocol`).
+  const post = (action: ModuleAction): void => {
+    const stamped = action.action === 'load' && action.version === undefined ? { ...action, version: EMBED_PROTOCOL_VERSION } : action;
+    iframe.contentWindow?.postMessage(JSON.stringify(stamped), targetOrigin);
+  };
   /** Las acciones anteriores al `init` esperan: el iframe aún no escucha. */
-  const send = (action: ModuleAction): void => (initialised ? post(action) : void queue.push(action));
+  const send = (action: ModuleAction): void => {
+    if (incompatible) return;
+    if (initialised) post(action);
+    else queue.push(action);
+  };
 
   function withTimeout<T>(promise: Promise<T>, onTimeout: () => void): Promise<T> {
     let timer: ReturnType<typeof setTimeout>;
@@ -138,6 +161,7 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
 
   /** Acción con respuesta correlacionada por `requestId`. */
   function request<R>(build: (requestId: string) => ModuleAction): Promise<R> {
+    if (incompatible) return Promise.reject(incompatible);
     const requestId = `req-${++counter}`;
     const promise = new Promise<R>((resolve, reject) => {
       pending.set(requestId, { resolve, reject });
@@ -152,6 +176,17 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
       pending.delete(requestId);
       entry.resolve(value);
     }
+  };
+
+  /** El protocolo del banco de trabajo no es compatible con el nuestro: se rechaza todo lo que esperaba respuesta y se deja de hablar con él. */
+  const refuse = (message: string): void => {
+    incompatible = new Error(message);
+    queue = [];
+    rejectInit(incompatible);
+    rejectReady(incompatible);
+    for (const entry of pending.values()) entry.reject(incompatible);
+    pending.clear();
+    loads.splice(0).forEach((l) => l.reject(incompatible!));
   };
 
   const listener = (event: MessageEvent): void => {
@@ -175,6 +210,15 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
     options.onEvent?.(msg);
     switch (msg.event) {
       case 'init': {
+        // Una diferencia de versión MAYOR del protocolo no se resuelve a medias: se avisa y no se carga nada. Sin versión, 1.0.
+        const negotiation = negotiateProtocol(EMBED_PROTOCOL_VERSION, msg.version);
+        if (!negotiation.ok) {
+          refuse(negotiation.message);
+          // Como si lo hubiera enviado el iframe: quien escucha `onEvent` (el Web Component) lo recibe igual que un `error` de verdad.
+          options.onEvent?.({ event: 'error', message: negotiation.message, code: INCOMPATIBLE_PROTOCOL_CODE });
+          options.onError?.({ message: negotiation.message, code: INCOMPATIBLE_PROTOCOL_CODE });
+          break;
+        }
         initialised = true;
         resolveInit(msg.capabilities);
         options.onInit?.(msg.capabilities);
@@ -230,6 +274,8 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
         settle(msg.requestId, msg.capabilities);
         break;
       case 'error': {
+        // El banco de trabajo también compara versiones: si rechazó la nuestra, nada de lo que esperamos llegará nunca.
+        if (msg.code === INCOMPATIBLE_PROTOCOL_CODE) refuse(msg.message);
         const entry = msg.requestId ? pending.get(msg.requestId) : undefined;
         if (entry && msg.requestId) {
           pending.delete(msg.requestId);
@@ -237,7 +283,7 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
         } else {
           loads.splice(0).forEach((l) => l.reject(new Error(msg.message)));
         }
-        options.onError?.({ message: msg.message, issues: msg.issues });
+        options.onError?.({ message: msg.message, issues: msg.issues, ...(msg.code ? { code: msg.code } : {}) });
         break;
       }
       default:
@@ -251,6 +297,7 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
     initialized,
     ready,
     load(doc, opts = {}) {
+      if (incompatible) return Promise.reject(incompatible);
       const entry: Pending = { resolve: () => {}, reject: () => {} };
       const promise = new Promise<ModuleLoadEvent>((resolve, reject) => {
         entry.resolve = resolve;

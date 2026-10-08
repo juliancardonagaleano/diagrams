@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { contractVersionOf } from './contract';
 import { MANIFEST_SCHEMA_ID } from './endpoint';
+import { EMBED_PROTOCOL_VERSION } from './protocol';
 import type { ModuleRegistry } from './registry';
 
 /**
@@ -14,6 +16,12 @@ export const moduleManifestSchema = z.object({
   name: z.string(),
   version: z.string(),
   description: z.string().optional(),
+  /**
+   * Versión del contrato `DomainModule` contra la que se escribió el módulo. Opcional al leer: una instancia anterior a
+   * `contractVersion` no lo publica y se toma como 1. Quien consume el manifiesto (el shell) rechaza el módulo si exige un
+   * contrato mayor que el que entiende.
+   */
+  contractVersion: z.number().int().min(1).optional(),
   documentVersion: z.string(),
   importFormats: z.array(z.string()),
   exportFormats: z.array(z.string()),
@@ -38,6 +46,11 @@ export const manifestSchema = z.object({
   schema: z.literal(MANIFEST_SCHEMA_ID),
   name: z.string(),
   version: z.string(),
+  /**
+   * Versión (`mayor.menor`) del protocolo `postMessage` de los editores embebibles de la instancia. Opcional al leer: una
+   * instancia anterior no lo publica y se toma como «1.0». Una versión mayor distinta de la nuestra no se puede embeber.
+   */
+  protocol: z.string().optional(),
   modules: z.array(moduleManifestSchema),
   /** URL (absoluta o relativa al manifiesto) de la API de proyectos; solo la declara una instancia con espacio de trabajo (`iark serve --workspace`). */
   projects: z.string().optional(),
@@ -60,11 +73,13 @@ export function buildManifest(registry: ModuleRegistry, options: ManifestOptions
     schema: MANIFEST_SCHEMA_ID,
     name: options.name,
     version: options.version,
+    protocol: EMBED_PROTOCOL_VERSION,
     modules: registry.list().map((m) => ({
       id: m.id,
       name: m.name,
       version: m.version,
       ...(m.description ? { description: m.description } : {}),
+      contractVersion: contractVersionOf(m),
       documentVersion: m.documentVersion,
       importFormats: m.importers.map((i) => i.id),
       exportFormats: m.exporters.map((e) => e.id),

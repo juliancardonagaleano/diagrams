@@ -1,4 +1,5 @@
 import { resolveEndpointUrl } from '@iark/kernel/endpoint';
+import { EMBED_PROTOCOL_VERSION, INCOMPATIBLE_PROTOCOL_CODE, negotiateProtocol } from '@iark/kernel/protocol';
 import type { C4Document, LayoutDirection } from '@core/model/types';
 import type { EmbedEvent, ExportFormat, HostAction, LoadAction } from './protocol';
 
@@ -45,16 +46,17 @@ export interface IarkEmbedOptions {
   onExport?: (payload: { format: ExportFormat; data: string; viewId?: string }) => void;
   /** El usuario navegó a otra vista (C1/C2/C3), por doble clic, breadcrumb o `setView`. */
   onViewChange?: (payload: { viewId: string; level: 'C1' | 'C2' | 'C3'; scopeId?: string; title?: string }) => void;
-  onError?: (payload: { message: string; issues?: Array<{ path: string; message: string }> }) => void;
+  /** `code` está si el error es de una clase que el anfitrión puede tratar: `incompatible-protocol` (la versión mayor del protocolo difiere con la del iframe). */
+  onError?: (payload: { message: string; issues?: Array<{ path: string; message: string }>; code?: string }) => void;
   /** Recibe todos los eventos del iframe. */
   onEvent?: (event: EmbedEvent) => void;
 }
 
 export interface IarkEmbed {
   iframe: HTMLIFrameElement;
-  /** Promesa que se resuelve cuando IArk - DIAgrams ha cargado el documento inicial. */
+  /** Promesa que se resuelve cuando IArk - DIAgrams ha cargado el documento inicial; se rechaza si el protocolo del iframe es incompatible. */
   ready: Promise<void>;
-  load(document?: C4Document | string, options?: Omit<LoadAction, 'action' | 'document'>): Promise<C4Document>;
+  load(document?: C4Document | string, options?: Omit<LoadAction, 'action' | 'document' | 'version'>): Promise<C4Document>;
   merge(document: C4Document | string, autoLayout?: boolean): void;
   /** Exporta; para `drawio`, `notation` elige entre la librería C4 de draw.io ('c4', por defecto) y tarjetas ('card'). */
   export(format: ExportFormat, viewId?: string, notation?: 'c4' | 'card'): Promise<string>;
@@ -92,14 +94,20 @@ export function createIarkEmbed(options: IarkEmbedOptions): IarkEmbed {
   for (const [k, v] of Object.entries(options.iframeAttributes ?? {})) iframe.setAttribute(k, v);
   container.appendChild(iframe);
 
+  // Todo `load` lleva la versión del protocolo que habla este SDK: así el iframe puede comprobarla (ver `negotiateProtocol`).
   const send = (action: HostAction) => {
-    iframe.contentWindow?.postMessage(JSON.stringify(action), targetOrigin);
+    const stamped = action.action === 'load' && action.version === undefined ? { ...action, version: EMBED_PROTOCOL_VERSION } : action;
+    iframe.contentWindow?.postMessage(JSON.stringify(stamped), targetOrigin);
   };
 
   let resolveReady!: () => void;
-  const ready = new Promise<void>((resolve) => {
+  let rejectReady!: (error: Error) => void;
+  const ready = new Promise<void>((resolve, reject) => {
     resolveReady = resolve;
+    rejectReady = reject;
   });
+  // Un protocolo incompatible rechaza `ready`; quien no lo espera no debe ver un «unhandled rejection» (ya se avisó por `onError`).
+  ready.catch(() => undefined);
 
   const pendingExports = new Map<string, { resolve: (data: string) => void; reject: (e: Error) => void }>();
   const pendingLoads: Array<{ resolve: (doc: C4Document) => void; reject: (e: Error) => void }> = [];
@@ -159,10 +167,22 @@ export function createIarkEmbed(options: IarkEmbedOptions): IarkEmbed {
           hideSidePanel: options.hideSidePanel,
         });
         break;
-      case 'init':
+      case 'init': {
+        // Una diferencia de versión MAYOR del protocolo no se resuelve a medias: se avisa y no se carga nada. Sin versión, 1.0.
+        const negotiation = negotiateProtocol(EMBED_PROTOCOL_VERSION, msg.version);
+        if (!negotiation.ok) {
+          const error = new Error(negotiation.message);
+          rejectReady(error);
+          pendingLoads.splice(0).forEach((l) => l.reject(error));
+          // Como si lo hubiera enviado el iframe: quien escucha `onEvent` (el Web Component) lo recibe igual que un `error` de verdad.
+          options.onEvent?.({ event: 'error', message: negotiation.message, code: INCOMPATIBLE_PROTOCOL_CODE });
+          options.onError?.({ message: negotiation.message, code: INCOMPATIBLE_PROTOCOL_CODE });
+          break;
+        }
         options.onInit?.();
         send(initialLoad());
         break;
+      }
       case 'load':
         resolveReady();
         pendingLoads.splice(0).forEach((p) => p.resolve(msg.document));
@@ -197,7 +217,9 @@ export function createIarkEmbed(options: IarkEmbedOptions): IarkEmbed {
           p.reject(new Error(msg.message));
         }
         pendingLoads.splice(0).forEach((l) => l.reject(new Error(msg.message)));
-        options.onError?.({ message: msg.message, issues: msg.issues });
+        // El iframe también compara versiones: si rechazó el nuestro, `ready` no llegará nunca.
+        if (msg.code === INCOMPATIBLE_PROTOCOL_CODE) rejectReady(new Error(msg.message));
+        options.onError?.({ message: msg.message, issues: msg.issues, ...(msg.code ? { code: msg.code } : {}) });
         break;
       }
       default:
