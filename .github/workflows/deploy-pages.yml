@@ -1,20 +1,36 @@
 name: Deploy to GitHub Pages
 
-# Compila el sitio estático (dist/app con la ruta base /<repositorio>/) y lo publica en la rama `gh-pages`,
-# de donde lo sirve Pages (Settings → Pages → Deploy from a branch → gh-pages / root).
-#  - Pull request hacia master: solo compila (comprueba que el sitio se construye); no publica nada.
-#  - Push a master o ejecución manual sobre master: compila, publica con scripts/deploy-gh-pages.sh y
-#    comprueba con scripts/verify-pages.sh que el sitio sirve la compilación nueva y responde 200.
+# Compuerta de calidad + publicación del sitio estático en la rama `gh-pages`, de donde lo sirve Pages
+# (Settings → Pages → Deploy from a branch → gh-pages / root).
+#
+# Jobs:
+#  - build   Compila el sitio (dist/pages, con la ruta base /<repositorio>/) y lo guarda como artefacto.
+#  - test    Compuerta de calidad: `npm run typecheck` + `npx vitest run`. `publish` depende de él: con pruebas
+#            rojas no se publica nada. Además avisa (sin bloquear) de dependencias con avisos de seguridad altos.
+#  - e2e     Pruebas de extremo a extremo con Playwright (Chromium). De momento informativo: NO está en el `needs` de
+#            `publish`. Se pasará a obligatorio cuando haya varias ejecuciones verdes seguidas en master (así un test
+#            inestable no bloquea publicaciones mientras se comprueba su fiabilidad): bastará con añadir `e2e` al
+#            `needs` de `publish`.
+#  - publish Solo desde master (push o ejecución manual), nunca en pull request: publica con scripts/deploy-gh-pages.sh
+#            y comprueba con scripts/verify-pages.sh que el sitio sirve la compilación nueva y responde 200.
+#
+# `build`, `test` y `e2e` corren en pull request hacia master, en push a master y en ejecución manual (en un PR no se publica).
 # `npm run deploy:pages` sigue valiendo para publicar a mano desde un equipo con permiso de escritura.
 
 on:
   push:
     branches: [master]
+    # Se ignora lo que no puede cambiar ni el sitio ni el resultado de las pruebas: la documentación (`**/*.md`, `docs/**`)
+    # y los artefactos de despliegue en contenedor (`deploy/**`, Dockerfile, .dockerignore); ninguna prueba lee esos archivos.
+    # `tests/**` YA NO se ignora: un cambio solo en pruebas (o en el código que las prueba) debe pasar por la compuerta `test`.
+    # Ojo: un cambio solo de documentación no dispara el workflow. Hoy no importa (nada es comprobación obligatoria), pero si
+    # algún día `test` se marca como obligatoria en la protección de la rama, un PR solo de documentación nunca la reportaría y
+    # quedaría «esperando» para siempre: entonces hay que quitar estos filtros (el coste es una ejecución más) o añadir un
+    # job que informe siempre.
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
       - 'deploy/**'
-      - 'tests/**'
       - 'Dockerfile'
       - '.dockerignore'
   pull_request:
@@ -23,7 +39,6 @@ on:
       - '**/*.md'
       - 'docs/**'
       - 'deploy/**'
-      - 'tests/**'
       - 'Dockerfile'
       - '.dockerignore'
   workflow_dispatch:
@@ -35,15 +50,16 @@ concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  # Pages sirve bajo /<repositorio>/ (se ajusta solo si el repositorio se renombra).
-  BASE_PATH: /${{ github.event.repository.name }}/
-  PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+# Sin `env` global: BASE_PATH/PAGES_URL son cosas de Pages y viven en los jobs `build` y `publish`. `e2e` sirve la app en la
+# raíz (`/`, la ruta base por defecto de vite), así que no debe heredar BASE_PATH=/<repositorio>/.
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Pages sirve bajo /<repositorio>/ (se ajusta solo si el repositorio se renombra).
+      BASE_PATH: /${{ github.event.repository.name }}/
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -63,14 +79,78 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  test:
+    # Tipos + pruebas (vitest). La suite completa tarda unos minutos: el margen del timeout es holgado a propósito.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Auditoría de dependencias (solo avisa)
+        id: audit
+        # No bloquea (`continue-on-error`): un aviso nuevo en una dependencia ajena no debe impedir publicar ni fusionar
+        # un cambio que no la toca. Falla con avisos de gravedad alta o crítica; los bajos de `katex`/`mermaid` se aceptan
+        # (su único arreglo propuesto es bajar a Mermaid 10). El aviso queda como anotación de la ejecución.
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - name: Anotar el aviso de la auditoría
+        if: steps.audit.outcome == 'failure'
+        run: echo "::warning title=npm audit::Hay dependencias con avisos de seguridad de gravedad alta (o la auditoría no pudo consultarse). No bloquea; revisa el paso «Auditoría de dependencias»."
+      - name: Comprobar tipos
+        run: npm run typecheck
+      - name: Pruebas (vitest)
+        run: npx vitest run --reporter=dot
+
+  e2e:
+    # Informativo por ahora: NO forma parte del `needs` de `publish` (ver la cabecera del archivo).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # playwright.config.ts usa, en CI, el Chromium que gestiona Playwright (no el de /opt/pw-browsers del contenedor de desarrollo).
+      - name: Instalar Chromium de Playwright
+        run: npx playwright install --with-deps chromium
+      # dist/app (ruta base `/`): es lo que sirve `vite preview` en las pruebas e2e. No reutiliza el artefacto de `build`,
+      # que se compila para Pages con la ruta base /<repositorio>/.
+      - name: Compilar la app
+        run: npm run build:app
+      - name: Pruebas e2e (Playwright)
+        run: npx playwright test
+      - name: Subir informe y trazas de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+          if-no-files-found: ignore
+
   publish:
     # Solo desde master: un pull request nunca publica.
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
-    needs: build
+    # Con tipos o pruebas rojos no se publica. `e2e` queda fuera a propósito (todavía).
+    needs: [build, test]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write
+    env:
+      PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
     # Un solo despliegue a la vez, y sin cancelar el que está empujando a gh-pages.
     concurrency:
       group: publish-gh-pages
