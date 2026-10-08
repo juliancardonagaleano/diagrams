@@ -92,7 +92,7 @@ Límites: IndexedDB pertenece a **este navegador y a este sitio**. Borrar los da
 
 ## Guardar en la nube (servidor propio) desde el navegador
 
-Por omisión los proyectos de la app web viven en **este navegador** (IndexedDB). Para verlos desde otros equipos y compartirlos con otras personas se pueden guardar en un **servidor propio**: el mismo `iark serve --workspace` ([API HTTP de proyectos](#api-http-de-proyectos)), cuya API de proyectos ya es lo que usa el navegador. El servidor es tuyo y su carpeta de trabajo (la misma de `iark project`, pensada para ir en git) es la fuente de verdad; se entra con un token (`--tokens`) o, en una instancia con cuentas (`--accounts`), con **«Iniciar sesión con GitHub»** (ver el apartado «Iniciar sesión con GitHub» más abajo y [Servicio gestionado: inicio de sesión con GitHub](cuentas-github.md)).
+Por omisión los proyectos de la app web viven en **este navegador** (IndexedDB). Para verlos desde otros equipos y compartirlos con otras personas se pueden guardar en un **servidor propio**: el mismo `iark serve --workspace` ([API HTTP de proyectos](#api-http-de-proyectos)), cuya API de proyectos ya es lo que usa el navegador. El servidor es tuyo y su carpeta de trabajo (la misma de `iark project`, pensada para ir en git) es la fuente de verdad; se entra con un token (`--tokens`) o, en una instancia con cuentas (`--accounts`), con **«Iniciar sesión con GitHub»** (ver el paso 2b, «Iniciar sesión con GitHub», más abajo y [Servicio gestionado: inicio de sesión con GitHub](cuentas-github.md)).
 
 **1. Arrancar el servidor.** El navegador solo deja que la página lea las respuestas de otro origen si el servidor lo autoriza, así que hay que darle el origen exacto de la página con `--cors` (sin barra final ni ruta):
 
