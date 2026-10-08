@@ -1,3 +1,4 @@
+import { assertModuleContract } from './contract';
 import type { DomainModule, Importer } from './types';
 
 export class UnknownModuleError extends Error {
@@ -11,8 +12,13 @@ export class UnknownModuleError extends Error {
 export class ModuleRegistry {
   private modules = new Map<string, DomainModule<any>>();
 
+  /**
+   * Registra un módulo. Falla si su id es inválido o está repetido, si se escribió para un contrato `DomainModule` más nuevo que
+   * el del anfitrión o si su cadena de migraciones de documento tiene huecos o ciclos (ver `assertModuleContract`).
+   */
   register<TDoc>(module: DomainModule<TDoc>): this {
     if (!/^[a-z][a-z0-9-]*$/.test(module.id)) throw new Error(`Identificador de módulo inválido: «${module.id}».`);
+    assertModuleContract(module);
     if (this.modules.has(module.id)) throw new Error(`El módulo «${module.id}» ya está registrado.`);
     this.modules.set(module.id, module);
     return this;

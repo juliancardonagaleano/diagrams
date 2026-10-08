@@ -190,14 +190,47 @@ export interface DiffSpec {
   ordered?: string[];
 }
 
+/**
+ * Un paso de migración de documentos de un módulo: lleva el documento de la versión `from` a la `to`. Las versiones son
+ * `mayor.menor` numéricas (`1.0`, `1.1`, `2.0`). Los pasos de un módulo forman una cadena sin huecos ni ciclos que termina
+ * en su `documentVersion` (el registro lo comprueba al registrar el módulo; ver `assertModuleContract`).
+ */
+export interface DocumentMigration {
+  /** Versión del documento que acepta este paso. */
+  from: string;
+  /** Versión del documento que produce. */
+  to: string;
+  /** Qué cambia de forma (una línea): sale en los avisos y en la documentación del módulo. */
+  description?: string;
+  /**
+   * Convierte el documento de `from` a `to`. Se llama con una copia del documento original, así que puede construir uno nuevo o
+   * modificar la copia, pero no debe depender de nada fuera de su argumento (es una función pura sobre datos JSON). El núcleo
+   * escribe `version: to` en el resultado si es un objeto: no hace falta que el paso lo haga.
+   */
+  migrate(document: unknown): unknown;
+}
+
 export interface DomainModule<TDoc = unknown> {
   /** Identificador estable en minúsculas (`c4`, `integration`, `data`…): forma parte de las URN. */
   id: string;
   name: string;
   version: string;
   description?: string;
+  /**
+   * Versión del contrato `DomainModule` (este mismo archivo) contra la que se escribió el módulo: un entero que sube cuando el
+   * contrato cambia de forma incompatible. Omitida vale 1. El registro rechaza un módulo con un `contractVersion` mayor que el
+   * `CONTRACT_VERSION` del anfitrión (ver `assertModuleContract`): un módulo externo escrito para un contrato más nuevo no se
+   * carga a medias.
+   */
+  contractVersion?: number;
   /** Versión del formato de documento que produce y acepta. */
   documentVersion: string;
+  /**
+   * Cómo se llevan a `documentVersion` los documentos guardados con versiones anteriores del formato. Se aplican en cadena
+   * antes de validar con el esquema (ver `migrateDocument`), de modo que un cambio de esquema no deja inservible lo ya guardado.
+   * Opcional: sin ellas, solo se aceptan los documentos de la versión actual.
+   */
+  migrations?: DocumentMigration[];
   /** Esquema del documento, para validarlo antes de operar con él. */
   schema: ZodType<TDoc>;
   /** JSON Schema del documento, para agentes de IA y editores. */

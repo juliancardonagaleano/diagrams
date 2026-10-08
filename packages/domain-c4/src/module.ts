@@ -1,4 +1,4 @@
-import type { DomainModule, EntityRef, Exporter, Importer, ModuleIssue, ViewRef } from '@iark/kernel';
+import { CONTRACT_VERSION, type DomainModule, type EntityRef, type Exporter, type Importer, type ModuleIssue, type ViewRef } from '@iark/kernel';
 import { toSvg } from './export/svg/toSvg';
 import { c4AiSpec } from './ai/spec';
 import { toDrawio, type DrawioNotation } from './export/drawio/toDrawio';
@@ -74,6 +74,7 @@ export const c4Module: DomainModule<C4Document> = {
   name: 'Arquitectura de soluciones (C4)',
   version: '1.0.0',
   description: 'Modelo C4: contexto, contenedores y componentes con autolayout, importación desde draw.io, Structurizr y Mermaid, y generación con IA.',
+  contractVersion: CONTRACT_VERSION,
   documentVersion: DOCUMENT_VERSION,
   schema: documentSchema as unknown as DomainModule<C4Document>['schema'],
   jsonSchema: documentJsonSchema,
