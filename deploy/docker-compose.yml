@@ -31,6 +31,12 @@ services:
       # IARK_FRAME_ANCESTORS (= --frame-ancestors): quién puede incrustar por iframe las cargas embebidas (?embed=1). Vacío = cualquier
       # sitio (`*`, porque el producto es embebible); las páginas normales solo las puede incrustar la propia instancia.
       IARK_FRAME_ANCESTORS: "${IARK_FRAME_ANCESTORS:-}"
+      # Cálculo pesado (validar, exportar, importar, comparar, informes, trazas) en hilos de trabajo acotados. Vacío = lo que decide el servicio:
+      # min(2, CPU - 1) hilos, 30 s por operación y 16 en cola (ver «Límites honestos» en docs/despliegue-nube.md). Con mem_limit de 768m,
+      # cada hilo suma unos 70 MB: no subas IARK_WORKERS sin subir también el límite de memoria.
+      IARK_WORKERS: "${IARK_WORKERS:-}"
+      IARK_COMPUTE_TIMEOUT_MS: "${IARK_COMPUTE_TIMEOUT_MS:-}"
+      IARK_COMPUTE_QUEUE: "${IARK_COMPUTE_QUEUE:-}"
       # Dónde se guarda todo: en el volumen de abajo, que es lo único que hay que copiar.
       IARK_WORKSPACE: /data/workspace
       IARK_ACCOUNTS: /data/accounts.json

@@ -190,6 +190,27 @@ server {
 }
 ```
 
+### Cabeceras de seguridad
+
+`iark serve` añade cabeceras de seguridad a sus respuestas sin configurar nada (`src/cli/securityHeaders.ts`):
+
+| Cabecera | Dónde | Valor |
+|---|---|---|
+| `X-Content-Type-Options` | todas las respuestas | `nosniff` |
+| `Strict-Transport-Security` | solo si la petición llegó por https (directo o, con `--trust-proxy`, por `X-Forwarded-Proto`) | `max-age=15552000` (180 días), sin `includeSubDomains` ni `preload`: esas decisiones son de quien opera el dominio |
+| `Content-Security-Policy` | páginas HTML | `script-src 'self'` (sin `unsafe-inline` ni `unsafe-eval`), `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`; `connect-src` y `frame-src` admiten el propio origen, cualquier `https:` y el bucle local, porque la suite habla con otras instancias (manifiesto, proyectos, editores embebidos) y no se sabe cuáles hasta que alguien las conecta |
+| `Referrer-Policy` · `Permissions-Policy` · `X-Frame-Options` | páginas HTML | `no-referrer` · cámara, micrófono, geolocalización, pagos y USB vacíos · `SAMEORIGIN` en las páginas normales (las cargas embebidas no la llevan) |
+
+**Quién puede incrustar la instancia por `<iframe>`** (`frame-ancestors`). Las páginas normales solo las puede incrustar la propia instancia. Las cargas embebidas (`?embed=1` en `index.html`, `modulos.html`; es lo que añaden `createIarkEmbed`, `createIarkModuleEmbed` y `<iark-module>`) se rigen por `--frame-ancestors` (o `IARK_FRAME_ANCESTORS`), una lista de orígenes separados por comas, o `*`. **Por omisión es `*`**, porque el producto se vende como embebible desde cualquier aplicación. Si solo lo incrustas en tu propia aplicación, fíjala a su origen:
+
+```bash
+iark serve --workspace ./proyectos --tokens tokens.json --frame-ancestors https://app.ejemplo.org
+```
+
+Una lista concreta siempre incluye además el propio origen (el banco de módulos incrusta el editor C4). Añadir `?embed=1` a otra página (la suite, la trazabilidad…) no abre su incrustación. Con la imagen Docker del repositorio, la variable `IARK_FRAME_ANCESTORS` de `deploy/.env` llega al servicio.
+
+**Lo que no cubre.** Detrás de un proxy que ya pone alguna de estas cabeceras, la del servicio y la del proxy pueden coincidir: deja una sola. El sitio de GitHub Pages es estático y no puede enviar cabeceras (no hay CSP ni `frame-ancestors` allí). Firefox no expone `ancestorOrigins`: el editor embebido toma el origen del anfitrión de `?origin=` o de `document.referrer` (ver [Modo embebido](embebido.md)).
+
 ### Límites
 
 - **Sin TLS** (arriba) y, con `--tokens`, **sin registro abierto ni OAuth**: no hay contraseñas, ni registro de personas, ni inicio de sesión con terceros (eso lo ofrece `--accounts`: ver [Servicio gestionado](cuentas-github.md)). Quien administra crea un token por persona y se lo entrega por un canal seguro. Los tokens no caducan y sus roles son globales al espacio de trabajo (no hay permisos por proyecto; con `--accounts` sí).
