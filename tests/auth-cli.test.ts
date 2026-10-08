@@ -325,7 +325,7 @@ describe('iark serve --tokens (comando)', () => {
     }
   });
 
-  it('el archivo de tokens debe existir y ser válido al arrancar (código 2); sin espacio de trabajo, --tokens se ignora con un aviso', async () => {
+  it('el archivo de tokens debe existir y ser válido al arrancar (código 2); sin espacio de trabajo, --tokens protege el cálculo en vez de ignorarse', async () => {
     const dir = tmp();
     const workspace = join(dir, 'espacio');
     const missing = await refuses(['--workspace', workspace, '--tokens', join(dir, 'no-existe.json')]);
@@ -341,13 +341,15 @@ describe('iark serve --tokens (comando)', () => {
     expect(readFileSync(broken, 'utf8')).toContain('"root"'); // no lo tocó
 
     const file = join(dir, 'tokens.json');
-    createToken(file, 'Ana', 'admin');
-    const ignored = await serve(['--tokens', file]); // en loopback y sin --workspace
+    const ana = createToken(file, 'Ana', 'admin');
+    const compute = await serve(['--tokens', file]); // en loopback y sin --workspace: ya no se ignora, protege las rutas de cálculo
     try {
-      expect(ignored.stderr()).toMatch(/aviso: --tokens protege la API de proyectos, y no hay espacio de trabajo/);
-      expect(await (await fetch(`${ignored.url}/api/whoami`)).json()).toEqual({ auth: false });
+      expect((await fetch(`${compute.url}/api/whoami`)).status).toBe(401);
+      expect((await fetch(`${compute.url}/api/c4/validate`, { method: 'POST', body: '{}' })).status).toBe(401);
+      expect((await fetch(`${compute.url}/api/c4/validate`, { method: 'POST', body: '{}', headers: as(ana) })).status).not.toBe(401);
+      expect((await fetch(`${compute.url}/api/modules`)).status).toBe(200); // lo público sigue siéndolo
     } finally {
-      await ignored.stop();
+      await compute.stop();
     }
   });
 
