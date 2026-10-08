@@ -3,7 +3,7 @@ import './shell.css';
 import { createIarkEmbed } from '../embed/iark-embed';
 import { createIarkModuleEmbed } from '../embed/iark-module-embed';
 import type { ModuleCapabilitiesInfo, ModuleEvent } from '../embed/moduleProtocol';
-import { loadManifest, type ResolvedManifest, type ResolvedModule } from './manifest';
+import { loadManifest, manifestOrigin, type ResolvedManifest, type ResolvedModule } from './manifest';
 
 /**
  * Shell de la suite (`suite.html`): descubre los módulos de una instancia por su manifiesto `/.well-known/iark.json` y los
@@ -69,6 +69,18 @@ function open(m: ResolvedModule): void {
     return;
   }
   const common = { container: stage, url: m.embedUrl, title: m.name, ui: 'min' as const };
+  try {
+    mount(m, common);
+  } catch (error) {
+    // Los SDK rechazan lo que no sea una URL http(s) (defensa en profundidad: `loadManifest` ya lo filtra).
+    stage.replaceChildren(Object.assign(document.createElement('p'), { className: 'wb-note', role: 'alert', textContent: (error as Error).message }));
+    print('error', { message: (error as Error).message });
+    return;
+  }
+  print('abre', { module: m.id, url: m.embedUrl });
+}
+
+function mount(m: ResolvedModule, common: { container: HTMLElement; url: string; title: string; ui: 'min' }): void {
   if (m.id === 'c4') {
     // El editor C4 habla su propio protocolo (`createIarkEmbed`); el resto, el de módulos.
     embed = createIarkEmbed({
@@ -94,12 +106,14 @@ function open(m: ResolvedModule): void {
       },
     });
   }
-  print('abre', { module: m.id, url: m.embedUrl });
 }
 
 async function connect(typed: string): Promise<void> {
   state.textContent = 'conectando…';
   nav.replaceChildren();
+  embed?.destroy(); // sin los módulos de la instancia anterior (ni el aviso de confirmación) mientras se conecta
+  embed = undefined;
+  stage.replaceChildren();
   let url: string;
   try {
     url = new URL(typed, window.location.href).toString(); // acepta rutas relativas a esta página
@@ -133,10 +147,32 @@ async function connect(typed: string): Promise<void> {
   if (first) open(first);
 }
 
+/**
+ * Un manifiesto de otro origen recibido por enlace (`?manifest=`) no se conecta solo: cualquiera podría mandar un enlace a
+ * `suite.html` que cargara en esta página los módulos de una instancia ajena. Se deja el campo relleno y se pide confirmación
+ * con el botón «Conectar» (el mismo del formulario, que también sirve para corregir la dirección antes).
+ */
+function awaitConfirmation(origin: string): void {
+  state.textContent = 'pendiente de confirmar';
+  nav.replaceChildren();
+  stage.replaceChildren(
+    Object.assign(document.createElement('p'), {
+      className: 'wb-note',
+      role: 'alert',
+      textContent: `Este enlace propone conectar con otra instancia (${origin}). Sus módulos se cargarían en esta página: pulsa «Conectar» solo si la reconoces y confías en ella.`,
+    }),
+  );
+  print('pendiente de confirmar', { origen: origin });
+  form.querySelector('button')?.focus();
+}
+
 const initial = params.get('manifest') ?? defaultManifest;
 input.value = initial;
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   void connect(input.value.trim());
 });
-void connect(initial);
+// El manifiesto por omisión y los del mismo origen se conectan solos; uno que no sea una URL también, para que `connect` explique el error.
+const initialOrigin = manifestOrigin(initial, window.location.href);
+if (initialOrigin === undefined || initialOrigin === window.location.origin) void connect(initial);
+else awaitConfirmation(initialOrigin);

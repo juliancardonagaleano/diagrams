@@ -40,6 +40,21 @@ describe('createIarkModuleEmbed (SDK de anfitrión de módulos)', () => {
     expect(container.querySelector('iframe')).toBeNull();
   });
 
+  it('rechaza una URL que no sea http(s) sin crear el iframe (javascript:, data:…) y acepta las relativas', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    for (const url of ['javascript:alert(document.domain)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>alert(1)</script>', 'blob:http://localhost/x', 'file:///etc/passwd']) {
+      expect(() => createIarkModuleEmbed({ container, url }), url).toThrow(/La URL del módulo embebido .* solo se admiten URL http: y https:/);
+    }
+    expect(container.querySelector('iframe')).toBeNull();
+    const relative = createIarkModuleEmbed({ container, url: 'modulos.html?module=data' });
+    expect(new URL(relative.iframe.src).pathname).toBe('/modulos.html');
+    const absolute = createIarkModuleEmbed({ container, url: 'https://otra.example/w/modulos.html' });
+    expect(new URL(absolute.iframe.src).origin).toBe('https://otra.example');
+    relative.destroy();
+    absolute.destroy();
+  });
+
   it('sin módulo en las opciones, no carga nada por su cuenta hasta que el anfitrión llame a load', async () => {
     const { embed, post, sent } = setup();
     fromIframe(embed.iframe, { event: 'init', version: '1.0', capabilities });

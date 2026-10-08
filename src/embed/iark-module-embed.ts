@@ -1,3 +1,4 @@
+import { resolveEndpointUrl } from '@iark/kernel/endpoint';
 import type {
   ModuleAction,
   ModuleCapabilitiesInfo,
@@ -89,7 +90,8 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
   const container = typeof options.container === 'string' ? document.querySelector<HTMLElement>(options.container) : options.container;
   if (!container) throw new Error('createIarkModuleEmbed: no se encontró el contenedor');
 
-  const url = new URL(options.url, window.location.href);
+  // Solo http(s): un `javascript:`/`data:` como `iframe.src` se ejecutaría en el origen del anfitrión (ver `resolveEndpointUrl`).
+  const url = new URL(resolveEndpointUrl(options.url, window.location.href, 'La URL del módulo embebido'));
   url.searchParams.set('embed', '1');
   url.searchParams.set('proto', 'json');
   url.searchParams.set('origin', window.location.origin);

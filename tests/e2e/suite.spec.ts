@@ -50,6 +50,81 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
     await expect.poll(() => page.frames().some((f) => f.url().includes('module=data'))).toBe(true);
   });
 
+  test('un manifiesto de OTRO origen recibido por enlace no se conecta solo: pide confirmar con «Conectar»', async ({ page, baseURL }) => {
+    const asked: string[] = [];
+    // Otra instancia (otro origen): el navegador no sale a la red, la prueba responde por ella. Cada petición que le llegue queda anotada.
+    await page.route('https://otra.example/**', (route) => {
+      asked.push(route.request().url());
+      return route.fulfill({
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({
+          schema: 'iark.manifest/1',
+          name: 'Instancia ajena',
+          version: '3.1.4',
+          modules: [{ id: 'data', name: 'Datos ajenos', version: '1.0.0', documentVersion: '1.0', importFormats: [], exportFormats: ['svg'], endpoints: { embed: `${baseURL}/modulos.html?module=data` } }],
+        }),
+      });
+    });
+    await page.goto('/suite.html?manifest=' + encodeURIComponent('https://otra.example/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
+
+    // El campo queda relleno, hay un aviso que nombra el origen y no se ha contactado con la instancia ni montado nada
+    await expect(page.getByLabel('Manifiesto de la instancia')).toHaveValue('https://otra.example/.well-known/iark.json');
+    await expect(page.getByRole('alert')).toContainText('https://otra.example');
+    await expect(page.getByRole('alert')).toContainText('Conectar');
+    await expect(page.getByRole('status')).toContainText('pendiente de confirmar');
+    await expect(page.getByRole('navigation', { name: 'Módulos' }).getByRole('button')).toHaveCount(0);
+    await expect(page.locator('iframe')).toHaveCount(0);
+    await page.waitForTimeout(500); // que algo NO ocurra solo se puede acotar dejando pasar un tiempo
+    expect(asked, 'no se pidió el manifiesto ajeno antes de confirmar').toEqual([]);
+
+    await page.getByRole('button', { name: 'Conectar' }).click();
+    await expect(page.getByRole('status')).toContainText('Instancia ajena v3.1.4 · 1 módulos');
+    await expect(page.getByRole('alert')).toHaveCount(0); // el aviso se retira al conectar
+    expect(asked).toEqual(['https://otra.example/.well-known/iark.json']);
+    await expect.poll(() => page.frames().some((f) => f.url().includes('module=data') && f.url().includes('embed=1'))).toBe(true);
+  });
+
+  test('el manifiesto por omisión y los del mismo origen siguen conectándose solos', async ({ page }) => {
+    await page.route('**/hermana/.well-known/iark.json', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ schema: 'iark.manifest/1', name: 'Instancia hermana', version: '1.0.0', modules: [] }),
+      }),
+    );
+    await page.goto('/suite.html?manifest=' + encodeURIComponent('/hermana/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('status')).toContainText('Instancia hermana v1.0.0 · 0 módulos');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('un manifiesto con un endpoint javascript: o data: se rechaza y no ejecuta nada', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    for (const [carpeta, embed] of [
+      ['js', 'javascript:window.top.__hackeado=true'],
+      ['datos', 'data:text/html,<script>window.top.__hackeado=true</script>'],
+    ]) {
+      await page.route(`**/${carpeta}/.well-known/iark.json`, (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            schema: 'iark.manifest/1',
+            name: 'Hostil',
+            version: '1.0.0',
+            modules: [{ id: 'data', name: 'Datos', version: '1.0.0', documentVersion: '1.0', importFormats: [], exportFormats: [], endpoints: { embed } }],
+          }),
+        }),
+      );
+      await page.goto(`/suite.html?manifest=${encodeURIComponent(`/${carpeta}/.well-known/iark.json`)}`, { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('alert')).toContainText('solo se admiten URL http: y https:');
+      await expect(page.getByRole('status')).toContainText('sin conexión');
+      await expect(page.locator('iframe')).toHaveCount(0);
+      await expect(page.getByRole('navigation', { name: 'Módulos' }).getByRole('button')).toHaveCount(0);
+      expect(await page.evaluate(() => (window as unknown as { __hackeado?: boolean }).__hackeado)).toBeUndefined();
+    }
+    expect(errors).toEqual([]);
+  });
+
   test('un manifiesto que no existe o no es válido se explica sin romper la página', async ({ page }) => {
     await page.goto('/suite.html?manifest=' + encodeURIComponent('/no-existe.json'), { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('alert')).toContainText('respondió 404');
