@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { expect, type Frame, type Page } from '@playwright/test';
 
 /**
@@ -46,4 +48,14 @@ export async function openEditor(page: Page, url = '/'): Promise<void> {
 export async function reloadEditor(page: Page): Promise<void> {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await c4Ready(page);
+}
+
+/**
+ * Captura de documentación: se guarda en la carpeta compartida del proyecto (`/mnt/project-files/...`) solo si esa
+ * carpeta existe. En el contenedor de desarrollo existe; en un runner de CI no, y allí la captura se omite en vez de
+ * hacer fallar la prueba con ENOENT.
+ */
+export async function docShot(page: Page, file: string): Promise<void> {
+  if (!existsSync(dirname(file))) return;
+  await page.screenshot({ path: file });
 }
