@@ -42,6 +42,24 @@ describe('carryRefs', () => {
     expect(base).toEqual(baseSnapshot);
   });
 
+  it('el refType (el tipo del enlace) viaja con su ref y no pisa el que ya traiga lo generado', () => {
+    const typed = {
+      services: [
+        { id: 'a', ref: 'urn:iark:integration:a', refType: 'implements' },
+        { id: 'b', ref: 'urn:iark:integration:b' },
+        { id: 'c', ref: 'urn:iark:integration:c', refType: 'deploys' },
+      ],
+    };
+    const out = carryRefs(typed, { services: [{ id: 'a' }, { id: 'b' }, { id: 'c', refType: 'protects' }] });
+    expect(out.services).toEqual([
+      { id: 'a', ref: 'urn:iark:integration:a', refType: 'implements' },
+      { id: 'b', ref: 'urn:iark:integration:b' },
+      { id: 'c', ref: 'urn:iark:integration:c', refType: 'protects' },
+    ]);
+    // lo generado que ya trae su ref conserva también su (falta de) tipo
+    expect(carryRefs(typed, { services: [{ id: 'a', ref: 'urn:iark:integration:otro' }] }).services[0]).toEqual({ id: 'a', ref: 'urn:iark:integration:otro' });
+  });
+
   it('sin enlaces en la base devuelve lo generado tal cual', () => {
     const generated = { services: [{ id: 'a' }] };
     expect(carryRefs({ services: [{ id: 'a' }] }, generated)).toBe(generated);
