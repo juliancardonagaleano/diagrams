@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { basename, dirname, extname, resolve } from 'node:path';
 import { InvalidArgumentError, type Command } from 'commander';
-import { diffDocuments, formatDiffJson, formatDiffMarkdown, formatDiffText, hasChanges, type DomainModule, type ModuleRegistry } from '@iark/kernel';
+import { diffDocuments, formatDiffJson, formatDiffMarkdown, formatDiffText, hasChanges, parseModuleDocument, type DomainModule, type ModuleRegistry } from '@iark/kernel';
 import { DocumentValidationError, formatIssues, parseDocument } from '@core/model/schema';
 import { DEFAULT_MODULE } from './registry';
 import { CliError, extractJson, info, readInput, writeOutput } from './io';
@@ -94,12 +94,14 @@ async function loadDocument(registry: ModuleRegistry, module: DomainModule<any>,
       throw error;
     }
   }
-  const parsed = module.schema.safeParse(json);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `- ${i.path.join('.') ? `${i.path.join('.')}: ` : ''}${i.message}`).join('\n');
+  // Un documento de una versión anterior se migra antes de compararlo: así «antes» y «después» se comparan en la misma versión.
+  const parsed = parseModuleDocument(module, json);
+  if (!parsed.ok) {
+    const issues = parsed.issues.map((i) => `- ${i.path !== '(raíz)' ? `${i.path}: ` : ''}${i.message}`).join('\n');
     throw new CliError(`${which} (${origin}) no es un documento válido para el módulo «${module.id}»:\n${issues}`, 2);
   }
-  return parsed.data;
+  if (parsed.migrated) info(`aviso (${origin}): documento migrado de la versión ${parsed.migrated.from} a ${parsed.migrated.to} antes de compararlo.`);
+  return parsed.document;
 }
 
 /**

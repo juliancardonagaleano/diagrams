@@ -29,7 +29,7 @@ import { registerAuth } from './auth';
 import { setupAccounts } from './accounts/setup';
 import { TokenError, TokenStore } from './tokens';
 import { FolderProjectStore } from './workspace';
-import { genericExport, genericGenerate, genericPrompt, genericSchema, genericValidate, readModuleDocument } from './generic';
+import { genericExport, genericGenerate, genericMigrate, genericPrompt, genericSchema, genericValidate, readModuleDocument } from './generic';
 import { CliError, dslIncludeOptions, extractJson, fallbackDocumentName, info, readDocument, readInput, writeOutput } from './io';
 import { readMultiInput, type MultiInput } from './multiFile';
 import { assertRepoFlags, collectRepoExclude, collectRepoInclude, DRY_RUN_HELP, FROM_REPO_HELP, FROM_REPO_PROMPT_HELP, parseRepoBudget, parseRepoRef, prepareRepo, REPO_BUDGET_HELP, REPO_EXCLUDE_HELP, REPO_INCLUDE_HELP, REPO_PRIVACY_HELP, REPO_PROMPT_HELP, REPO_REF_HELP, reportRepoFiles, reportRepoSummary } from './repo';
@@ -421,6 +421,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       if (!result.ok) {
         throw new CliError(`Documento inválido:\n${formatIssues(result.issues)}`, 2);
       }
+      if (result.migrated) process.stdout.write(`info     Documento migrado de la versión ${result.migrated.from} a ${result.migrated.to}; \`iark migrate\` lo reescribe en la nueva.\n`);
       const issues = analyzeDocument(result.document);
       const errors = issues.filter((i) => i.severity === 'error');
       const warnings = issues.filter((i) => i.severity === 'warning');
@@ -432,6 +433,16 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       );
       if (errors.length > 0 || (opts.strict && warnings.length > 0)) process.exitCode = 3;
     });
+
+  program
+    .command('migrate')
+    .description('Lleva un documento guardado con una versión anterior del formato del módulo a la versión actual y lo escribe; con --check no escribe nada y sale con código 1 si necesita migración')
+    .argument('[archivo.json]', 'documento de entrada (o "-" para stdin)')
+    .option('--stdin', 'leer el documento de la entrada estándar')
+    .option('-o, --out <archivo.json>', 'archivo de salida (por defecto stdout)')
+    .option('--check', 'no escribe nada: sale con código 1 si el documento necesita migración y con 0 si ya está en la versión actual (para la integración continua)', false)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', DEFAULT_MODULE)
+    .action((file: string | undefined, opts) => genericMigrate(registry.require(opts.module), file, opts));
 
   program
     .command('schema')
