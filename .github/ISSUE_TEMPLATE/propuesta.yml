@@ -1,0 +1,79 @@
+name: Propuesta
+description: Una mejora, una función nueva o un cambio de rumbo
+title: "[Propuesta] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por proponer. Antes de escribir, mira la [hoja de ruta](https://github.com/juliancardonagaleano/iark-diagrams/blob/master/docs/roadmap.md): puede que ya esté hecho, planeado o entre los límites conocidos.
+
+        Una propuesta describe el problema primero y la solución después; así se puede discutir otra forma de resolverlo.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - CLI `iark`
+        - Servicio `iark serve`, nube o imagen Docker
+        - Widget embebible o federación
+        - Editor C4
+        - Banco de trabajo de módulos
+        - Un módulo nuevo (otra especialidad)
+        - Importadores o exportadores
+        - IA
+        - Documentación o proyecto (licencia, CI, gobernanza)
+        - Otra
+    validations:
+      required: true
+  - type: dropdown
+    id: modulo
+    attributes:
+      label: Módulo implicado
+      options:
+        - No aplica / varios
+        - C4
+        - Integración
+        - Datos
+        - Empresarial
+        - Plataforma
+        - Seguridad
+    validations:
+      required: true
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qué problema resuelve
+      description: Qué intentas hacer hoy y qué te lo impide o te lo complica. Un caso real vale más que uno genérico.
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Qué propones
+      description: Cómo debería funcionar, con un ejemplo de uso (comando, documento de entrada y resultado esperado) si puedes.
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas que consideraste
+      description: Otras formas de resolverlo, incluida la de no hacer nada, y por qué las descartas.
+  - type: dropdown
+    id: contribuir
+    attributes:
+      label: ¿Te gustaría implementarlo?
+      description: La guía está en CONTRIBUTING.md.
+      options:
+        - Sí, con una PR
+        - Puedo ayudar a probarlo o a revisarlo
+        - No, solo lo propongo
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmaciones
+    attributes:
+      label: Antes de enviar
+      options:
+        - label: Busqué en los issues y en la hoja de ruta y no encontré lo mismo.
+          required: true
