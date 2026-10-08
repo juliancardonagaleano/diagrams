@@ -1,0 +1,102 @@
+name: Deploy to GitHub Pages
+
+# Compila el sitio estático (dist/app con la ruta base /<repositorio>/) y lo publica en la rama `gh-pages`,
+# de donde lo sirve Pages (Settings → Pages → Deploy from a branch → gh-pages / root).
+#  - Pull request hacia master: solo compila (comprueba que el sitio se construye); no publica nada.
+#  - Push a master o ejecución manual sobre master: compila, publica con scripts/deploy-gh-pages.sh y
+#    comprueba con scripts/verify-pages.sh que el sitio sirve la compilación nueva y responde 200.
+# `npm run deploy:pages` sigue valiendo para publicar a mano desde un equipo con permiso de escritura.
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'deploy/**'
+      - 'tests/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+  pull_request:
+    branches: [master]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'deploy/**'
+      - 'tests/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pages sirve bajo /<repositorio>/ (se ajusta solo si el repositorio se renombra).
+  BASE_PATH: /${{ github.event.repository.name }}/
+  PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Compilar el sitio
+        run: npm run build:app
+        env:
+          OUT_DIR: dist/pages
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pages-site
+          path: dist/pages
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    # Solo desde master: un pull request nunca publica.
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    # Un solo despliegue a la vez, y sin cancelar el que está empujando a gh-pages.
+    concurrency:
+      group: publish-gh-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pages-site
+          path: dist/pages
+      - name: ¿Sigue siendo este el último master?
+        id: latest
+        run: |
+          head=$(git ls-remote origin refs/heads/master | cut -f1)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::master ya avanzó ($head); este despliegue se omite y lo hará la ejecución más reciente."
+          fi
+      - name: Publicar en gh-pages
+        if: steps.latest.outputs.current == 'true'
+        run: SKIP_BUILD=1 bash scripts/deploy-gh-pages.sh
+      - name: Comprobar el sitio publicado
+        if: steps.latest.outputs.current == 'true'
+        run: bash scripts/verify-pages.sh "$PAGES_URL" dist/pages
+        env:
+          # El despliegue de Pages suele tardar ~1 min, pero a veces varios.
+          VERIFY_TIMEOUT: 900
