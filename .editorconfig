@@ -1,0 +1,25 @@
+# https://editorconfig.org
+# Refleja lo que ya tiene el repositorio (muestreo de los archivos versionados): UTF-8, finales de línea LF, sangría de
+# 2 espacios sin tabuladores y una nueva línea al final. No hay formateador automático (ni Prettier ni ESLint): esto solo
+# evita que el editor meta ruido en los diffs.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# En Markdown dos espacios al final de línea son un salto de línea forzado.
+[*.md]
+trim_trailing_whitespace = false
+
+# Entradas de los importadores (DDL con tabuladores, Terraform, Kubernetes, ArchiMate…): los tests comparan su contenido
+# exacto, así que el editor no debe reformatearlas al guardar.
+[tests/fixtures/**]
+indent_style = unset
+indent_size = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
