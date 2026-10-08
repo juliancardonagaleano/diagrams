@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { build, type Options } from 'tsup';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -27,6 +27,10 @@ describe('CLI empaquetado (tsup)', () => {
     expect(run('--help')).toContain('Usage: iark');
     const modules = run('modules');
     for (const id of ['c4', 'integration', 'data', 'enterprise', 'platform', 'security']) expect(modules).toContain(id);
+  });
+
+  it('empaqueta junto al CLI el hilo de trabajo del cálculo de `iark serve` (dist/cli/compute-worker.js: lo busca el pool con `new URL`)', () => {
+    expect(existsSync(join(outDir, 'cli/compute-worker.js'))).toBe(true);
   });
 
   it('ejecuta comandos de módulo y emite el manifiesto', () => {

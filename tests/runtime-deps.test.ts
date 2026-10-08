@@ -7,7 +7,7 @@ import configs from '../tsup.config';
 
 // El paquete publicado y la imagen Docker solo instalan `dependencies` (`npm prune --omit=dev`), y las librerías del
 // frontend (react, Semi UI, xyflow, zustand…) viven en `devDependencies` porque Vite las empaqueta en `dist/app`. Esta
-// prueba construye con tsup las cuatro salidas publicadas (núcleo, CLI y los dos bundles de embebido) y comprueba con el
+// prueba construye con tsup las salidas publicadas (núcleo, CLI y su hilo de trabajo, y los dos bundles de embebido) y comprueba con el
 // metafile de esbuild que cada import externo que queda en ellas es una dependencia de ejecución declarada. Si una
 // entrada empieza a importar algo que solo está en `devDependencies`, el binario o el subpath fallarían al instalar el
 // paquete (o tsup lo incrustaría en el bundle sin avisar).
@@ -51,9 +51,9 @@ describe('dependencias de ejecución del paquete publicado', () => {
 
   afterAll(() => rmSync(outDir, { recursive: true, force: true }));
 
-  it('construye las cuatro salidas publicadas', () => {
+  it('construye las salidas publicadas (núcleo, CLI con su hilo de trabajo del cálculo, y los dos bundles de embebido)', () => {
     const outputs = [...externals.keys()].map((o) => o.replace(/^.*node_modules\/\.cache\/iark-runtime-deps-test\/\d+\//, ''));
-    for (const expected of ['core/index.js', 'cli/index.js', 'embed/iark-embed.js', 'embed/iark-module-element.js']) {
+    for (const expected of ['core/index.js', 'cli/index.js', 'cli/compute-worker.js', 'embed/iark-embed.js', 'embed/iark-module-element.js']) {
       expect(outputs, `falta ${expected}`).toContain(expected);
     }
   });
