@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
-import { canvasReady, selectView } from './canvas-helpers';
+import { canvasReady, docShot, selectView } from './canvas-helpers';
 
 interface Relation {
   id: string;
@@ -81,14 +81,14 @@ test.describe('lienzo empresarial: arrastrar celdas de la matriz capacidad × ap
     await expect(page.getByTestId('canvas-legend')).toContainText('Arrastra una celda con ● a otra');
 
     // Misma columna: la relación de «Tienda web» pasa de «Ventas online» a «Analítica de negocio».
-    await drag(page, cell('ventas-online', 'tienda-web'), cell('analitica-negocio', 'tienda-web'), () => page.screenshot({ path: `${SHOTS}/empresarial-matriz-arrastrar-durante.png` }));
+    await drag(page, cell('ventas-online', 'tienda-web'), cell('analitica-negocio', 'tienda-web'), () => docShot(page, `${SHOTS}/empresarial-matriz-arrastrar-durante.png`));
     await expect(page.getByTestId(cell('analitica-negocio', 'tienda-web'))).toContainText('●');
     await expect(page.getByTestId(cell('ventas-online', 'tienda-web'))).not.toContainText('●');
     await expect(page.getByTestId('node-total:row:analitica-negocio')).not.toContainText('hueco');
     await expect(page.getByTestId('node-total:row:ventas-online')).toContainText('hueco');
     // Queda seleccionada la celda de destino: sus propiedades dicen que soporta.
     await expect(page.getByTestId('inspector').getByLabel('La aplicación soporta la capacidad')).toBeChecked();
-    await page.screenshot({ path: `${SHOTS}/empresarial-matriz-arrastrar-despues.png` });
+    await docShot(page, `${SHOTS}/empresarial-matriz-arrastrar-despues.png`);
 
     const after = await documentOf(page);
     expect(after.relations).toHaveLength(before.relations.length);
@@ -141,7 +141,7 @@ test.describe('lienzo empresarial: arrastrar celdas de la matriz capacidad × ap
     // La pareja de destino ya tiene la relación: no se duplica.
     await drag(page, cell('gestion-pedidos', 'erp'), cell('cobros', 'erp'));
     await expect(toast(page)).toContainText('«ERP corporativo» ya soporta «Cobros y pagos» (●)');
-    await page.screenshot({ path: `${SHOTS}/empresarial-matriz-arrastrar-duplicada.png` });
+    await docShot(page, `${SHOTS}/empresarial-matriz-arrastrar-duplicada.png`);
     await expect.poll(async () => (await centre(page, cell('gestion-pedidos', 'erp'))).y).toBeCloseTo(home.y, 0);
     expect(await documentOf(page)).toEqual(before);
 
