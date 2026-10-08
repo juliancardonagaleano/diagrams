@@ -31,7 +31,7 @@ El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 | IA | **Hecho**: API de Anthropic, Claude en Foundry, cualquier modelo de Foundry, modo sin clave (`iark prompt`) y `--from-repo`. Probado de verdad solo con DeepSeek-V4-Pro (28-09-2026) | [ia.md](ia.md) |
 | Importadores | **Hecho**: `.drawio`, Structurizr DSL, Mermaid, Terraform, Kubernetes, DDL de SQL, dbt y ArchiMate. Integración y seguridad solo importan Mermaid | [importadores.md](importadores.md) |
 | Federación y embebido | **Hecho**: manifiesto `iark.manifest/1`, shell, SDK de anfitrión y Web Component `<iark-module>` | [embebido.md](embebido.md) |
-| Trazabilidad | **Hecho** (v1): referencias por URN, `iark trace`, `POST /api/trace` y vista web | [trazabilidad.md](trazabilidad.md) |
+| Trazabilidad | **Hecho** (v1 y v2): referencias por URN con tipo de enlace, `iark trace` (huérfanos, matriz y cobertura), `POST /api/trace` y vista web | [trazabilidad.md](trazabilidad.md) |
 | Versionado de diagramas | **Hecho**: `iark diff` y pestaña «Comparar» (sin instantáneas en el navegador) | [cli.md](cli.md#comparar-versiones-de-un-diagrama-iark-diff) |
 | Proyectos y nube | **Hecho**: carpeta de trabajo, navegador, servidor propio con tokens, inicio de sesión de GitHub, compartir proyectos y API de administración | [proyectos.md](proyectos.md) · [servicio.md](servicio.md) · [cuentas-github.md](cuentas-github.md) |
 | Despliegue | **Hecho**: GitHub Pages automático, imagen Docker y `deploy/` con Caddy | [despliegue-pages.md](despliegue-pages.md) · [despliegue-nube.md](despliegue-nube.md) |
@@ -68,7 +68,7 @@ Que la suite se pueda ampliar desde fuera.
 
 - **Migración de documentos y versión del contrato**: cada módulo declara la versión de su documento (`documentVersion`), pero nada migra entre versiones todavía; el kernel debe migrar, y el contrato `DomainModule` ([`types.ts`](../packages/kernel/src/module/types.ts)) llevar su propia versión para poder cambiarlo sin romper módulos externos.
 - **Plugins e `iark.config` con paquetes publicables**: hoy los módulos se registran a mano en `src/cli/registry.ts` y los paquetes `@iark/*` se consumen desde su código fuente. El objetivo es publicarlos (declarando bien sus dependencias) y cargar módulos, importadores y paquetes de iconos desde una configuración.
-- **Trazabilidad v2**: evolución de la v1 (referencias por URN, referencias sin resolver y alcance de un elemento); su alcance se fija al empezar la fase.
+- **Trazabilidad v2 (hecha)**: enlaces tipados (`refType` junto a `ref`, con un vocabulario abierto), huérfanos, matriz de enlaces y cobertura por reglas, con `--strict` que ahora falla también con la cobertura por debajo del mínimo; en el CLI, el servicio, los proyectos, la vista web y el banco de trabajo ([trazabilidad.md](trazabilidad.md)). Fuera de esta entrega: cobertura inversa (destino → origen) y la ruta `/api/projects/<p>/trace`.
 
 **Puerta**: un módulo de terceros carga sin tocar el repositorio.
 

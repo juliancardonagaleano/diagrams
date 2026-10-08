@@ -6,6 +6,18 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 
 - Cambios de la fase 1 del plan de robustecimiento en curso.
 
+### Añadido
+
+- **Trazabilidad v2** (fase 2): los enlaces entre módulos llevan tipo. Los seis módulos aceptan `refType` junto a `ref` (vocabulario abierto `[a-z][a-z0-9-]*`; sugeridos `depends-on`, `implements`, `deploys`, `protects`, `realizes`, `derives` y `documents`), `TraceLink.type` siempre está presente (`depends-on` si no se declara) y los esquemas JSON de `schema/` incluyen el campo nuevo. Los ejemplos traen enlaces tipados.
+- Huérfanos (`traceOrphans`), matriz de enlaces por módulo o tipo de elemento con desglose por tipo (`traceMatrix`) y cobertura por reglas `origen -> destino` (`traceCoverage`), como funciones puras del kernel.
+- `iark trace` y `iark project trace`: `--type` (repetible), `--orphans [módulo[:tipo]]`, `--matrix [module|kind]`, `--coverage <regla>` (repetible), `--min-coverage <n>` y `--strict-unresolved`. `POST /api/trace` acepta `types`, `orphans`, `matrix` y `coverage`.
+- Vista web `trazabilidad.html`: filtro por tipo de enlace, tipo en las aristas del grafo y en la lista de enlaces, y pestañas Matriz (con colores de calor accesibles), Huérfanos y Cobertura. El panel de propiedades del banco de trabajo elige el tipo del enlace y «Referenciado por» lo muestra.
+
+### Cambiado
+
+- `iark trace --strict`, además de fallar (código 3) con referencias mal formadas, inexistentes o ambiguas, falla si una cobertura medida queda por debajo del mínimo (100 % por omisión). Las referencias a módulos sin documento seguían sin contar con `--strict`, y ahora la nueva `--strict-unresolved` permite contarlas.
+- Los informes de trazabilidad rotulan el tipo del enlace (Markdown, Mermaid y SVG) salvo en `depends-on`; los documentos sin `refType` producen el mismo informe que antes y el JSON solo crece (`type` en cada enlace).
+
 ## [0.1.0] - 2026-10-07
 
 Primera versión: reúne lo construido entre el 2026-09-24 (primer commit del repositorio, el núcleo C4 con CLI y exportación `.drawio`) y el 2026-10-07 (último commit de `master` al escribir este registro). El detalle de cada tanda, con sus PR, está en [`docs/roadmap.md`](docs/roadmap.md). No hay etiqueta `v0.1.0` en git todavía.

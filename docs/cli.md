@@ -15,7 +15,7 @@ iark example
 iark modules  [--json]
 iark project  list|create|rename|delete|show|add|get|rename-diagram|remove|copy|export|import|check|trace   # proyectos en una carpeta de trabajo (ver proyectos.md)
 iark auth     create|list|revoke   # tokens de acceso de `iark serve --tokens` (ver servicio.md, «Servidor para varias personas»)
-iark trace    <módulo=archivo>... [--from <módulo:id>] [--direction refs|referrers|both] [--depth n] [--format markdown|mermaid|svg|json] [--strict] [--out archivo]   # trazabilidad entre módulos (ver trazabilidad.md)
+iark trace    <módulo=archivo>... [--from <módulo:id>] [--direction refs|referrers|both] [--depth n] [--format markdown|mermaid|svg|json] [--type <tipo>]... [--orphans [módulo[:tipo]]] [--matrix [module|kind]] [--coverage "<origen> -> <destino>"]... [--min-coverage n] [--strict] [--strict-unresolved] [--out archivo]   # trazabilidad entre módulos: enlaces tipados, huérfanos, matriz y cobertura (ver trazabilidad.md)
 iark serve    [--static dist/app] [--port 8787] [--host 127.0.0.1] [--cors <orígenes>] [--workspace <carpeta>] [--tokens <archivo> | --accounts <archivo> …]   # servicio HTTP (ver servicio.md)
 iark <módulo> <comando>   # comandos propios de cada módulo (p. ej. `iark integration catalog`)
 ```
