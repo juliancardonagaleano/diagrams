@@ -23,7 +23,8 @@ export const iconCommands: CommandSpec[] = [
     description:
       'Paquetes de iconos de proveedores de nube (AWS y Azure incluidos, los de workspace.iconPacks y el de --pack) y el icono que se dibuja para cada recurso, servicio o red que indica un proveedor; valida un paquete propio',
     input: { description: 'documento de plataforma en JSON' },
-    options: [{ flags: '--pack <archivo>', description: 'paquete de iconos propio en JSON: se valida y se suma a los del documento' }],
+    // `local`: lee un archivo de la máquina que ejecuta el comando, así que el servicio HTTP (`runCommand` con `remote`) lo rechaza.
+    options: [{ flags: '--pack <archivo>', description: 'paquete de iconos propio en JSON: se valida y se suma a los del documento (solo en el CLI local)', local: true }],
     run: async ({ input, options }) => {
       if (!input) throw new PlatformImportError('Falta la entrada: indica un archivo JSON o usa --stdin (documento de plataforma).');
       let parsed: unknown;

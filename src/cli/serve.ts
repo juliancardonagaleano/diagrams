@@ -358,7 +358,8 @@ export function createSuiteServer(options: ServeOptions): Server {
         const input = envelope.input === undefined ? undefined : typeof envelope.input === 'string' ? envelope.input : JSON.stringify(envelope.input);
         const args = Array.isArray(envelope.args) ? envelope.args.map(String) : undefined;
         const opts = envelope.options && typeof envelope.options === 'object' ? (envelope.options as Record<string, string | boolean>) : undefined;
-        const result = await runCommand(module, command, { input, args, options: opts }).catch((error) => {
+        // `remote`: el cliente no es dueño de esta máquina; las opciones `local` de un comando (leer un archivo, p. ej. `icons --pack`) se rechazan.
+        const result = await runCommand(module, command, { input, args, options: opts }, { remote: true }).catch((error) => {
           throw isBug(error) ? error : new HttpError(400, (error as Error).message);
         });
         return sendJson(res, 200, { module: module.id, ...result });

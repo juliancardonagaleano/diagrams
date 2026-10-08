@@ -235,6 +235,8 @@ export interface OptionInfo {
   takesValue: boolean;
   description: string;
   default?: string | boolean;
+  /** Lee o escribe en la máquina que ejecuta el comando (ver `CommandOption.local`): las superficies remotas no deben ofrecerla. */
+  local?: boolean;
 }
 
 export interface CommandInfo {
@@ -250,15 +252,21 @@ export interface CommandInfo {
 
 const camel = (name: string): string => name.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 
-export function optionInfo(option: CommandOption): OptionInfo {
+/** El nombre largo de una opción (`-o, --out <archivo>` → `out`). */
+function longName(option: CommandOption): string {
   const long = /--([a-z0-9][a-z0-9-]*)/i.exec(option.flags);
   if (!long) throw new Error(`Opción de comando sin nombre largo: «${option.flags}».`);
+  return long[1];
+}
+
+export function optionInfo(option: CommandOption): OptionInfo {
   return {
-    key: camel(long[1]),
+    key: camel(longName(option)),
     flags: option.flags,
     takesValue: /[<[][^>\]]+[>\]]/.test(option.flags),
     description: option.description,
     default: option.default,
+    ...(option.local ? { local: true } : {}),
   };
 }
 
@@ -288,21 +296,46 @@ export interface CommandOutput {
   warnings: string[];
 }
 
-export async function runCommand(module: AnyModule, name: string, run: CommandRun): Promise<CommandOutput> {
+/** Desde dónde se ejecuta el comando. */
+export interface CommandRunContext {
+  /**
+   * Lo ejecuta el servicio HTTP en nombre de un cliente que no es dueño de la máquina: los argumentos y las opciones marcados
+   * `local` (ver `CommandOption.local`) se rechazan sin llegar a ejecutar nada. Por omisión (CLI local, banco de trabajo), no.
+   */
+  remote?: boolean;
+}
+
+/** Lo que se le dice a quien pide una opción local a un servicio remoto: no depende de lo que pidió (existe o no el archivo, qué ruta). */
+const remoteRefusal = (what: string): string =>
+  `${what} solo está disponible en el CLI local: lee o escribe en el sistema de archivos de la máquina que ejecuta el comando, y el servicio no lo hace a petición de un cliente remoto.`;
+
+export async function runCommand(module: AnyModule, name: string, run: CommandRun, context: CommandRunContext = {}): Promise<CommandOutput> {
   const spec = module.cliCommands?.find((c) => c.name === name);
   if (!spec) {
     const known = (module.cliCommands ?? []).map((c) => c.name).join(', ') || 'ninguno';
     throw new Error(`El módulo «${module.id}» no tiene el comando «${name}». Comandos: ${known}.`);
+  }
+  const provided = (value: unknown): boolean => value !== undefined && value !== '' && value !== false;
+  if (context.remote) {
+    // Antes que cualquier otra comprobación y sin tocar nada: la respuesta es la misma exista o no lo que se pide.
+    for (const option of spec.options ?? []) {
+      if (option.local && provided(run.options?.[optionInfo(option).key])) throw new Error(remoteRefusal(`La opción «--${longName(option)}» de «${name}»`));
+    }
+    for (const [index, arg] of (spec.args ?? []).entries()) {
+      if (arg.local && provided(run.args?.[index]?.trim())) throw new Error(remoteRefusal(`El argumento «${arg.name}» de «${name}»`));
+    }
   }
   const args = run.args ?? [];
   for (const [index, arg] of (spec.args ?? []).entries()) {
     if (arg.required && !args[index]?.trim()) throw new Error(`Falta el argumento «${arg.name}» (${arg.description}).`);
   }
   const options: Record<string, unknown> = {};
-  for (const option of (spec.options ?? []).map(optionInfo)) {
+  for (const declared of spec.options ?? []) {
+    const option = optionInfo(declared);
     const value = run.options?.[option.key];
-    if (value !== undefined && value !== '' && value !== false) options[option.key] = value;
-    else if (option.default !== undefined) options[option.key] = option.default;
+    if (provided(value)) options[option.key] = value;
+    // Un valor por omisión tampoco rellena una opción local en remoto: sería una ruta que nadie pidió.
+    else if (option.default !== undefined && !(context.remote && declared.local)) options[option.key] = option.default;
   }
   if (spec.input && !run.input?.trim()) throw new Error(`Falta la entrada: ${spec.input.description}.`);
   const warnings: string[] = [];

@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -122,6 +122,30 @@ describe('iark serve: API por módulo', () => {
     expect((await post('/api/security/run/nada', '{}')).status).toBe(400);
     expect((await post('/api/security/run', '{}')).status).toBe(404);
     expect((await post('/api/security/run/risks', '{ roto')).status).toBe(400);
+  });
+
+  it('run no lee archivos del servidor: `icons --pack` se rechaza con 400 y el mismo texto exista o no el archivo', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'iark-run-pack-'));
+    try {
+      const secret = join(dir, 'secreto.json');
+      writeFileSync(secret, '{"clave":"valor-secreto-que-no-debe-salir"');
+      const input = JSON.parse(example('plataforma-ejemplo.json'));
+      const ask = (pack: unknown) => post('/api/platform/run/icons', JSON.stringify({ input, options: { pack } }));
+      const existing = await ask(secret);
+      const missing = await ask(join(dir, 'no-existe.json'));
+      expect(existing.status).toBe(400);
+      expect(missing.status).toBe(400);
+      const text = await existing.text();
+      expect(text).toBe(await missing.text()); // no es un oráculo de qué archivos existen
+      expect(text).toMatch(/«--pack» de «icons» solo está disponible en el CLI local/);
+      for (const leak of ['valor-secreto', dir, 'ENOENT']) expect(text).not.toContain(leak);
+      // sin la opción local, el mismo comando funciona por HTTP
+      const ok = await post('/api/platform/run/icons', JSON.stringify({ input }));
+      expect(ok.status).toBe(200);
+      expect((await ok.json()).output).toContain('Paquetes de iconos');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('reúne documentos de varios módulos y sigue sus referencias (POST /api/trace)', async () => {
