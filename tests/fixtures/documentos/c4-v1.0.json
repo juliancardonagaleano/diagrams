@@ -1,0 +1,335 @@
+{
+  "version": "1.0",
+  "workspace": {
+    "name": "Banca en línea",
+    "description": "Ejemplo clásico del modelo C4: sistema de banca por internet."
+  },
+  "model": {
+    "elements": [
+      {
+        "id": "cliente",
+        "type": "person",
+        "name": "Cliente personal",
+        "description": "Cliente del banco con cuentas personales."
+      },
+      {
+        "id": "banca",
+        "type": "softwareSystem",
+        "name": "Sistema de banca en línea",
+        "description": "Permite a los clientes ver información de sus cuentas y hacer pagos."
+      },
+      {
+        "id": "mainframe",
+        "type": "softwareSystem",
+        "name": "Sistema bancario central",
+        "description": "Almacena toda la información bancaria de clientes, cuentas y transacciones.",
+        "external": true
+      },
+      {
+        "id": "email",
+        "type": "softwareSystem",
+        "name": "Sistema de correo",
+        "description": "Sistema de correo electrónico de Microsoft Exchange.",
+        "external": true
+      },
+      {
+        "id": "web-app",
+        "type": "container",
+        "name": "Aplicación web",
+        "technology": "Java y Spring MVC",
+        "description": "Entrega el contenido estático y la aplicación de una sola página.",
+        "parentId": "banca",
+        "shape": "browser"
+      },
+      {
+        "id": "spa",
+        "type": "container",
+        "name": "Aplicación de una sola página",
+        "technology": "JavaScript y Angular",
+        "description": "Provee toda la funcionalidad de banca a los clientes desde el navegador.",
+        "parentId": "banca"
+      },
+      {
+        "id": "mobile-app",
+        "type": "container",
+        "name": "Aplicación móvil",
+        "technology": "Xamarin",
+        "description": "Provee un subconjunto de la funcionalidad de banca desde el móvil.",
+        "parentId": "banca",
+        "shape": "mobile"
+      },
+      {
+        "id": "api",
+        "type": "container",
+        "name": "Aplicación API",
+        "technology": "Java y Spring MVC",
+        "description": "Provee la funcionalidad de banca mediante una API JSON/HTTPS.",
+        "parentId": "banca"
+      },
+      {
+        "id": "db",
+        "type": "container",
+        "name": "Base de datos",
+        "technology": "Oracle Database",
+        "description": "Almacena registro de usuarios, credenciales y logs de acceso.",
+        "parentId": "banca",
+        "shape": "database"
+      },
+      {
+        "id": "signin",
+        "type": "component",
+        "name": "Controlador de inicio de sesión",
+        "technology": "Spring MVC Rest Controller",
+        "description": "Permite a los usuarios iniciar sesión.",
+        "parentId": "api"
+      },
+      {
+        "id": "accounts",
+        "type": "component",
+        "name": "Controlador de cuentas",
+        "technology": "Spring MVC Rest Controller",
+        "description": "Provee información de las cuentas del cliente.",
+        "parentId": "api"
+      },
+      {
+        "id": "security",
+        "type": "component",
+        "name": "Componente de seguridad",
+        "technology": "Spring Bean",
+        "description": "Provee funcionalidad de autenticación y cambio de contraseña.",
+        "parentId": "api"
+      },
+      {
+        "id": "mainframe-facade",
+        "type": "component",
+        "name": "Fachada del sistema central",
+        "technology": "Spring Bean",
+        "description": "Fachada sobre el sistema bancario central.",
+        "parentId": "api"
+      }
+    ],
+    "relationships": [
+      {
+        "id": "r1",
+        "sourceId": "cliente",
+        "targetId": "banca",
+        "description": "Consulta sus cuentas y hace pagos"
+      },
+      {
+        "id": "r2",
+        "sourceId": "banca",
+        "targetId": "mainframe",
+        "description": "Obtiene información y hace pagos",
+        "technology": "XML/HTTPS"
+      },
+      {
+        "id": "r3",
+        "sourceId": "banca",
+        "targetId": "email",
+        "description": "Envía correos",
+        "technology": "SMTP"
+      },
+      {
+        "id": "r4",
+        "sourceId": "email",
+        "targetId": "cliente",
+        "description": "Envía correos a"
+      },
+      {
+        "id": "r5",
+        "sourceId": "cliente",
+        "targetId": "web-app",
+        "description": "Visita bigbank.com",
+        "technology": "HTTPS"
+      },
+      {
+        "id": "r6",
+        "sourceId": "cliente",
+        "targetId": "spa",
+        "description": "Consulta sus cuentas y hace pagos"
+      },
+      {
+        "id": "r7",
+        "sourceId": "cliente",
+        "targetId": "mobile-app",
+        "description": "Consulta sus cuentas y hace pagos"
+      },
+      {
+        "id": "r8",
+        "sourceId": "web-app",
+        "targetId": "spa",
+        "description": "Entrega al navegador del cliente"
+      },
+      {
+        "id": "r9",
+        "sourceId": "spa",
+        "targetId": "api",
+        "description": "Hace llamadas a la API",
+        "technology": "JSON/HTTPS"
+      },
+      {
+        "id": "r10",
+        "sourceId": "mobile-app",
+        "targetId": "api",
+        "description": "Hace llamadas a la API",
+        "technology": "JSON/HTTPS"
+      },
+      {
+        "id": "r11",
+        "sourceId": "api",
+        "targetId": "db",
+        "description": "Lee y escribe",
+        "technology": "JDBC"
+      },
+      {
+        "id": "r12",
+        "sourceId": "api",
+        "targetId": "mainframe",
+        "description": "Hace llamadas a la API",
+        "technology": "XML/HTTPS"
+      },
+      {
+        "id": "r13",
+        "sourceId": "api",
+        "targetId": "email",
+        "description": "Envía correos",
+        "technology": "SMTP"
+      },
+      {
+        "id": "r14",
+        "sourceId": "spa",
+        "targetId": "signin",
+        "description": "Hace llamadas a la API",
+        "technology": "JSON/HTTPS"
+      },
+      {
+        "id": "r15",
+        "sourceId": "spa",
+        "targetId": "accounts",
+        "description": "Hace llamadas a la API",
+        "technology": "JSON/HTTPS"
+      },
+      {
+        "id": "r16",
+        "sourceId": "signin",
+        "targetId": "security",
+        "description": "Usa"
+      },
+      {
+        "id": "r17",
+        "sourceId": "accounts",
+        "targetId": "mainframe-facade",
+        "description": "Usa"
+      },
+      {
+        "id": "r18",
+        "sourceId": "security",
+        "targetId": "db",
+        "description": "Lee y escribe",
+        "technology": "JDBC"
+      },
+      {
+        "id": "r19",
+        "sourceId": "mainframe-facade",
+        "targetId": "mainframe",
+        "description": "Hace llamadas a la API",
+        "technology": "XML/HTTPS"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "contexto",
+      "type": "systemContext",
+      "scopeId": "banca",
+      "title": "Contexto del sistema",
+      "elements": [
+        {
+          "id": "cliente"
+        },
+        {
+          "id": "banca"
+        },
+        {
+          "id": "mainframe"
+        },
+        {
+          "id": "email"
+        }
+      ],
+      "layout": {
+        "direction": "DOWN"
+      }
+    },
+    {
+      "id": "contenedores",
+      "type": "container",
+      "scopeId": "banca",
+      "title": "Contenedores",
+      "elements": [
+        {
+          "id": "cliente"
+        },
+        {
+          "id": "web-app"
+        },
+        {
+          "id": "spa"
+        },
+        {
+          "id": "mobile-app"
+        },
+        {
+          "id": "api"
+        },
+        {
+          "id": "db"
+        },
+        {
+          "id": "mainframe"
+        },
+        {
+          "id": "email"
+        }
+      ],
+      "layout": {
+        "direction": "DOWN"
+      }
+    },
+    {
+      "id": "componentes-api",
+      "type": "component",
+      "scopeId": "api",
+      "title": "Componentes de la API",
+      "elements": [
+        {
+          "id": "spa"
+        },
+        {
+          "id": "mobile-app"
+        },
+        {
+          "id": "signin"
+        },
+        {
+          "id": "accounts"
+        },
+        {
+          "id": "security"
+        },
+        {
+          "id": "mainframe-facade"
+        },
+        {
+          "id": "db"
+        },
+        {
+          "id": "mainframe"
+        }
+      ],
+      "layout": {
+        "direction": "DOWN"
+      }
+    }
+  ]
+}
