@@ -50,6 +50,8 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
+# La carpeta entera, no solo index.js: dist/cli/compute-worker.js es el hilo de trabajo del cálculo (exportar, importar, informes, trazas)
+# y el CLI lo busca a su lado (`new URL('./compute-worker.js', import.meta.url)`, src/cli/computePool.ts).
 COPY --from=build /app/dist/cli ./dist/cli
 COPY --from=build /app/dist/app ./dist/app
 # La carpeta de datos del servicio gestionado, escribible por `node` (arriba: cómo la heredan los volúmenes).

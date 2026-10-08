@@ -15,7 +15,9 @@ export default defineConfig([
     external: ['elkjs', 'zod', '@anthropic-ai/sdk', '@anthropic-ai/foundry-sdk', 'nanoid', 'fast-xml-parser'],
   },
   {
-    entry: { 'cli/index': 'src/cli/index.ts' },
+    // `cli/compute-worker`: el hilo de trabajo del cálculo de `iark serve` (`worker_threads`, ver src/cli/computePool.ts), que el CLI
+    // localiza junto a sí (`dist/cli/compute-worker.js`). Va en esta misma configuración: comparte target, plataforma y externos.
+    entry: { 'cli/index': 'src/cli/index.ts', 'cli/compute-worker': 'src/cli/computeWorker.ts' },
     format: ['esm'],
     dts: false,
     sourcemap: true,

@@ -137,6 +137,13 @@ export interface CommandOption {
   flags: string;
   description: string;
   default?: string | boolean;
+  /**
+   * La opción hace que el comando lea o escriba en el sistema de archivos del proceso (o abra la red, o lance procesos): p. ej.
+   * `--pack <archivo>`. Solo tiene sentido en el CLI local, donde quien la pasa es dueño de esa máquina. `runCommand` la rechaza
+   * cuando el comando se ejecuta en nombre de un cliente remoto (`remote: true`, el servicio HTTP): si no, `POST /api/<módulo>/run/…`
+   * dejaría a cualquiera leer archivos del servidor. Todo comando que toque el disco, la red o los procesos debe marcarla.
+   */
+  local?: boolean;
 }
 
 export interface CommandContext {
@@ -159,7 +166,8 @@ export interface CommandSpec {
   kind?: 'report' | 'convert';
   /** Si el comando lee un documento: el CLI añade `[archivo]`, `--stdin` y `--out`, lee la entrada y la pasa en `context.input`. */
   input?: { description: string };
-  args?: Array<{ name: string; description: string; required?: boolean }>;
+  /** `local`: el argumento es una ruta u otro recurso de la máquina que ejecuta el comando; ver `CommandOption.local`. */
+  args?: Array<{ name: string; description: string; required?: boolean; local?: boolean }>;
   options?: CommandOption[];
   run(context: CommandContext): Promise<string | void> | string | void;
 }

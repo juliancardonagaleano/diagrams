@@ -292,12 +292,17 @@ describe('iark serve --tokens: autenticación', () => {
     expect(await (await call(open.base).get('/api/whoami', { Authorization: 'Bearer lo-que-sea' })).json()).toEqual({ auth: false });
   });
 
-  it('lo demás de la API (manifiesto, módulos, validar…) sigue siendo público', async () => {
-    const { base } = await startCloud();
+  it('el manifiesto, los módulos, capabilities y schema siguen siendo públicos; el cálculo (validar…) exige credencial (serveCompute.test.ts)', async () => {
+    const { base, tokens } = await startCloud();
     expect((await fetch(`${base}/api/modules`)).status).toBe(200);
     expect((await fetch(`${base}/api/c4/capabilities`)).status).toBe(200);
+    expect((await fetch(`${base}/api/c4/schema`)).status).toBe(200);
     expect((await fetch(`${base}/.well-known/iark.json`)).status).toBe(200);
-    expect((await call(base).post('/api/c4/validate', '{}')).status).not.toBe(401);
+    expect((await call(base).post('/api/c4/validate', '{}')).status).toBe(401);
+    expect((await call(base, tokens.viewer).post('/api/c4/validate', '{}')).status).not.toBe(401);
+    // `publicCompute` (--public-compute) la deja abierta
+    const open = await startCloud({ publicCompute: true });
+    expect((await call(open.base).post('/api/c4/validate', '{}')).status).not.toBe(401);
   });
 
   it('el manifiesto anuncia projectsAuth: bearer con tokens, none sin ellos y nada sin espacio de trabajo', async () => {
@@ -575,12 +580,20 @@ describe('iark serve --tokens: CORS y comprobaciones de navegador', () => {
     expect(readdirSync(wild.root)).toEqual(['desde-cualquier-sitio']);
   });
 
-  it('solo las rutas de proyectos y whoami cambian de CORS: el resto de la API anuncia lo de siempre', async () => {
+  it('solo las rutas con credencial (proyectos, whoami y el cálculo) cambian de CORS: el resto de la API anuncia lo de siempre', async () => {
     const { base } = await startCloud({ cors: ['*'] });
-    const preflight = await fetch(`${base}/api/c4/validate`, { method: 'OPTIONS', headers: { Origin: 'https://x.example', 'Access-Control-Request-Method': 'POST' } });
+    const preflight = await fetch(`${base}/api/c4/capabilities`, { method: 'OPTIONS', headers: { Origin: 'https://x.example', 'Access-Control-Request-Method': 'GET' } });
     expect(preflight.headers.get('access-control-allow-methods')).toBe('GET, POST, OPTIONS');
     expect(preflight.headers.get('access-control-allow-headers')).toBe('Content-Type');
     expect(preflight.headers.get('access-control-expose-headers')).toBeNull();
+    // el cálculo exige token: su preflight tiene que anunciar `Authorization` (si no, el navegador no lo deja pasar)
+    const compute = await fetch(`${base}/api/c4/validate`, { method: 'OPTIONS', headers: { Origin: 'https://x.example', 'Access-Control-Request-Method': 'POST' } });
+    expect(compute.headers.get('access-control-allow-headers')).toBe('Content-Type, Authorization');
+    expect(compute.headers.get('access-control-expose-headers')).toContain('Retry-After');
+    // y con --public-compute vuelve a lo de siempre
+    const open = await startCloud({ cors: ['*'], publicCompute: true });
+    const publicPreflight = await fetch(`${open.base}/api/c4/validate`, { method: 'OPTIONS', headers: { Origin: 'https://x.example', 'Access-Control-Request-Method': 'POST' } });
+    expect(publicPreflight.headers.get('access-control-allow-headers')).toBe('Content-Type');
   });
 
   it('con tokens ya no se comprueban Host ni Origin en estas rutas (el token es una cabecera, no una credencial ambiental), pero sí Content-Type: application/json', async () => {

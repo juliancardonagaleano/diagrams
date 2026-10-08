@@ -312,7 +312,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       }
       return allow('GET, PUT, PATCH, DELETE');
     }
-    throw new HttpError(404, 'Ruta de proyectos desconocida. Ver la lista de rutas de /api/projects en el README.');
+    throw new HttpError(404, 'Ruta de proyectos desconocida. Ver la lista de rutas de /api/projects en docs/proyectos.md.');
   }
 
   return async (req, res, url, parts) => {

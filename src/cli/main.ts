@@ -17,6 +17,8 @@ import { DEFAULT_AI_MODEL, generateDocument, GenerationError, type Effort } from
 import { analyzeDocument } from '@core/model/issues';
 import { buildManifest, joinSourceFiles, ModuleError, ProjectError, type ModuleRegistry, UnknownModuleError } from '@iark/kernel';
 import { createDefaultRegistry, DEFAULT_MODULE } from './registry';
+import { ComputePool } from './computePool';
+import { addComputeOptions, resolveComputeSettings } from './computeConfig';
 import { createSuiteServer } from './serve';
 import { isLoopbackHost } from './serveAuth';
 import { parseFrameAncestors } from './securityHeaders';
@@ -483,7 +485,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       }
     });
 
-  program
+  const serve = program
     .command('serve')
     .description(
       'Servicio HTTP de la suite: API por módulo (validar, vistas, exportar, importar, informes), manifiesto de federación /.well-known/iark.json y, con --static, el sitio y, con --workspace, la API de proyectos (/api/projects)',
@@ -500,7 +502,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     )
     .option(
       '-t, --tokens <archivo>',
-      'exige un token (`Authorization: Bearer <token>`, con rol viewer, editor o admin) en la API de proyectos y en /api/whoami; el archivo se administra con `iark auth` y se relee cuando cambia (o la variable IARK_TOKENS). ' +
+      'exige un token (`Authorization: Bearer <token>`, con rol viewer, editor o admin) en la API de proyectos, en /api/whoami y en las rutas de cálculo (validar, vistas, exportar, importar, comparar, informes y /api/trace; ver --public-compute); el archivo se administra con `iark auth` y se relee cuando cambia (o la variable IARK_TOKENS). ' +
         'Hace falta para escuchar fuera de loopback con --workspace',
       process.env.IARK_TOKENS || undefined,
     )
@@ -518,8 +520,8 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       'orígenes que pueden incrustar por iframe las cargas embebidas (?embed=1), separados por comas, o * (o la variable IARK_FRAME_ANCESTORS). Por omisión *, porque el producto es embebible; si no incrusta desde fuera, fíjelo a los orígenes que necesite. El propio origen siempre puede',
       process.env.IARK_FRAME_ANCESTORS || undefined,
     )
-    .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy (o IARK_TRUST_PROXY=true). No lo active sin proxy', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''))
-    .action(async (opts) => {
+    .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy (o IARK_TRUST_PROXY=true). No lo active sin proxy', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''));
+  addComputeOptions(serve).action(async (opts) => {
       if (opts.static && !existsSync(opts.static)) throw new CliError(`La carpeta del sitio «${opts.static}» no existe (¿falta \`npm run build\`?).`);
       if (opts.workspace && existsSync(opts.workspace) && !statSync(opts.workspace).isDirectory()) throw new CliError(`El espacio de trabajo «${opts.workspace}» no es una carpeta.`, 2);
       let frameAncestors: string[];
@@ -542,10 +544,13 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
           2,
         );
       }
-      if (opts.tokens && !projects) info('aviso: --tokens protege la API de proyectos, y no hay espacio de trabajo (--workspace): se ignora.');
+      const compute = resolveComputeSettings(opts);
       // Al arrancar el archivo de tokens debe existir y ser válido (si no, error de uso): después se relee cuando cambia, y un problema deniega todo.
-      const tokens = projects && opts.tokens ? TokenStore.open(opts.tokens) : undefined;
-      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors });
+      // Protege la API de proyectos y, también sin espacio de trabajo, las rutas de cálculo.
+      const tokens = opts.tokens ? TokenStore.open(opts.tokens) : undefined;
+      // El cálculo (ELK, análisis de documentos grandes) corre en hilos aparte, con tiempo límite y cola acotada: ver `computePool.ts`.
+      const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue }) : undefined;
+      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute });
       await new Promise<void>((resolveListening, rejectListening) => {
         server.once('error', rejectListening);
         server.listen(opts.port, opts.host, resolveListening);
@@ -554,20 +559,25 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       const port = typeof address === 'object' && address ? address.port : opts.port;
       info(`IArk - DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port}${opts.static ? ` (sitio: ${opts.static})` : ' (solo API)'}`);
       info(`  manifiesto: /.well-known/iark.json · módulos: /api/modules`);
+      if (pool) info(`  cálculo: hasta ${pool.size} hilo(s) de trabajo · tiempo límite ${pool.timeoutMs / 1000} s por operación · cola de ${pool.maxQueue}`);
+      else info('aviso: --workers 0: el cálculo corre en el hilo principal, sin tiempo límite ni cola; una exportación grande bloquea el servicio entero.');
+      if (tokens || accounts) {
+        info(compute.publicCompute ? 'aviso: --public-compute: las rutas de cálculo (validar, exportar, importar, informes, trazas) están abiertas a quien llegue al puerto, aunque haya autenticación.' : '  las rutas de cálculo (validar, exportar, importar, informes, trazas) exigen credencial; /api/modules, capabilities y schema siguen públicos');
+      }
       if (projects) {
         info(`  espacio de trabajo: ${projects.root} · proyectos: /api/projects`);
         if (accounts) {
           info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
           if (!loopback) info(tlsNote('GitHub solo devuelve a la persona a la dirección pública, y las sesiones viajan por ella.'));
         }
-        if (tokens) {
-          info(`  autenticación: tokens de ${tokens.path} (${tokens.size}), roles viewer, editor y admin · /api/whoami`);
-          if (tokens.size === 0) info('aviso: el archivo no tiene ningún token: cree uno con `iark auth create <nombre> --role admin` (no hace falta reiniciar).');
-          if (!loopback) info(tlsNote('si no, los tokens viajan en claro.'));
-        }
+      }
+      if (tokens) {
+        info(`  autenticación: tokens de ${tokens.path} (${tokens.size}), roles viewer, editor y admin · /api/whoami`);
+        if (tokens.size === 0) info('aviso: el archivo no tiene ningún token: cree uno con `iark auth create <nombre> --role admin` (no hace falta reiniciar).');
+        if (!loopback) info(tlsNote('si no, los tokens viajan en claro.'));
       }
       await new Promise<void>((resolveClosed) => {
-        const stop = (): void => void server.close(() => resolveClosed());
+        const stop = (): void => void server.close(() => void (pool?.close() ?? Promise.resolve()).then(() => resolveClosed()));
         process.once('SIGINT', stop);
         process.once('SIGTERM', stop);
       });

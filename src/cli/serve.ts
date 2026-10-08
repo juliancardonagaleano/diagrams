@@ -2,31 +2,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
-import {
-  analyzeText,
-  buildTraceGraph,
-  commandInfos,
-  diffDocuments,
-  exportDocument,
-  exportFormats,
-  importText,
-  moduleCapabilities,
-  runCommand,
-  traceMermaid,
-  traceReach,
-  traceReachReport,
-  traceReport,
-  traceSvg,
-  viewChoices,
-  type AnyModule,
-  type ModuleRegistry,
-  type ProjectStore,
-  type TraceDirection,
-  type TraceInput,
-} from '@iark/kernel';
+import { commandInfos, moduleCapabilities, type AnyModule, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
 import { createAdminApi } from './accounts/admin';
 import { createAuthApi } from './accounts/routes';
 import type { Accounts } from './accounts/service';
+import { COMPUTE_ACTIONS, inlineExecutor, unwrapOutcome, type ComputeExecutor, type ComputeJob } from './compute';
 import { HttpError } from './httpError';
 import { createAuthenticator, type FailureLimiterOptions } from './serveAuth';
 import { createProjectsApi } from './serveProjects';
@@ -62,8 +42,15 @@ import type { TokenStore } from './tokens';
  *   GET  /api/projects/<p>/check                        comprobación del proyecto: cada diagrama y las referencias entre ellos
  *
  * Con tokens (`--tokens <archivo>`, ver `serveAuth.ts`) esas rutas y `/api/whoami` exigen `Authorization: Bearer <token>` y aplican los
- * roles `viewer`, `editor` y `admin`; el resto de la API sigue siendo pública (no toca el disco):
+ * roles `viewer`, `editor` y `admin`:
  *   GET  /api/whoami                                    { auth: true, name, role } con tokens (401 sin uno válido) · { auth: false } sin ellos
+ *
+ * Las rutas de cálculo (validate, views, export, import, diff, run y `/api/trace`) no tocan el disco, pero cuestan CPU: con tokens o
+ * cuentas exigen también una credencial válida de cualquier rol (401 sin ella), salvo con `publicCompute` (`--public-compute`). Siguen
+ * públicas `/api/modules`, `capabilities`, `schema` y el manifiesto, que la federación descubre sin credencial. Sin autenticación
+ * configurada, todo queda abierto como siempre. El cálculo no corre en el hilo que atiende las conexiones sino en un `ComputeExecutor`
+ * (`iark serve` pasa un `ComputePool`, con tiempo límite y cola acotada: 503 si se agotan; ver `computePool.ts`). `run` nunca abre
+ * archivos del servidor: las opciones marcadas `local` de un comando se rechazan (ver `CommandOption.local`).
  *
  * Con cuentas (`--accounts <archivo>` y una OAuth App de GitHub, ver `accounts/`) la sesión de una persona sirve igual que un token, pero su
  * rol sale de a qué proyectos pertenece, y `/api/auth` ofrece el inicio de sesión (ver `accounts/routes.ts`):
@@ -93,6 +80,14 @@ export interface ServeOptions {
   trustProxy?: boolean;
   /** Ajustes del freno de intentos fallidos (los de por omisión, salvo en las pruebas). */
   authLimits?: Partial<FailureLimiterOptions>;
+  /**
+   * Dónde se ejecutan las operaciones de cálculo (`ComputePool`, con tiempo límite y cola acotada). Por omisión, en el propio hilo
+   * y sin límites, como antes: es lo que usan las pruebas; `iark serve` siempre pasa un pool (salvo con `--workers 0`). Es de quien lo
+   * crea: el servidor no lo cierra al pararse.
+   */
+  compute?: ComputeExecutor;
+  /** Deja las rutas de cálculo abiertas aunque haya tokens o cuentas (`--public-compute`). Sin autenticación configurada no hace nada. */
+  publicCompute?: boolean;
   /** Orígenes que pueden incrustar las cargas embebidas (`?embed=1`) por iframe (`--frame-ancestors`). Por omisión `*`; ver `securityHeaders.ts`. */
   frameAncestors?: string[];
 }
@@ -100,17 +95,28 @@ export interface ServeOptions {
 const API = '/api';
 const MANIFEST_PATH = '/.well-known/iark.json';
 
-/** Las rutas que exigen token cuando lo hay: la API de proyectos, `/api/whoami`, `/api/auth` y `/api/admin` (se leen los segmentos igual que `api()`, ya decodificados). */
-function isAuthRoute(pathname: string): boolean {
-  if (pathname !== API && !pathname.startsWith(`${API}/`)) return false;
-  const parts = pathname.slice(API.length).split('/').filter(Boolean).map((segment) => {
+/** Los segmentos de una ruta de la API, ya decodificados como en `api()`, o `undefined` si no es de la API. */
+function apiParts(pathname: string): string[] | undefined {
+  if (pathname !== API && !pathname.startsWith(`${API}/`)) return undefined;
+  return pathname.slice(API.length).split('/').filter(Boolean).map((segment) => {
     try {
       return decodeURIComponent(segment);
     } catch {
       return segment; // la petición se rechazará con 400 más adelante
     }
   });
-  return parts[0] === 'projects' || parts[0] === 'auth' || parts[0] === 'admin' || (parts[0] === 'whoami' && parts.length === 1);
+}
+
+/** Las rutas que exigen token cuando lo hay: la API de proyectos, `/api/whoami`, `/api/auth` y `/api/admin`. */
+function isAuthRoute(pathname: string): boolean {
+  const parts = apiParts(pathname);
+  return !!parts && (parts[0] === 'projects' || parts[0] === 'auth' || parts[0] === 'admin' || (parts[0] === 'whoami' && parts.length === 1));
+}
+
+/** Las rutas de cálculo: `POST /api/trace` y `/api/<módulo>/<validate|views|export|import|diff|run…>`. Con autenticación exigen credencial (salvo `--public-compute`). */
+function isComputeRoute(pathname: string): boolean {
+  const parts = apiParts(pathname);
+  return !!parts && ((parts.length === 1 && parts[0] === 'trace') || (parts.length >= 2 && COMPUTE_ACTIONS.has(parts[1])));
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -136,14 +142,14 @@ function decodeSegment(segment: string): string {
   }
 }
 
-/** Un `TypeError`/`RangeError`/`ReferenceError` es un fallo del programa; el resto, un problema de la petición. */
-const isBug = (error: unknown): boolean => error instanceof TypeError || error instanceof RangeError || error instanceof ReferenceError;
-
 export function createSuiteServer(options: ServeOptions): Server {
   const maxBody = options.maxBodyBytes ?? 5 * 1024 * 1024;
   const staticRoot = options.staticDir ? resolve(options.staticDir) : undefined;
   const cors = options.cors ?? [];
   const auth = options.tokens || options.accounts ? createAuthenticator({ tokens: options.tokens, accounts: options.accounts, trustProxy: options.trustProxy, limits: options.authLimits }) : undefined;
+  /** Con autenticación y sin `publicCompute`, las rutas de cálculo piden una credencial válida (de cualquier rol). */
+  const computeAuth = options.publicCompute ? undefined : auth;
+  const executor = options.compute ?? inlineExecutor(options.registry);
 
   const send = (res: ServerResponse, status: number, body: string | Buffer, headers: Record<string, string> = {}): void => {
     res.writeHead(status, { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', ...headers });
@@ -160,7 +166,7 @@ export function createSuiteServer(options: ServeOptions): Server {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
     } else return;
-    if (auth && isAuthRoute(pathname)) {
+    if (auth && (isAuthRoute(pathname) || (computeAuth && isComputeRoute(pathname)))) {
       // Con tokens, un `*` también vale para la API de proyectos y todos los métodos: la credencial es una cabecera que el navegador
       // no añade por su cuenta (no se envían cookies: no se anuncia `Allow-Credentials`), así que un sitio ajeno no puede usar
       // la API sin un token que alguien le haya dado, y sin token recibe 401. Se anuncia `Authorization` (sin él el preflight falla)
@@ -208,66 +214,26 @@ export function createSuiteServer(options: ServeOptions): Server {
     return module;
   }
 
-  /** El cuerpo como documento del módulo: 422 con las incidencias si no lo es. */
-  function documentOf(module: AnyModule, body: string): unknown {
-    const analysis = analyzeText(module, body);
-    if (analysis.status === 'ok') return analysis.document;
-    if (analysis.status === 'empty') throw new HttpError(400, 'Falta el documento en el cuerpo de la petición.');
-    if (analysis.status === 'syntax') throw new HttpError(400, `El cuerpo no es JSON válido: ${analysis.error}`);
-    throw new HttpError(422, 'El documento no cumple el esquema del módulo.', { issues: analysis.issues });
-  }
+  /**
+   * Las rutas de cálculo piden credencial (de cualquier rol) cuando hay autenticación y no se abrieron con `publicCompute`. Se decide
+   * antes de leer el cuerpo y antes de saber si el módulo existe: quien no entra no cuesta ni memoria ni CPU, y no averigua nada.
+   */
+  const requireComputeAccess = (req: IncomingMessage): void => void computeAuth?.identify(req);
 
-  /** Compara dos versiones de un documento del módulo: cada una, validada con su esquema (422 si no lo cumple, diciendo cuál). */
-  function compare(module: AnyModule, raw: string): unknown {
-    let body: { before?: unknown; after?: unknown } | null;
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      throw new HttpError(400, 'El cuerpo debe ser JSON: { "before": {…}, "after": {…} } (las dos versiones del documento del módulo).');
-    }
-    const side = (name: 'before' | 'after'): unknown => {
-      const value = body && typeof body === 'object' ? body[name] : undefined;
-      if (value === undefined || value === null) throw new HttpError(400, `Falta "${name}": la ${name === 'before' ? 'versión anterior' : 'versión nueva'} del documento.`);
-      try {
-        return documentOf(module, typeof value === 'string' ? value : JSON.stringify(value));
-      } catch (error) {
-        if (error instanceof HttpError) throw new HttpError(error.status, `«${name}»: ${error.message}`, error.extra);
-        throw error;
-      }
-    };
-    return diffDocuments(side('before'), side('after'), module.diff);
-  }
-
-  /** Trazabilidad entre módulos: reúne los documentos aportados y sigue sus referencias URN. */
-  async function trace(raw: string): Promise<unknown> {
-    let body: { documents?: unknown; from?: unknown; direction?: unknown; depth?: unknown };
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      throw new HttpError(400, 'El cuerpo debe ser JSON: { "documents": [{ "module": "…", "document": {…} }], "from"?: "urn:iark:…" }.');
-    }
-    if (!Array.isArray(body.documents) || body.documents.length === 0) throw new HttpError(400, 'Falta "documents": la lista de documentos { module, document } a reunir.');
-    const inputs: TraceInput[] = body.documents.map((entry: { module?: unknown; document?: unknown; source?: unknown }, index: number) => {
-      if (!entry || typeof entry.module !== 'string') throw new HttpError(400, `documents[${index}] necesita "module".`);
-      const module = moduleOf(entry.module);
-      const document = documentOf(module, typeof entry.document === 'string' ? entry.document : JSON.stringify(entry.document ?? null));
-      return { module, document, source: typeof entry.source === 'string' ? entry.source : undefined };
+  /**
+   * Entrega el trabajo al ejecutor (el pool de hilos de `iark serve`) y responde con su resultado: la misma semántica de errores que
+   * si se calculara aquí (400/404/422 con mensaje limpio, 500 para un fallo del programa) más el 503 del pool (tiempo límite, cola llena).
+   * Si el cliente cuelga con la operación aún en cola, se descarta.
+   */
+  async function runCompute(res: ServerResponse, job: ComputeJob): Promise<void> {
+    const abandoned = new AbortController();
+    res.once('close', () => {
+      if (!res.writableEnded) abandoned.abort();
     });
-    const direction = (body.direction ?? 'both') as TraceDirection;
-    if (!['refs', 'referrers', 'both'].includes(direction)) throw new HttpError(400, 'direction debe ser refs, referrers o both.');
-    try {
-      const graph = buildTraceGraph(inputs);
-      const reached = typeof body.from === 'string' ? traceReach(graph, body.from, { direction, depth: typeof body.depth === 'number' ? body.depth : undefined }) : undefined;
-      return {
-        graph,
-        ...(reached ? { from: reached[0].node.urn, reached } : {}),
-        report: reached ? traceReachReport(reached, direction) : traceReport(graph),
-        mermaid: traceMermaid(graph, reached ? new Set(reached.map((r) => r.node.urn)) : undefined),
-        svg: await traceSvg(graph, { reached }),
-      };
-    } catch (error) {
-      throw new HttpError(400, (error as Error).message);
-    }
+    const outcome = await executor.run(job, { signal: abandoned.signal });
+    if (abandoned.signal.aborted) return;
+    const done = unwrapOutcome(outcome);
+    send(res, 200, done.body, { 'Content-Type': done.contentType, ...done.headers });
   }
 
   async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -287,11 +253,13 @@ export function createSuiteServer(options: ServeOptions): Server {
       return sendJson(res, 200, options.registry.list().map(moduleCapabilities));
     }
     if (parts.length === 1 && parts[0] === 'trace') {
+      requireComputeAccess(req);
       requireMethod(req, 'POST');
-      return sendJson(res, 200, await trace(await readBody(req)));
+      return runCompute(res, { op: 'trace', body: await readBody(req) });
     }
     const [id, action, command] = parts;
     if (!id || !action) throw new HttpError(404, 'Ruta de la API desconocida. Ver /api/modules.');
+    if (COMPUTE_ACTIONS.has(action)) requireComputeAccess(req);
     const module = moduleOf(id);
 
     switch (action) {
@@ -305,67 +273,21 @@ export function createSuiteServer(options: ServeOptions): Server {
         if (kind === 'generation' && module.ai) return sendJson(res, 200, module.ai.generationJsonSchema());
         throw new HttpError(400, `kind debe ser «document»${module.ai ? ' o «generation»' : ''}.`);
       }
-      case 'validate': {
+      case 'validate':
+      case 'views':
+      case 'diff':
         requireMethod(req, 'POST');
-        const analysis = analyzeText(module, await readBody(req));
-        if (analysis.status === 'empty') throw new HttpError(400, 'Falta el documento en el cuerpo de la petición.');
-        return sendJson(res, 200, {
-          module: module.id,
-          valid: analysis.status === 'ok',
-          schemaIssues: analysis.status === 'syntax' ? [{ path: '(raíz)', message: analysis.error }] : analysis.status === 'schema' ? analysis.issues : [],
-          issues: analysis.status === 'ok' ? analysis.issues : [],
-        });
-      }
-      case 'views': {
+        return runCompute(res, { op: action, module: module.id, body: await readBody(req) });
+      case 'export':
         requireMethod(req, 'POST');
-        return sendJson(res, 200, viewChoices(module, documentOf(module, await readBody(req))));
-      }
-      case 'export': {
+        return runCompute(res, { op: 'export', module: module.id, body: await readBody(req), format: url.searchParams.get('format') ?? 'json', view: url.searchParams.get('view') ?? undefined });
+      case 'import':
         requireMethod(req, 'POST');
-        const format = url.searchParams.get('format') ?? 'json';
-        const document = documentOf(module, await readBody(req));
-        const file = await exportDocument(module, document, format, { viewId: url.searchParams.get('view') ?? undefined }).catch((error) => {
-          throw isBug(error) ? error : new HttpError(400, (error as Error).message, { formats: exportFormats(module).map((f) => f.id) });
-        });
-        return send(res, 200, file.data, {
-          'Content-Type': `${file.mime}; charset=utf-8`,
-          ...(file.format === 'svg' ? { 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" } : {}),
-        });
-      }
-      case 'import': {
-        requireMethod(req, 'POST');
-        const text = await readBody(req);
-        if (!text.trim()) throw new HttpError(400, 'Falta el texto a importar en el cuerpo de la petición.');
-        const name = url.searchParams.get('name') ?? undefined;
-        const result = await importText(module, text, url.searchParams.get('importer') ?? undefined, { name }).catch((error) => {
-          throw isBug(error) ? error : new HttpError(400, (error as Error).message);
-        });
-        return sendJson(res, 200, result);
-      }
-      case 'diff': {
-        requireMethod(req, 'POST');
-        return sendJson(res, 200, compare(module, await readBody(req)));
-      }
-      case 'run': {
+        return runCompute(res, { op: 'import', module: module.id, body: await readBody(req), importer: url.searchParams.get('importer') ?? undefined, name: url.searchParams.get('name') ?? undefined });
+      case 'run':
         requireMethod(req, 'POST');
         if (!command) throw new HttpError(404, `Indica el comando: /api/${id}/run/<comando>. Comandos: ${commandInfos(module).map((c) => c.name).join(', ') || '(ninguno)'}.`);
-        const raw = await readBody(req);
-        let envelope: { input?: unknown; args?: unknown; options?: unknown } = {};
-        if (raw.trim()) {
-          try {
-            envelope = JSON.parse(raw);
-          } catch {
-            throw new HttpError(400, 'El cuerpo debe ser JSON: { "input": …, "args": […], "options": {…} }.');
-          }
-        }
-        const input = envelope.input === undefined ? undefined : typeof envelope.input === 'string' ? envelope.input : JSON.stringify(envelope.input);
-        const args = Array.isArray(envelope.args) ? envelope.args.map(String) : undefined;
-        const opts = envelope.options && typeof envelope.options === 'object' ? (envelope.options as Record<string, string | boolean>) : undefined;
-        const result = await runCommand(module, command, { input, args, options: opts }).catch((error) => {
-          throw isBug(error) ? error : new HttpError(400, (error as Error).message);
-        });
-        return sendJson(res, 200, { module: module.id, ...result });
-      }
+        return runCompute(res, { op: 'run', module: module.id, command, body: await readBody(req) });
       default:
         throw new HttpError(404, `Acción desconocida «${action}». Use capabilities, schema, validate, views, export, import, diff o run.`);
     }
