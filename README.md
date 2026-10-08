@@ -78,95 +78,6 @@ encima de una nueva. Para dejar de publicar solo con cada push basta con quitar 
 - `vite.config.ts` usa `BASE_PATH` como `base`. En hostings que sirven en la raíz (Cloudflare Pages, Netlify,
   Vercel) basta con `npm run build:app` y la carpeta `dist/app`, sin definir `BASE_PATH`.
 
-## Formato JSON
-
-Un documento contiene un **modelo** compartido (elementos y relaciones) y N **vistas**. Las coordenadas son absolutas y opcionales: cualquier elemento sin `x`/`y` se posiciona con autolayout.
-
-```jsonc
-{
-  "version": "1.0",
-  "workspace": { "name": "Banca en línea" },
-  "model": {
-    "elements": [
-      { "id": "cliente", "type": "person", "name": "Cliente", "description": "…" },
-      { "id": "banca", "type": "softwareSystem", "name": "Banca en línea", "description": "…" },
-      { "id": "api", "type": "container", "name": "API", "technology": "Node.js", "parentId": "banca" },
-      { "id": "db", "type": "container", "name": "BD", "technology": "PostgreSQL", "parentId": "banca", "shape": "database" },
-      { "id": "pagos", "type": "softwareSystem", "name": "Pasarela de pagos", "external": true }
-    ],
-    "relationships": [
-      { "id": "r1", "sourceId": "cliente", "targetId": "banca", "description": "Usa", "technology": "HTTPS" },
-      { "id": "r2", "sourceId": "api", "targetId": "db", "description": "Lee y escribe", "technology": "SQL" }
-    ]
-  },
-  "views": [
-    { "id": "ctx", "type": "systemContext", "scopeId": "banca", "title": "Contexto",
-      "elements": [{ "id": "cliente" }, { "id": "banca" }, { "id": "pagos" }], "layout": { "direction": "DOWN" } },
-    { "id": "cont", "type": "container", "scopeId": "banca", "title": "Contenedores",
-      "elements": [{ "id": "cliente", "x": 120, "y": 40, "width": 200, "height": 170 }, { "id": "api" }, { "id": "db" }, { "id": "pagos" }] }
-  ]
-}
-```
-
-| Campo | Valores |
-|---|---|
-| `element.type` | `person`, `softwareSystem`, `container`, `component` |
-| `element.parentId` | `container` → id de su `softwareSystem`; `component` → id de su `container` |
-| `element.shape` | `default`, `database`, `queue`, `browser`, `mobile` |
-| `element.external` | `true` para sistemas de terceros (se pintan en gris) |
-| `view.type` | `systemContext`, `container`, `component` |
-| `view.scopeId` | sistema (contexto/contenedores) o contenedor (componentes). En contenedores y componentes se dibuja como **boundary**; en contexto es un nodo más y **debe estar en `elements`** (el validador lo exige) |
-| `view.layout.direction` | `DOWN`, `RIGHT`, `UP`, `LEFT` |
-| `view.layout.density` | `auto`, `compact`, `spacious` |
-| `view.layout.distribution` | `centered`, `elk` (la elegida por el último autolayout) o `auto` |
-| `view.edges[]` | rutas del autolayout: `{ id, points: [{x,y}…], label?: {x,y} }` (opcional; se recalculan si quedan obsoletas) |
-
-Reglas que se derivan automáticamente (no se almacenan):
-
-- **Boundaries**: el `scopeId` de una vista de contenedores/componentes y cualquier elemento visible con hijos visibles.
-- **Relaciones**: se dibujan las que unen dos elementos visibles; si un extremo no está visible pero sí su ancestro, se dibuja una relación *implícita* (una por par).
-
-El JSON Schema está en [`schema/c4-document.schema.json`](schema/c4-document.schema.json) (`npm run schema` lo regenera; `iark schema` lo imprime). Los módulos de integraciones, datos, empresarial, plataforma y seguridad tienen los suyos en `schema/integration-*.schema.json`, `schema/data-*.schema.json`, `schema/enterprise-*.schema.json`, `schema/platform-*.schema.json` y `schema/security-*.schema.json`.
-
-## Notación del lienzo
-
-Por defecto los nodos usan la **notación C4 clásica** (c4model.com / Structurizr): cajas rellenas con el color del tipo y texto blanco, persona con cabeza, cilindro para bases de datos, cilindro horizontal para colas, ventana para apps web y dispositivo para apps móviles; los boundaries son rectángulos punteados con etiqueta abajo‑izquierda. En el menú **Ver** se puede cambiar a **Tarjetas (estilo drawdb)**. El `.drawio` exportado usa siempre las formas C4 de draw.io.
-
-## Niveles C1 › C2 › C3 y navegación
-
-Todas las vistas comparten un mismo modelo; el **tipo** de cada vista es su nivel: `systemContext` = **C1**, `container` = **C2**, `component` = **C3**, y el `scopeId` indica qué sistema o contenedor detalla. Entre niveles se navega:
-
-- **Doble clic** en un sistema (en C1) abre su vista de contenedores; doble clic en un contenedor (en C2) abre su vista de componentes. Si la vista no existe se crea con los elementos sugeridos por el modelo y autolayout. Los nodos con nivel inferior muestran la marca `⤵`.
-- **Breadcrumb** en la esquina inferior izquierda (`C1 Contexto · Banca › C2 Contenedores · Banca › C3 Componentes · API`): cada tramo es clicable y el botón ↑ **sube de nivel** (`Alt+↑`; `Alt+↓` baja al nivel del elemento seleccionado).
-- En el `.drawio`, los sistemas y contenedores con vista hija llevan un enlace `data:page/id,<vista>`, así que en draw.io también se salta de página con Ctrl/⌘ + clic.
-- En modo embebido, cada cambio de vista emite el evento `viewChange { viewId, level, scopeId, title }` y el anfitrión puede navegar con `setView`.
-
-## Autolayout inteligente
-
-El autolayout no acepta el primer resultado de ELK: **mide la calidad** del diagrama y **se autocorrige**.
-
-1. **Etiquetas con espacio**: cada relación se envía a ELK con el tamaño estimado de su etiqueta (`elk.edgeLabels`), así que las capas dejan hueco real y las etiquetas nunca caen sobre un nodo.
-2. **Rutas ortogonales reales**: las rutas y posiciones de etiqueta que calcula ELK se guardan en la vista (`view.edges[]`, coordenadas absolutas) y son las que dibuja la app y las que se exportan como waypoints al `.drawio`. Si mueves un nodo, sus rutas se descartan y esa arista pasa a usar **puertos virtuales**: los puntos de salida se reparten a lo largo del lado para que las aristas que comparten nodo no se superpongan.
-3. **Densidad adaptativa**: el espaciado crece con las relaciones por nodo (`spacing = base × (1 + 0.25·min(relaciones/nodo, 3))`); en Ajustes o con `--density` se puede forzar `compact`, `auto` o `spacious`.
-4. **Convenciones C4**: las personas sin relaciones entrantes van en la primera capa y los sistemas externos "sumidero" en la última, para que todas las vistas se lean igual.
-5. **Métrica y candidatos**: cada candidato se puntúa por cruces entre aristas, aristas que atraviesan nodos, etiquetas solapadas, área y proporción. Se prueban varias estrategias (`BRANDES_KOEPF`, `NETWORK_SIMPLEX`, `LINEAR_SEGMENTS`, espaciado ampliado y, si persisten cruces, `LAYER_SWEEP` exhaustivo) y se elige la mejor; se detiene en cuanto una sale limpia. La toolbar muestra el resultado ("✓ 0 cruces · 0 solapes") y el CLI lo imprime por vista. `--fast` hace una sola pasada.
-
-## Direcciones y distribución
-
-El autolayout admite las cuatro direcciones (arriba→abajo, izquierda→derecha, derecha→izquierda, abajo→arriba) y dos distribuciones:
-
-- **Centrada y uniforme**: capas equiespaciadas, nodos de cada capa con la misma separación y cada capa centrada sobre el eje común; los hijos de un boundary quedan contiguos y los elementos exteriores fuera de él. Las aristas se enrutan con un router propio que esquiva nodos y boundaries por corredores libres y coloca las etiquetas donde no pisen nada.
-- **ELK**: la colocación de ELK con sus rutas ortogonales.
-
-Por defecto (`direction: auto`, `distribution: auto`) la prioridad depende del nivel:
-
-| Nivel | 1.º | 2.º | 3.º |
-|---|---|---|---|
-| C1 (contexto) | ↓ centrado | ↓ ELK | → centrado / ELK |
-| C2 y C3 (contenedores, componentes) | → centrado | → ELK | ↓ centrado / ELK |
-
-Se elige el primer candidato limpio (0 cruces, 0 solapes); si ninguno lo es, el de mejor puntuación ("el que más se ajuste"). En la toolbar, el desplegable junto a Autolayout permite forzar dirección y distribución; el texto de calidad muestra la elección (`✓ 0 cruces · 0 solapes · → centrado`). En el CLI: `--direction auto|down|right|left|up` y `--distribution auto|centered|elk`. En el embebido: `autoLayout { direction, distribution }`.
-
 ## Conversión a `.drawio`
 
 Cada vista se convierte en una página de draw.io. Los elementos se envuelven en `<object placeholders="1" c4Name=… c4Type=… c4Description=… c4Technology=…>` con los estilos de la librería C4 (`shape=mxgraph.c4.person2`, `cylinder3` para bases de datos, boundary punteado, relaciones ortogonales). Los hijos de un boundary cuelgan de su celda con geometría relativa, tal como los crea draw.io. El archivo se escribe sin comprimir, así que draw.io / diagrams.net lo abre directamente y se puede versionar en git.
@@ -438,7 +349,6 @@ Al importar un `flowchart`, el tipo de cada nodo sale de su clase (`:::applicati
 
 **Importar ArchiMate** (`--format archimate`; también en la pestaña «Importar» y con «Abrir archivo…»). Acepta el *Exchange File Format* del Open Group (`.xml`, espacio de nombres `http://www.opengroup.org/xsd/archimate/3.0/`) y el formato nativo de Archi (`.archimate`, con carpetas). Los actores, roles y colaboraciones de negocio pasan a unidades; las capacidades, a capacidades; los procesos, funciones e interacciones de negocio, a procesos; los servicios de negocio, a servicios de negocio; los componentes, colaboraciones y servicios de aplicación y los objetos de datos, a aplicaciones; los nodos, dispositivos, software de sistema, servicios de tecnología y artefactos, a tecnología; y los flujos de valor (compuestos, encadenados por flujo o disparo, o aislados), a flujos de valor con sus etapas. Las uniones y los eventos desaparecen y sus relaciones pasan a ser directas. Las relaciones se convierten siempre a una que admite `RELATION_RULES` y nunca se inventa una inválida: composición y agregación a jerarquía o `composes`, asignación a `assigned-to` o responsable, realización, servicio, flujo, disparo, acceso y asociación a la relación que admiten los tipos de sus extremos (cuando no hay una propia, a `depends-on` o `flows-to` con aviso). Las propiedades (en español o en inglés) se leen como coste anual, usuarios, estrategia (también TIME), fin de soporte, ciclo de vida, criticidad, proveedor, tecnología, `ref`, responsable, madurez (1-5, «Level 3», «3 de 5», «Optimizado») e importancia. Lo que no se mapea (motivación, estrategia, implementación y migración, interfaces, capa física, ubicaciones, agrupaciones y las vistas, porque el módulo deriva las suyas) se resume por categoría en los avisos. Los ids salen del nombre, así que importar dos veces el mismo archivo da el mismo documento, y las entidades externas (`<!ENTITY`) se rechazan.
 
-
 ## Módulo de plataforma
 
 Quinta especialidad de la suite (`--module platform`): modela **dónde corre cada cosa y cómo llega hasta ahí**: entornos, redes, recursos aprovisionados, servicios, despliegues, dependencias y pipelines. Vive en `packages/domain-platform`, sin depender del código de los demás módulos; se enlaza con ellos por URN (`urn:iark:integration:<id>`).
@@ -479,7 +389,6 @@ iark platform from-integration mapa.json                                        
 Al importar un `flowchart`, los `subgraph` con el prefijo que pone el exportador se reconocen como `Entorno: …`, `Red pública|privada|aislada: … (cidr)` y `Clúster: …` / `Máquina virtual: …`; un servicio dentro de un clúster queda desplegado en él (con `3 réplicas · v1.4.2` al final del texto) y los servicios con el mismo nombre en varios entornos son uno solo con varios despliegues. El tipo de cada nodo sale de su clase (`:::database`, `:::worker`, `:::external`; también en español) y, si no, de su forma (`[( )]` = base de datos, `([ ])` = cola); `class X planned|decommissioned` da el estado del recurso. Las flechas son dependencias: continua = llama, punteada = mensajes, gruesa = datos, con la etiqueta `protocolo · descripción`. Los pasos de la vista de entrega continua no se importan. La interfaz web todavía no edita este módulo.
 
 **Importar Terraform y Kubernetes** (`--format terraform|kubernetes|auto`; también en la pestaña «Importar» y con «Abrir archivo…», que reconoce por su contenido un `.tf.json` o un plan JSON). Terraform acepta `.tf` (HCL con un analizador propio y tolerante), `.tf.json`, el estado `.tfstate` v4 y `terraform show -json` (en un plan, los recursos salen como previstos o retirados), de las familias `aws`, `azurerm` y `google`. El entorno sale de `var.environment`, los locals, las etiquetas, el workspace o el nombre del archivo (con aviso cuando se deduce de este último); las VPC, VNet y subredes son redes anidadas con su CIDR, públicas si algo lo dice (IP pública al lanzar, ruta a un internet gateway, etiqueta de balanceador público, nombre «public» o «dmz») y privadas con aviso si nada lo dice; los clústeres, máquinas y demás recursos van a su clase (`iac: true`); las referencias, `depends_on`, grupos de seguridad (con puerto), listeners y DNS son dependencias. Kubernetes acepta YAML multidocumento, `kind: List` de `kubectl` y JSON: un namespace con nombre de entorno es un entorno (si no, hay uno solo, con aviso y con un clúster implícito); Deployment, StatefulSet, DaemonSet, CronJob y Job son servicios con su despliegue (réplicas, versión de la imagen, límites sumados; el HPA fija las réplicas mínimas), las cargas con imagen conocida (postgres, redis, rabbitmq, kafka, minio…) son recursos, Ingress, Gateway API y Service `LoadBalancer` son recursos en una red pública, y del Secret solo se guardan el tipo y los nombres de clave, **nunca los valores**; las variables de entorno (también desde ConfigMap), los `args`, los selectores y los volúmenes son dependencias. Los valores del estado o del plan de Terraform (contraseñas, claves) tampoco se leen. Lo que no se mapea (tipos desconocidos, recursos de soporte como IAM y rutas, `data`, módulos sin resolver, `count`/`for_each` sin evaluar, líneas de HCL que no se entienden con su número, kinds sin mapear, hosts externos…) va agrupado a los avisos. Un archivo roto termina con el código 2 y su línea. **Varios `.tf`**: `iark import <carpeta|a.tf b.tf…> --module platform --format terraform` los lee juntos como un solo stack (la carpeta no es recursiva; se ordenan por nombre, así que el resultado no depende del orden de los argumentos; los `.tf.json` y `.tfstate` no se juntan, avisa de ellos), y «Abrir archivo a importar…» del banco admite selección múltiple; los avisos y errores de HCL llevan el archivo (`red.tf, línea 12: …`). Limitaciones: los módulos locales no se resuelven y un archivo subido en el navegador solo trae el nombre base, así que un `main.tf` da un sistema llamado `main`.
-
 
 ### Equivalencias entre entornos (`counterpartOf`)
 
