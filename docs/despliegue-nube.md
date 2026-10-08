@@ -156,7 +156,7 @@ curl https://api.github.com/users/TU_USUARIO     # busca la línea "id": 583231,
 
 Ponlo en `deploy/.env` (`IARK_ADMINS=583231`; varias personas, separadas por comas) y aplica con `docker compose up -d`.
 
-**Entrar.** Abre `https://iark.tudominio.org/modulos.html` (banco de trabajo: **Proyectos…**) o `https://iark.tudominio.org/` (editor C4: **Archivo ▸ Proyectos…**) y ve a **Dónde se guardan ▸ Conectar a un servidor…** (README, «Guardar en la nube (servidor propio) desde el navegador»). La dirección aparece ya escrita cuando el sitio lo sirve la propia instancia; pulsa **Iniciar sesión con GitHub**, acepta en GitHub y vuelves con tu ficha (@usuario, rol `admin`).
+**Entrar.** Abre `https://iark.tudominio.org/modulos.html` (banco de trabajo: **Proyectos…**) o `https://iark.tudominio.org/` (editor C4: **Archivo ▸ Proyectos…**) y ve a **Dónde se guardan ▸ Conectar a un servidor…** ([Guardar en la nube (servidor propio) desde el navegador](proyectos.md#guardar-en-la-nube-servidor-propio-desde-el-navegador)). La dirección aparece ya escrita cuando el sitio lo sirve la propia instancia; pulsa **Iniciar sesión con GitHub**, acepta en GitHub y vuelves con tu ficha (@usuario, rol `admin`).
 
 **Quién puede entrar (`IARK_SIGNUP`):**
 
@@ -165,7 +165,7 @@ Ponlo en `deploy/.env` (`IARK_ADMINS=583231`; varias personas, separadas por com
 | `invite` (por omisión) | Solo las personas de `IARK_ADMINS` y las que invites por su nombre de GitHub | Un equipo conocido. Recomendado |
 | `open` | Cualquiera con cuenta de GitHub, como miembro (puede crear hasta `IARK_MAX_PROJECTS` proyectos) | Una comunidad abierta. IArk no impone una cuota de disco por persona: vigila el espacio libre |
 
-**Invitar** a alguien es compartir un proyecto con su nombre de usuario de GitHub (*Compartir…* en el gestor de proyectos): queda como invitación y, al entrar con esa cuenta, tiene el proyecto con el rol que le diste (como invitado: no crea proyectos propios). Invitar a la instancia sin compartir un proyecto, desactivar una cuenta o cambiar su rol **todavía no tiene pantalla**: se hace con la API de administración (README, «Administrar las cuentas de la instancia»), con la sesión de una persona de `IARK_ADMINS` en `Authorization: Bearer`. Quien no esté invitado vuelve a la página con `#iark_error=not_invited` (el sitio lo explica). Cambiar `IARK_SIGNUP`: edita `.env` y `docker compose up -d` (recrea el contenedor; las sesiones se conservan, están en el disco).
+**Invitar** a alguien es compartir un proyecto con su nombre de usuario de GitHub (*Compartir…* en el gestor de proyectos): queda como invitación y, al entrar con esa cuenta, tiene el proyecto con el rol que le diste (como invitado: no crea proyectos propios). Invitar a la instancia sin compartir un proyecto, desactivar una cuenta o cambiar su rol **todavía no tiene pantalla**: se hace con la API de administración ([Administrar las cuentas de la instancia](cuentas-github.md#administrar-las-cuentas-de-la-instancia)), con la sesión de una persona de `IARK_ADMINS` en `Authorization: Bearer`. Quien no esté invitado vuelve a la página con `#iark_error=not_invited` (el sitio lo explica). Cambiar `IARK_SIGNUP`: edita `.env` y `docker compose up -d` (recrea el contenedor; las sesiones se conservan, están en el disco).
 
 ## 5. El sitio de GitHub Pages también puede usar esta instancia — *Lo haces tú*
 
@@ -257,7 +257,7 @@ Siempre empieza por `docker compose ps` y `docker compose logs iark` (y `caddy`)
 - **Sin permisos por organización o equipo de GitHub.** IArk no pide permisos, así que no lee a qué organizaciones perteneces: entra quien tiene cuenta (según `invite` u `open`) y los permisos se reparten por proyecto, por invitación.
 - **El token de sesión vive en el navegador** (en la pestaña, o en el equipo si se marca «Mantener la sesión en este equipo»): cualquier script que se ejecute en el sitio, una extensión o quien use ese equipo podría leerlo. Cierra la sesión en equipos ajenos; una cuenta desactivada pierde sus sesiones.
 - **No hay pantalla de administración de cuentas**: ver la lista de personas, invitar sin un proyecto, desactivar o cambiar un rol se hace con la API (`/api/admin/users`).
-- **Sin registro de accesos ni de quién cambió qué**, y sin edición simultánea en tiempo real (README, «Guardar en la nube»).
+- **Sin registro de accesos ni de quién cambió qué**, y sin edición simultánea en tiempo real ([límites reales de guardar en la nube](proyectos.md#guardar-en-la-nube-servidor-propio-desde-el-navegador)).
 - **Cálculo pesado, acotado.** Validar, ver, exportar, importar, comparar, pedir informes (`run`) y trazar (`/api/trace`) pueden tardar mucho con un diagrama grande: en una prueba nuestra, en una máquina compartida, exportar a SVG un diagrama de 300 contenedores y 600 relaciones tardó unos 90 s. Por eso ese cálculo ya no corre en el hilo que atiende las conexiones, sino en **hilos de trabajo** (`worker_threads`) del mismo proceso, con tres topes. Guardar proyectos no calcula distribuciones y no pasa por ahí. Mientras un cálculo largo corre, el inicio de sesión, los proyectos y el `HEALTHCHECK` siguen respondiendo.
 
   | Qué | Por omisión | Opción · variable |

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { canvasReady, selectView } from './canvas-helpers';
+import { canvasReady, docShot, selectView } from './canvas-helpers';
 
 const SHOTS = '/mnt/project-files/empresarial';
 
@@ -42,7 +42,7 @@ test.describe('importar la matriz capacidad × aplicación exportada como Mermai
     await expect(panel).toContainText('celdas ○ (soporte por un proceso que realiza la capacidad) no se importan como relaciones');
     await expect(panel).toContainText('celdas · (soporte heredado de una capacidad hija) no se importan');
     await expect(panel).toContainText('Solo se importan los nombres, la jerarquía de capacidades y el soporte directo (●)');
-    await page.screenshot({ path: `${SHOTS}/empresarial-matriz-importar-block-beta-avisos.png` });
+    await docShot(page, `${SHOTS}/empresarial-matriz-importar-block-beta-avisos.png`);
 
     // El documento importado dibuja la misma matriz: los ids salen del nombre, así que cambian, pero no los nombres ni las marcas ●.
     await page.getByRole('tab', { name: 'Lienzo' }).click();
@@ -54,7 +54,7 @@ test.describe('importar la matriz capacidad × aplicación exportada como Mermai
     expect(after).toHaveLength(before.length);
     // Las celdas ○ (por un proceso) ya no están: el formato no dice qué proceso es.
     await expect(page.getByTestId('node-cell:gestion-de-pedidos|tienda-online')).not.toContainText('○');
-    await page.screenshot({ path: `${SHOTS}/empresarial-matriz-importar-block-beta-matriz.png` });
+    await docShot(page, `${SHOTS}/empresarial-matriz-importar-block-beta-matriz.png`);
     expect(errors).toEqual([]);
   });
 

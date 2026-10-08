@@ -3,7 +3,7 @@ import type { IconPack } from './types';
 /**
  * Glifos propios de los servicios de Azure: dibujos sencillos hechos para este proyecto que evocan lo que hace cada servicio.
  * NO son los logotipos oficiales de Microsoft, que son propietarios: quien tenga licencia para usarlos puede registrar un paquete
- * con ellos del proveedor `azure` y sustituirá a estos (ver el README).
+ * con ellos del proveedor `azure` y sustituirá a estos (ver docs/modulos/plataforma.md, «Iconografía de nubes»).
  */
 export const azureIconPack: IconPack = {
   id: 'azure',

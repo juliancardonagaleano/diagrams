@@ -1,8 +1,8 @@
 # IArk - DIAgrams como servicio: API por módulo, manifiesto de federación y el sitio (editor C4, banco de trabajo de
 # módulos y shell) en un solo proceso Node, sin servidor web aparte.
 #
-# Tres usos (README: «Imagen Docker», «Servidor para varias personas» y «Servicio gestionado»; guía de despliegue en
-# docs/despliegue-nube.md):
+# Tres usos (docs/servicio.md: «Imagen Docker» y «Servidor para varias personas»; docs/cuentas-github.md: «Servicio gestionado»;
+# guía de despliegue en docs/despliegue-nube.md):
 #
 #  1. Demo, solo API y sitio, sin guardar nada ni pedir nada (es lo que hace la imagen sin variables):
 #       docker build -t iark-diagrams .

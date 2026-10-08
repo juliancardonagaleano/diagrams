@@ -1,9 +1,13 @@
 import { defineConfig } from '@playwright/test';
 
 /**
- * Pruebas de extremo a extremo. Usa el Chromium preinstalado del entorno (o
- * `CHROMIUM_PATH` si se indica) en vez de descargar uno propio.
- * Requiere `npm run build:app` previo; sirve `dist/app` con `vite preview`.
+ * Pruebas de extremo a extremo. Requiere `npm run build:app` previo; sirve `dist/app` con `vite preview`.
+ *
+ * Navegador (por orden de prioridad):
+ *  1. `CHROMIUM_PATH`, si se indica.
+ *  2. En CI (`CI` definido, como en GitHub Actions): el Chromium que gestiona Playwright
+ *     (`npx playwright install --with-deps chromium`), el que corresponde a la versión de `@playwright/test`.
+ *  3. En local: el Chromium preinstalado del entorno (`/opt/pw-browsers/chromium`), en vez de descargar uno propio.
  *
  * El puerto es configurable con `E2E_PORT` (por defecto 4173), para que varios
  * checkouts o worktrees corran e2e a la vez. Ojo: `reuseExistingServer` reutiliza
@@ -13,13 +17,16 @@ import { defineConfig } from '@playwright/test';
  */
 const PORT = Number(process.env.E2E_PORT ?? 4173);
 
+const executablePath = process.env.CHROMIUM_PATH ?? (process.env.CI ? undefined : '/opt/pw-browsers/chromium');
+
 export default defineConfig({
   testDir: 'tests/e2e',
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: [['list']],
+  // En CI, además del listado, un informe HTML (playwright-report/) que el workflow sube como artefacto si algo falla.
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   timeout: 30_000,
   use: {
     baseURL: `http://localhost:${PORT}`,
@@ -28,7 +35,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
     launchOptions: {
-      executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium',
+      ...(executablePath ? { executablePath } : {}),
       args: ['--no-sandbox'],
     },
   },

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { canvasReady, selectView } from './canvas-helpers';
+import { canvasReady, docShot, selectView } from './canvas-helpers';
 
 async function open(page: Page): Promise<string[]> {
   const errors: string[] = [];
@@ -26,7 +26,7 @@ test.describe('lienzo de seguridad: fronteras, sugerencias y protección', () =>
     await expect(page.locator('[data-kind="identity"][data-shape="card"]')).toHaveCount(1);
     await expect(page.locator('[data-kind="secret"][data-shape="diamond"]')).toHaveCount(1);
     await expect(page.locator('[data-kind="channel"][data-shape="chevron"]')).toHaveCount(1);
-    await page.screenshot({ path: '/mnt/project-files/seguridad/tipos-de-activo.png' });
+    await docShot(page, '/mnt/project-files/seguridad/tipos-de-activo.png');
     expect(errors).toEqual([]);
   });
 
@@ -36,7 +36,7 @@ test.describe('lienzo de seguridad: fronteras, sugerencias y protección', () =>
     const before = await page.locator('.react-flow__node').count();
     await page.getByTestId('action-suggest-threats').click();
     await expect.poll(() => page.locator('.react-flow__node').count()).toBeGreaterThan(before);
-    await page.screenshot({ path: '/mnt/project-files/seguridad/ronda-sugerir-amenazas.png' });
+    await docShot(page, '/mnt/project-files/seguridad/ronda-sugerir-amenazas.png');
     await expect(page.getByTestId('action-accept-suggestion')).toBeDisabled();
   });
 
@@ -59,7 +59,7 @@ test.describe('lienzo de seguridad: matriz de calor, estándares y superficie de
       return t.x >= c.x && t.y >= c.y && t.x + t.width <= c.x + c.width && t.y + t.height <= c.y + c.height;
     };
     await expect.poll(() => inside('idor-pedidos', 'cell:medium:high')).toBe(true);
-    await page.screenshot({ path: '/mnt/project-files/seguridad/matriz-de-calor.png' });
+    await docShot(page, '/mnt/project-files/seguridad/matriz-de-calor.png');
 
     // Arrastrar «IDOR» a la celda de probabilidad baja × impacto bajo.
     const from = await box(page, 'idor-pedidos');
@@ -73,7 +73,7 @@ test.describe('lienzo de seguridad: matriz de calor, estándares y superficie de
     const inspector = page.getByTestId('inspector');
     await expect(inspector.getByLabel('Probabilidad')).toHaveValue('low');
     await expect(inspector.getByLabel('Impacto')).toHaveValue('low');
-    await page.screenshot({ path: '/mnt/project-files/seguridad/matriz-de-calor-arrastre.png' });
+    await docShot(page, '/mnt/project-files/seguridad/matriz-de-calor-arrastre.png');
     expect(errors).toEqual([]);
   });
 
@@ -83,7 +83,7 @@ test.describe('lienzo de seguridad: matriz de calor, estándares y superficie de
     await selectView(page, 'heatmap:residual', 'canvas-variant');
     await expect(page.getByTestId('node-inyeccion-sql')).toContainText('residual');
     await expect.poll(async () => (await box(page, 'inyeccion-sql')).y).toBeGreaterThan((await box(page, 'cell:medium:high')).y);
-    await page.screenshot({ path: '/mnt/project-files/seguridad/matriz-de-calor-residual.png' });
+    await docShot(page, '/mnt/project-files/seguridad/matriz-de-calor-residual.png');
   });
 
   test('la cobertura de estándares aparece al asignar un estándar a un control y marca lo que no cubre', async ({ page }) => {
@@ -97,7 +97,7 @@ test.describe('lienzo de seguridad: matriz de calor, estándares y superficie de
     await expect(page.locator('.cv-group[data-kind="catalog"]')).toHaveCount(2);
     await expect(page.getByTestId('node-correo-en-claro')).toContainText('sin cobertura');
     await expect(page.getByTestId('node-interceptacion')).toContainText('cubierta');
-    await page.screenshot({ path: '/mnt/project-files/seguridad/cobertura-de-estandares.png' });
+    await docShot(page, '/mnt/project-files/seguridad/cobertura-de-estandares.png');
     expect(errors).toEqual([]);
   });
 
@@ -106,7 +106,7 @@ test.describe('lienzo de seguridad: matriz de calor, estándares y superficie de
     await selectView(page, 'surface');
     await expect(page.getByTestId('node-waf-lb')).toContainText('expuesto');
     await expect(page.getByTestId('node-pedidos')).toContainText('saltos');
-    await page.screenshot({ path: '/mnt/project-files/seguridad/superficie-de-ataque.png' });
+    await docShot(page, '/mnt/project-files/seguridad/superficie-de-ataque.png');
     expect(errors).toEqual([]);
   });
 });
