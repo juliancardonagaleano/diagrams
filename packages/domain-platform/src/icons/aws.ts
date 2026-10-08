@@ -3,7 +3,7 @@ import type { IconPack } from './types';
 /**
  * Glifos propios de los servicios de AWS: dibujos sencillos hechos para este proyecto que evocan lo que hace cada servicio
  * (una cubeta, un cilindro, una cola…). NO son los logotipos oficiales de Amazon, que son propietarios: quien tenga licencia
- * para usarlos puede registrar un paquete con ellos del proveedor `aws` y sustituirá a estos (ver el README).
+ * para usarlos puede registrar un paquete con ellos del proveedor `aws` y sustituirá a estos (ver docs/modulos/plataforma.md, «Iconografía de nubes»).
  */
 const CYLINDER = ['M3 4c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2z', 'M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4', 'M3 8c0 1.1 2.2 2 5 2s5-.9 5-2'];
 
