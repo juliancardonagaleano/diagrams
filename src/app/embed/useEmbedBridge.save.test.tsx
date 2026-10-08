@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// @vitest-environment-options { "url": "http://localhost/?embed=1" }
-// Mismo montaje que useEmbedBridge.test.tsx: `isEmbedMode` se calcula al cargar el módulo, así que la URL de jsdom trae `?embed=1`.
+// @vitest-environment-options { "url": "http://localhost/?embed=1&origin=https%3A%2F%2Fhost.example" }
+// Mismo montaje que useEmbedBridge.test.tsx: `isEmbedMode` se calcula al cargar el módulo, así que la URL de jsdom trae `?embed=1`,
+// y `origin` es el del anfitrión (sin él el editor no emite ni obedece).
 import { act, render, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDocumentStore } from '../store/documentStore';
@@ -138,7 +139,7 @@ describe('acción «save» del anfitrión: la marca «Cambios sin guardar» (esp
     render(<Harness />);
 
     act(() => {
-      window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ action: 'save' }), source: parentWindow }));
+      window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ action: 'save' }), source: parentWindow, origin: 'https://host.example' }));
     });
     act(() => store.getState().setWorkspaceName('Editado en la espera'));
     release();

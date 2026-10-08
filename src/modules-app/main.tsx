@@ -1,3 +1,5 @@
+// Antes que cualquier otro import (se crean esquemas de zod al cargarlos): sin el modo JIT de zod no hay violaciones de la CSP por `new Function`.
+import '@iark/kernel/jitless';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import './workbench.css';
@@ -5,6 +7,7 @@ import { Workbench } from './Workbench';
 import { createModuleBridge, type ModuleBridge } from './bridge';
 import { WorkbenchController } from './controller';
 import { localDrafts, MODULE_SOURCES } from './modules';
+import { currentHostOriginSources, resolveHostOrigin } from '../embed/hostOrigin';
 import { MODULE_PROTOCOL_VERSION } from '../embed/moduleProtocol';
 import { getProjectSession } from '../projects/factory';
 import { completeGithubLogin } from '../projects/login';
@@ -21,16 +24,12 @@ const moduleParam = params.get('module') ?? undefined;
 const projectParam = params.get('project') ?? undefined;
 const diagramParam = params.get('diagram') ?? undefined;
 
-function referrerOrigin(): string | undefined {
-  try {
-    return document.referrer ? new URL(document.referrer).origin : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Origen del anfitrión: el que declara `origin`, o el de quien nos incrusta. Nunca `*`: el documento viaja en los eventos. */
-const hostOrigin = params.get('origin') ?? referrerOrigin() ?? window.location.origin;
+/**
+ * Origen del anfitrión: el que declara `origin`, o el de quien nos incrusta (`ancestorOrigins`, o el `referrer`). Nunca `*` ni un
+ * origen opaco: el documento viaja en los eventos. Si el navegador no da ninguno, el del propio banco: solo lo oiría un anfitrión
+ * del mismo origen, y un padre de otro origen no recibe nada.
+ */
+const hostOrigin = resolveHostOrigin(currentHostOriginSources()) ?? window.location.origin;
 
 type Theme = 'light' | 'dark';
 const preferredTheme = (): Theme => {

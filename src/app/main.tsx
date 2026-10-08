@@ -1,3 +1,5 @@
+// Antes que cualquier otro import (se crean esquemas de zod al cargarlos): sin el modo JIT de zod no hay violaciones de la CSP por `new Function`.
+import '@iark/kernel/jitless';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 // Necesario en React 19: Semi UI monta imperativos (Modal.confirm, Toast…) fuera del árbol de

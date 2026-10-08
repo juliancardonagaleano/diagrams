@@ -103,6 +103,26 @@ describe('<iark-module>', () => {
     expect(url.searchParams.get('origin')).toBe(window.location.origin);
   });
 
+  it('rechaza un editor con esquema peligroso, venga del atributo src o del manifiesto, y no crea ningún iframe', async () => {
+    const errors: string[] = [];
+    const listen = (el: IarkModuleElement) => el.addEventListener('iark-error', (e) => errors.push((e as CustomEvent).detail.message));
+
+    const direct = create({ src: 'javascript:alert(document.domain)', module: 'data' }, listen);
+    await flush();
+    expect(errors.at(-1)).toMatch(/atributo "src".*«javascript:»/);
+    expect(iframeOf(direct)).toBeNull();
+    expect(direct.shadowRoot!.querySelector('.message')!.textContent).toMatch(/solo se admiten URL http: y https:/);
+
+    for (const embed of ['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>']) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ schema: 'iark.manifest/1', name: 'X', version: '1', modules: [{ id: 'data', name: 'Datos', version: '1', documentVersion: '1', importFormats: [], exportFormats: [], endpoints: { embed } }] }))));
+      const federated = create({ manifest: 'https://x.example/.well-known/iark.json', module: 'data' }, listen);
+      await flush();
+      await flush();
+      expect(errors.at(-1), embed).toMatch(/endpoint «embed» del módulo «data».*solo se admiten URL http: y https:/);
+      expect(iframeOf(federated)).toBeNull();
+    }
+  });
+
   it('explica con un evento y un mensaje visible lo que falta o lo que la instancia no ofrece', async () => {
     const errors: string[] = [];
     const listen = (el: IarkModuleElement) => el.addEventListener('iark-error', (e) => errors.push((e as CustomEvent).detail.message));

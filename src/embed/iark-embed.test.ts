@@ -35,6 +35,18 @@ describe('createIarkEmbed (SDK de anfitrión)', () => {
     expect(container.querySelector('iframe')).toBeNull();
   });
 
+  it('rechaza una URL que no sea http(s) sin crear el iframe (javascript:, data:…) y acepta las relativas', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    for (const url of ['javascript:alert(document.domain)', 'data:text/html,<script>alert(1)</script>', 'blob:http://localhost/x', 'file:///etc/passwd']) {
+      expect(() => createIarkEmbed({ container, url }), url).toThrow(/solo se admiten URL http: y https:/);
+    }
+    expect(container.querySelector('iframe')).toBeNull();
+    const embed = createIarkEmbed({ container, url: '../editor/' });
+    expect(new URL(embed.iframe.src).pathname).toBe('/editor/');
+    embed.destroy();
+  });
+
   it('correlaciona export por requestId y rechaza en error', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

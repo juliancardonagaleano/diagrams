@@ -7,16 +7,39 @@ import { autoLayoutDocument } from '@core/layout/elkLayout';
 import { viewLevel } from '@core/model/factories';
 import { formatIssues, validateDocument } from '@core/model/schema';
 import type { C4Document } from '@core/model/types';
+import { currentHostOriginSources, resolveHostOrigin } from '../../embed/hostOrigin';
 import { parseHostAction, PROTOCOL_VERSION, type EmbedEvent, type HostAction } from '../../embed/protocol';
 import { isEmbedMode, useDocumentStore } from '../store/documentStore';
 import { extractJson } from '../utils/files';
 
 const params = new URLSearchParams(window.location.search);
-const allowedOrigin = params.get('origin');
+
+let warnedNoHostOrigin = false;
+
+/**
+ * Origen del anfitrión: el que declara `?origin=` (el SDK `createIarkEmbed` siempre lo añade) o, si falta, el de quien nos
+ * incrusta cuando el navegador lo da de forma fiable (`location.ancestorOrigins[0]`, o el origen de `document.referrer`).
+ * Si no hay forma fiable NO se emite con `'*'` (los eventos llevan el documento entero) ni se aceptan órdenes: el editor
+ * calla y lo dice una sola vez en la consola. Se lee en cada uso: `ancestorOrigins` y `referrer` no cambian, pero así no
+ * depende de cuándo se evaluó el módulo.
+ */
+function hostOrigin(): string | undefined {
+  const origin = resolveHostOrigin(currentHostOriginSources());
+  if (!origin && isEmbedMode && window.parent !== window && !warnedNoHostOrigin) {
+    warnedNoHostOrigin = true;
+    console.warn(
+      'IArk - DIAgrams (modo embebido): no se conoce el origen del anfitrión, así que no se emiten eventos ni se aceptan órdenes. ' +
+        'Añade ?origin=<origen del anfitrión> a la URL del iframe (createIarkEmbed lo hace siempre).',
+    );
+  }
+  return origin;
+}
 
 function post(event: EmbedEvent) {
   if (!isEmbedMode || window.parent === window) return;
-  window.parent.postMessage(JSON.stringify(event), allowedOrigin ?? '*');
+  const target = hostOrigin();
+  if (!target) return;
+  window.parent.postMessage(JSON.stringify(event), target);
 }
 
 /** Heurística para no confundir ruido de terceros con un intento (aunque roto) de hablar el protocolo. */
@@ -184,7 +207,8 @@ export function useEmbedBridge(): { save: (exit: boolean) => Promise<void>; exit
 
     const listener = (event: MessageEvent) => {
       if (event.source !== window.parent) return;
-      if (allowedOrigin && event.origin !== allowedOrigin) return;
+      const expected = hostOrigin();
+      if (!expected || event.origin !== expected) return;
       const parsed = parseHostAction(event.data);
       if (!parsed.ok) {
         // Solo se responde si el mensaje "parece" dirigido a nuestro protocolo (objeto, o string

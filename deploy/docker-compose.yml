@@ -28,6 +28,9 @@ services:
       # IARK_CORS (= --cors; vacío: ningún otro origen): puede nombrar el sitio de GitHub Pages u otra aplicación que deba iniciar sesión
       # contra esta instancia.
       IARK_CORS: "${IARK_CORS:-}"
+      # IARK_FRAME_ANCESTORS (= --frame-ancestors): quién puede incrustar por iframe las cargas embebidas (?embed=1). Vacío = cualquier
+      # sitio (`*`, porque el producto es embebible); las páginas normales solo las puede incrustar la propia instancia.
+      IARK_FRAME_ANCESTORS: "${IARK_FRAME_ANCESTORS:-}"
       # Dónde se guarda todo: en el volumen de abajo, que es lo único que hay que copiar.
       IARK_WORKSPACE: /data/workspace
       IARK_ACCOUNTS: /data/accounts.json

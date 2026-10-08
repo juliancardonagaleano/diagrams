@@ -21,6 +21,7 @@ import { ComputePool } from './computePool';
 import { addComputeOptions, resolveComputeSettings } from './computeConfig';
 import { createSuiteServer } from './serve';
 import { isLoopbackHost } from './serveAuth';
+import { parseFrameAncestors } from './securityHeaders';
 import { registerTrace } from './trace';
 import { registerDiff } from './diff';
 import { registerProject } from './project';
@@ -514,10 +515,21 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     .option('--admins <lista>', 'administradores de la instancia, separados por comas: nombres de usuario de GitHub o, mejor, sus identificadores numéricos (o IARK_ADMINS)', process.env.IARK_ADMINS || undefined)
     .option('--session-days <n>', 'días que dura una sesión (o IARK_SESSION_DAYS); por omisión 30', (v: string) => Number(v), process.env.IARK_SESSION_DAYS ? Number(process.env.IARK_SESSION_DAYS) : undefined)
     .option('--max-projects <n>', 'proyectos que puede administrar cada persona (o IARK_MAX_PROJECTS); por omisión 25', (v: string) => Number(v), process.env.IARK_MAX_PROJECTS ? Number(process.env.IARK_MAX_PROJECTS) : undefined)
+    .option(
+      '--frame-ancestors <orígenes>',
+      'orígenes que pueden incrustar por iframe las cargas embebidas (?embed=1), separados por comas, o * (o la variable IARK_FRAME_ANCESTORS). Por omisión *, porque el producto es embebible; si no incrusta desde fuera, fíjelo a los orígenes que necesite. El propio origen siempre puede',
+      process.env.IARK_FRAME_ANCESTORS || undefined,
+    )
     .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy (o IARK_TRUST_PROXY=true). No lo active sin proxy', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''));
   addComputeOptions(serve).action(async (opts) => {
       if (opts.static && !existsSync(opts.static)) throw new CliError(`La carpeta del sitio «${opts.static}» no existe (¿falta \`npm run build\`?).`);
       if (opts.workspace && existsSync(opts.workspace) && !statSync(opts.workspace).isDirectory()) throw new CliError(`El espacio de trabajo «${opts.workspace}» no es una carpeta.`, 2);
+      let frameAncestors: string[];
+      try {
+        frameAncestors = parseFrameAncestors(opts.frameAncestors);
+      } catch (error) {
+        throw new CliError((error as Error).message, 2);
+      }
       const cors = typeof opts.cors === 'string' ? opts.cors.split(',').map((o: string) => o.trim()).filter(Boolean) : [];
       const projects = opts.workspace ? new FolderProjectStore(opts.workspace) : undefined;
       const accounts = setupAccounts(opts, { workspace: !!projects, cors });
@@ -538,7 +550,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       const tokens = opts.tokens ? TokenStore.open(opts.tokens) : undefined;
       // El cálculo (ELK, análisis de documentos grandes) corre en hilos aparte, con tiempo límite y cola acotada: ver `computePool.ts`.
       const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue }) : undefined;
-      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, compute: pool, publicCompute: compute.publicCompute });
+      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute });
       await new Promise<void>((resolveListening, rejectListening) => {
         server.once('error', rejectListening);
         server.listen(opts.port, opts.host, resolveListening);

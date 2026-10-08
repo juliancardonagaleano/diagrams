@@ -10,6 +10,7 @@ import { COMPUTE_ACTIONS, inlineExecutor, unwrapOutcome, type ComputeExecutor, t
 import { HttpError } from './httpError';
 import { createAuthenticator, type FailureLimiterOptions } from './serveAuth';
 import { createProjectsApi } from './serveProjects';
+import { applySecurityHeaders } from './securityHeaders';
 import { suiteManifest } from './suiteManifest';
 import type { TokenStore } from './tokens';
 
@@ -87,6 +88,8 @@ export interface ServeOptions {
   compute?: ComputeExecutor;
   /** Deja las rutas de cálculo abiertas aunque haya tokens o cuentas (`--public-compute`). Sin autenticación configurada no hace nada. */
   publicCompute?: boolean;
+  /** Orígenes que pueden incrustar las cargas embebidas (`?embed=1`) por iframe (`--frame-ancestors`). Por omisión `*`; ver `securityHeaders.ts`. */
+  frameAncestors?: string[];
 }
 
 const API = '/api';
@@ -305,6 +308,7 @@ export function createSuiteServer(options: ServeOptions): Server {
   }
 
   return createServer((req, res) => {
+    applySecurityHeaders(req, res, { trustProxy: options.trustProxy, frameAncestors: options.frameAncestors });
     const handle = async (): Promise<void> => {
       const url = new URL(req.url ?? '/', 'http://localhost');
       applyCors(req, res, url.pathname);

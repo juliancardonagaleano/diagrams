@@ -1,3 +1,4 @@
+import { resolveEndpointUrl } from '@iark/kernel/endpoint';
 import type { C4Document, LayoutDirection } from '@core/model/types';
 import type { EmbedEvent, ExportFormat, HostAction, LoadAction } from './protocol';
 
@@ -73,7 +74,8 @@ export function createIarkEmbed(options: IarkEmbedOptions): IarkEmbed {
     typeof options.container === 'string' ? document.querySelector<HTMLElement>(options.container) : options.container;
   if (!container) throw new Error('createIarkEmbed: no se encontró el contenedor');
 
-  const url = new URL(options.url, window.location.href);
+  // Solo http(s): un `javascript:`/`data:` como `iframe.src` se ejecutaría en el origen del anfitrión (ver `resolveEndpointUrl`).
+  const url = new URL(resolveEndpointUrl(options.url, window.location.href, 'La URL del editor embebido'));
   url.searchParams.set('embed', '1');
   url.searchParams.set('proto', 'json');
   url.searchParams.set('origin', window.location.origin);
