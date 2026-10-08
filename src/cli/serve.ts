@@ -30,6 +30,7 @@ import type { Accounts } from './accounts/service';
 import { HttpError } from './httpError';
 import { createAuthenticator, type FailureLimiterOptions } from './serveAuth';
 import { createProjectsApi } from './serveProjects';
+import { applySecurityHeaders } from './securityHeaders';
 import { suiteManifest } from './suiteManifest';
 import type { TokenStore } from './tokens';
 
@@ -92,6 +93,8 @@ export interface ServeOptions {
   trustProxy?: boolean;
   /** Ajustes del freno de intentos fallidos (los de por omisión, salvo en las pruebas). */
   authLimits?: Partial<FailureLimiterOptions>;
+  /** Orígenes que pueden incrustar las cargas embebidas (`?embed=1`) por iframe (`--frame-ancestors`). Por omisión `*`; ver `securityHeaders.ts`. */
+  frameAncestors?: string[];
 }
 
 const API = '/api';
@@ -383,6 +386,7 @@ export function createSuiteServer(options: ServeOptions): Server {
   }
 
   return createServer((req, res) => {
+    applySecurityHeaders(req, res, { trustProxy: options.trustProxy, frameAncestors: options.frameAncestors });
     const handle = async (): Promise<void> => {
       const url = new URL(req.url ?? '/', 'http://localhost');
       applyCors(req, res, url.pathname);
