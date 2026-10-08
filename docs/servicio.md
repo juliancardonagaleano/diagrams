@@ -185,6 +185,7 @@ server {
         proxy_pass http://127.0.0.1:8787;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $remote_addr;   # el cliente real; no se fía de lo que el cliente haya puesto
+        proxy_set_header X-Forwarded-Proto $scheme;      # con --trust-proxy, así sabe el servidor que la petición llegó por https
     }
 }
 ```
