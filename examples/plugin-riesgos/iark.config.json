@@ -1,0 +1,4 @@
+{
+  "$schema": "../../schema/iark-config.schema.json",
+  "modules": ["./index.mjs"]
+}
