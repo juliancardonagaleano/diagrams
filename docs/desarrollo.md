@@ -22,7 +22,7 @@ npm run deploy:pages   # publica el sitio en la rama gh-pages desde un equipo co
 npm run docker:smoke   # construye la imagen y la prueba de verdad como servicio gestionado (necesita Docker y Linux)
 ```
 
-Requisitos: **Node 22 recomendado** (el que usan la imagen Docker y el CI; `@types/node` es la 22) y **20.19 como mínimo**.
+Requisitos: **Node 22.12 o superior** (el que usan la imagen Docker y el CI; `@types/node` es la 22; lo fijan `.nvmrc` y `engines` de `package.json`, que llegan en la PR de gobernanza). Las dependencias de ejecución (`commander` 15, `vitest` 5, `mermaid` 12) no admiten Node 20.
 
 ## Estructura del proyecto
 

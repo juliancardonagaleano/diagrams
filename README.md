@@ -12,7 +12,7 @@
 
 ## Inicio rápido
 
-Requisitos: **Node 22 recomendado** (el que usan la imagen Docker y el CI) y 20.19 como mínimo.
+Requisitos: **Node 22.12 o superior** (el que usan la imagen Docker y el CI; lo fijan `.nvmrc` y `engines` de `package.json`).
 
 ```bash
 npm install
