@@ -1,3 +1,5 @@
+// Antes que cualquier otro import (se crean esquemas de zod al cargarlos): sin el modo JIT de zod no hay violaciones de la CSP por `new Function`.
+import '@iark/kernel/jitless';
 import '../modules-app/workbench.css';
 import './trace.css';
 import { traceMermaid, traceReach, traceReachReport, traceReport, traceSvg, type Reached, type TraceDirection, type TraceGraph, type TraceNode, type TraceProblemReason } from '@iark/kernel';
