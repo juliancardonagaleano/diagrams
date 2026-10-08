@@ -160,14 +160,15 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
   });
 
   test('un manifiesto de un esquema o de un protocolo de versión mayor se rechaza entero con un mensaje claro', async ({ page }) => {
+    const base: Record<string, unknown> = { schema: 'iark.manifest/1', name: 'Instancia nueva', version: '2.0.0', modules: [] };
     for (const [carpeta, cambio, mensaje] of [
       ['esquema2', { schema: 'iark.manifest/2' }, 'versión más nueva del formato'],
       ['protocolo2', { protocol: '2.0' }, 'habla el protocolo embebido 2.0'],
-    ] as const) {
+    ] as Array<[string, Record<string, unknown>, string]>) {
       await page.route(`**/${carpeta}/.well-known/iark.json`, (route) =>
         route.fulfill({
           contentType: 'application/json',
-          body: JSON.stringify({ schema: 'iark.manifest/1', name: 'Instancia nueva', version: '2.0.0', modules: [], ...cambio }),
+          body: JSON.stringify({ ...base, ...cambio }),
         }),
       );
       await page.goto('/suite.html?manifest=' + encodeURIComponent(`/${carpeta}/.well-known/iark.json`), { waitUntil: 'domcontentloaded' });
