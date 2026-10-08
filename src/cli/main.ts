@@ -526,7 +526,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       if (projects && !opts.tokens && !accounts && !loopback) {
         throw new CliError(
           `Con un espacio de trabajo, escuchar en ${opts.host} sin autenticación dejaría los proyectos al alcance de quien llegue a ese puerto: el servicio no arranca así. ` +
-            'Elija una de las salidas: exija un token con --tokens <archivo> (o IARK_TOKENS; se crea con `iark auth create <nombre> --role admin --tokens <archivo>`), active el inicio de sesión con GitHub (--accounts, ver el README) o escuche solo en loopback con --host 127.0.0.1.',
+            'Elija una de las salidas: exija un token con --tokens <archivo> (o IARK_TOKENS; se crea con `iark auth create <nombre> --role admin --tokens <archivo>`), active el inicio de sesión con GitHub (--accounts, ver docs/cuentas-github.md) o escuche solo en loopback con --host 127.0.0.1.',
           2,
         );
       }
