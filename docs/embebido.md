@@ -40,7 +40,7 @@ Abre la app con `?embed=1&proto=json[&origin=https://mi-host][&theme=dark][&ui=m
 | `save` | `exit?` — fuerza la emisión de `save` |
 | `exit` | — |
 
-Seguridad: solo se atienden mensajes cuyo `source` es `window.parent`; con `&origin=` se exige además ese `event.origin` y se usa como `targetOrigin` de las respuestas (sin él se usa `*`, solo recomendable en desarrollo). Los documentos recibidos se validan con el mismo esquema zod del núcleo.
+Seguridad: solo se atienden mensajes cuyo `source` es `window.parent`; el origen del anfitrión es el de `&origin=` (el SDK `createIarkEmbed` siempre lo añade) o, si falta, el de quien incrusta cuando el navegador lo da de forma fiable (`location.ancestorOrigins[0]` o el origen de `document.referrer`); se exige ese `event.origin` y se usa como `targetOrigin` de las respuestas. Sin ninguna forma fiable de saberlo, el editor no emite (los eventos llevan el documento entero, y no se manda a `*`), no acepta órdenes y lo dice una sola vez en la consola. Firefox no expone `ancestorOrigins`: allí conviene `&origin=`. Los documentos recibidos se validan con el mismo esquema zod del núcleo.
 
 ### Versión del protocolo
 
