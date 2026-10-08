@@ -1,4 +1,4 @@
-import { analyzeText, buildTraceGraph, formatUrn, parseUrn, type AnyModule, type EntityRef, type TraceGraph, type TraceInput } from '@iark/kernel';
+import { analyzeText, buildTraceGraph, DEFAULT_LINK_TYPE, formatUrn, parseUrn, TRACE_LINK_TYPES, type AnyModule, type EntityRef, type TraceGraph, type TraceInput } from '@iark/kernel';
 import type { SuiteDocument, WorkbenchController } from './controller';
 
 /**
@@ -22,6 +22,25 @@ export interface Backlink {
   elementId: string;
   name: string;
   kind: string;
+  /** Tipo del enlace (`refType` de quien apunta; `depends-on` si no declara ninguno). */
+  type: string;
+}
+
+export interface LinkTypeOption {
+  id: string;
+  /** Lo que se lee en el selector: el id, con «por omisión» en el de siempre y «propio» en uno fuera del vocabulario. */
+  label: string;
+  description: string;
+}
+
+/**
+ * Los tipos que ofrece el selector de enlace: el vocabulario sugerido y, si el elemento ya trae uno propio (de otro módulo, de
+ * un tercero), ese también, para no perderlo al abrir el panel. Sin tipo declarado queda seleccionado `depends-on`.
+ */
+export function linkTypeOptions(current?: string): LinkTypeOption[] {
+  const suggested = TRACE_LINK_TYPES.map((t) => ({ id: t.id, label: t.id === DEFAULT_LINK_TYPE ? `${t.id} (por omisión)` : t.id, description: t.description }));
+  if (!current || suggested.some((t) => t.id === current)) return suggested;
+  return [...suggested, { id: current, label: `${current} (propio)`, description: 'Tipo de enlace fuera del vocabulario sugerido; se respeta tal cual.' }];
 }
 
 export function resolveRef(urn: string): ResolvedRef | undefined {
@@ -100,7 +119,7 @@ export class SuiteLinks {
       .filter((l) => l.to === urn)
       .flatMap((l) => {
         const n = byUrn.get(l.from);
-        return n ? [{ urn: n.urn, moduleId: n.module, moduleLabel: this.label(n.module), elementId: n.id, name: n.name, kind: n.kind }] : [];
+        return n ? [{ urn: n.urn, moduleId: n.module, moduleLabel: this.label(n.module), elementId: n.id, name: n.name, kind: n.kind, type: l.type }] : [];
       });
   }
 
