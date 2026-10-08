@@ -6,6 +6,7 @@ import { enterpriseModule } from '@iark/domain-enterprise';
 import { platformIconPackJsonSchema, platformModule } from '@iark/domain-platform';
 import { securityModule } from '@iark/domain-security';
 import { integrationModule } from '@iark/domain-integration';
+import { iarkConfigJsonSchema } from '../src/cli/plugins/config';
 
 mkdirSync('schema', { recursive: true });
 const doc = { $id: 'https://github.com/juliancardonagaleano/iark-diagrams/schema/c4-document.schema.json', title: 'Documento C4 (IArk - DIAgrams)', ...documentJsonSchema() };
@@ -40,4 +41,6 @@ const securityDoc = { $id: `${base}/security-document.schema.json`, title: 'Docu
 writeFileSync('schema/security-document.schema.json', JSON.stringify(securityDoc, null, 2) + '\n');
 const securityGen = { $id: `${base}/security-generation.schema.json`, title: 'Modelo de seguridad (salida de IA)', ...(securityModule.ai!.generationJsonSchema() as object) };
 writeFileSync('schema/security-generation.schema.json', JSON.stringify(securityGen, null, 2) + '\n');
+// La configuración de IArk (`iark.config.json`): módulos de terceros que carga el CLI y el servicio.
+writeFileSync('schema/iark-config.schema.json', JSON.stringify(iarkConfigJsonSchema(), null, 2) + '\n');
 console.log('Esquemas escritos en schema/');

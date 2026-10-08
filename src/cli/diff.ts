@@ -108,7 +108,7 @@ async function loadDocument(registry: ModuleRegistry, module: DomainModule<any>,
  * `iark diff <antes> [<después>]`: qué cambió entre dos versiones de un diagrama, de cualquier módulo de la suite. Es una
  * operación transversal sobre el documento (como `trace`), por eso cuelga del CLI y no de `cliCommands`.
  */
-export function registerDiff(program: Command, registry: ModuleRegistry, importSource: ImportSource): void {
+export function registerDiff(program: Command, registry: ModuleRegistry, importSource: ImportSource, defaultModule: string = DEFAULT_MODULE): void {
   program
     .command('diff')
     .description(
@@ -118,7 +118,7 @@ export function registerDiff(program: Command, registry: ModuleRegistry, importS
     .argument('<antes>', 'versión anterior: JSON del módulo o cualquier fuente que importe (o "-" para stdin); con --rev, el archivo a comparar')
     .argument('[después]', 'versión nueva (sin --rev es obligatoria)')
     .option('--rev <revisión>', 'compara <antes> tal como estaba en esta revisión de git (rama, etiqueta o commit: HEAD, main, v1.2, 3f2a1bc) con su copia de trabajo')
-    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', DEFAULT_MODULE)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', defaultModule)
     .option('--format <formato>', `salida: ${FORMATS.join(' | ')} (markdown sirve para pegar en una PR o un changelog)`, parseFormat, 'text')
     .option('--exit-code', 'termina con código 1 si hay cambios (como `git diff --exit-code`); sin la opción, 0 aunque los haya', false)
     .option('-o, --out <archivo>', 'archivo de salida (por defecto stdout)')
