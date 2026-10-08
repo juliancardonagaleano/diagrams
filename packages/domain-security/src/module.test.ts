@@ -580,7 +580,7 @@ describe('generación con IA', () => {
     const generated = toGenerated(doc);
     const result = generatedToSecurity(generated);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.document).toEqual({ ...doc, assets: doc.assets.map(({ ref: _ref, tags: _tags, ...a }) => a) });
+    if (result.ok) expect(result.document).toEqual({ ...doc, assets: doc.assets.map(({ ref: _ref, refType: _refType, tags: _tags, ...a }) => a) });
     const broken = { ...generated, threats: [{ ...generated.threats[0], targetId: 'interna' }] };
     const failed = generatedToSecurity(broken);
     expect(failed.ok).toBe(false);
