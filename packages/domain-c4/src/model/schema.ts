@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { parseUrn } from '@iark/kernel';
+import { migrateValue, parseUrn } from '@iark/kernel';
+import { c4MigrationSource } from './migrations';
 import {
   DOCUMENT_VERSION,
   PARENT_TYPE,
@@ -237,14 +238,20 @@ export interface ValidationIssue {
 }
 
 export type ValidationResult =
-  | { ok: true; document: C4Document }
+  /** `migrated` solo está si el documento venía de una versión anterior y se migró antes de validarlo (ver `C4_MIGRATIONS`). */
+  | { ok: true; document: C4Document; migrated?: { from: string; to: string } }
   | { ok: false; issues: ValidationIssue[] };
 
-/** Valida y normaliza un documento (aplica valores por defecto). */
+/**
+ * Valida y normaliza un documento (aplica valores por defecto). Si venía de una versión anterior del formato lo migra antes
+ * (`C4_MIGRATIONS`); si es de una más nueva, o de una anterior sin migración, lo rechaza diciendo por qué.
+ */
 export function validateDocument(input: unknown): ValidationResult {
-  const result = documentSchema.safeParse(input);
+  const migration = migrateValue(c4MigrationSource, input);
+  if (migration.status === 'unsupported') return { ok: false, issues: [{ path: 'version', message: migration.message }] };
+  const result = documentSchema.safeParse(migration.document);
   if (result.success) {
-    return { ok: true, document: result.data as C4Document };
+    return { ok: true, document: result.data as C4Document, ...(migration.status === 'migrated' ? { migrated: { from: migration.from, to: migration.to } } : {}) };
   }
   return {
     ok: false,
