@@ -207,8 +207,10 @@ test.describe('las páginas con la CSP puesta', () => {
 test.describe('frame-ancestors', () => {
   /**
    * Inserta un iframe en la página y dice si el navegador se negó a mostrarlo. Cuando `frame-ancestors` lo veta, Chromium deja el
-   * marco sin URL (o en `chrome-error://…`, según la versión) y anota en la consola «Refused to frame …»: se mira esa anotación,
-   * que es lo que de verdad cuenta como veto, y que el marco llegó a su URL cuando se muestra.
+   * marco en una página de error (`chrome-error://…`) o sin URL, según la versión, y anota «Refused to frame …» en la consola; esa
+   * anotación no llega en todas las versiones (en el Chromium que instala el CI no llegaba, y la espera caducaba). Por eso el veto
+   * se decide por cualquiera de las dos señales: la anotación, o que el iframe terminó de cargar (`load` se dispara también con la
+   * página de error) y su marco NO está en la URL pedida. Un marco mostrado es el que llega a la URL pedida.
    */
   async function frameInto(page: Page, src: string): Promise<{ url: string; refused: boolean }> {
     let refusal = '';
@@ -217,15 +219,25 @@ test.describe('frame-ancestors', () => {
     };
     page.on('console', onConsole);
     try {
-      await page.evaluate((target) => {
-        const iframe = document.createElement('iframe');
-        iframe.src = target;
-        iframe.dataset.probe = 'true';
-        document.body.append(iframe);
+      const iframe = await page.evaluateHandle((target) => {
+        const element = document.createElement('iframe');
+        element.addEventListener('load', () => (element.dataset.loaded = 'true'));
+        element.src = target;
+        element.dataset.probe = 'true';
+        document.body.append(element);
+        return element;
       }, src);
-      const shown = () => page.frames().find((f) => f.parentFrame() !== null && f.url() === src);
-      await expect.poll(() => refusal !== '' || shown() !== undefined, { timeout: 20000 }).toBe(true);
-      return { url: shown()?.url() ?? '', refused: refusal !== '' };
+      const probe = iframe.asElement()!;
+      /** `null` mientras el navegador no ha decidido; si no, lo que quedó dentro del iframe. */
+      const verdict = async (): Promise<{ url: string; refused: boolean } | null> => {
+        const url = (await probe.contentFrame())?.url() ?? '';
+        if (refusal !== '') return { url: '', refused: true };
+        if (url === src) return { url, refused: false };
+        const loaded = await probe.evaluate((element) => (element as HTMLIFrameElement).dataset.loaded === 'true');
+        return loaded ? { url: '', refused: true } : null;
+      };
+      await expect.poll(async () => (await verdict()) !== null, { timeout: 20000 }).toBe(true);
+      return (await verdict())!;
     } finally {
       page.off('console', onConsole);
     }
