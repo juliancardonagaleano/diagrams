@@ -1,3 +1,4 @@
+import { embedUrlFromManifest, resolveEndpointUrl } from '@iark/kernel/endpoint';
 import { createIarkModuleEmbed, type IarkModuleEmbed, type ModuleEvent, type SuiteCapabilitiesInfo } from './iark-module-embed';
 
 /**
@@ -123,10 +124,10 @@ export class IarkModuleElement extends HTMLElement {
     this.#emit(EVENT_NAMES.error, { message });
   }
 
-  /** URL del editor del módulo: `src` tal cual, o la que anuncia el manifiesto de la instancia. */
+  /** URL del editor del módulo: `src` tal cual, o la que anuncia el manifiesto de la instancia (en ambos casos, solo http o https). */
   async #resolveUrl(): Promise<string> {
     const src = this.getAttribute('src');
-    if (src) return new URL(src, document.baseURI).toString();
+    if (src) return resolveEndpointUrl(src, document.baseURI, 'El atributo "src"');
     const manifest = this.getAttribute('manifest');
     const module = this.getAttribute('module');
     if (!manifest) throw new Error('<iark-module> necesita el atributo "src" (URL del banco de trabajo) o "manifest" (URL de /.well-known/iark.json).');
@@ -139,12 +140,8 @@ export class IarkModuleElement extends HTMLElement {
       throw new Error(`No se pudo leer el manifiesto ${manifestUrl}: ${(error as Error).message}. Si la instancia es de otro origen, debe permitir CORS.`);
     }
     if (!response.ok) throw new Error(`El manifiesto ${manifestUrl} respondió ${response.status}.`);
-    const json = (await response.json().catch(() => undefined)) as { schema?: string; modules?: Array<{ id: string; endpoints?: { embed?: string } }> } | undefined;
-    if (!json || json.schema !== 'iark.manifest/1' || !Array.isArray(json.modules)) throw new Error(`${manifestUrl} no es un manifiesto iark.manifest/1.`);
-    const entry = json.modules.find((m) => m.id === module);
-    if (!entry) throw new Error(`La instancia no ofrece el módulo «${module}». Módulos: ${json.modules.map((m) => m.id).join(', ')}.`);
-    if (!entry.endpoints?.embed) throw new Error(`La instancia no publica un editor embebible para «${module}».`);
-    return new URL(entry.endpoints.embed, manifestUrl).toString();
+    // Valida lo imprescindible, busca el módulo y resuelve su editor aceptando solo http(s) (comparte código con el shell).
+    return embedUrlFromManifest(await response.json().catch(() => undefined), manifestUrl, module);
   }
 
   #mount(): void {

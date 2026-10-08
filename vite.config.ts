@@ -63,8 +63,16 @@ export default defineConfig({
       output: {
         // El módulo C4 lo importa el editor principal de forma estática y el banco de trabajo bajo demanda: si quedara
         // dentro del trozo del editor, abrir C4 en el banco ejecutaría (y pintaría) el editor entero. Va en su propio trozo.
+        //
+        // `zod` va en su propio trozo, junto con `zodJitless` (que desactiva su modo JIT en el navegador): ese trozo no depende de
+        // ningún otro, así que se ejecuta entero antes que cualquiera que cree esquemas. Si zod quedara dentro de `domain-c4`
+        // (que arrastra sus dependencias), los esquemas de C4 se crearían antes de que corriera `z.config({ jitless: true })` y
+        // zod sondearía `new Function('')`, que la CSP de `iark serve` (sin `'unsafe-eval'`) anota como violación.
         codeSplitting: {
-          groups: [{ name: 'domain-c4', test: /packages[\\/]domain-c4[\\/]/ }],
+          groups: [
+            { name: 'zod', test: /node_modules[\\/]zod[\\/]|kernel[\\/]src[\\/]util[\\/]zodJitless/, priority: 2 },
+            { name: 'domain-c4', test: /packages[\\/]domain-c4[\\/]/ },
+          ],
         },
       },
     },

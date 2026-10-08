@@ -12,6 +12,10 @@
 
 {$IARK_DOMAIN} {
 	encode zstd gzip
+	# HSTS: el navegador no vuelve a pedir este dominio por http durante 180 días. Se pone aquí para que valga también en las respuestas
+	# que da Caddy (un 502 si IArk está caído); IArk lo envía igual cuando ve `X-Forwarded-Proto: https` (con --trust-proxy), y el
+	# prefijo `>` fija el valor al final, así que no sale duplicado. Sin `includeSubDomains` ni `preload`: son decisiones del dominio.
+	header >Strict-Transport-Security "max-age=15552000"
 	# `iark` es el nombre del servicio en el compose; su puerto no se publica fuera. Caddy añade X-Forwarded-For con la dirección
 	# del cliente, y por eso IArk arranca con --trust-proxy (el freno de intentos fallidos distingue a cada cliente).
 	# No se activa el registro de accesos (es lo normal en Caddy): la dirección de vuelta de GitHub lleva un código de un solo uso.

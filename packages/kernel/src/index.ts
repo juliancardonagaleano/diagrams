@@ -7,6 +7,7 @@ export * from './module/trace-svg';
 export { carryRefs } from './module/refs';
 export { ModuleError } from './module/errors';
 export { formatUrn, parseUrn, type ParsedUrn } from './module/urn';
+export { embedUrlFromManifest, ENDPOINT_PROTOCOLS, EndpointUrlError, resolveEndpointUrl } from './module/endpoint';
 export {
   buildManifest,
   manifestSchema,

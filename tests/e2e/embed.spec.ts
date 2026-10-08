@@ -102,3 +102,37 @@ test('un mensaje del anfitrión con JSON roto produce un evento de error, no un 
   });
   await expect.poll(async () => (await page.locator('#log').textContent()) ?? '').toMatch(/error/);
 });
+
+test.describe('editor C4 incrustado a mano, sin ?origin=', () => {
+  test('usa el origen del padre que da el navegador: emite `init` a ese origen y responde a sus órdenes', async ({ page }) => {
+    await page.goto('/examples/embed-host.html', { waitUntil: 'domcontentloaded' });
+    const result = await page.evaluate(
+      () =>
+        new Promise<{ initOrigin: string; exported: string }>((resolve, reject) => {
+          const iframe = document.createElement('iframe');
+          // Sin `origin`: el SDK lo añade siempre, quien incrusta a mano puede olvidarlo.
+          iframe.src = '/?embed=1&proto=json';
+          document.body.appendChild(iframe);
+          let initOrigin = '';
+          const timer = setTimeout(() => reject(new Error('el editor sin ?origin= no emitió init/export')), 20000);
+          window.addEventListener('message', (e) => {
+            if (e.source !== iframe.contentWindow || typeof e.data !== 'string') return;
+            const msg = JSON.parse(e.data) as { event: string; data?: string };
+            if (msg.event === 'init') {
+              initOrigin = e.origin;
+              iframe.contentWindow!.postMessage(JSON.stringify({ action: 'export', format: 'json', requestId: 'r1' }), location.origin);
+            } else if (msg.event === 'export') {
+              clearTimeout(timer);
+              resolve({ initOrigin, exported: msg.data ?? '' });
+            }
+          });
+        }),
+    );
+    expect(result.initOrigin).toBe(new URL(page.url()).origin);
+    expect(JSON.parse(result.exported).workspace).toBeTruthy();
+  });
+
+  // El caso «sin origen fiable» (padre de origen opaco: iframe con sandbox, about:blank) no se pudo probar aquí: con un padre así el
+  // Chromium de la prueba no llega a cargar el iframe de localhost (queda en chrome-error://) y, con sandbox, el editor hereda además el
+  // origen opaco. Lo cubren las pruebas de useEmbedBridge.origin.test.tsx con las fuentes del navegador simuladas.
+});

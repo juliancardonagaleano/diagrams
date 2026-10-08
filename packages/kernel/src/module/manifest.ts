@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MANIFEST_SCHEMA_ID } from './endpoint';
 import type { ModuleRegistry } from './registry';
 
 /**
@@ -6,7 +7,7 @@ import type { ModuleRegistry } from './registry';
  * shell o un anfitrión los descubra sin acoplarse a su código. `buildManifest` lo genera y `manifestSchema` valida el
  * de una instancia remota antes de usarlo.
  */
-export const MANIFEST_SCHEMA_ID = 'iark.manifest/1';
+export { MANIFEST_SCHEMA_ID };
 
 export const moduleManifestSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/),
@@ -16,7 +17,10 @@ export const moduleManifestSchema = z.object({
   documentVersion: z.string(),
   importFormats: z.array(z.string()),
   exportFormats: z.array(z.string()),
-  /** URLs (absolutas o relativas al manifiesto) de las superficies que ofrece la instancia para este módulo. */
+  /**
+   * URLs (absolutas o relativas al manifiesto) de las superficies que ofrece la instancia para este módulo. El esquema solo
+   * pide «cadena»: quien las usa las resuelve con `resolveEndpointUrl`, que rechaza todo lo que no acabe en `http:`/`https:`.
+   */
   endpoints: z
     .object({
       embed: z.string().optional(),
