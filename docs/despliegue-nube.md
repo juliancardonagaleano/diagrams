@@ -67,8 +67,8 @@ No cambies nada más de la aplicación. DIAgrams no pide permisos a GitHub, lee 
 5. **Traer el código y configurarlo**:
 
 ```bash
-git clone https://github.com/juliancardonagaleano/DIAgrams.git
-cd DIAgrams/deploy
+git clone https://github.com/juliancardonagaleano/diagrams.git
+cd diagrams/deploy
 cp .env.example .env
 nano .env            # rellena IARK_DOMAIN (iark.tudominio.org, sin https://), IARK_GITHUB_CLIENT_ID e IARK_ADMINS (paso 4)
 ```
@@ -176,7 +176,7 @@ Ponlo en `deploy/.env` (`IARK_ADMINS=583231`; varias personas, separadas por com
 
 ## 5. El sitio de GitHub Pages también puede usar esta instancia — *Lo haces tú*
 
-El sitio ya publicado (`https://juliancardonagaleano.github.io/DIAgrams/`) puede guardar sus proyectos en tu instancia: en `deploy/.env` pon
+El sitio ya publicado (`https://juliancardonagaleano.github.io/diagrams/`) puede guardar sus proyectos en tu instancia: en `deploy/.env` pon
 
 ```
 IARK_CORS=https://juliancardonagaleano.github.io
@@ -224,7 +224,7 @@ Las sesiones de la copia siguen valiendo; las abiertas después de la copia cadu
 ## 7. Actualizar la imagen — *Lo haces tú*
 
 ```bash
-cd DIAgrams && git pull
+cd diagrams && git pull
 cd deploy
 docker compose build --pull        # reconstruye DIAgrams con la última base de Node
 docker compose pull caddy          # y trae la última versión de Caddy

@@ -386,8 +386,8 @@ async function main(): Promise<number> {
       const visitor = await loginWithGithub(svc.base, fake, VISITA);
       check(!visitor.token && visitor.fragment.get('iark_error') === 'not_invited', 'IARK_SIGNUP=invite: quien no es administradora ni está invitada vuelve con #iark_error=not_invited', visitor.fragment.toString());
 
-      const pages = await loginWithGithub(svc.base, fake, ADMIN, { redirect: `${PAGES_ORIGIN}/DIAgrams/` });
-      check(Boolean(pages.token) && pages.returnedTo === `${PAGES_ORIGIN}/DIAgrams/`, '--cors: tras entrar se vuelve al sitio de GitHub Pages', `${pages.returnedTo} ${pages.fragment}`);
+      const pages = await loginWithGithub(svc.base, fake, ADMIN, { redirect: `${PAGES_ORIGIN}/diagrams/` });
+      check(Boolean(pages.token) && pages.returnedTo === `${PAGES_ORIGIN}/diagrams/`, '--cors: tras entrar se vuelve al sitio de GitHub Pages', `${pages.returnedTo} ${pages.fragment}`);
       const elsewhere = await fetch(`${svc.base}/api/auth/github/login?challenge=${login.challenge}&redirect=${encodeURIComponent('https://otro.example/')}`, { redirect: 'manual' });
       check(elsewhere.status === 400, 'y no a un origen que no se nombró (sin redirección abierta)');
       const preflight = await fetch(`${svc.base}/api/projects`, { method: 'OPTIONS', headers: { Origin: PAGES_ORIGIN, 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization' } });
@@ -419,7 +419,7 @@ async function main(): Promise<number> {
       await waitHealthy(svc.name);
       const after = await get(svc.base, '/api/projects', token);
       check(after.status === 200 && after.body.some?.((p: { id: string }) => p.id === 'tienda'), 'tras reiniciar, la misma sesión sigue valiendo y el proyecto sigue en la lista', JSON.stringify(after));
-      check((await get(svc.base, '/api/projects/tienda/DIAgrams/banca', token)).status === 200, 'y el diagrama se lee');
+      check((await get(svc.base, '/api/projects/tienda/diagrams/banca', token)).status === 200, 'y el diagrama se lee');
 
       // sustituir el contenedor (actualizar la imagen): lo único que sobrevive es el volumen
       noLeaks(svc.name, { 'el secreto de la OAuth App': FAKE_CLIENT_SECRET, 'la sesión': token, 'el código de un solo uso': login.fragment.get('iark_code') ?? undefined });

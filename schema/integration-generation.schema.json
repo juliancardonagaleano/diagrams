@@ -1,5 +1,5 @@
 {
-  "$id": "https://github.com/juliancardonagaleano/DIAgrams/schema/integration-generation.schema.json",
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/integration-generation.schema.json",
   "title": "Modelo de integración (salida de IA)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",

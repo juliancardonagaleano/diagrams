@@ -24,7 +24,7 @@ export const ROOT = fileURLToPath(new URL('..', import.meta.url));
 /** Dónde se prepara cada paquete publicable (ignorado por git). */
 export const STAGE_DIR = join(ROOT, 'dist-packages');
 
-const REPOSITORY_URL = 'git+https://github.com/juliancardonagaleano/DIAgrams.git';
+const REPOSITORY_URL = 'git+https://github.com/juliancardonagaleano/diagrams.git';
 
 type Json = Record<string, unknown>;
 
@@ -143,13 +143,13 @@ function readmeFor(manifest: SourceManifest): string {
     '',
     manifest.description ?? '',
     '',
-    'Parte de [DIAgrams](https://github.com/juliancardonagaleano/DIAgrams): arquitectura como datos (C4, integración, datos, empresarial, plataforma y seguridad) con documentos JSON versionables, autolayout, exportación y CLI.',
+    'Parte de [DIAgrams](https://github.com/juliancardonagaleano/diagrams): arquitectura como datos (C4, integración, datos, empresarial, plataforma y seguridad) con documentos JSON versionables, autolayout, exportación y CLI.',
     '',
     '```bash',
     `npm install ${manifest.name}`,
     '```',
     '',
-    'Es un paquete ESM (`import`) con tipos incluidos. Escribir un módulo propio y cargarlo en el CLI sin tocar el repositorio: [docs/plugins.md](https://github.com/juliancardonagaleano/DIAgrams/blob/master/docs/plugins.md).',
+    'Es un paquete ESM (`import`) con tipos incluidos. Escribir un módulo propio y cargarlo en el CLI sin tocar el repositorio: [docs/plugins.md](https://github.com/juliancardonagaleano/diagrams/blob/master/docs/plugins.md).',
     '',
   ].join('\n');
 }
