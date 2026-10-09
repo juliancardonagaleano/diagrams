@@ -19,7 +19,7 @@ services:
   iark:
     build:
       context: ..
-    image: iark-diagrams
+    image: diagrams
     restart: unless-stopped
     environment:
       # IARK_TRUST_PROXY (= --trust-proxy): hay un proxy de confianza delante (Caddy). El freno de intentos fallidos usa la dirección real

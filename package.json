@@ -1,5 +1,5 @@
 {
-  "name": "iark-diagrams",
+  "name": "diagrams",
   "version": "0.1.0",
   "description": "DIAgrams: suite de diagramación de arquitectura (hoy modelo C4) con autolayout, exportación a .drawio, CLI con IA y modo embebido por iframe",
   "type": "module",

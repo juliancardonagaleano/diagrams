@@ -20,7 +20,7 @@ Si usas la imagen Docker o el sitio de GitHub Pages, estás usando `master` en e
 
 Usa los avisos de seguridad privados de GitHub:
 
-1. Entra en <https://github.com/juliancardonagaleano/iark-diagrams>.
+1. Entra en <https://github.com/juliancardonagaleano/DIAgrams>.
 2. Abre la pestaña **Security**.
 3. Pulsa **Report a vulnerability** y rellena el formulario.
 

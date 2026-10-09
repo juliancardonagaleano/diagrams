@@ -36,17 +36,17 @@ El servicio y el sitio, en un solo proceso:
 ```bash
 npm run build
 npm run cli -- serve --static dist/app     # http://127.0.0.1:8787: editor, banco de trabajo, shell y API
-docker build -t iark-diagrams . && docker run --rm -p 8787:8787 iark-diagrams     # lo mismo, en un contenedor
+docker build -t diagrams . && docker run --rm -p 8787:8787 diagrams     # lo mismo, en un contenedor
 ```
 
 Para comprobar un cambio: `npm run typecheck`, `npm test` (vitest), `npm run e2e` (Playwright, requiere `build:app` previo) o todo junto con `npm run verify`. Los scripts, la estructura del repositorio y las pruebas están en [docs/desarrollo.md](docs/desarrollo.md).
 
-Como biblioteca, el paquete `iark-diagrams` exporta el núcleo del módulo C4 (sin DOM: sirve en Node y en el navegador), el SDK de anfitrión y el Web Component:
+Como biblioteca, el paquete `diagrams` exporta el núcleo del módulo C4 (sin DOM: sirve en Node y en el navegador), el SDK de anfitrión y el Web Component:
 
 ```ts
-import { validateDocument, autoLayoutDocument, toDrawio } from 'iark-diagrams/core';
-import { createIarkEmbed, createIarkModuleEmbed } from 'iark-diagrams/embed';
-import 'iark-diagrams/element';   // registra <iark-module>
+import { validateDocument, autoLayoutDocument, toDrawio } from 'diagrams/core';
+import { createIarkEmbed, createIarkModuleEmbed } from 'diagrams/embed';
+import 'diagrams/element';   // registra <iark-module>
 ```
 
 ## Un documento, un archivo

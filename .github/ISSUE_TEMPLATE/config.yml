@@ -2,8 +2,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Informar de una vulnerabilidad de seguridad
-    url: https://github.com/juliancardonagaleano/iark-diagrams/blob/master/SECURITY.md
+    url: https://github.com/juliancardonagaleano/DIAgrams/blob/master/SECURITY.md
     about: No abras un issue público. Lee SECURITY.md y usa el aviso privado de GitHub (Security > Report a vulnerability).
   - name: Hoja de ruta del proyecto
-    url: https://github.com/juliancardonagaleano/iark-diagrams/blob/master/docs/roadmap.md
+    url: https://github.com/juliancardonagaleano/DIAgrams/blob/master/docs/roadmap.md
     about: Antes de proponer algo nuevo, mira qué está hecho, qué está pendiente y los límites conocidos.

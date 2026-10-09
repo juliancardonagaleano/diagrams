@@ -156,7 +156,7 @@ describe('el esquema de la configuración', () => {
 
   it('describe los tres campos, no admite otros y no exige ninguno', () => {
     const schema = iarkConfigJsonSchema() as { $id: string; properties: Record<string, unknown>; additionalProperties?: boolean; required?: string[] };
-    expect(schema.$id).toBe('https://github.com/juliancardonagaleano/iark-diagrams/schema/iark-config.schema.json');
+    expect(schema.$id).toBe('https://github.com/juliancardonagaleano/DIAgrams/schema/iark-config.schema.json');
     expect(Object.keys(schema.properties).sort()).toEqual(['$schema', 'defaultModule', 'modules']);
     expect(schema.additionalProperties).toBe(false);
     expect(schema.required ?? []).toEqual([]);

@@ -70,7 +70,7 @@ Los elementos se emparejan por `id` (o por `name`, o por similitud si la lista n
 ## Uso programático
 
 ```ts
-import { generateDocument, autoLayoutDocument, toDrawio, fromDrawio, fromStructurizrDsl, validateDocument, deriveView } from 'iark-diagrams/core';
+import { generateDocument, autoLayoutDocument, toDrawio, fromDrawio, fromStructurizrDsl, validateDocument, deriveView } from 'diagrams/core';
 
 const { document } = await generateDocument({ instruction: 'Un sistema de tickets…' }); // Claude + autolayout
 const laid = await autoLayoutDocument(validateDocument(json).document, { direction: 'RIGHT', force: true });
