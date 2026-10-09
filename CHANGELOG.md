@@ -4,6 +4,7 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 
 ## [Unreleased]
 
+- **Servidor propuesto por omisión** para el sitio publicado: con `VITE_IARK_SERVER` (la compilación de Pages la toma de la variable del repositorio `IARK_SERVER_URL`), el campo «Dirección del servidor» de «Dónde se guardan» viene rellenado con esa dirección. Solo se acepta `https://` (o `http://` en localhost) y sin usuario ni clave; no conecta nada por sí solo, la persona sigue pulsando «Conectar». Vacía o inválida, no propone nada. Pensado para el frontend en GitHub Pages con el servicio en otro origen.
 - **CI**: el workflow `deploy-pages.yml` ya corre también en los pull request de solo documentación (se quitó el `paths-ignore` del disparador `pull_request`), para que `test` pueda marcarse como comprobación obligatoria de `master` sin dejar esas PR esperando. En el push a master el filtro sigue, así que un merge de solo documentación no republica el sitio.
 - **Topes de tamaño de la compilación**: el gestor de proyectos y el historial de versiones se cargan al abrirlos (`src/projects/lazy.tsx`) y salen de la carga inicial del editor y del banco; los topes de carga inicial pasan a 1560, 1230, 630 y 530 kB (el peso viene de `domain-c4`, del lienzo común de C4, y de los dos catálogos de idioma). Detalle en `docs/rendimiento.md`.
 - Cambios de la fase 1 del plan de robustecimiento en curso.
