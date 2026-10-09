@@ -42,7 +42,7 @@
  * con nada; valores que vienen de un Secret (no se leen); hosts externos (no se importan como dependencias); réplicas 0; el
  * clúster implícito y un entorno por defecto cuando los manifiestos no lo dicen.
  */
-import { pickId, Warnings } from '@iark/kernel';
+import { pickId, textSizeProblem, Warnings } from '@iark/kernel';
 import { parseAllDocuments } from 'yaml';
 import { formatPlatformIssues, validatePlatformDocument } from '../schema';
 import {
@@ -58,7 +58,7 @@ import {
   type Service,
   type ServiceKind,
 } from '../types';
-import { countedList, environmentKindOf, shortList, sourceName, uniqueId, type InfraImportOptions } from './common';
+import { countedList, descriptiveName, environmentKindOf, shortList, sourceName, uniqueId, type InfraImportOptions } from './common';
 import { PlatformImportError, type PlatformImportResult } from './fromMermaid';
 
 type Json = Record<string, unknown>;
@@ -129,7 +129,7 @@ function looksLikeHostVariable(name: string): boolean {
 }
 
 /** Almacenes de datos que se reconocen por el nombre de su imagen: el recurso que son y su nombre comercial. */
-const DATASTORES: Record<string, { kind: ResourceKind; technology: string }> = {
+export const DATASTORES: Record<string, { kind: ResourceKind; technology: string }> = {
   postgres: { kind: 'database', technology: 'PostgreSQL' },
   postgresql: { kind: 'database', technology: 'PostgreSQL' },
   postgis: { kind: 'database', technology: 'PostGIS' },
@@ -169,28 +169,28 @@ const PORTS: Record<number, string> = { 80: 'HTTP', 443: 'HTTPS', 3306: 'MySQL',
 
 // ───────────── cantidades de Kubernetes ─────────────
 
-function cpuMillis(q: unknown): number | undefined {
+export function cpuMillis(q: unknown): number | undefined {
   const m = /^(\d+(?:\.\d+)?)(m)?$/.exec(String(q ?? '').trim());
   return m ? Number(m[1]) * (m[2] ? 1 : 1000) : undefined;
 }
 
 const BYTES: Record<string, number> = { '': 1, K: 1e3, M: 1e6, G: 1e9, T: 1e12, Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4 };
 
-function memoryBytes(q: unknown): number | undefined {
+export function memoryBytes(q: unknown): number | undefined {
   const m = /^(\d+(?:\.\d+)?)(Ki|Mi|Gi|Ti|K|M|G|T)?$/.exec(String(q ?? '').trim());
   return m ? Number(m[1]) * BYTES[m[2] ?? ''] : undefined;
 }
 
-const formatCpu = (millis: number): string => String(Math.round(millis) / 1000);
+export const formatCpu = (millis: number): string => String(Math.round(millis) / 1000);
 
-function formatMemory(bytes: number): string {
+export function formatMemory(bytes: number): string {
   const mib = bytes / 1024 ** 2;
   if (mib >= 1024 && Number.isInteger(mib / 1024)) return `${mib / 1024} GiB`;
   return Number.isInteger(mib) ? `${mib} MiB` : `${Math.round(mib * 10) / 10} MiB`;
 }
 
 /** Nombre de la imagen sin registro, organización ni etiqueta (`bitnami/postgresql:15` → `postgresql`) y su etiqueta. */
-function imageParts(image: string | undefined): { base?: string; tag?: string } {
+export function imageParts(image: string | undefined): { base?: string; tag?: string } {
   if (!image) return {};
   const noDigest = image.split('@')[0];
   const last = noDigest.slice(noDigest.lastIndexOf('/') + 1);
@@ -206,7 +206,16 @@ const helmHint = (input: string): string => (/\{\{/.test(input) ? ' ¿Es una pla
 function readObjects(source: string, warnings: Warnings): Obj[] {
   const input = source.replace(/^﻿/, '');
   if (input.trim() === '') throw new PlatformImportError('El archivo de Kubernetes está vacío.');
-  const docs = parseAllDocuments(input, { logLevel: 'error' });
+  const big = textSizeProblem(input, 'El archivo de Kubernetes');
+  if (big) throw new PlatformImportError(big);
+  let docs: ReturnType<typeof parseAllDocuments>;
+  try {
+    docs = parseAllDocuments(input, { logLevel: 'error' });
+  } catch (error) {
+    // Un anidamiento enorme agota la pila del analizador YAML.
+    if (error instanceof RangeError) throw new PlatformImportError('El archivo de Kubernetes está demasiado anidado para analizarlo.');
+    throw error;
+  }
   const objects: Obj[] = [];
   let index = 0;
   const push = (value: unknown, origin: string): void => {
@@ -242,7 +251,16 @@ function readObjects(source: string, warnings: Warnings): Obj[] {
       const why = e.message.split('\n')[0].replace(/\s+at line \d+, column \d+:?$/, '').replace(/[.:]$/, '');
       throw new PlatformImportError(`El YAML de Kubernetes no es válido${line ? ` (línea ${line})` : ''}: ${why}.${helmHint(input)}`);
     }
-    push(doc.toJS({ maxAliasCount: 200 }), `El documento ${index}`);
+    let value: unknown;
+    try {
+      value = doc.toJS({ maxAliasCount: 200 });
+    } catch (error) {
+      // Una bomba de alias (cada alias multiplica al anterior) o un anidamiento que agota la pila.
+      if (error instanceof RangeError) throw new PlatformImportError('El archivo de Kubernetes está demasiado anidado para analizarlo.');
+      if (error instanceof ReferenceError) throw new PlatformImportError(`El documento ${index} de Kubernetes usa demasiados alias YAML (posible bomba de expansión): no se importa.`);
+      throw error;
+    }
+    push(value, `El documento ${index}`);
   }
   return objects;
 }
@@ -301,6 +319,13 @@ class KubernetesBuilder {
     this.objects = objects;
   }
 
+  /** Nombre que da el origen de los manifiestos (el chart de Helm que los generó, o el archivo o la carpeta) y de dónde sale. */
+  private origin(): { name: string; reason: string } | undefined {
+    if (this.options.chart) return { name: this.options.chart, reason: `del chart de Helm «${this.options.chart}»` };
+    const name = sourceName(this.options);
+    return name ? { name, reason: 'del nombre del archivo' } : undefined;
+  }
+
   private key(ns: string, name: string): string {
     return `${ns}/${name}`;
   }
@@ -322,7 +347,7 @@ class KubernetesBuilder {
 
     const result = validatePlatformDocument({
       version: PLATFORM_DOCUMENT_VERSION,
-      workspace: { name: this.options.name?.trim() || sourceName(this.options) || 'Arquitectura de plataforma' },
+      workspace: { name: this.options.name?.trim() || this.origin()?.name || 'Arquitectura de plataforma' },
       environments: this.environments,
       networks: this.networks,
       resources: this.resources,
@@ -412,8 +437,8 @@ class KubernetesBuilder {
     if (ranked.length > 0) [name, reason] = [ranked[0][0], 'de la etiqueta de entorno'];
     else if (envLike.length === 1) [name, reason] = [envLike[0], `del namespace «${envLike[0]}»`];
     else {
-      const source = sourceName(this.options);
-      [name, reason] = [source ?? 'Entorno principal', source ? 'del nombre del archivo' : 'del valor por defecto'];
+      const origin = this.origin();
+      [name, reason] = [origin?.name ?? 'Entorno principal', origin?.reason ?? 'del valor por defecto'];
       this.warnings.add(`No se pudo deducir el entorno de las etiquetas ni de los namespaces: se crea el entorno «${name}» a partir ${reason}.`);
     }
     this.defaultEnvironment = this.newEnvironment(name, reason);
@@ -430,8 +455,9 @@ class KubernetesBuilder {
     const known = this.envByNamespace.get(ns);
     if (known) return known;
     if (!this.defaultEnvironment) {
-      const source = sourceName(this.options) ?? 'Entorno principal';
-      this.defaultEnvironment = this.newEnvironment(source, 'del nombre del archivo');
+      const origin = this.origin();
+      const source = origin?.name ?? 'Entorno principal';
+      this.defaultEnvironment = this.newEnvironment(source, origin?.reason ?? 'del nombre del archivo');
       this.warnings.add(`Hay varios entornos por namespace y «${ns}» no es uno de ellos: se crea el entorno «${source}» para lo que no tiene namespace de entorno.`);
     }
     return this.defaultEnvironment;
@@ -947,6 +973,18 @@ class KubernetesBuilder {
   }
 }
 
+/**
+ * Chart de Helm que generó los manifiestos (la salida de `helm template`): el de la etiqueta `helm.sh/chart` (`tienda-0.4.2` →
+ * `tienda`) o, si no la hay, el del comentario `# Source: tienda/templates/…` que Helm escribe antes de cada manifiesto.
+ */
+function helmChartOf(objects: Obj[], source: string): string | undefined {
+  for (const o of objects) {
+    const label = strMap(rec(o.raw.metadata)?.labels)['helm.sh/chart'];
+    if (label) return /^(.+?)-v?\d+(?:\.\d+){0,2}(?:[-+].*)?$/.exec(label)?.[1] ?? label;
+  }
+  return /^# Source: ([^/\s]+)\//m.exec(source)?.[1];
+}
+
 /** Importa manifiestos de Kubernetes (YAML o JSON, multi-documento) como documento de plataforma. */
 export function fromKubernetes(source: string, options: InfraImportOptions = {}): PlatformImportResult {
   const warnings = new Warnings();
@@ -955,5 +993,7 @@ export function fromKubernetes(source: string, options: InfraImportOptions = {})
     const why = warnings.result().slice(0, 3).join(' ');
     throw new PlatformImportError(`El archivo no contiene ningún objeto de Kubernetes (se esperaba YAML con apiVersion y kind).${why ? ` ${why}` : ''}${helmHint(source)}`);
   }
-  return new KubernetesBuilder(objects, options, warnings).build();
+  // La salida de `helm template` por la entrada estándar no tiene nombre de archivo: la nombra el chart.
+  const chart = options.chart ?? (descriptiveName(options) ? undefined : helmChartOf(objects, source));
+  return new KubernetesBuilder(objects, chart ? { ...options, chart } : options, warnings).build();
 }

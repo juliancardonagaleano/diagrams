@@ -7,6 +7,7 @@ import { toDrawio } from './export/drawio';
 import { toMermaid } from './export/mermaid';
 import { toSvg } from './export/render';
 import { fromCloudFormation, looksLikeCloudFormation } from './import/fromCloudFormation';
+import { fromHelm, looksLikeHelmChart } from './import/fromHelm';
 import { fromKubernetes, looksLikeKubernetes } from './import/fromKubernetes';
 import { fromMermaid } from './import/fromMermaid';
 import { iconCommands } from './icons/commands';
@@ -59,6 +60,22 @@ const cloudformationImporter: Importer<PlatformDocument> = {
   import: (text, ctx) => fromCloudFormation(text, { name: ctx.name, fallbackName: ctx.fallbackName, file: ctx.file }),
 };
 
+/**
+ * Chart de Helm sin renderizar: `Chart.yaml` + `values.yaml`. Se lee la carpeta del chart o los archivos juntos (`multiFile`), o un
+ * `Chart.yaml` suelto. La salida de `helm template` ya es Kubernetes y la importa el importador de Kubernetes.
+ */
+const helmImporter: Importer<PlatformDocument> = {
+  id: 'helm',
+  label: 'Helm (Chart.yaml + values.yaml)',
+  extensions: ['.yaml', '.yml'],
+  detect: looksLikeHelmChart,
+  multiFile: { extensions: ['.yaml', '.yml'] },
+  import: (text, ctx) => {
+    const files = sourceFilesOf(ctx.extra);
+    return fromHelm(files ? files : [{ name: ctx.file ?? '', text }], { name: ctx.name, fallbackName: ctx.fallbackName, file: ctx.file });
+  },
+};
+
 const mermaidExporter: Exporter<PlatformDocument> = {
   id: 'mermaid',
   label: 'Mermaid',
@@ -94,12 +111,12 @@ export const platformModule: DomainModule<PlatformDocument> = {
   id: 'platform',
   name: 'Arquitectura de plataforma',
   version: '0.1.0',
-  description: 'Entornos, redes, recursos, servicios, despliegues y pipelines, con topología, despliegue por entorno e impacto; importa de Mermaid, Terraform, Kubernetes y CloudFormation y exporta a Mermaid, SVG y draw.io.',
+  description: 'Entornos, redes, recursos, servicios, despliegues y pipelines, con topología, despliegue por entorno e impacto; importa de Mermaid, Terraform, Kubernetes, CloudFormation y Helm y exporta a Mermaid, SVG y draw.io.',
   documentVersion: PLATFORM_DOCUMENT_VERSION,
   schema: platformDocumentSchema as unknown as DomainModule<PlatformDocument>['schema'],
   jsonSchema: platformJsonSchema,
   validate: (doc): ModuleIssue[] => [...analyzePlatform(doc), ...iconIssues(doc)],
-  importers: [mermaidImporter, terraformImporter, kubernetesImporter, cloudformationImporter],
+  importers: [mermaidImporter, terraformImporter, kubernetesImporter, cloudformationImporter, helmImporter],
   exporters: [mermaidExporter, svgExporter, drawioExporter],
   ai: platformAiSpec,
   entities: (doc): EntityRef[] => [

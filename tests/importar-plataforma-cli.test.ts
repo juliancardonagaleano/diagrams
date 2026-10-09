@@ -185,10 +185,10 @@ describe('iark import --module platform --format kubernetes', () => {
 
 describe('iark: formatos del módulo de plataforma', () => {
   it('modules lista los tres importadores y el manifiesto los declara', () => {
-    expect(run(['modules']).stdout).toMatch(/^platform {2}Arquitectura de plataforma {2}v0\.1\.0\n {4}importa: mermaid, terraform, kubernetes, cloudformation {2}· {2}exporta: mermaid, svg, drawio/m);
+    expect(run(['modules']).stdout).toMatch(/^platform {2}Arquitectura de plataforma {2}v0\.1\.0\n {4}importa: mermaid, terraform, kubernetes, cloudformation, helm {2}· {2}exporta: mermaid, svg, drawio/m);
     const manifest = JSON.parse(run(['modules', '--json']).stdout);
     const platform = manifest.modules.find((m: { id: string }) => m.id === 'platform');
-    expect(platform.importFormats).toEqual(['mermaid', 'terraform', 'kubernetes', 'cloudformation']);
+    expect(platform.importFormats).toEqual(['mermaid', 'terraform', 'kubernetes', 'cloudformation', 'helm']);
   });
 
   it('un formato inválido lista los del módulo; Mermaid sigue importándose igual', () => {
