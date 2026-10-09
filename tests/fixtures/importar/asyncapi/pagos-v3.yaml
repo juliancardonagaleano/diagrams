@@ -1,0 +1,92 @@
+asyncapi: 3.0.0
+info:
+  title: Servicio de pagos
+  version: 2.1.0
+  description: Procesa los cobros de los pedidos y publica el resultado de cada uno.
+servers:
+  kafka-produccion:
+    host: kafka.pagos.example.com:{puerto}
+    protocol: kafka-secure
+    description: Clúster de Kafka de producción
+    variables:
+      puerto:
+        default: '9093'
+  kafka-dr:
+    host: kafka-dr.pagos.example.com:9093
+    protocol: kafka-secure
+    description: Clúster de recuperación ante desastres
+channels:
+  cobroSolicitado:
+    address: pagos.cobro.solicitado
+    description: Solicitudes de cobro que llegan de pedidos.
+    messages:
+      solicitudCobro:
+        $ref: '#/components/messages/solicitudCobro'
+    servers:
+      - $ref: '#/servers/kafka-produccion'
+  cobroResuelto:
+    address: pagos.cobro.resuelto
+    messages:
+      cobroAceptado:
+        $ref: '#/components/messages/cobroAceptado'
+      cobroRechazado:
+        $ref: '#/components/messages/cobroRechazado'
+  notificaciones:
+    address: null
+    messages:
+      aviso:
+        payload:
+          type: object
+operations:
+  recibirSolicitud:
+    action: receive
+    channel:
+      $ref: '#/channels/cobroSolicitado'
+    summary: Recibe una solicitud de cobro.
+    messages:
+      - $ref: '#/channels/cobroSolicitado/messages/solicitudCobro'
+    reply:
+      address:
+        location: '$message.header#/replyTo'
+      channel:
+        $ref: '#/channels/cobroResuelto'
+  publicarResultado:
+    action: send
+    channel:
+      $ref: '#/channels/cobroResuelto'
+    bindings:
+      kafka:
+        clientId: servicio-pagos
+  avisarAlCliente:
+    action: send
+    channel:
+      $ref: '#/channels/notificaciones'
+  operacionHuerfana:
+    action: send
+    channel:
+      $ref: '#/channels/noExiste'
+components:
+  messages:
+    solicitudCobro:
+      name: SolicitudCobro
+      payload:
+        type: object
+        properties:
+          pedidoId:
+            type: string
+          importe:
+            type: number
+    cobroAceptado:
+      name: CobroAceptado
+      payload:
+        type: object
+        properties:
+          pedidoId:
+            type: string
+    cobroRechazado:
+      title: Cobro rechazado
+      payload:
+        type: object
+        properties:
+          motivo:
+            type: string

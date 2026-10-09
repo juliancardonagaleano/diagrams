@@ -248,8 +248,9 @@ export function whyNotMultiFile(module: AnyModule, names: string[], importerId?:
   }
   if (importerId !== undefined && !joinable.some((i) => i.id === importerId)) return `El formato «${importerId}» no se puede leer repartido en varios archivos: importa uno solo.`;
   if (joinable.length === 0) return `El módulo «${module.id}» no importa varios archivos a la vez: importa uno solo.`;
-  const extensions = (importerId === undefined ? joinable : joinable.filter((i) => i.id === importerId)).flatMap((i) => i.multiFile!.extensions);
-  return `Los archivos (${names.join(', ')}) no son todos del mismo formato: solo se leen juntos los ${extensions.join(', ')}.`;
+  // Un grupo de extensiones por formato: «.tf o los .yaml, .yml» deja claro que se juntan los de un mismo formato, no unos con otros.
+  const groups = (importerId === undefined ? joinable : joinable.filter((i) => i.id === importerId)).map((i) => i.multiFile!.extensions.join(', '));
+  return `Los archivos (${names.join(', ')}) no son todos del mismo formato: solo se leen juntos los ${groups.join(' o los ')}.`;
 }
 
 /**

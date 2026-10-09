@@ -604,9 +604,9 @@ describe('módulo', () => {
     const registry = new ModuleRegistry().register(securityModule);
     expect(registry.require('security')).toBe(securityModule);
     expect(securityModule.exporters.map((e) => e.id)).toEqual(['mermaid', 'svg', 'drawio']);
-    expect(securityModule.importers.map((i) => i.id)).toEqual(['mermaid']);
+    expect(securityModule.importers.map((i) => i.id)).toEqual(['mermaid', 'threat-dragon']);
     const manifest = buildManifest(registry, { name: 'Prueba', version: '0.0.0' });
-    expect(manifest.modules[0]).toMatchObject({ id: 'security', importFormats: ['mermaid'], exportFormats: ['mermaid', 'svg', 'drawio'] });
+    expect(manifest.modules[0]).toMatchObject({ id: 'security', importFormats: ['mermaid', 'threat-dragon'], exportFormats: ['mermaid', 'svg', 'drawio'] });
     expect(securityModule.entities!(doc).map((e) => e.kind)).toEqual(expect.arrayContaining(['zone', 'asset', 'threat', 'control']));
     expect(securityModule.validate(doc).filter((i) => i.severity === 'warning')).toHaveLength(7);
     expect((securityModule.jsonSchema() as { type: string }).type).toBe('object');

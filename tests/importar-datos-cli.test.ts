@@ -32,7 +32,7 @@ describe('iark import --module data (DDL de SQL y dbt)', () => {
 
   it('modules lista los dos importadores nuevos junto al de Mermaid', () => {
     const manifest = JSON.parse(run(['modules', '--json']).out) as { modules: Array<{ id: string; importFormats: string[] }> };
-    expect(manifest.modules.find((m) => m.id === 'data')!.importFormats).toEqual(['mermaid', 'ddl', 'dbt']);
+    expect(manifest.modules.find((m) => m.id === 'data')!.importFormats).toEqual(['mermaid', 'ddl', 'dbt', 'openlineage']);
   });
 
   it('importa un volcado de PostgreSQL con --format ddl: JSON válido por stdout, resumen y avisos por stderr', () => {
@@ -127,8 +127,8 @@ describe('iark import --module data (DDL de SQL y dbt)', () => {
       { args: ['--format', 'dbt', '--stdin'], input: '{"nodes": {}}', message: 'no parece un manifest de dbt' },
       { args: ['--format', 'dbt', '--stdin'], input: JSON.stringify({ metadata: { dbt_schema_version: 'https://schemas.getdbt.com/dbt/catalog/v1.json' } }), message: 'artefacto de dbt «catalog»' },
       { args: ['--format', 'dbt', '--stdin'], input: readFileSync(MANIFEST, 'utf8').slice(0, 3000), message: 'no es JSON válido' },
-      { args: ['--format', 'zzz', '--stdin'], input: 'x', message: 'Formato inválido «zzz». Use: auto, dbt, ddl, mermaid.' },
-      { args: ['--stdin'], input: 'texto sin formato', message: 'No se reconoce el formato de la entrada: use --format dbt, ddl o mermaid.' },
+      { args: ['--format', 'zzz', '--stdin'], input: 'x', message: 'Formato inválido «zzz». Use: auto, dbt, ddl, mermaid, openlineage.' },
+      { args: ['--stdin'], input: 'texto sin formato', message: 'No se reconoce el formato de la entrada: use --format dbt, ddl, mermaid o openlineage.' },
     ];
     for (const c of cases) {
       const r = run(['import', '--module', 'data', ...c.args], c.input);

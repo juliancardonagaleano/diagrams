@@ -2,7 +2,7 @@
 
 [← Índice de la documentación](indice.md)
 
-Qué es la suite hoy, adónde va y qué falta. Lo que ya está hecho, fase por fase y tanda por tanda, está en [historial.md](historial.md); aquí solo hay lo vigente. Última revisión: 2026-10-08.
+Qué es la suite hoy, adónde va y qué falta. Lo que ya está hecho, fase por fase y tanda por tanda, está en [historial.md](historial.md); aquí solo hay lo vigente. Última revisión: 2026-10-09.
 
 - [Visión TO-BE](#visión-to-be)
 - [Estado actual](#estado-actual)
@@ -29,7 +29,7 @@ El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 | Web | **Hecho**: editor C4; banco de trabajo con lienzo propio en los cinco módulos que no son C4 (y el editor C4 embebido en él); suite; trazabilidad | [suite-web.md](suite-web.md) |
 | CLI | **Hecho**: `generate`, `explain`, `review`, `layout`, `convert`, `import`, `validate`, `schema`, `prompt`, `diff`, `trace`, `project`, `auth`, `serve` y los comandos de cada módulo | [cli.md](cli.md) |
 | IA | **Hecho**: API de Anthropic, Claude en Foundry, cualquier modelo de Foundry, modo sin clave (`iark prompt`), `--from-repo`, verificación con `validate()`, topes de tokens, `explain`/`review` y evals. Probado de verdad solo con DeepSeek-V4-Pro (28-09-2026); lo nuevo, solo con servicios simulados | [ia.md](ia.md) |
-| Importadores | **Hecho**: `.drawio`, Structurizr DSL, Mermaid, Terraform, Kubernetes, DDL de SQL, dbt y ArchiMate. Integración y seguridad solo importan Mermaid | [importadores.md](importadores.md) |
+| Importadores | **Hecho**: `.drawio`, Structurizr DSL, Mermaid, OpenAPI, AsyncAPI, Threat Dragon, Terraform, Kubernetes, CloudFormation, Helm, DDL de SQL, dbt, OpenLineage, ArchiMate y BPMN; cada módulo importa al menos un formato real además de Mermaid | [importadores.md](importadores.md) |
 | Federación y embebido | **Hecho**: manifiesto `iark.manifest/1`, shell, SDK de anfitrión y Web Component `<iark-module>` | [embebido.md](embebido.md) |
 | Trazabilidad | **Hecho** (v1 y v2): referencias por URN con tipo de enlace, `iark trace` (huérfanos, matriz y cobertura), `POST /api/trace` y vista web | [trazabilidad.md](trazabilidad.md) |
 | Versionado de diagramas | **Hecho**: `iark diff` y pestaña «Comparar» (sin instantáneas en el navegador) | [cli.md](cli.md#comparar-versiones-de-un-diagrama-iark-diff) |
@@ -47,7 +47,7 @@ Cada fase termina en una **puerta**: una condición que se puede comprobar y que
 |---|---|---|
 | **1 · Endurecer** | **En curso** | Sin hallazgos de seguridad altos y `master` protegido |
 | **2 · Abrir** | Pendiente | Un módulo de terceros carga sin tocar el repositorio |
-| **3 · Profundizar** | Pendiente | Cada módulo importa formatos reales |
+| **3 · Profundizar** | **En curso** | Cada módulo importa formatos reales (**cumplida**, acción 13) |
 | **4 · Escalar** | Pendiente | Instancia gestionada operada y medida |
 
 ### Fase 1 «Endurecer» (en curso)
@@ -77,13 +77,13 @@ Que la suite se pueda ampliar desde fuera.
 
 Que cada módulo sea útil con los archivos reales de quien lo usa.
 
-- **Importadores clave**: integración y seguridad solo importan Mermaid; cada módulo debe importar los formatos reales de su mundo. Se suman los límites conocidos de los actuales (módulos locales de Terraform, ids de ArchiMate que dependen del idioma, «Abrir archivo…» con un solo archivo).
+- **Importadores clave** (**hecho**, acción 13): integración importa OpenAPI y AsyncAPI, seguridad OWASP Threat Dragon, datos OpenLineage (además de DDL y dbt), empresarial BPMN (además de ArchiMate) y plataforma CloudFormation y Helm (además de Terraform y Kubernetes). Todos leen sin red ni disco, con topes de tamaño y profundidad, y avisan de lo que no entra ([importadores.md](importadores.md)). **Quedan** los límites conocidos: los módulos locales de Terraform y las referencias `$ref` a otros archivos no se resuelven, un chart de Helm sin renderizar no interpreta sus plantillas (hay que pasar la salida de `helm template`), CloudFormation no evalúa condiciones ni expande `Transform`, los ids de ArchiMate dependen del idioma y «Abrir archivo…» del encabezado admite un solo archivo.
 - **IA con verificación y evals** (hecho, salvo la prueba real con claves): `generate` verifica con `validate()` del módulo y reintenta por sus errores (`--no-verify`, `--allow-invalid`, `--strict`); topes de tokens sin precios (`--max-tokens`, `--budget-tokens`, `--max-input-tokens`); `iark explain` y `iark review`; `npm run evals` (16 casos de los seis módulos con respuestas grabadas a mano, también en `npm test`) y `npm run evals:live`; el servicio HTTP queda sin IA, documentado ([ia.md](ia.md), [servicio.md](servicio.md#por-qué-no-hay-ia-en-el-servicio)). **Falta**: ejecutar `tests/ai-live.test.ts` y `evals:live` con claves reales (hoy solo hay una prueba real, de C4 y con DeepSeek-V4-Pro), probar los proveedores que están sin probar y completar `--from-repo` (monorepos, manifiesto de auditoría del envío).
 - **C4 en el lienzo común**: C4 conserva su editor propio y en el banco de trabajo va embebido en un iframe; unificarlo con el lienzo de los módulos (y con ello el resaltado de «Comparar» llegaría al lienzo C4).
 - **Accesibilidad**: auditoría y arreglos del editor y del banco de trabajo (teclado, lectores de pantalla, contraste).
 - **Rendimiento**: diagramas grandes en el lienzo y en el autolayout, y el tamaño de los trozos de la compilación (hoy `chunkSizeWarningLimit: 2000`).
 
-**Puerta**: cada módulo importa formatos reales.
+**Puerta**: cada módulo importa formatos reales. **Cumplida** (acción 13): los seis módulos importan al menos un formato real además de Mermaid, probado con archivos de ejemplo escritos para el proyecto, con la CLI empaquetada de verdad y con el servicio. La fase sigue en curso por el resto de sus tareas (C4 en el lienzo común, accesibilidad, rendimiento y la prueba real de la IA con claves).
 
 ### Fase 4 «Escalar»
 
@@ -123,7 +123,9 @@ Los pendientes menores y límites conocidos al 2026-10-08, con la fase en la que
 | Plataforma | `counterpartResource` (re-apuntado de dependencias al promover) usa `counterpartOf` si existe, pero su deducción por nombre y clase sigue siendo propia: falta que reutilice el emparejado de la comparación (`pairResources`) | 3 |
 | Plataforma | El lienzo no marca en los nodos que un recurso tiene equivalente declarado (solo lo dicen el selector y la comparación) | 3 |
 | Importadores | Los módulos locales de Terraform no se resuelven; los ids de ArchiMate salen del nombre y dependen del idioma elegido (`lang`) | 3 |
-| Importadores | «Abrir archivo…» del encabezado admite un solo archivo (el de «Abrir archivo a importar…» admite varios `.tf`) | 3 |
+| Importadores | OpenAPI, AsyncAPI y CloudFormation no siguen referencias a otros archivos o URL (se avisa), CloudFormation no evalúa condiciones ni expande `Transform`, y un chart de Helm sin renderizar no interpreta `templates/` (para eso, `helm template` + importador de Kubernetes) | 3 |
+| Importadores | Los formatos nuevos se han probado con archivos de ejemplo escritos para el proyecto y no con modelos de herramientas reales (Camunda, Marquez, Threat Dragon, SAM…); Threat Dragon v1 no se lee | 3 |
+| Importadores | «Abrir archivo…» del encabezado admite un solo archivo (el de «Abrir archivo a importar…» admite varios `.tf` o los archivos de un chart de Helm) | 3 |
 | Paquetes | Quedan imports de solo pruebas sin declarar en su paquete y resueltos por la raíz (`fast-xml-parser` en data, platform y security, `mermaid` en data, `@anthropic-ai/sdk` en c4 y `vitest`) | 2 |
 | Proyectos | IndexedDB se puede borrar con los datos del sitio (hay *Exportar*); dos personas o pestañas sobre el mismo diagrama no se mezclan (el segundo guardado pregunta qué versión conservar) | 4 |
 | Proyectos | No hay trabajo sin conexión (un guardado que falla por la red se reintenta solo, pero solo lo que sigue en memoria) ni tiempo real entre personas (la lista se relee al volver el foco y cada 30 s) | 4 |
@@ -140,6 +142,6 @@ Límites de diseño vigentes, con su explicación en cada documento:
 
 - **Servicio**: `iark serve` solo habla HTTP, no registra accesos ni cambios salvo que se active (`--access-log`, `--audit-log`; llevan usuario e IP: [observabilidad.md](observabilidad.md)), y con `--tokens` los tokens no caducan y sus roles valen para toda la carpeta de trabajo (con `--accounts`, inicio de sesión de GitHub, hay permisos por proyecto) ([servicio.md](servicio.md)).
 - **Proyectos**: sin trabajo sin conexión ni tiempo real; cada guardado envía el documento entero (límite de 5 MB) y la lista incluye todos los diagramas, pensado para carpetas pequeñas o medianas ([proyectos.md](proyectos.md)).
-- **Importadores**: lo que no se mapea se avisa, no se importa (capas y formas ocultas en `.drawio`, despliegue y vistas `dynamic` en el DSL de Structurizr, `.drawio.svg` y `.drawio.png`…) ([importadores.md](importadores.md)).
+- **Importadores**: lo que no se mapea se avisa, no se importa (capas y formas ocultas en `.drawio`, despliegue y vistas `dynamic` en el DSL de Structurizr, `.drawio.svg` y `.drawio.png`, datos y anotaciones en BPMN, `webhooks` en OpenAPI, plantillas de un chart de Helm…), y nada se lee de la red ni del disco al importar ([importadores.md](importadores.md)).
 - **Módulos de terceros**: se cargan en el CLI y en `iark serve`, no en el sitio web (sin editor visual, sin entrada en el banco de trabajo ni en el shell); cargar uno ejecuta su código con los permisos del proceso y por eso solo se carga la configuración que señala quien ejecuta el comando; no se descargan ni se instalan solos y no hay recarga en caliente ([plugins.md](plugins.md)). Los paquetes `@iark/*` están listos para publicarse pero no se han publicado.
 - **Módulos**: al importar DDL o dbt no se deduce nada de gobierno (solo lo que declare el `meta` de dbt), y los importadores de plataforma no escriben `counterpartOf` porque nada en esos formatos dice qué recurso es el equivalente de otro entorno ([datos.md](modulos/datos.md), [plataforma.md](modulos/plataforma.md)).

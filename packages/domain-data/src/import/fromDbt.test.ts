@@ -607,7 +607,7 @@ describe('dbt: entradas rotas y detección', () => {
 
   it('el módulo registra el importador `dbt` para .json y lo elige por contenido, sin pisar al resto de JSON', async () => {
     const registry = new ModuleRegistry().register(dataModule);
-    expect(dataModule.importers.map((i) => i.id)).toEqual(['mermaid', 'ddl', 'dbt']);
+    expect(dataModule.importers.map((i) => i.id)).toEqual(['mermaid', 'ddl', 'dbt', 'openlineage']);
     const dbt = dataModule.importers.find((i) => i.id === 'dbt')!;
     expect(dbt).toMatchObject({ label: 'dbt (manifest.json)', extensions: ['.json'] });
     expect(registry.detectImporter('data', 'manifest.json', text)?.id).toBe('dbt');

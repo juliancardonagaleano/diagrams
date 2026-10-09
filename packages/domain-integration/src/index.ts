@@ -19,6 +19,8 @@ export { toSvg, layoutView } from './export/render';
 export { toDrawio } from './export/drawio';
 export { fromMermaid, IntegrationImportError, type IntegrationImportOptions, type IntegrationImportResult } from './import/fromMermaid';
 export { fromC4Json } from './import/fromC4';
+export { fromOpenApi, looksLikeOpenApi } from './import/fromOpenApi';
+export { fromAsyncApi, looksLikeAsyncApi } from './import/fromAsyncApi';
 export { integrationAiSpec, carryIntegration, generatedIntegrationSchema, type GeneratedIntegration } from './ai/generation';
 export { integrationCommands } from './commands';
 export { integrationModule } from './module';

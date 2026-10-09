@@ -30,11 +30,13 @@
       "id": "integration",
       "name": "Arquitectura de integraciones",
       "version": "0.1.0",
-      "description": "Mapa de integración y flujos con notación EIP: sistemas, APIs, MCP, brokers, colas, contratos editables (OpenAPI, .proto, CloudEvents, MCP) y patrones; exporta a Mermaid, SVG y draw.io.",
+      "description": "Mapa de integración y flujos con notación EIP: sistemas, APIs, MCP, brokers, colas, contratos editables (OpenAPI, .proto, CloudEvents, MCP) y patrones; importa de Mermaid, OpenAPI y AsyncAPI y exporta a Mermaid, SVG y draw.io.",
       "contractVersion": 1,
       "documentVersion": "1.0",
       "importFormats": [
-        "mermaid"
+        "mermaid",
+        "openapi",
+        "asyncapi"
       ],
       "exportFormats": [
         "mermaid",
@@ -50,13 +52,14 @@
       "id": "data",
       "name": "Arquitectura de datos",
       "version": "0.1.0",
-      "description": "Linaje, modelo entidad-relación (pata de gallo o UML), gobierno del dato y catálogo (productos de datos, APIs y glosario): dominios, pipelines, clasificación, datos personales y contratos por motor de base de datos; importa de Mermaid, DDL de SQL y dbt y exporta a Mermaid, SVG, draw.io y DDL.",
+      "description": "Linaje, modelo entidad-relación (pata de gallo o UML), gobierno del dato y catálogo (productos de datos, APIs y glosario): dominios, pipelines, clasificación, datos personales y contratos por motor de base de datos; importa de Mermaid, DDL de SQL, dbt y OpenLineage y exporta a Mermaid, SVG, draw.io y DDL.",
       "contractVersion": 1,
       "documentVersion": "1.0",
       "importFormats": [
         "mermaid",
         "ddl",
-        "dbt"
+        "dbt",
+        "openlineage"
       ],
       "exportFormats": [
         "mermaid",
@@ -78,7 +81,8 @@
       "documentVersion": "1.0",
       "importFormats": [
         "mermaid",
-        "archimate"
+        "archimate",
+        "bpmn"
       ],
       "exportFormats": [
         "mermaid",
@@ -94,13 +98,15 @@
       "id": "platform",
       "name": "Arquitectura de plataforma",
       "version": "0.1.0",
-      "description": "Entornos, redes, recursos, servicios, despliegues y pipelines, con topología, despliegue por entorno e impacto; importa de Mermaid, Terraform y Kubernetes y exporta a Mermaid, SVG y draw.io.",
+      "description": "Entornos, redes, recursos, servicios, despliegues y pipelines, con topología, despliegue por entorno e impacto; importa de Mermaid, Terraform, Kubernetes, CloudFormation y Helm y exporta a Mermaid, SVG y draw.io.",
       "contractVersion": 1,
       "documentVersion": "1.0",
       "importFormats": [
         "mermaid",
         "terraform",
-        "kubernetes"
+        "kubernetes",
+        "cloudformation",
+        "helm"
       ],
       "exportFormats": [
         "mermaid",
@@ -116,11 +122,12 @@
       "id": "security",
       "name": "Arquitectura de seguridad",
       "version": "0.1.0",
-      "description": "Zonas de confianza, activos, flujos de datos, amenazas STRIDE y controles, con diagrama de flujo de datos, modelo de amenazas, riesgos y superficie de ataque; exporta a Mermaid, SVG y draw.io.",
+      "description": "Zonas de confianza, activos, flujos de datos, amenazas STRIDE y controles, con diagrama de flujo de datos, modelo de amenazas, riesgos y superficie de ataque; importa de Mermaid y OWASP Threat Dragon y exporta a Mermaid, SVG y draw.io.",
       "contractVersion": 1,
       "documentVersion": "1.0",
       "importFormats": [
-        "mermaid"
+        "mermaid",
+        "threat-dragon"
       ],
       "exportFormats": [
         "mermaid",

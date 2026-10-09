@@ -59,13 +59,23 @@ export class ModuleRegistry {
 
   /**
    * Importador de un módulo para un archivo: primero por extensión y, si no basta (stdin, extensión desconocida),
-   * por el contenido. Devuelve `undefined` si ninguno lo reconoce.
+   * por el contenido. Devuelve `undefined` si ninguno lo reconoce. Ver `pickImporter` para el criterio exacto.
    */
   detectImporter<TDoc>(moduleId: string, file: string | undefined, text: string): Importer<TDoc> | undefined {
-    const importers = this.require(moduleId).importers as Array<Importer<TDoc>>;
-    const ext = file ? /\.[^./\\]+$/.exec(file.toLowerCase())?.[0] : undefined;
-    const byExt = ext ? importers.find((i) => i.extensions.includes(ext)) : undefined;
-    // Una extensión conocida manda: si el contenido no encaja, el importador explica por qué (mejor que «formato desconocido»).
-    return byExt ?? importers.find((i) => i.detect?.(text));
+    return pickImporter(this.require(moduleId).importers as Array<Importer<TDoc>>, file, text);
   }
+}
+
+/**
+ * Elige el importador de un archivo entre los de un módulo. Una extensión conocida manda: si el contenido no encaja, el
+ * importador explica por qué (mejor que «formato desconocido»). Pero varios formatos comparten extensión (`.yaml` es Kubernetes,
+ * CloudFormation o Helm; `.json`, un `manifest.json` de dbt o eventos de OpenLineage; `.xml`, ArchiMate o BPMN), así que si
+ * más de un importador la declara se elige el primero que reconoce el contenido y, si ninguno, el primero declarado. Sin
+ * extensión conocida (stdin, archivo sin extensión) se recorren todos por el contenido.
+ */
+export function pickImporter<TDoc>(importers: ReadonlyArray<Importer<TDoc>>, file: string | undefined, text: string): Importer<TDoc> | undefined {
+  const ext = file ? /\.[^./\\]+$/.exec(file.toLowerCase())?.[0] : undefined;
+  const byExt = ext ? importers.filter((i) => i.extensions.includes(ext)) : [];
+  if (byExt.length > 0) return byExt.length === 1 ? byExt[0] : (byExt.find((i) => i.detect?.(text)) ?? byExt[0]);
+  return importers.find((i) => i.detect?.(text));
 }

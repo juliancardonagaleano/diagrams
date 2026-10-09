@@ -2,20 +2,33 @@
 
 [← Índice de la documentación](indice.md)
 
-Cómo entra y sale un diagrama de la suite. Esta página describe los formatos del módulo C4 (`.drawio` y DSL de Structurizr) y Mermaid; los formatos propios de cada módulo (Terraform, Kubernetes, DDL de SQL, dbt, ArchiMate…) se explican en el documento de su módulo. En todos los importadores lo que no se puede mapear se lista como aviso (nunca se descarta en silencio) y importar dos veces el mismo archivo da el mismo documento.
+Cómo entra y sale un diagrama de la suite. Esta página describe los formatos del módulo C4 (`.drawio` y DSL de Structurizr) y Mermaid; los formatos propios de cada módulo (OpenAPI, AsyncAPI, Threat Dragon, OpenLineage, BPMN, Terraform, Kubernetes, CloudFormation, Helm, DDL de SQL, dbt, ArchiMate…) se explican en el documento de su módulo. En todos los importadores lo que no se puede mapear se lista como aviso (nunca se descarta en silencio) y importar dos veces el mismo archivo da el mismo documento.
 
 `iark modules` lista los módulos instalados con sus formatos; hoy son:
 
 | Módulo | Importa | Exporta | Detalle |
 |---|---|---|---|
 | `c4` | `drawio`, `dsl` (Structurizr), `mermaid` | `drawio`, `svg`, `mermaid` | esta página |
-| `integration` | `mermaid` | `mermaid`, `svg`, `drawio` | [integración](modulos/integracion.md) |
-| `data` | `mermaid`, `ddl` (SQL), `dbt` | `mermaid`, `svg`, `drawio`, `ddl` | [datos](modulos/datos.md) |
-| `enterprise` | `mermaid`, `archimate` | `mermaid`, `svg`, `drawio` | [empresarial](modulos/empresarial.md) |
-| `platform` | `mermaid`, `terraform`, `kubernetes` | `mermaid`, `svg`, `drawio` | [plataforma](modulos/plataforma.md) |
-| `security` | `mermaid` | `mermaid`, `svg`, `drawio` | [seguridad](modulos/seguridad.md) |
+| `integration` | `mermaid`, `openapi` (OpenAPI 3.x y Swagger 2.0), `asyncapi` (2.x y 3.x) | `mermaid`, `svg`, `drawio` | [integración](modulos/integracion.md#importar-openapi-y-asyncapi) |
+| `data` | `mermaid`, `ddl` (SQL), `dbt`, `openlineage` | `mermaid`, `svg`, `drawio`, `ddl` | [datos](modulos/datos.md#importar-openlineage) |
+| `enterprise` | `mermaid`, `archimate`, `bpmn` (BPMN 2.0) | `mermaid`, `svg`, `drawio` | [empresarial](modulos/empresarial.md#importar-bpmn-20) |
+| `platform` | `mermaid`, `terraform`, `kubernetes`, `cloudformation`, `helm` | `mermaid`, `svg`, `drawio` | [plataforma](modulos/plataforma.md#importar-cloudformation-y-helm) |
+| `security` | `mermaid`, `threat-dragon` (OWASP Threat Dragon v2) | `mermaid`, `svg`, `drawio` | [seguridad](modulos/seguridad.md#importar-owasp-threat-dragon) |
 
-El formato se elige con `--format <id>` (o `auto`, que lo deduce de la extensión y del contenido); ver [CLI](cli.md). Las secciones siguientes describen el módulo C4; el Mermaid de los demás módulos (cada tipo de nodo con su forma) está en su documento.
+El formato se elige con `--format <id>` (o `auto`, que lo deduce de la extensión y del contenido); ver [CLI](cli.md).
+
+## Lo que tienen en común los formatos de terceros
+
+Los importadores de OpenAPI, AsyncAPI, Threat Dragon, OpenLineage, BPMN, CloudFormation y Helm siguen las mismas reglas, porque `iark serve` ejecuta `import` sobre entrada no confiable. Los de Terraform, Kubernetes, DDL, dbt y ArchiMate, anteriores, comparten tres de ellas (no tocan red ni disco, avisan de lo que no entra y no copian secretos); Kubernetes además aplica los topes de tamaño y de anidamiento.
+
+- **Sin red ni disco.** Un `$ref` a otro archivo o a una URL (OpenAPI, AsyncAPI), un subchart de Helm (`repository`, `file://`, `oci://`), una plantilla anidada de CloudFormation (`TemplateURL`) o un módulo local de Terraform no se siguen ni se leen: se avisa. Los `$ref` internos (`#/…`) sí se resuelven, con control de ciclos y de profundidad.
+- **Solo las bibliotecas que ya usa la suite**: `yaml` (con su esquema por defecto; las etiquetas cortas de CloudFormation `!Ref`, `!Sub`… se leen como datos, nunca se ejecutan) y `fast-xml-parser` (sin entidades propias). No se añadió ninguna dependencia.
+- **Topes comunes** (`IMPORT_LIMITS` del núcleo): hasta 32 MiB de texto, 200 niveles de anidamiento y 2.000.000 de nodos; los de cada formato, además, acotan los elementos que se recorren (el cálculo no puede crecer sin freno con una entrada hecha para ello). Una entrada vacía, de otro tipo, truncada, con un anidamiento de miles de niveles o con una «bomba» de alias termina con el código 2 y **un mensaje de una línea**, sin traza ni cuelgue.
+- **Nada se descarta en silencio**: lo que el módulo no puede representar se resume en los avisos (agrupado y con su cuenta), y lo que el formato no dice y el importador decide (el lado más confiable de una frontera, el entorno de una plantilla, quién llama a una API) se avisa para que se revise.
+- **Los secretos no se copian** a los elementos ni a los avisos: contraseñas de `values.yaml` de Helm, parámetros `NoEcho` de CloudFormation, valores de un Secret de Kubernetes y credenciales en la URL de un servidor de OpenAPI o AsyncAPI (que se quitan de las descripciones; el contrato que guarda el documento entero conserva el texto original del archivo, porque es el archivo).
+- **Lo reconoce el contenido, no solo la extensión**: dos formatos que comparten `.yaml` o `.json` (OpenAPI, AsyncAPI, Kubernetes, CloudFormation y un `Chart.yaml` de Helm) se distinguen por sus campos raíz. Si varios importadores declaran la misma extensión, gana el primero cuyo `detect` encuentra su formato; un texto que no es de ninguno falla con la lista de formatos del módulo.
+
+Las secciones siguientes describen el módulo C4; el Mermaid de los demás módulos (cada tipo de nodo con su forma) y sus formatos propios están en su documento.
 
 ## Conversión a `.drawio`
 
