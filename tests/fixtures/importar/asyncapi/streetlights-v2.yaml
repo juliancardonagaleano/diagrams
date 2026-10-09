@@ -1,0 +1,132 @@
+asyncapi: '2.6.0'
+info:
+  title: API de farolas inteligentes
+  version: '1.0.0'
+  description: |
+    Gestiona el alumbrado público: recibe las lecturas de luz de cada farola y le envía las órdenes de encendido,
+    apagado y atenuación.
+  contact:
+    name: Equipo de Alumbrado
+  license:
+    name: Apache 2.0
+defaultContentType: application/json
+servers:
+  production:
+    url: broker.ciudad.example.com:{puerto}
+    protocol: mqtt
+    protocolVersion: '3.1.1'
+    description: Broker MQTT de producción
+    variables:
+      puerto:
+        default: '8883'
+        enum: ['1883', '8883']
+    security:
+      - apiKey: []
+  pruebas:
+    url: mqtt://operador:clave-de-prueba@pruebas.ciudad.example.com:1883
+    protocol: mqtt
+    description: Broker de pruebas
+channels:
+  ciudad/farolas/1/0/evento/{farolaId}/luz/medida:
+    description: Lecturas de luz que publica cada farola.
+    parameters:
+      farolaId:
+        $ref: '#/components/parameters/farolaId'
+    servers: [production]
+    publish:
+      operationId: alRecibirMedida
+      summary: Informa de las condiciones de luz de una farola.
+      traits:
+        - $ref: '#/components/operationTraits/mqtt'
+      message:
+        $ref: '#/components/messages/medidaDeLuz'
+  ciudad/farolas/1/0/accion/{farolaId}/encender:
+    parameters:
+      farolaId:
+        $ref: '#/components/parameters/farolaId'
+    subscribe:
+      operationId: encenderFarola
+      summary: Ordena encender una farola.
+      message:
+        $ref: '#/components/messages/ordenEncender'
+  ciudad/farolas/1/0/accion/{farolaId}/atenuar:
+    parameters:
+      farolaId:
+        $ref: '#/components/parameters/farolaId'
+    subscribe:
+      operationId: atenuarFarola
+      message:
+        oneOf:
+          - $ref: '#/components/messages/ordenAtenuar'
+          - $ref: '#/components/messages/ordenEncender'
+  ciudad/farolas/1/0/incidencias:
+    description: Cola de incidencias para el equipo de mantenimiento.
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: incidencias
+          durable: true
+    publish:
+      operationId: registrarIncidencia
+      message:
+        $ref: '#/components/messages/incidencia'
+components:
+  messages:
+    medidaDeLuz:
+      name: MedidaDeLuz
+      title: Medida de luz
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/medidaDeLuzPayload'
+    ordenEncender:
+      name: OrdenEncender
+      payload:
+        $ref: '#/components/schemas/ordenPayload'
+    ordenAtenuar:
+      name: OrdenAtenuar
+      payload:
+        type: object
+        properties:
+          porcentaje:
+            type: integer
+            minimum: 0
+            maximum: 100
+    incidencia:
+      payload:
+        type: object
+        properties:
+          farolaId:
+            type: string
+          texto:
+            type: string
+  schemas:
+    medidaDeLuzPayload:
+      type: object
+      properties:
+        lumens:
+          type: integer
+          minimum: 0
+        enviadoEn:
+          type: string
+          format: date-time
+    ordenPayload:
+      type: object
+      properties:
+        orden:
+          type: string
+          enum: [encender, apagar]
+  parameters:
+    farolaId:
+      description: Identificador de la farola.
+      schema:
+        type: string
+  operationTraits:
+    mqtt:
+      bindings:
+        mqtt:
+          qos: 1
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: user

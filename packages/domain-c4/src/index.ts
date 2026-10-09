@@ -62,3 +62,4 @@ export { createAiClient, resolveModel, resolveProvider, extractJson, type AiProv
 export { generateDocument, GenerationError, DEFAULT_AI_MODEL, type GenerateOptions, type GenerateResult, type Effort } from './ai/generate';
 export { analyzeDocument, type DocumentIssue } from './model/issues';
 export { c4Module } from './module';
+export { c4Editor } from './editor';

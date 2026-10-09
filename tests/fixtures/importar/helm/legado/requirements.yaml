@@ -1,0 +1,8 @@
+dependencies:
+  - name: mariadb
+    version: 11.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: mariadb.enabled
+  - name: memcached
+    version: 6.x.x
+    repository: https://charts.bitnami.com/bitnami

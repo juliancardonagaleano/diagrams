@@ -7,7 +7,7 @@
 #   cp .env.example .env                       # y rellena el dominio, el Client ID de GitHub y los administradores
 #   nano secrets/github_client_secret          # pega el Client secret de la OAuth App (solo eso) y guarda
 #   chown 1000:1000 secrets/github_client_secret && chmod 400 secrets/github_client_secret    # (con sudo si no eres root) que lo lea el usuario de IArk
-#   docker volume create iark-data             # donde viven los proyectos y las cuentas (ver el volumen, abajo)
+#   docker volume create iark-data             # donde viven los proyectos y las cuentas (una base SQLite) (ver el volumen, abajo)
 #   docker compose up -d --build
 #
 # Dos servicios:
@@ -39,7 +39,14 @@ services:
       IARK_COMPUTE_QUEUE: "${IARK_COMPUTE_QUEUE:-}"
       # Dónde se guarda todo: en el volumen de abajo, que es lo único que hay que copiar.
       IARK_WORKSPACE: /data/workspace
-      IARK_ACCOUNTS: /data/accounts.json
+      # Las cuentas, las sesiones y a quién se compartió cada proyecto van en una base SQLite (transaccional; hace falta un disco local,
+      # como el volumen de Docker, no NFS ni SMB). La copia de seguridad es `iark accounts backup`, no copiar el archivo (ver la guía).
+      IARK_ACCOUNTS_STORE: sqlite
+      IARK_ACCOUNTS: /data/accounts.db
+      # Solo para actualizar un servicio que guardaba las cuentas en JSON (accounts.json): en el primer arranque las pasa a la base,
+      # deja el JSON como estaba y hace una copia de seguridad suya. Si no existe accounts.json (una instalación nueva) no hace nada,
+      # y reiniciar tampoco repite la importación. Cuando ya no haga falta, se puede quitar esta línea.
+      IARK_ACCOUNTS_IMPORT: /data/accounts.json
       # Registros (docs/observabilidad.md). Los accesos van a la salida estándar (`-`), que recoge `docker compose logs iark` y rota el
       # `logging` de abajo (10 MB × 3): una línea JSON por petición, sin query string, cuerpos ni credenciales, con la dirección real del cliente
       # (por --trust-proxy) y el usuario: son datos personales, ver «Datos personales» en docs/observabilidad.md. La auditoría (quién cambió qué, también lo

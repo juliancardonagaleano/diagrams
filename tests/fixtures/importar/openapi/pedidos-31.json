@@ -1,0 +1,88 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "API de pedidos",
+    "version": "2.3.0",
+    "summary": "Pedidos y facturas de la tienda"
+  },
+  "servers": [{ "url": "/api/v2" }],
+  "paths": {
+    "/api/v2/pedidos": {
+      "get": {
+        "summary": "Lista los pedidos",
+        "operationId": "listarPedidos",
+        "responses": {
+          "200": {
+            "description": "Lista",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Pedido" } } } }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crea un pedido",
+        "operationId": "crearPedido",
+        "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Pedido" } } } },
+        "responses": { "201": { "description": "Creado" } },
+        "callbacks": {
+          "pedidoConfirmado": {
+            "{$request.body#/urlRetorno}": { "post": { "responses": { "200": { "description": "Recibido" } } } }
+          }
+        }
+      }
+    },
+    "/api/v2/pedidos/{id}": {
+      "get": {
+        "summary": "Un pedido",
+        "operationId": "verPedido",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "El pedido",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Pedido" } } }
+          },
+          "422": { "$ref": "https://ejemplo.invalid/errores.yaml#/Validacion" },
+          "500": { "$ref": "#/components/responses/NoExiste" }
+        }
+      }
+    },
+    "/api/v2/facturas": {
+      "get": {
+        "summary": "Lista las facturas",
+        "operationId": "listarFacturas",
+        "responses": {
+          "200": {
+            "description": "Lista",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Factura" } } } }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "pedidoEnviado": {
+      "post": { "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Pedido" } } } }, "responses": { "200": { "description": "Recibido" } } }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Linea": {
+        "type": "object",
+        "properties": { "sku": { "type": "string" }, "cantidad": { "type": "integer" } }
+      },
+      "Pedido": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "lineas": { "type": "array", "items": { "$ref": "#/components/schemas/Linea" } },
+          "pedidoOrigen": { "$ref": "#/components/schemas/Pedido" },
+          "factura": { "$ref": "#/components/schemas/Factura" }
+        }
+      },
+      "Factura": {
+        "type": "object",
+        "properties": { "numero": { "type": "string" }, "pedido": { "$ref": "#/components/schemas/Pedido" } }
+      }
+    },
+    "securitySchemes": { "token": { "type": "http", "scheme": "bearer" } }
+  }
+}

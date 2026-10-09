@@ -269,9 +269,21 @@ test.describe('frame-ancestors', () => {
   test('el banco incrustado desde otro origen sigue pudiendo incrustar el editor C4: los ancestros se comprueban todos, y el propio origen va siempre en la lista', async ({ page }) => {
     const w = watch(page);
     await page.goto(`${A.url}/trazabilidad.html`, { waitUntil: 'domcontentloaded' });
-    // Cadena de ancestros del editor: banco (B) → página anfitriona (A). `--frame-ancestors` de B solo nombra a A; B entra por `'self'`.
+    // El banco abre C4 en su propio lienzo, sin iframe. Un anfitrión que quiera el editor clásico lo anida dentro del banco, así que la
+    // cadena de ancestros sigue siendo editor (B) → banco (B) → página anfitriona (A): `--frame-ancestors` de B solo nombra a A; B entra por `'self'`.
     const bench = await frameInto(page, `${origin(B)}/modulos.html?embed=1&module=c4&origin=${encodeURIComponent(A.url)}`);
     expect(bench.refused).toBe(false);
+    const benchFrame = page.frames().find((f) => f.url().startsWith(`${origin(B)}/modulos.html`))!;
+    // Embebido y sin documento cargado, el banco avisa de que no hay documento válido: basta ver que arrancó (la pestaña del módulo).
+    await expect(benchFrame.getByRole('tab', { name: 'C4', selected: true })).toBeVisible({ timeout: 20000 });
+    expect(await benchFrame.locator('iframe').count(), 'C4 ya no se incrusta en el banco').toBe(0);
+    await benchFrame.evaluate((src) => {
+      const element = document.createElement('iframe');
+      element.src = src;
+      element.dataset.testid = 'editor-anidado';
+      element.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff';
+      document.body.append(element);
+    }, `${origin(B)}/?embed=1&proto=json&origin=${encodeURIComponent(origin(B))}&ui=min`);
     const nested = () => page.frames().find((f) => f.parentFrame() !== null && f.parentFrame() !== page.mainFrame() && f.url().startsWith(`${origin(B)}/?embed=1`));
     await expect.poll(nested, { timeout: 20000 }).toBeTruthy();
     await c4Ready(nested()!); // el editor C4 anidado (el marco es pequeño: se comprueba que el lienzo está colocado, no que se vea entero)

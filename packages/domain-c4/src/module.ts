@@ -1,4 +1,5 @@
 import { CONTRACT_VERSION, type DomainModule, type EntityRef, type Exporter, type Importer, type ModuleIssue, type ViewRef } from '@iark/kernel';
+import { c4Editor } from './editor';
 import { toSvg } from './export/svg/toSvg';
 import { c4AiSpec } from './ai/spec';
 import { toDrawio, type DrawioNotation } from './export/drawio/toDrawio';
@@ -87,6 +88,8 @@ export const c4Module: DomainModule<C4Document> = {
   importers: [drawioImporter, mermaidImporter, dslImporter],
   exporters: [drawioExporter, svgExporter, mermaidExporter],
   ai: c4AiSpec,
+  // El lienzo común de la suite edita C4 con esta notación; el editor C4 clásico (`index.html`) sigue siendo el de los anfitriones embebidos.
+  editor: c4Editor,
   entities: (document): EntityRef[] => document.model.elements.map((e) => ({ id: e.id, name: e.name, kind: e.type })),
   views: (document): ViewRef[] => document.views.map((v) => ({ id: v.id, title: v.title ?? v.id })),
   // Comparar versiones: lo que guarda el autolayout (posiciones, tamaños, rutas de aristas y opciones de layout de cada vista) no es

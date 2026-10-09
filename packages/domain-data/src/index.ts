@@ -12,6 +12,7 @@ export { fromMermaid, DataImportError, type DataImportOptions, type DataImportRe
 export { fromIntegrationJson } from './import/fromIntegration';
 export { fromDdl, looksLikeDdl } from './import/fromDdl';
 export { fromDbt, looksLikeDbtManifest } from './import/fromDbt';
+export { fromOpenLineage, looksLikeOpenLineage } from './import/fromOpenLineage';
 export { dataAiSpec, generatedDataSchema, type GeneratedData } from './ai/generation';
 export { dataCommands } from './commands';
 export { dataModule } from './module';

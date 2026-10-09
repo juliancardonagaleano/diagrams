@@ -1,6 +1,6 @@
 /**
  * Atajos del lienzo de los módulos. Son los mismos del editor C4 (Ctrl+Z, Ctrl+Y, Supr, Ctrl+L, Ctrl+rueda…) para que
- * los cinco diagramadores y el editor C4 se manejen igual.
+ * todos los diagramadores, C4 incluido, se manejen igual.
  */
 export type CanvasAction = 'undo' | 'redo' | 'delete' | 'layout' | 'fit' | 'deselect' | 'follow' | 'back';
 
@@ -17,6 +17,7 @@ export const CANVAS_SHORTCUTS: Array<[string, string]> = [
   ['Arrastrar desde un punto de conexión', 'Crear una relación del tipo elegido en la barra'],
   ['Doble clic en un elemento enlazado · Alt + ↓', 'Seguir el enlace a su elemento en otro módulo'],
   ['Alt + ↑', 'Volver al diagrama desde el que se llegó'],
+  ['Alt + ↓ / Alt + ↑ (módulos con niveles, como C4)', 'Sin enlace que seguir ni diagrama al que volver: bajar al detalle del elemento / subir de nivel'],
 ];
 
 export interface KeyLike {

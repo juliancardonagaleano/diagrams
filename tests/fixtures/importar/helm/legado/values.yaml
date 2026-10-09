@@ -1,0 +1,5 @@
+env: desarrollo
+image: ghcr.io/ejemplo/blog:5.2.1
+replicas: 1
+mariadb:
+  enabled: true

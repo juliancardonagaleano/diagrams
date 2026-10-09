@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { buildManifest, manifestSchema } from './manifest';
 import { EMBED_PROTOCOL_VERSION } from './protocol';
 import { importFiles, joinSourceFiles, multiFileImporter, sourceFilesOf } from './operations';
-import { ModuleRegistry, UnknownModuleError } from './registry';
+import { ModuleRegistry, UnknownModuleError, pickImporter } from './registry';
 import type { DomainModule, ImportContext, Importer } from './types';
 import { formatUrn, parseUrn } from './urn';
 
@@ -67,6 +67,28 @@ describe('ModuleRegistry', () => {
     expect(registry.detectImporter('c4', undefined, '<x/>')?.id).toBe('xml');
     expect(registry.detectImporter('c4', 'sin-extension', 'workspace {}')?.id).toBe('dsl');
     expect(registry.detectImporter('c4', 'datos.json', '{}')).toBeUndefined();
+  });
+});
+
+describe('pickImporter: formatos que comparten extensión', () => {
+  const looks = (word: string) => (t: string) => t.includes(word);
+  const yamls = [importer('kubernetes', ['.yaml', '.yml'], looks('kind:')), importer('cloudformation', ['.yaml', '.yml', '.template'], looks('Resources:')), importer('helm', ['.yaml', '.yml'], looks('appVersion'))];
+
+  it('con una extensión compartida gana el primero que reconoce el contenido', () => {
+    expect(pickImporter(yamls, 'pila.yaml', 'Resources:\n  A: {}')?.id).toBe('cloudformation');
+    expect(pickImporter(yamls, 'pila.YML', 'appVersion: 1')?.id).toBe('helm');
+    expect(pickImporter(yamls, 'k8s.yaml', 'kind: Pod')?.id).toBe('kubernetes');
+  });
+
+  it('si ninguno reconoce el contenido gana el primero declarado, que explica por qué no encaja', () => {
+    expect(pickImporter(yamls, 'otro.yaml', 'a: 1')?.id).toBe('kubernetes');
+  });
+
+  it('una extensión de un solo importador manda aunque el contenido no encaje, y sin extensión se mira el contenido', () => {
+    expect(pickImporter(yamls, 'pila.template', 'a: 1')?.id).toBe('cloudformation');
+    expect(pickImporter(yamls, undefined, 'Resources:')?.id).toBe('cloudformation');
+    expect(pickImporter(yamls, 'sin-extension', 'a: 1')).toBeUndefined();
+    expect(pickImporter(yamls, 'datos.json', 'kind: Pod')?.id).toBe('kubernetes');
   });
 });
 

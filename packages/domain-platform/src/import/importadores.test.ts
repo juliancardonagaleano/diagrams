@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { importFiles, joinSourceFiles, ModuleRegistry } from '@iark/kernel';
 import { describe, expect, it } from 'vitest';
 import { platformModule } from '../module';
+import { fromCloudFormation } from './fromCloudFormation';
+import { fromHelm } from './fromHelm';
 import { fromKubernetes } from './fromKubernetes';
 import { PlatformImportError } from './fromMermaid';
 import { fromTerraform, fromTerraformFiles } from './fromTerraform';
@@ -14,13 +16,17 @@ const pick = (text: string, file?: string): string | undefined => registry.detec
 const read = (path: string): string => readFileSync(path, 'utf8');
 const TF = 'tests/fixtures/importar/terraform';
 const K8S = 'tests/fixtures/importar/kubernetes';
+const CFN = 'tests/fixtures/importar/cloudformation';
+const HELM = 'tests/fixtures/importar/helm';
 
 describe('módulo de plataforma: importadores registrados', () => {
-  it('declara Mermaid, Terraform y Kubernetes, con sus extensiones', () => {
+  it('declara Mermaid, Terraform, Kubernetes, CloudFormation y Helm, con sus extensiones', () => {
     expect(platformModule.importers.map((i) => [i.id, i.label, i.extensions])).toEqual([
       ['mermaid', 'Mermaid', ['.mmd', '.mermaid', '.md']],
       ['terraform', 'Terraform', ['.tf', '.tf.json', '.tfstate']],
       ['kubernetes', 'Kubernetes', ['.yaml', '.yml']],
+      ['cloudformation', 'AWS CloudFormation', ['.yaml', '.yml', '.template', '.cfn']],
+      ['helm', 'Helm (Chart.yaml + values.yaml)', ['.yaml', '.yml']],
     ]);
     for (const i of platformModule.importers) expect(typeof i.detect).toBe('function');
   });
@@ -36,6 +42,12 @@ describe('módulo de plataforma: importadores registrados', () => {
     [`${K8S}/tienda-kubectl/get-all.yaml`, 'kubernetes'],
     [`${K8S}/multi-entorno/entornos.yaml`, 'kubernetes'],
     [`${K8S}/malla-gateway/gateway.yaml`, 'kubernetes'],
+    [`${CFN}/tienda-aws.yaml`, 'cloudformation'],
+    [`${CFN}/api-contenedores.json`, 'cloudformation'],
+    [`${CFN}/sam-notificaciones.yaml`, 'cloudformation'],
+    [`${HELM}/tienda/Chart.yaml`, 'helm'],
+    [`${HELM}/legado/Chart.yaml`, 'helm'],
+    [`${HELM}/tienda-renderizado.yaml`, 'kubernetes'],
     ['examples/banca.mmd', 'mermaid'],
   ])('%s se reconoce como %s, con su nombre de archivo y también solo por el contenido', (path, expected) => {
     const text = read(path);
@@ -100,11 +112,13 @@ describe('módulo de plataforma: Terraform repartido en varios archivos', () => 
     .filter((n) => n.endsWith('.tf'))
     .map((name) => ({ name, text: read(`${FOLDER}/${name}`) }));
 
-  it('solo Terraform declara que se lee en varios archivos, y solo los .tf', () => {
+  it('solo Terraform (.tf) y Helm (Chart.yaml + values.yaml) declaran que se leen en varios archivos', () => {
     expect(platformModule.importers.map((i) => [i.id, i.multiFile])).toEqual([
       ['mermaid', undefined],
       ['terraform', { extensions: ['.tf'] }],
       ['kubernetes', undefined],
+      ['cloudformation', undefined],
+      ['helm', { extensions: ['.yaml', '.yml'] }],
     ]);
   });
 
@@ -176,6 +190,9 @@ describe('importadores de infraestructura: entradas dañadas', () => {
   it.each([
     ...['aws-tienda/main.tf', 'aws-tienda-staging/terraform.tfstate', 'aws-tienda-dev/plan.json', 'azure-aks/main.tf', 'json-config/main.tf.json'].map((f) => [`${TF}/${f}`, fromTerraform] as const),
     ...['tienda/manifests.yaml', 'tienda-kubectl/get-all.yaml', 'multi-entorno/entornos.yaml', 'malla-gateway/gateway.yaml'].map((f) => [`${K8S}/${f}`, fromKubernetes] as const),
+    ...['tienda-aws.yaml', 'api-contenedores.json', 'sam-notificaciones.yaml'].map((f) => [`${CFN}/${f}`, fromCloudFormation] as const),
+    ...['tienda/Chart.yaml', 'legado/Chart.yaml'].map((f) => [`${HELM}/${f}`, (t: string, o: object) => fromHelm([{ name: 'Chart.yaml', text: t }], o)] as const),
+    [`${HELM}/tienda-renderizado.yaml`, fromKubernetes] as const,
   ])('%s: truncado, recortado o con símbolos de más solo da un documento válido o un error de importación', (file, importer) => {
     let imported = 0;
     for (const text of mutations(read(file), file.length)) {

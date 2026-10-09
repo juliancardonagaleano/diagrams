@@ -10,10 +10,8 @@ async function open(page: Page, module: string): Promise<string[]> {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`/modulos.html?module=${module}`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('tab', { name: 'Lienzo' })).toBeVisible({ timeout: 20000 });
-  if (module !== 'c4') {
-    await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 20000 });
-    await canvasReady(page);
-  } else await expect(page.locator('iframe').first()).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 20000 });
+  await canvasReady(page);
   return errors;
 }
 
@@ -105,13 +103,16 @@ test.describe('comparar versiones en el banco de trabajo', () => {
     await expect(page.getByTestId('change-changed-model.elements-cliente')).toContainText('name: "Cliente de antes" → "Cliente personal"');
     await expect(page.getByTestId('change-removed-model.elements-auditoria')).toContainText('Auditoría');
 
-    // Un clic en un cambio vuelve al lienzo de C4 (embebido), con la barra de la comparación encima.
+    // Un clic en un cambio vuelve al lienzo de C4 (el común), con la barra de la comparación encima y el elemento marcado.
     await page.getByTestId('change-changed-model.elements-cliente').getByRole('button').click();
     await expect(page.getByRole('tab', { name: 'Lienzo' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('compare-bar')).toContainText('Comparando con banca-anterior.json');
-    await expect(page.locator('iframe').first()).toBeVisible();
+    await expect(page.locator('iframe')).toHaveCount(0);
+    await canvasReady(page);
+    await expect(page.getByTestId('node-cliente')).toHaveAttribute('data-diff', 'modified');
     await page.getByTestId('compare-bar-clear').click();
     await expect(page.getByTestId('compare-bar')).toHaveCount(0);
+    await expect(page.locator('[data-diff]')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 

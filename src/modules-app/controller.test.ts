@@ -316,7 +316,7 @@ describe('WorkbenchController', () => {
       const controller = newController();
       await controller.selectModule('platform');
       const before = controller.getState().text;
-      await expect(controller.importFiles([...files, { name: 'otro.yaml', text: 'a: 1' }])).rejects.toThrow(/no son todos del mismo formato: solo se leen juntos los \.tf/);
+      await expect(controller.importFiles([...files, { name: 'otro.yaml', text: 'a: 1' }])).rejects.toThrow(/no son todos del mismo formato: solo se leen juntos los \.tf o los \.yaml, \.yml/);
       await expect(controller.importFiles(files, 'kubernetes')).rejects.toThrow(/«kubernetes» no se puede leer repartido en varios archivos/);
       expect(controller.getState().text).toBe(before);
       await controller.selectModule('security');
