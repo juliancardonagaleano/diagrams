@@ -549,7 +549,7 @@ describe('importar ArchiMate: detección del formato', () => {
   });
 
   it('el módulo lo ofrece junto a Mermaid y lo elige por la extensión o por el contenido', async () => {
-    expect(enterpriseModule.importers.map((i) => i.id)).toEqual(['mermaid', 'archimate']);
+    expect(enterpriseModule.importers.map((i) => i.id)).toEqual(['mermaid', 'archimate', 'bpmn']);
     const archimate = enterpriseModule.importers.find((i) => i.id === 'archimate')!;
     expect(archimate.extensions).toEqual(['.xml', '.archimate']);
     expect(archimate.detect!(fixture('bizbank-en.xml'))).toBe(true);
@@ -562,7 +562,7 @@ describe('importar ArchiMate: detección del formato', () => {
     expect(registry.detectImporter('enterprise', 'mapa.mmd', 'flowchart LR\n a --> b')?.id).toBe('mermaid');
     expect(registry.detectImporter('enterprise', undefined, '<mxfile/>')).toBeUndefined();
     const manifest = buildManifest(registry, { name: 'Prueba', version: '0.0.0' });
-    expect(manifest.modules[0]).toMatchObject({ id: 'enterprise', importFormats: ['mermaid', 'archimate'] });
+    expect(manifest.modules[0]).toMatchObject({ id: 'enterprise', importFormats: ['mermaid', 'archimate', 'bpmn'] });
     // la misma ruta que usan el CLI y el banco de trabajo
     const imported = await importText(enterpriseModule, fixture('bizbank-en.xml'));
     expect(imported.importer).toBe('archimate');

@@ -60,7 +60,7 @@ const PROLOG_STEP = /^(?:﻿|\s+|<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>[]*(
 const ROOT_TAG = /^<(?:[\w.-]+:)?([\w.-]+)((?:"[^"]*"|'[^']*'|[^>"'])*)>/;
 
 /** Raíz del documento (nombre local y atributos tal como están escritos), saltando prólogo, comentarios y DOCTYPE. */
-function rootTag(text: string): { local: string; attrs: string } | undefined {
+export function rootTag(text: string): { local: string; attrs: string } | undefined {
   let rest = text.slice(0, 65536);
   for (let guard = 0; guard < 200; guard += 1) {
     const step = PROLOG_STEP.exec(rest);
@@ -179,7 +179,7 @@ const XML_MESSAGES: Array<[RegExp, (m: RegExpExecArray) => string]> = [
 /** Con varias etiquetas abiertas al final el validador no da posición (siempre 1:1): se nombran las etiquetas y se omite. */
 const OPEN_AT_END = /^Invalid '(\[.*\])' found\.$/;
 
-function describeXmlError(message: string, line: number, col: number): string {
+export function describeXmlError(message: string, line: number, col: number): string {
   const open = OPEN_AT_END.exec(message);
   if (open) {
     let tags: string[] = [];

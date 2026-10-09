@@ -204,8 +204,10 @@ export function createSuiteServer(options: ServeOptions): Server {
     checks.tokens = () => tokens.lookup(undefined).status !== 'unavailable';
   }
   if (options.accounts) {
-    const accountsFile = options.accounts.store.path;
-    checks.accounts = async () => (await fileReadable(accountsFile)) && (await directoryWritable(dirname(accountsFile)));
+    const store = options.accounts.store;
+    // El archivo (JSON o base SQLite) se puede leer, el almacén responde a una lectura de verdad y la carpeta admite escribir (el JSON se
+    // reemplaza por renombrado; SQLite crea su diario `-wal` y `-shm` al lado).
+    checks.accounts = async () => (await fileReadable(store.path)) && store.readable() && (await directoryWritable(dirname(store.path)));
   }
   if (executor.healthy) checks.compute = () => executor.healthy!();
   const readiness = new Readiness(checks, { cacheMs: options.readyCacheMs, warn: obs.warn });
@@ -226,11 +228,18 @@ export function createSuiteServer(options: ServeOptions): Server {
       );
     }
     if (options.accounts) {
-      const stats = options.accounts.store.stats();
-      families.push(
-        { name: 'iark_accounts', help: 'Cuentas de la instancia, por estado (solo recuentos).', type: 'gauge', samples: [{ labels: { state: 'active' }, value: stats.active }, { labels: { state: 'disabled' }, value: stats.disabled }, { labels: { state: 'pending' }, value: stats.pending }] },
-        { name: 'iark_sessions_active', help: 'Sesiones de GitHub vigentes (solo el recuento).', type: 'gauge', samples: [{ value: stats.sessions }] },
-      );
+      let stats: ReturnType<typeof options.accounts.store.stats> | undefined;
+      try {
+        stats = options.accounts.store.stats();
+      } catch {
+        stats = undefined; // la base de cuentas no responde: /readyz lo dice; las demás métricas deben seguir saliendo
+      }
+      if (stats) {
+        families.push(
+          { name: 'iark_accounts', help: 'Cuentas de la instancia, por estado (solo recuentos).', type: 'gauge', samples: [{ labels: { state: 'active' }, value: stats.active }, { labels: { state: 'disabled' }, value: stats.disabled }, { labels: { state: 'pending' }, value: stats.pending }] },
+          { name: 'iark_sessions_active', help: 'Sesiones de GitHub vigentes (solo el recuento).', type: 'gauge', samples: [{ value: stats.sessions }] },
+        );
+      }
     }
     if (options.tokens) {
       const available = options.tokens.lookup(undefined).status !== 'unavailable';

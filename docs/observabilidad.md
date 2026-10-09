@@ -105,7 +105,7 @@ Una línea JSON por **intento** de hacer algo que importa, con su resultado, tam
 
 Las acciones se **deducen de la petición cuando termina** (método + plantilla de la ruta, el código de estado, la cabecera `Location` de lo que se creó y, solo en las rutas de miembros y de cuentas, los campos permitidos del cuerpo), sin tocar los manejadores de la API de proyectos ni de cuentas; solo el inicio de sesión lo anotan los manejadores de `/api/auth`, porque son quienes saben el motivo. Una prueba (`src/cli/observability/audit.test.ts`) lee la documentación de la API y falla si una ruta documentada que cambia algo no tiene su acción.
 
-**Qué no se audita**: las lecturas (listar y abrir proyectos y diagramas, la lista de miembros, `whoami`), el cálculo que sale bien, los 429 del freno de intentos (ya son una métrica, y una dirección que insiste no debe llenar el archivo) y los cambios que se hacen fuera del servicio (editar `cuentas.json` o la carpeta de trabajo a mano; crear o revocar tokens con `iark auth`; `iark project …` sobre la carpeta).
+**Qué no se audita**: las lecturas (listar y abrir proyectos y diagramas, la lista de miembros, `whoami`), el cálculo que sale bien, los 429 del freno de intentos (ya son una métrica, y una dirección que insiste no debe llenar el archivo) y los cambios que se hacen fuera del servicio (editar el archivo de cuentas o la carpeta de trabajo a mano; `iark accounts migrate` sobre la base de cuentas; crear o revocar tokens con `iark auth`; `iark project …` sobre la carpeta).
 
 **Cómo se escribe**: cada fila se escribe en el acto (`writeSync` con `O_APPEND`, sin buffer en memoria) en un archivo `0600` (si ya existía con otro modo se corrige). Si el archivo falla (disco lleno, volumen desmontado), el servicio **sigue**, avisa una sola vez por episodio por stderr, cuenta el fallo (`iark_log_errors_total{log="audit"}`) y manda cada fila que no pudo escribir también a stderr, para que no se pierda del todo; reintenta abrir cada 5 s. Conviene una alerta sobre ese contador (abajo).
 
@@ -126,7 +126,7 @@ Sin autenticación, sin CORS, sin detalles, solo `GET` y `HEAD`, y no se anotan 
   |---|---|---|
   | `workspace` | con `--workspace` | Que se puede escribir en la carpeta de trabajo: crea y borra un archivo temporal oculto (`.iark-ready-<pid>-<azar>.tmp`). `access(W_OK)` no basta: no ve un disco lleno ni un volumen de solo lectura. Si la carpeta aún no existe, prueba la existente más cercana por encima. |
   | `tokens` | con `--tokens` | Que el archivo de tokens se lee y es válido (si no, el servicio está denegando todo con 503). |
-  | `accounts` | con `--accounts` | Que el archivo de cuentas se lee y que se puede escribir en su carpeta (cada inicio de sesión y cada cambio lo reescriben). |
+  | `accounts` | con `--accounts` | Que el archivo de cuentas existe y se lee, que el almacén responde a una lectura de verdad (con `--accounts-store sqlite`, una consulta a la base; con `json` el estado está en memoria y basta el archivo) y que se puede escribir en su carpeta (el JSON se reemplaza por renombrado en cada cambio; SQLite crea ahí su diario `-wal` y `-shm`). No toma el candado de escritura de la base. |
   | `compute` | con hilos de cálculo (`--workers` > 0) | Que el pool no está cerrado, que existe el archivo de su hilo y que los últimos tres hilos no se cayeron seguidos sin contestar. No crea ningún hilo para averiguarlo. Un pool ocupado o con la cola llena **sigue vivo**: eso es carga y lo cuentan las métricas. |
 
   Nunca incluye rutas ni secretos. El resultado se **cachea 5 segundos** (varias peticiones a la vez comparten una sola ronda), cada comprobación tiene 2 s de plazo, y cuando una cambia de estado se anota una línea en stderr con su nombre.
@@ -308,7 +308,7 @@ El `Caddyfile` de `deploy/` no activa el registro de accesos de Caddy: la direcc
 
 ## Límites
 
-- **Una sola réplica**: los registros y las métricas son del proceso. Con varias instancias (aún no se soporta: las cuentas son un JSON con un único escritor) habría que reunirlos fuera.
+- **Registros y métricas por proceso**: son del proceso, no de la instancia. Con varias instancias sobre una misma base SQLite de cuentas (ver [Dónde se guardan las cuentas](cuentas-github.md#dónde-se-guardan-las-cuentas-json-o-sqlite)) habría que reunirlos fuera, y `iark_accounts` e `iark_sessions_active` salen iguales en todas porque leen la base compartida. Si la base no responde, esas dos métricas no salen en esa lectura (el resto de `/metrics` sigue) y `/readyz` da 503 en `accounts`.
 - **Sin trazas distribuidas ni niveles de registro**: no hay OpenTelemetry ni líneas de depuración; los avisos y errores siguen siendo texto libre en stderr.
 - **El registro de accesos anota el final de la petición**: una caída del proceso a mitad de una petición no deja línea de ella (la auditoría tampoco: se escribe al terminar).
 - **No se mide la sobrecarga**: es una línea JSON por petición y unas pocas sumas en memoria; no se hizo una prueba de carga.

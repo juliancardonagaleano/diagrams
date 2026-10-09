@@ -1,0 +1,75 @@
+# Valores por defecto del chart «tienda».
+replicaCount: 3
+
+image:
+  registry: registry.example.com
+  repository: comercio/tienda-web
+  tag: "2.7.1"
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: tienda.example.com
+      paths:
+        - path: /
+  tls:
+    - secretName: tienda-tls
+      hosts:
+        - tienda.example.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+
+persistence:
+  enabled: true
+  size: 20Gi
+
+nodeSelector: {}
+tolerations: []
+podAnnotations:
+  prometheus.io/scrape: "true"
+
+postgresql:
+  enabled: true
+  image:
+    tag: "15.4.0"
+  auth:
+    username: tienda
+    password: no-copiar-esta-clave
+    database: tienda
+
+redis:
+  enabled: true
+  architecture: standalone
+  image:
+    tag: "7.2.3"
+
+rabbitmq:
+  enabled: true
+  auth:
+    password: tampoco-esta-otra
+
+pasarela:
+  replicaCount: 2
+  image:
+    repository: registry.example.com/comercio/pagos
+    tag: "1.1.0"
+
+monitoring:
+  enabled: false

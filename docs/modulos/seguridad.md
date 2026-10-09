@@ -41,3 +41,45 @@ iark security from-platform plataforma.json [--env prod]                        
 ```
 
 Al importar un `flowchart`, cada `subgraph` es una zona (con el prefijo `Zona no confiable|DMZ|interna|restringida: …` que pone el exportador se conoce su nivel; sin él se importa como interna y se avisa) y cada nodo, un activo cuyo tipo sale de su clase (`:::actor`, `:::external`, `:::process`, `:::datastore`; también en español) o, si no, de su forma (`[( )]` = almacén, `([ ])` = actor). Al final del texto del nodo se leen `datos confidenciales` y `cifrado en reposo` / `sin cifrar en reposo`. Las flechas son flujos: gruesa `==>` = cifrado, punteada `-.->` = sin cifrar, continua = no se sabe; la etiqueta es `protocolo · descripción · datos … · autenticación …`. Las amenazas y los controles se describen en el JSON, no en Mermaid. El banco de trabajo (`modulos.html?module=security`) lo edita en un lienzo propio, con paleta de figuras, panel de propiedades, deshacer/rehacer y autolayout (ver [Suite web](../suite-web.md)).
+
+## Importar OWASP Threat Dragon
+
+`--format threat-dragon|auto` (también en la pestaña «Importar» y con «Abrir archivo…»). [OWASP Threat Dragon](https://owasp.org/www-project-threat-dragon/) guarda un modelo de amenazas como un diagrama de flujo de datos con sus amenazas, que es justo el modelo de este módulo. Se lee el JSON de la versión 2 (el que guardan la aplicación de escritorio y la web); `auto` lo reconoce por su estructura (`summary` y `detail.diagrams`), así que el archivo puede llamarse como sea.
+
+| Threat Dragon | Documento de seguridad |
+|---|---|
+| `summary` (título, descripción, responsable) | nombre y descripción del espacio de trabajo |
+| `actor`, `process`, `store` | activo `actor`, `process`, `datastore`; `isEncrypted` de un almacén = cifrado en reposo |
+| `flow` | flujo con su protocolo y `isEncrypted` → cifrado; uno bidireccional son dos flujos |
+| `trust-boundary-box` | zona; el anidamiento sale de la geometría (cada elemento va a la caja más pequeña que contiene su centro) |
+| `threats` de un elemento | amenaza sobre ese activo o flujo, con su categoría, estado y severidad |
+| `mitigation` de una amenaza | control (uno por texto distinto) enlazado a las amenazas que lo citan |
+| varios diagramas | un solo documento, con las zonas prefijadas por el título del diagrama |
+
+Lo que Threat Dragon **no dice** y el importador decide (siempre con un aviso, para que se revise y se corrija en el documento):
+
+- **Qué lado de una frontera es más confiable.** Lo que queda fuera de toda frontera va a una zona «Exterior» no confiable; la primera frontera es interna y las anidadas, restringidas, salvo que su nombre diga DMZ, Internet o restringida.
+- **La categoría STRIDE de una amenaza de otro modelo** (LINDDUN, CIA, CIADIE…): se lleva a la más cercana y la categoría original queda en la descripción; la que no tiene equivalente se infiere por palabras y, si no, es manipulación.
+- **La probabilidad.** Threat Dragon solo da la severidad: es el impacto y la probabilidad queda en la media. `Open` es abierta, `Mitigated` mitigada y `NotApplicable` aceptada (su texto es el motivo y va a la descripción, no a un control). Un control es *implementado* si su amenaza está mitigada y *previsto* si no.
+
+Lo que **no** se importa y se avisa: el formato v1 antiguo (`diagramJson`), las fronteras de curva (una curva no delimita un área, y los flujos que la cruzan no se marcan como cruce), las notas de texto, los flujos sin los dos extremos conectados y los textos de relleno que Threat Dragon pone en una amenaza nueva.
+
+```console
+$ iark import tienda-modelo.json --module security --format threat-dragon --out seguridad.json
+aviso: El modelo tiene 2 diagramas: se unen en un solo documento y sus zonas llevan el título del diagrama («Flujo de compra», «Privacidad del perfil»).
+aviso: Threat Dragon no dice qué lado de una frontera es más confiable: lo que queda fuera de toda frontera va a una zona «Exterior» no confiable, la primera frontera es interna y las anidadas, restringidas (salvo que su nombre diga DMZ, Internet o restringida). Revisa la confianza de cada zona.
+aviso: 3 elemento(s) quedan fuera de toda frontera: se colocan en la zona «Exterior».
+aviso: 1 frontera(s) de curva (Borde de la nube) no se importan como zona: una curva no delimita un área. Los flujos que cruzan una curva no se marcan como cruce de frontera.
+aviso: 1 nota(s) de texto no se importan.
+aviso: 1 flujo(s) no se importan: 1 sin origen o destino conectado.
+aviso: Amenazas de otros modelos (LINDDUN: 3, CIA: 1, CIADIE: 1) se llevaron a la categoría STRIDE más cercana; la categoría original queda en la descripción.
+aviso: 1 amenaza(s) con categoría sin equivalente STRIDE (Distributed) se importan como manipulación.
+aviso: Threat Dragon solo da la severidad de cada amenaza: se importa como impacto y la probabilidad queda en la media. Cada texto de mitigación distinto es un control (implementado si la amenaza está mitigada, previsto si no); si no hay texto, la amenaza no tiene control.
+Importado "Tienda en línea" en el módulo security: 39 elementos, 9 aviso(s).
+Documento del módulo security escrito en seguridad.json
+$ iark validate seguridad.json --module security
+…
+Documento válido (módulo security). 0 error(es), 13 aviso(s), 13 nota(s).
+```
+
+Los avisos de `validate` son el análisis de gobierno del módulo sobre lo importado (flujos que cruzan una frontera sin cifrar, datos sensibles sin cifrar en reposo…): el modelo de Threat Dragon no los trae, y el módulo sí los comprueba. El archivo del ejemplo, [`tienda-modelo.json`](../../tests/fixtures/importar/threat-dragon/tienda-modelo.json), está escrito para las pruebas.

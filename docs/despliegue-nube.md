@@ -93,8 +93,8 @@ docker compose up -d --build            # la primera vez compila la imagen: tard
 
 Sirve cualquiera que cumpla **todos** estos requisitos. **No he probado ninguna plataforma concreta** y por eso no incluyo una configuración de ejemplo: cada una cambia sus campos y sus límites; **comprueba en su documentación los precios y los límites vigentes** (sobre todo del disco persistente y de si apaga el servicio por inactividad).
 
-1. **Una sola instancia (réplica)**, siempre. Las cuentas están en un archivo con un único escritor: con dos copias sobre el mismo disco, cada una pisaría los cambios de la otra. Desactiva el escalado automático y cualquier despliegue que arranque la versión nueva antes de parar la vieja.
-2. **Un disco persistente montado en `/data`**, para que `IARK_WORKSPACE=/data/workspace` e `IARK_ACCOUNTS=/data/accounts.json` sobrevivan a cada despliegue. Sin disco, se pierde todo al actualizar.
+1. **Una sola instancia (réplica) en una sola máquina**. Las cuentas están en una base SQLite en el disco local: dos copias sobre el mismo disco **local** no la corrompen (cada cambio es una transacción), pero la base no sirve entre máquinas distintas ni sobre un disco de red (NFS, SMB), y el inicio de sesión necesita que sus tres peticiones lleguen a la misma instancia (ver [Límites](#9-límites-honestos)). Desactiva el escalado automático; un despliegue que arranque la versión nueva *antes* de parar la vieja sobre el mismo disco local es tolerable (la base lo admite), pero no entre máquinas.
+2. **Un disco persistente montado en `/data`**, para que `IARK_WORKSPACE=/data/workspace` e `IARK_ACCOUNTS=/data/accounts.db` sobrevivan a cada despliegue. Sin disco, se pierde todo al actualizar. Debe ser un disco **local** de bloque (el de Docker, el de la VPS, el volumen persistente de la plataforma): SQLite en modo WAL no funciona bien sobre sistemas de archivos de red.
 3. **HTTPS en la dirección pública**: la que te dé la plataforma o tu dominio. Esa misma es `IARK_PUBLIC_URL` y la base de la *callback URL* de la OAuth App (paso 1).
 4. **Construir la imagen desde el `Dockerfile` del repositorio** (no hay una imagen publicada en un registro). El puerto sale de la variable `PORT` (8787 por omisión): si la plataforma la define, funciona sin más; si no, apunta su puerto interno al 8787. La comprobación de salud es `GET /healthz` (público y sin tocar el disco; la imagen ya la trae); si la plataforma puede sacar la instancia de rotación sin reiniciarla, `GET /readyz` dice además si puede trabajar (`503` si no puede escribir en el disco): ver [Observabilidad](observabilidad.md#salud-healthz-y-readyz). Los registros (`IARK_ACCESS_LOG=-` para la salida estándar, `IARK_AUDIT_LOG=/data/audit.jsonl`) se encienden con variables, como todo.
 5. **Detrás de un proxy**: `IARK_TRUST_PROXY=true` (equivale a `--trust-proxy`) y, si lo necesitas, `IARK_CORS=https://juliancardonagaleano.github.io` (equivale a `--cors`; ver el apartado 5). `IARK_TRUST_PROXY` solo vale si la plataforma deja la dirección real del cliente en la **última** entrada de `X-Forwarded-For`; si no lo tienes claro (Fly.io, por ejemplo, documenta la dirección del cliente en otra cabecera, `Fly-Client-IP`, que IArk no lee), déjalo sin activar: todas las personas compartirán entonces el freno de intentos fallidos. Si la plataforma solo deja poner argumentos, `--trust-proxy` y `--cors=…` valen igual: deben añadirse a los de la imagen (como los que van detrás del nombre de la imagen en `docker run`), no sustituir su `ENTRYPOINT`.
@@ -103,7 +103,8 @@ Sirve cualquiera que cumpla **todos** estos requisitos. **No he probado ninguna 
 | Variable | Valor |
 |---|---|
 | `IARK_WORKSPACE` | `/data/workspace` |
-| `IARK_ACCOUNTS` | `/data/accounts.json` |
+| `IARK_ACCOUNTS` | `/data/accounts.db` (la imagen ya fija `IARK_ACCOUNTS_STORE=sqlite`) |
+| `IARK_ACCOUNTS_IMPORT` | solo si actualizas un servicio que tenía las cuentas en JSON: `/data/accounts.json` (ver el paso 7) |
 | `IARK_PUBLIC_URL` | `https://…` (la dirección pública, sin barra final) |
 | `IARK_GITHUB_CLIENT_ID` | el Client ID de la OAuth App |
 | `IARK_GITHUB_CLIENT_SECRET` | el Client secret (o `IARK_GITHUB_CLIENT_SECRET_FILE` con la ruta de un archivo de secretos) |
@@ -111,7 +112,7 @@ Sirve cualquiera que cumpla **todos** estos requisitos. **No he probado ninguna 
 | `IARK_SIGNUP` | `invite` (o `open`; paso 4) |
 | `IARK_SESSION_DAYS`, `IARK_MAX_PROJECTS` | opcionales (30 días y 25 proyectos por omisión) |
 
-7. **Quién es el dueño del disco.** La imagen corre como `node` (1000:1000). Si la plataforma monta el disco con dueño root y no te deja cambiarlo, IArk no podrá escribir y no arrancará, con `No se pudo escribir el archivo de cuentas «/data/accounts.json» (EACCES)`. Último recurso: construir la imagen para correr como root con `--build-arg IARK_RUN_AS=root` (el campo de «build args» de la plataforma). Probé el servicio como root sobre un disco de root; no probé el argumento en ninguna plataforma.
+7. **Quién es el dueño del disco.** La imagen corre como `node` (1000:1000). Si la plataforma monta el disco con dueño root y no te deja cambiarlo, IArk no podrá escribir y no arrancará, con `No se pudo crear la base de cuentas «/data/accounts.db» (EACCES)`. Último recurso: construir la imagen para correr como root con `--build-arg IARK_RUN_AS=root` (el campo de «build args» de la plataforma). Probé el servicio como root sobre un disco de root; no probé el argumento en ninguna plataforma.
 8. Si la plataforma apaga el servicio por inactividad, la primera visita tardará en responder; las sesiones no se pierden (están en el disco).
 
 ## 3. Primer arranque y cómo comprobar que funciona — *Lo haces tú*
@@ -133,7 +134,7 @@ IArk - DIAgrams escuchando en http://0.0.0.0:8787 (sitio: dist/app)
   cálculo: hasta 1 hilo(s) de trabajo · tiempo límite 30 s por operación · cola de 16
   las rutas de cálculo (validar, exportar, importar, informes, trazas) exigen credencial; /api/modules, capabilities y schema siguen públicos
   espacio de trabajo: /data/workspace · proyectos: /api/projects
-  inicio de sesión: GitHub (Iv1.…) · callback https://iark.tudominio.org/api/auth/github/callback · cuentas: /data/accounts.json (0) · entrada: solo por invitación · administradores: 1
+  inicio de sesión: GitHub (Iv1.…) · callback https://iark.tudominio.org/api/auth/github/callback · cuentas: /data/accounts.db (0, almacén sqlite) · entrada: solo por invitación · administradores: 1
   detrás de un proxy de confianza (--trust-proxy): el HTTPS lo pone el proxy, compruebe que la dirección pública es https; …
 ```
 
@@ -189,29 +190,36 @@ y `docker compose up -d`. Es el **origen** (esquema y dominio, **sin ruta ni bar
 
 ## 6. Copias de seguridad y restaurar — *Lo haces tú*
 
-**Qué copiar: `/data` entero**, el volumen `iark-data`: `accounts.json` (cuentas, sesiones y quién pertenece a qué proyecto) y `workspace/` (los proyectos). Guarda además `deploy/.env` (no es secreto). El Client secret no está en el volumen: si lo pierdes, genera otro en GitHub. Los certificados de Caddy no hace falta copiarlos: se vuelven a pedir. La auditoría (`audit.jsonl`) está en el mismo volumen y se copia con él; el registro de accesos va a la salida estándar de Docker y no forma parte de la copia.
+**Qué copiar: `/data` entero**, el volumen `iark-data`: `accounts.db` (la base de cuentas, sesiones y quién pertenece a qué proyecto; con sus `accounts.db-wal` y `accounts.db-shm` mientras el servicio corre) y `workspace/` (los proyectos). Guarda además `deploy/.env` (no es secreto). El Client secret no está en el volumen: si lo pierdes, genera otro en GitHub. Los certificados de Caddy no hace falta copiarlos: se vuelven a pedir. La auditoría (`audit.jsonl`) está en el mismo volumen y se copia con él; el registro de accesos va a la salida estándar de Docker y no forma parte de la copia.
 
-**Copia, con el servicio en marcha** (un contenedor aparte lee el volumen en solo lectura y escribe un `.tar.gz` en la carpeta actual):
+**La base no se copia con `tar` ni `cp` mientras el servicio corre**: en modo WAL, lo último escrito puede estar aún en `accounts.db-wal`, y una copia de `accounts.db` sola, o tomada a la vez que el `-wal`, puede salir incoherente. La copia correcta es `iark accounts backup`, que hace una copia coherente de la base viva (sin parar el servicio), con modo 0600, y comprueba su integridad:
+
+```bash
+docker compose exec iark node dist/cli/index.js accounts backup /data/accounts-$(date +%F).db
+```
+
+Esa copia queda en el volumen. Para llevarte **todo** fuera de la máquina (la base copiada y los proyectos), un contenedor aparte lee el volumen en solo lectura y escribe un `.tar.gz` en la carpeta actual, **sin la base viva ni su diario** (solo la copia coherente de arriba):
 
 ```bash
 docker run --rm --user 0 -v iark-data:/data:ro -v "$PWD":/backup --entrypoint tar iark-diagrams \
-  czf /backup/iark-data-$(date +%F).tar.gz -C /data .
+  czf /backup/iark-data-$(date +%F).tar.gz -C /data \
+  --exclude=./accounts.db --exclude=./accounts.db-wal --exclude=./accounts.db-shm .
 ```
 
-Cada archivo se guarda de forma atómica, así que la copia es coherente archivo a archivo; si prefieres una copia exacta, **para el servicio un momento**: `docker compose stop iark`, la copia de arriba y `docker compose start iark`. En ambos casos, **llévate el `.tar.gz` fuera de la máquina** (otro equipo, un almacenamiento de objetos…) y repítelo con la frecuencia que te dé tranquilidad: lo que se escriba después de la última copia se pierde si se pierde el disco.
+Los proyectos se guardan archivo a archivo de forma atómica, así que esa parte es coherente archivo a archivo; si prefieres una copia exacta de todo, **para el servicio un momento**: `docker compose stop iark`, el `tar` de arriba y `docker compose start iark`. En ambos casos, **llévate el `.tar.gz` fuera de la máquina** (otro equipo, un almacenamiento de objetos…) y repítelo con la frecuencia que te dé tranquilidad: lo que se escriba después de la última copia se pierde si se pierde el disco. Borra de vez en cuando las copias viejas de `/data` (`accounts-*.db`): son pequeñas, pero se acumulan.
 
-**Restaurar** (en esta máquina o en otra con el repositorio clonado, `deploy/.env` y el secreto puestos y la imagen construida con `docker compose build`), **en un volumen vacío**:
+**Restaurar** (en esta máquina o en otra con el repositorio clonado, `deploy/.env` y el secreto puestos y la imagen construida con `docker compose build`), **en un volumen vacío**. La copia de la base se renombra a `accounts.db` (y se borra cualquier `-wal` o `-shm` suelto, que no pertenecerían a esa copia):
 
 ```bash
 docker compose down                       # no borra el volumen
 docker volume rm iark-data                # solo si vas a sustituir lo que haya: BORRA los datos actuales
 docker volume create iark-data
 docker run --rm --user 0 -v iark-data:/data -v "$PWD":/backup:ro --entrypoint sh iark-diagrams \
-  -c 'tar xzf /backup/iark-data-2026-10-06.tar.gz -C /data && chown -R 1000:1000 /data'
+  -c 'tar xzf /backup/iark-data-2026-10-06.tar.gz -C /data && rm -f /data/accounts.db-wal /data/accounts.db-shm && mv /data/accounts-2026-10-06.db /data/accounts.db && chown -R 1000:1000 /data'
 docker compose up -d
 ```
 
-Las sesiones de la copia siguen valiendo; las abiertas después de la copia caducan (401: se vuelve a entrar con GitHub).
+Las sesiones de la copia siguen valiendo; las abiertas después de la copia caducan (401: se vuelve a entrar con GitHub). Para comprobar el estado de la base en cualquier momento: `docker compose exec iark node dist/cli/index.js accounts info` (versión del esquema, integridad, cuántas cuentas y sesiones).
 
 ## 7. Actualizar la imagen — *Lo haces tú*
 
@@ -223,9 +231,17 @@ docker compose pull caddy          # y trae la última versión de Caddy
 docker compose up -d               # recrea solo lo que cambió
 ```
 
-Haz una copia antes (paso 6). Lo único que sobrevive entre una versión y otra es el volumen: las cuentas, las sesiones y los proyectos siguen donde estaban (probado: con un contenedor nuevo sobre el mismo volumen, la sesión y el proyecto siguen). El corte es de unos segundos. Para volver atrás: `git checkout <commit anterior>` y `docker compose up -d --build`. `docker image prune` libera el espacio de las imágenes viejas.
+Haz una copia antes (paso 6). Lo único que sobrevive entre una versión y otra es el volumen: las cuentas, las sesiones y los proyectos siguen donde estaban (probado: con un contenedor nuevo sobre el mismo volumen, la sesión y el proyecto siguen). El corte es de unos segundos. Si la base es de una versión más nueva que la imagen (vuelves atrás), la imagen vieja no la abre y lo dice: actualiza en vez de volver, o restaura la copia de antes. Para volver atrás: `git checkout <commit anterior>` y `docker compose up -d --build`. `docker image prune` libera el espacio de las imágenes viejas.
 
 Rotar el Client secret: genera otro en GitHub, cámbialo en `secrets/github_client_secret` (con `chown`/`chmod` como en el paso 2) y `docker compose restart iark`; después borra el viejo en GitHub.
+
+**Si tu servicio ya estaba en marcha con las cuentas en JSON** (las versiones anteriores guardaban `/data/accounts.json`): el `docker-compose.yml` nuevo usa la base SQLite `/data/accounts.db` y trae `IARK_ACCOUNTS_IMPORT: /data/accounts.json`, así que **basta con la actualización de arriba**: en el primer arranque IArk importa el JSON a la base (cuentas, invitaciones, sesiones —los tokens siguen valiendo— y proyectos compartidos), lo cuenta en el registro (`Cuentas importadas de «/data/accounts.json»: …`), **deja `accounts.json` como estaba** y guarda una copia suya en `/data/accounts.json.bak-<fecha>`. Los reinicios siguientes no repiten nada. Haz la copia del paso 6 antes, como siempre. Cosas a saber:
+
+- Si prefieres hacerlo a mano y comprobar antes, con el servicio parado: `docker compose run --rm --no-deps --entrypoint node iark dist/cli/index.js accounts migrate --from /data/accounts.json --dry-run` cuenta lo que se importaría sin escribir nada (quita `--dry-run` para importarlo). Se puede repetir sin riesgo: con el mismo JSON no hace nada.
+- **Volver atrás** (a la imagen anterior) es posible: el JSON no se tocó. Arranca la imagen vieja con `IARK_ACCOUNTS=/data/accounts.json`; perderás lo que cambió en las cuentas desde que migraste (sesiones nuevas, personas que entraron, proyectos compartidos). Por eso conviene no volver atrás pasado un tiempo.
+- Si quieres **seguir con el JSON** (no recomendado: un solo proceso, sin transacciones), pon `IARK_ACCOUNTS_STORE: json` e `IARK_ACCOUNTS: /data/accounts.json` en el compose y quita `IARK_ACCOUNTS_IMPORT`.
+- Si la base ya tenía otras cuentas (alguien arrancó la versión nueva sin el JSON y entraron personas), la importación **no mezcla**: el registro dice `aviso: no se importa …` y arranca con la base como está. Para rehacerla: para el servicio, borra `accounts.db`, `accounts.db-wal` y `accounts.db-shm` del volumen y arranca de nuevo.
+- Una vez migrado y comprobado, puedes quitar `IARK_ACCOUNTS_IMPORT` del compose y, pasado un tiempo, borrar `accounts.json` y sus `.bak-*` (contienen los hashes de las sesiones: trátalos como las cuentas).
 
 ## 8. Solución de problemas
 
@@ -246,13 +262,18 @@ Siempre empieza por `docker compose ps` y `docker compose logs iark` (y `caddy`)
 | `external volume "iark-data" not found` | Falta crear el volumen: `docker volume create iark-data` |
 | `bind source path does not exist: …/secrets/github_client_secret` | Falta el archivo del secreto (paso 2.6) |
 | `dependency failed to start: container iark-iark-1 is unhealthy` | **IArk no arranca**: mira `docker compose logs iark` (siguientes filas) |
-| `/readyz` responde **503** | Mira qué comprobación dice `fail` (`curl https://…/readyz`): `workspace` (disco lleno, volumen de solo lectura o sin permisos), `accounts` (el archivo de cuentas no se lee o su carpeta no se escribe) o `compute` (el pool de cálculo está parado). `docker compose logs iark` avisa cada vez que una cambia de estado. El servicio no se reinicia por esto (el `HEALTHCHECK` es `/healthz`) |
+| `/readyz` responde **503** | Mira qué comprobación dice `fail` (`curl https://…/readyz`): `workspace` (disco lleno, volumen de solo lectura o sin permisos), `accounts` (la base de cuentas `accounts.db` no se lee —falta el archivo, está dañada o la consulta falla— o su carpeta `/data` no admite escribir, donde SQLite crea su diario) o `compute` (el pool de cálculo está parado). `docker compose logs iark` avisa cada vez que una cambia de estado. El servicio no se reinicia por esto (el `HEALTHCHECK` es `/healthz`) |
 | Un error inesperado (500) y quieres saber qué pasó | La respuesta lleva la cabecera `X-Request-Id`: `docker compose logs iark \| grep <ese id>` da el acceso y, junto al `error interno`, la línea `petición: <id>` |
 | El registro dice `El inicio de sesión con GitHub necesita todo esto y falta: …` | Falta alguna variable (la lista dice cuál). Todo va por `deploy/.env` y el secreto |
 | El registro dice `Con un espacio de trabajo, escuchar en 0.0.0.0 sin autenticación … el servicio no arranca así` | Hay `IARK_WORKSPACE` y no hay cuentas activas: es la red de seguridad. En otra plataforma, define las variables de GitHub |
 | `No se pudo leer el secreto de GitHub de «/run/secrets/github_client_secret» (EACCES)` | El usuario del contenedor (1000) no puede leer el archivo: `chown 1000:1000 secrets/github_client_secret && chmod 400 …`. Si dice `está vacío`, el archivo no tiene el secreto |
-| `No se pudo escribir (o leer) el archivo de cuentas «/data/accounts.json» (EACCES)` | `/data` no es de 1000:1000: pasa con un bind mount del anfitrión (`chown 1000:1000 <carpeta>`) o un disco de plataforma montado como root (paso 2, alternativa, punto 7). Con un volumen con nombre no ocurre |
+| `No se pudo crear la base de cuentas «/data/accounts.db» (EACCES)` (o `No se pudo abrir…`) | `/data` no es de 1000:1000: pasa con un bind mount del anfitrión (`chown 1000:1000 <carpeta>`) o un disco de plataforma montado como root (paso 2, alternativa, punto 7). Con un volumen con nombre no ocurre |
 | `Con --signup invite hace falta al menos un administrador…` | Falta `IARK_ADMINS` |
+| `«/data/accounts.json» parece el archivo JSON de cuentas, no una base SQLite…` | `IARK_ACCOUNTS` apunta al JSON de antes pero el almacén es `sqlite`: usa `IARK_ACCOUNTS=/data/accounts.db` con `IARK_ACCOUNTS_IMPORT=/data/accounts.json` (ver el paso 7), o `IARK_ACCOUNTS_STORE=json` para seguir con el JSON. El archivo no se toca |
+| `La base de cuentas … es de una versión más nueva de IArk` | Se arrancó una imagen más vieja sobre una base que ya migró una más nueva: actualiza la imagen (no se abre para no escribir lo que no entiende) |
+| `La base de cuentas … está ocupada: otro proceso la tuvo bloqueada…` (`unavailable`) | Otro proceso tiene la base bloqueada más de 5 s (una copia mal hecha con `tar` no la bloquea; sí un `sqlite3` abierto con una transacción sin cerrar). Cierra ese proceso. Si el disco es de red (NFS, SMB), el modo WAL no es fiable: pasa `/data` a un disco local |
+| `«…» es una base SQLite, pero no de cuentas de IArk` / `no es una base de cuentas válida (…)` | Ese archivo no es la base de cuentas (o está dañado). Restaura la última copia de `iark accounts backup` (paso 6); la base dañada no se modifica |
+| El servicio dice `El almacén SQLite necesita Node 22.13.0 o superior` | Solo fuera de la imagen (que trae Node 22 reciente): actualiza Node o usa `IARK_ACCOUNTS_STORE=json` |
 | `No se pudo cargar el módulo de terceros «…»: …` y el contenedor no arranca (solo si montaste plugins con `IARK_CONFIG`) | El especificador que nombra el mensaje no se resuelve o no cumple el contrato: ruta mal montada, falta `node_modules` con `@iark/kernel` y `zod` junto al módulo, o un módulo escrito para un contrato más nuevo. Un plugin roto impide arrancar a propósito; corrígelo o quita `IARK_CONFIG` (ver sección 9) |
 | `La dirección pública debe ser https (solo localhost puede ser http)…` | `IARK_PUBLIC_URL` (o `IARK_DOMAIN`) mal escrito |
 | El navegador avisa de un **certificado** no válido o no carga por HTTPS | Caddy no consiguió el certificado: `docker compose logs caddy`. Casi siempre, el DNS no apunta aún a la máquina o los puertos 80/443 están cerrados (en el panel del proveedor también). Corrige y `docker compose restart caddy` |
@@ -261,7 +282,7 @@ Siempre empieza por `docker compose ps` y `docker compose logs iark` (y `caddy`)
 
 ## 9. Límites honestos
 
-- **Una sola réplica.** Las cuentas viven en un archivo JSON con un único escritor (el propio servicio): no se editan con el servicio en marcha ni se comparten entre varias copias. No hay alta disponibilidad: si la máquina cae, el servicio cae hasta que vuelva. El archivo se reescribe entero en cada cambio: está pensado para equipos pequeños o medianos.
+- **Una sola máquina, sin alta disponibilidad.** Las cuentas viven en una base SQLite del disco local: varios procesos sobre el mismo disco son seguros (cada cambio es una transacción, también los topes y la regla de «el proyecto no se queda sin administrador»), pero la base no se comparte entre máquinas ni sobre un disco de red (NFS, SMB). Si la máquina cae, el servicio cae hasta que vuelva. Varias instancias sobre el mismo disco comparten ya las sesiones, los roles y los proyectos compartidos; lo que **no** es compartido son el estado del inicio de sesión de GitHub (el `state` de la redirección y el código de un solo uso, en la memoria de cada proceso) y los frenos de intentos fallidos: detrás de un balanceador, las tres peticiones del inicio de sesión (`/api/auth/github/login`, `/callback` y `/exchange`) deben llegar a la misma instancia (afinidad de sesión). Escalar más allá (varias máquinas, base gestionada) es una decisión pendiente que no se ha implementado: qué cambiaría está en [Camino a Postgres y réplicas](cuentas-github.md#camino-a-postgres-y-réplicas-una-decisión-pendiente-no-tomada).
 - **Solo GitHub**: no hay SSO de empresa (SAML, OIDC) ni otros proveedores. Con GitHub Enterprise Server se puede apuntar `IARK_GITHUB_URL` y `IARK_GITHUB_API_URL` a su servidor.
 - **Sin permisos por organización o equipo de GitHub.** IArk no pide permisos, así que no lee a qué organizaciones perteneces: entra quien tiene cuenta (según `invite` u `open`) y los permisos se reparten por proyecto, por invitación.
 - **El token de sesión vive en el navegador** (en la pestaña, o en el equipo si se marca «Mantener la sesión en este equipo»): cualquier script que se ejecute en el sitio, una extensión o quien use ese equipo podría leerlo. Cierra la sesión en equipos ajenos; una cuenta desactivada pierde sus sesiones.
@@ -281,7 +302,7 @@ Siempre empieza por `docker compose ps` y `docker compose logs iark` (y `caddy`)
   Al agotarse el tiempo se **termina** el hilo (esté en el bucle que esté), la petición recibe `503` (`"code":"timeout"`) y el siguiente cálculo arranca en un hilo nuevo. Con todos los hilos ocupados y la cola llena, `503` al instante con `Retry-After` (`"code":"busy"`): no se acumulan peticiones en memoria (como mucho `IARK_COMPUTE_QUEUE` cuerpos de hasta 5 MB esperando, más los que se calculan). Si el cliente cuelga con la operación aún en cola, se descarta. Ojo con el reparto de recursos: cada hilo carga todos los módulos (unos 70 MB más en reposo en nuestra medición; calculando un diagrama de 121 contenedores y 240 relaciones el proceso llegó a unos 410 MB) y un diagrama enorme puede agotar la memoria del contenedor entero antes de que venza el tiempo; dimensiona `mem_limit` y `cpus` (el compose trae 768 MB y 1,5 CPU; con 2 CPU a la vista, `IARK_WORKERS` por omisión es 1) y sube los hilos solo si le das CPU. Los topes frenan el abuso, no lo evitan: quien tiene credencial todavía puede ocupar los hilos. `deploy/docker-compose.yml` no pasa estas variables al contenedor: para cambiarlas añade bajo `environment:` del servicio `iark` la que necesites (p. ej. `IARK_WORKERS: "${IARK_WORKERS:-}"`, y `IARK_COMPUTE_TIMEOUT_MS`, `IARK_COMPUTE_QUEUE` o `IARK_PUBLIC_COMPUTE` igual; vacío = el valor por omisión) y defínela en `deploy/.env`.
 - **El cálculo exige credencial cuando hay inicio de sesión o tokens.** `POST /api/<módulo>/validate|views|export|import|diff`, `POST /api/<módulo>/run/<comando>` y `POST /api/trace` piden una sesión o un token válidos **de cualquier rol** (`401` sin ellos; el cuerpo ni se lee). Siguen públicos `/api/modules`, `/api/<módulo>/capabilities`, `/api/<módulo>/schema` y `/.well-known/iark.json`, que la federación descubre sin credencial. Sin inicio de sesión ni tokens (la demo de la imagen sin variables) todo queda abierto como siempre. Si necesitas el cálculo abierto a cualquiera con la autenticación puesta (un sitio que exporta sin que nadie inicie sesión), arranca con `IARK_PUBLIC_COMPUTE=1` o `--public-compute`: es una decisión tuya y cuesta CPU de tu máquina a quien llegue al puerto. `--tokens` ahora también protege el cálculo cuando no hay `--workspace`.
 - **`run` no lee archivos del servidor.** Los comandos de módulo que leen o escriben en la máquina (hoy `platform icons --pack <archivo>`) solo existen en el CLI local: por HTTP, `POST /api/<módulo>/run/<comando>` rechaza esas opciones con `400` y el mismo mensaje exista o no el archivo.
-- **Las copias de seguridad son cosa tuya** (paso 6), y el servicio no ofrece cuotas de disco por persona.
+- **Las copias de seguridad son cosa tuya** (paso 6; la base se copia con `iark accounts backup`, no con `tar`), y el servicio no ofrece cuotas de disco por persona.
 - **No está probado con un certificado real de Caddy** ni en una plataforma concreta: las pruebas se hicieron con Docker, con un GitHub de mentira y con el HTTPS interno de Caddy sobre `localhost`.
 
 Para repetir la prueba de la imagen: `npm run docker:smoke` (construye la imagen y la prueba con Docker y un GitHub de mentira; ver `scripts/docker-smoke-cuentas.ts`).

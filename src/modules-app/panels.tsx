@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import type { WorkbenchController, WorkbenchState } from './controller';
-import { commandInfos, countBySeverity, exportFormats, joinSourceFiles, looksLikeMermaid, multiFileImporter, whyNotMultiFile, type CommandInfo, type CommandOutput, type ExportedFile, type SourceFile } from '@iark/kernel';
+import { commandInfos, countBySeverity, exportFormats, joinSourceFiles, looksLikeMermaid, multiFileImporter, pickImporter, whyNotMultiFile, type CommandInfo, type CommandOutput, type ExportedFile, type SourceFile } from '@iark/kernel';
 import { MermaidPreview } from '../mermaid-preview/MermaidPreview';
 import { useBulkInsert } from './bulkInsert';
 import { copyText, downloadText, fileStem, readFile, svgDataUrl } from './files';
@@ -405,7 +405,8 @@ export function ImportPanel({ controller, state, notify }: PanelProps) {
   const run = async () => {
     setError(undefined);
     try {
-      const auto = !importer && fileName ? state.module?.importers.find((i) => i.extensions.some((ext) => fileName.toLowerCase().endsWith(ext)))?.id : undefined;
+      // Misma elección que el CLI: por extensión y, si varios formatos la comparten (.yaml, .json, .xml), por el contenido.
+      const auto = !importer && fileName && state.module ? pickImporter(state.module.importers, fileName, text)?.id : undefined;
       const result = files ? await controller.importFiles(files, importer || undefined) : await controller.importFrom(text, importer || auto, { file: fileName });
       notify(`Importado desde ${result.importer}${result.warnings.length ? ` con ${result.warnings.length} avisos` : ''}`);
     } catch (e) {

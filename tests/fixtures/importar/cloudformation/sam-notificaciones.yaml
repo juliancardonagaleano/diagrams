@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Notificaciones a clientes con funciones sin servidor (SAM)
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 10
+
+Resources:
+  Notificaciones:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      CodeUri: src/notificaciones/
+      Environment:
+        Variables:
+          TABLA: !Ref Historial
+      Events:
+        Cola:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ColaEnvios.Arn
+        Web:
+          Type: Api
+          Properties:
+            Path: /notificar
+            Method: post
+            RestApiId: !Ref ApiPublica
+
+  Historial:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: id
+        Type: String
+
+  ApiPublica:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+
+  ColaEnvios:
+    Type: AWS::SQS::Queue

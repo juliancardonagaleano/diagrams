@@ -8,13 +8,15 @@ export interface InfraImportOptions {
   fallbackName?: string;
   /** Ruta (o solo el nombre) del archivo de origen. */
   file?: string;
+  /** Nombre del chart de Helm que generó los manifiestos (`helm template`): da nombre a lo importado cuando el archivo no lo hace. */
+  chart?: string;
 }
 
 /** Nombres de archivo y de carpeta que no dicen nada del sistema: se usa entonces el de la carpeta que los contiene. */
 const GENERIC_NAMES = new Set([
   'main', 'terraform', 'tfstate', 'state', 'plan', 'default', 'all', 'index', 'resources', 'stack', 'infra', 'infrastructure', 'output', 'show',
   'manifest', 'manifests', 'k8s', 'kubernetes', 'kube', 'deployment', 'deployments', 'deploy', 'app', 'apps', 'base', 'overlay', 'rendered', 'stdin',
-  'get-all', 'all-resources', 'export', 'dump', 'cluster', 'kustomize', 'helm',
+  'get-all', 'all-resources', 'export', 'dump', 'cluster', 'kustomize', 'helm', 'chart', 'values', 'requirements',
 ]);
 
 const EXTENSIONS = /\.(?:tf\.json|tfstate(?:\.backup)?|tf|json|ya?ml|txt)$/i;
@@ -37,6 +39,23 @@ export function sourceName(options: InfraImportOptions): string | undefined {
   }
   const fallback = options.fallbackName ? tidy(options.fallbackName) : '';
   return fallback || undefined;
+}
+
+/**
+ * Como `sourceName`, pero solo si el origen dice algo del sistema: `undefined` si el archivo, su carpeta y el nombre de reserva son
+ * genéricos (`rendered.yaml`, `stdin`) o no hay ninguno. Sirve para decidir si otra fuente (el chart de Helm) da mejor nombre.
+ */
+export function descriptiveName(options: InfraImportOptions): string | undefined {
+  const parts = (options.file ?? '').split(/[\\/]+/).filter((p) => p !== '' && p !== '.' && p !== '..');
+  const file = parts.pop();
+  if (file) {
+    const base = tidy(file);
+    if (base && !GENERIC_NAMES.has(slug(base))) return base;
+    const dir = parts.pop();
+    if (dir && !GENERIC_NAMES.has(slug(dir))) return dir;
+  }
+  const fallback = options.fallbackName ? tidy(options.fallbackName) : '';
+  return fallback && !GENERIC_NAMES.has(slug(fallback)) ? fallback : undefined;
 }
 
 const KIND_WORDS: Array<[EnvironmentKind, RegExp]> = [

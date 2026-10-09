@@ -7,6 +7,7 @@ export { toMermaid } from './export/mermaid';
 export { toSvg, layoutView, buildScene, heatLayout, heatPlacement, surfaceNote, ASSET_COLORS, RISK_COLORS, ZONE_STYLES, HEAT_CELL_STYLES } from './export/render';
 export { toDrawio } from './export/drawio';
 export { fromMermaid, SecurityImportError, type SecurityImportOptions, type SecurityImportResult } from './import/fromMermaid';
+export { fromThreatDragon, looksLikeThreatDragon } from './import/fromThreatDragon';
 export { fromIntegrationJson } from './import/fromIntegration';
 export { fromPlatformJson } from './import/fromPlatform';
 export { securityAiSpec, generatedSecuritySchema, type GeneratedSecurity } from './ai/generation';

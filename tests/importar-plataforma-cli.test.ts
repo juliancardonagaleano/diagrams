@@ -185,16 +185,16 @@ describe('iark import --module platform --format kubernetes', () => {
 
 describe('iark: formatos del módulo de plataforma', () => {
   it('modules lista los tres importadores y el manifiesto los declara', () => {
-    expect(run(['modules']).stdout).toMatch(/^platform {2}Arquitectura de plataforma {2}v0\.1\.0\n {4}importa: mermaid, terraform, kubernetes {2}· {2}exporta: mermaid, svg, drawio/m);
+    expect(run(['modules']).stdout).toMatch(/^platform {2}Arquitectura de plataforma {2}v0\.1\.0\n {4}importa: mermaid, terraform, kubernetes, cloudformation, helm {2}· {2}exporta: mermaid, svg, drawio/m);
     const manifest = JSON.parse(run(['modules', '--json']).stdout);
     const platform = manifest.modules.find((m: { id: string }) => m.id === 'platform');
-    expect(platform.importFormats).toEqual(['mermaid', 'terraform', 'kubernetes']);
+    expect(platform.importFormats).toEqual(['mermaid', 'terraform', 'kubernetes', 'cloudformation', 'helm']);
   });
 
   it('un formato inválido lista los del módulo; Mermaid sigue importándose igual', () => {
     const bad = run(['import', '--module', 'platform', '--format', 'pulumi', `${TF}/aws-tienda/main.tf`]);
     expect(bad.status).toBe(2);
-    expect(bad.stderr).toMatch(/Formato inválido «pulumi»\. Use: auto, kubernetes, mermaid, terraform\./);
+    expect(bad.stderr).toMatch(/Formato inválido «pulumi»\. Use: auto, cloudformation, helm, kubernetes, mermaid, terraform\./);
     const { doc } = importTo(['--stdin'], 'flowchart LR\n  subgraph e["Entorno: Producción"]\n    a[Web] --> b[(Datos)]\n  end\n');
     expect(doc.services.length + doc.resources.length).toBeGreaterThan(1);
   });
@@ -204,6 +204,6 @@ describe('iark: formatos del módulo de plataforma', () => {
     writeFileSync(file, 'esto no es nada importable');
     const r = run(['import', '--module', 'platform', file]);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/No se reconoce el formato de ".*notas\.xyz": use --format kubernetes, mermaid o terraform\./);
+    expect(r.stderr).toMatch(/No se reconoce el formato de ".*notas\.xyz": use --format cloudformation, helm, kubernetes, mermaid o terraform\./);
   });
 });

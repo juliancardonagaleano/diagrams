@@ -208,6 +208,7 @@ describe('módulo integration', () => {
     expect(integrationModule.schema.safeParse(example).success).toBe(true);
     expect((integrationModule.jsonSchema() as { type?: string }).type).toBe('object');
     expect(integrationModule.exporters.map((e) => e.id)).toEqual(['mermaid', 'svg', 'drawio']);
+    expect(integrationModule.importers.map((i) => i.id)).toEqual(['mermaid', 'openapi', 'asyncapi']);
     expect(registry.detectImporter('integration', 'x.mmd', '')?.id).toBe('mermaid');
     expect(integrationModule.entities!(doc)).toHaveLength(doc.nodes.length);
   });
