@@ -201,4 +201,10 @@ export const securityAiSpec: AiSpec<SecurityDocument> = {
   },
   retry: (issues) => `El modelo devuelto no pasó la validación. Corrige estos problemas y devuelve el modelo completo de nuevo:\n${issues}`,
   toDocument: (generated) => generatedToSecurity(generated as GeneratedSecurity),
+  // Para `iark explain` y `iark review`: la proyección compacta del documento y qué destacar y qué mirar en este módulo.
+  serialize: toGenerated,
+  explainGuide:
+    'Describe las zonas de confianza y las fronteras entre ellas, qué activos hay en cada una y cuáles son sensibles, los flujos de datos que cruzan fronteras (con su protocolo, cifrado y autenticación), las amenazas identificadas con su categoría STRIDE y los controles que las mitigan, y qué riesgo queda abierto.',
+  reviewGuide:
+    'Mira: flujos que cruzan de una zona menos confiable a otra más confiable sin autenticación o sin cifrado; activos confidenciales o restringidos sin cifrado en reposo o sin ningún control asociado; amenazas abiertas sin control, o marcadas como mitigadas sin un control implementado; categorías STRIDE sin cubrir en los activos expuestos; amenazas sin probabilidad ni impacto; controles planificados que nadie ha implementado o que no mitigan ninguna amenaza; secretos sin rotación; falta de registro y auditoría; zonas con más privilegio del necesario.',
 };

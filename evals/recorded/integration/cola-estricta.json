@@ -1,0 +1,209 @@
+{
+  "case": "cola-estricta",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Caso con strict: la primera respuesta cumple el esquema y no tiene errores, pero sí avisos (contrato sin versión y petición-respuesta contra una cola); con strict los avisos también se devuelven al modelo y la segunda respuesta los corrige.",
+  "promptSha256": "15219b642a6bd28a55e39a9c52bbb216cabbf4db8679936f2d7e9cd0a7e29058",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "Pedidos por cola",
+          "description": null
+        },
+        "nodes": [
+          {
+            "id": "portal",
+            "kind": "system",
+            "name": "Portal de clientes",
+            "description": null,
+            "technology": null,
+            "owner": "Equipo Web",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "rabbit",
+            "kind": "broker",
+            "name": "RabbitMQ",
+            "description": null,
+            "technology": null,
+            "owner": "Plataforma",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "pedidos-entrantes",
+            "kind": "queue",
+            "name": "pedidos-entrantes",
+            "description": null,
+            "technology": null,
+            "owner": null,
+            "external": null,
+            "parentId": "rabbit",
+            "contractId": "mensaje-pedido",
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "pedidos",
+            "kind": "system",
+            "name": "Servicio de pedidos",
+            "description": null,
+            "technology": null,
+            "owner": "Equipo Pedidos",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          }
+        ],
+        "contracts": [
+          {
+            "id": "mensaje-pedido",
+            "name": "Mensaje de pedido",
+            "format": "asyncapi",
+            "version": null,
+            "url": null,
+            "description": null
+          }
+        ],
+        "interactions": [
+          {
+            "id": "publica-pedido",
+            "sourceId": "portal",
+            "targetId": "pedidos-entrantes",
+            "style": "request-response",
+            "protocol": "AMQP",
+            "pattern": null,
+            "contractId": "mensaje-pedido",
+            "description": "Publica el pedido",
+            "dataObjects": null,
+            "criticality": null,
+            "order": null
+          },
+          {
+            "id": "consume-pedido",
+            "sourceId": "pedidos-entrantes",
+            "targetId": "pedidos",
+            "style": "async-message",
+            "protocol": "AMQP",
+            "pattern": null,
+            "contractId": "mensaje-pedido",
+            "description": "Consume el pedido",
+            "dataObjects": null,
+            "criticality": null,
+            "order": null
+          }
+        ],
+        "flows": []
+      }
+    },
+    {
+      "content": {
+        "workspace": {
+          "name": "Pedidos por cola",
+          "description": null
+        },
+        "nodes": [
+          {
+            "id": "portal",
+            "kind": "system",
+            "name": "Portal de clientes",
+            "description": null,
+            "technology": null,
+            "owner": "Equipo Web",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "rabbit",
+            "kind": "broker",
+            "name": "RabbitMQ",
+            "description": null,
+            "technology": null,
+            "owner": "Plataforma",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "pedidos-entrantes",
+            "kind": "queue",
+            "name": "pedidos-entrantes",
+            "description": null,
+            "technology": null,
+            "owner": null,
+            "external": null,
+            "parentId": "rabbit",
+            "contractId": "mensaje-pedido",
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "pedidos",
+            "kind": "system",
+            "name": "Servicio de pedidos",
+            "description": null,
+            "technology": null,
+            "owner": "Equipo Pedidos",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          }
+        ],
+        "contracts": [
+          {
+            "id": "mensaje-pedido",
+            "name": "Mensaje de pedido",
+            "format": "asyncapi",
+            "version": "2.6.0",
+            "url": null,
+            "description": null
+          }
+        ],
+        "interactions": [
+          {
+            "id": "publica-pedido",
+            "sourceId": "portal",
+            "targetId": "pedidos-entrantes",
+            "style": "async-message",
+            "protocol": "AMQP",
+            "pattern": null,
+            "contractId": "mensaje-pedido",
+            "description": "Publica el pedido",
+            "dataObjects": null,
+            "criticality": null,
+            "order": null
+          },
+          {
+            "id": "consume-pedido",
+            "sourceId": "pedidos-entrantes",
+            "targetId": "pedidos",
+            "style": "async-message",
+            "protocol": "AMQP",
+            "pattern": null,
+            "contractId": "mensaje-pedido",
+            "description": "Consume el pedido",
+            "dataObjects": null,
+            "criticality": null,
+            "order": null
+          }
+        ],
+        "flows": []
+      }
+    }
+  ]
+}

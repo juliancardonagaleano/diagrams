@@ -1,0 +1,18 @@
+{
+  "module": "enterprise",
+  "cases": [
+    {
+      "id": "aseguradora-capacidades",
+      "kind": "generate",
+      "instruction": "Una aseguradora: la unidad Seguros de Auto es responsable de las capacidades Gestión de siniestros y Suscripción de pólizas (ambas esenciales). ClaimsPro, un SaaS externo de alta criticidad, soporta los siniestros; el Sistema de pólizas (Java, crítico, a migrar) soporta la suscripción y corre sobre Oracle Database 19c. TI es responsable de las aplicaciones y de la tecnología.",
+      "notes": "Mapa de capacidades con aplicaciones del portafolio, una tecnología y relaciones supports y runs-on.",
+      "expect": {
+        "kinds": { "unit": 2, "capability": 2, "application": 2, "technology": 1 },
+        "mentions": ["ClaimsPro", "Oracle"],
+        "maxWarnings": 0,
+        "loop": { "attempts": 1, "repaired": false, "verification": "passed" },
+        "prompt": { "systemContains": ["TOGAF y ArchiMate", "NO produces coordenadas"], "userContains": ["ClaimsPro"], "maxInputTokens": 9000 }
+      }
+    }
+  ]
+}

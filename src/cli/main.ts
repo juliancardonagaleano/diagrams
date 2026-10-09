@@ -10,12 +10,12 @@ import { DslImportError } from '@core/import/structurizr/fromStructurizrDsl';
 import { MermaidImportError } from '@core/import/mermaid/fromMermaid';
 import { toMermaid, MermaidExportError, type MermaidFormat } from '@core/export/mermaid/toMermaid';
 import { documentJsonSchema, DocumentValidationError, formatIssues, validateDocument } from '@core/model/schema';
-import type { LayoutDensity, LayoutDirectionOption, LayoutDistribution } from '@core/model/types';
+import type { C4Document, LayoutDensity, LayoutDirectionOption, LayoutDistribution } from '@core/model/types';
 import { generationJsonSchema } from '@core/ai/generationSchema';
 import { standalonePrompt } from '@core/ai/prompt';
-import { DEFAULT_AI_MODEL, generateDocument, GenerationError, type Effort } from '@core/ai/generate';
+import { DEFAULT_AI_MODEL, generateDocument, GenerationError } from '@core/ai/generate';
 import { analyzeDocument } from '@core/model/issues';
-import { buildManifest, contractVersionOf, joinSourceFiles, ModuleError, ProjectError, type ModuleRegistry, UnknownModuleError } from '@iark/kernel';
+import { buildManifest, contractVersionOf, estimateTokens, formatTokens, joinSourceFiles, ModuleError, ProjectError, resolveTokenLimits, type ModuleRegistry, UnknownModuleError } from '@iark/kernel';
 import { createDefaultRegistry, createRegistry, DEFAULT_MODULE, resolveConfigPlugins } from './registry';
 import { CONFIG_FILE_NAME, ConfigError, readConfig, scanGlobalFlags, selectConfig, type LoadedConfig } from './plugins/config';
 import { PluginError, type ResolvedPlugin } from './plugins/resolve';
@@ -31,16 +31,17 @@ import { registerAuth } from './auth';
 import { setupAccounts } from './accounts/setup';
 import { TokenError, TokenStore } from './tokens';
 import { FolderProjectStore } from './workspace';
-import { genericExport, genericGenerate, genericMigrate, genericPrompt, genericSchema, genericValidate, readModuleDocument } from './generic';
+import { addBudgetOptions, EFFORTS, parseEffort, parseProvider, reportGeneration, tokenLimitOptions, withAiErrors } from './ai';
+import { registerCommentary } from './commentary';
+import { genericExport, genericGenerate, genericMigrate, genericPrompt, genericPromptText, genericSchema, genericValidate, parseModuleDocumentText, readModuleDocument } from './generic';
 import { CliError, dslIncludeOptions, extractJson, fallbackDocumentName, info, readDocument, readInput, writeOutput } from './io';
 import { readMultiInput, type MultiInput } from './multiFile';
-import { assertRepoFlags, collectRepoExclude, collectRepoInclude, DRY_RUN_HELP, FROM_REPO_HELP, FROM_REPO_PROMPT_HELP, parseRepoBudget, parseRepoRef, prepareRepo, REPO_BUDGET_HELP, REPO_EXCLUDE_HELP, REPO_INCLUDE_HELP, REPO_PRIVACY_HELP, REPO_PROMPT_HELP, REPO_REF_HELP, reportRepoFiles, reportRepoSummary } from './repo';
+import { assertRepoFlags, collectRepoExclude, collectRepoInclude, DEFAULT_BUDGET_BYTES, DRY_RUN_HELP, FROM_REPO_HELP, FROM_REPO_PROMPT_HELP, parseRepoBudget, parseRepoRef, prepareRepo, REPO_BUDGET_HELP, REPO_EXCLUDE_HELP, REPO_INCLUDE_HELP, REPO_PRIVACY_HELP, REPO_PROMPT_HELP, REPO_REF_HELP, reportRepoFiles, reportRepoSummary } from './repo';
 
 const CLI_VERSION = '0.1.0';
 
 const DIRECTIONS: LayoutDirectionOption[] = ['auto', 'DOWN', 'RIGHT', 'LEFT', 'UP'];
 const DISTRIBUTIONS: LayoutDistribution[] = ['auto', 'centered', 'elk'];
-const EFFORTS: Effort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 
 function parseDirection(value: string): LayoutDirectionOption {
   const v = (value.toLowerCase() === 'auto' ? 'auto' : value.toUpperCase()) as LayoutDirectionOption;
@@ -51,20 +52,6 @@ function parseDirection(value: string): LayoutDirectionOption {
 function parseDistribution(value: string): LayoutDistribution {
   const v = value.toLowerCase() as LayoutDistribution;
   if (!DISTRIBUTIONS.includes(v)) throw new InvalidArgumentError(`Distribución inválida. Use: ${DISTRIBUTIONS.join(', ')}`);
-  return v;
-}
-
-function parseEffort(value: string): Effort {
-  const v = value.toLowerCase() as Effort;
-  if (!EFFORTS.includes(v)) throw new InvalidArgumentError(`Esfuerzo inválido. Use: ${EFFORTS.join(', ')}`);
-  return v;
-}
-
-const PROVIDERS = ['auto', 'anthropic', 'foundry', 'openai'] as const;
-
-function parseProvider(value: string): (typeof PROVIDERS)[number] {
-  const v = value.toLowerCase() as (typeof PROVIDERS)[number];
-  if (!PROVIDERS.includes(v)) throw new InvalidArgumentError(`Plataforma inválida. Use: ${PROVIDERS.join(', ')}`);
   return v;
 }
 
@@ -134,10 +121,37 @@ async function readBaseDocument(registry: ModuleRegistry, file: string, moduleId
   return imported.document;
 }
 
+/**
+ * Diagrama de `explain` y `review`: un JSON del módulo o cualquier fuente que ese módulo importe, de un archivo o de la entrada
+ * estándar. A diferencia de `readBaseDocument` también lee de stdin.
+ */
+async function readDiagram(registry: ModuleRegistry, moduleId: string, file: string | undefined, useStdin: boolean): Promise<unknown> {
+  const raw = readInput(file, useStdin);
+  const fromFile = !useStdin && file !== undefined && file !== '-';
+  const text = raw.trimStart();
+  if (text.startsWith('{') || text.startsWith('```') || (fromFile && extname(file!).toLowerCase() === '.json')) return parseModuleDocumentText(registry.require(moduleId), raw);
+  const imported = await importSource(registry, moduleId, { file, raw, fromFile });
+  for (const warning of imported.warnings) info(`aviso: ${warning}`);
+  info(`Diagrama importado de ${imported.format}.`);
+  return imported.document;
+}
+
+/** El prompt autocontenido del módulo (sin llamar a ningún modelo). */
+function promptText(registry: ModuleRegistry, moduleId: string, instruction: string, base: unknown): string {
+  return moduleId !== DEFAULT_MODULE ? genericPromptText(registry.require(moduleId), instruction, base) : standalonePrompt(instruction, base as C4Document | undefined);
+}
+
 /** Imprime el prompt autocontenido del módulo (sin llamar a ningún modelo): `prompt` y `generate --from-repo --dry-run`. */
 async function emitPrompt(registry: ModuleRegistry, moduleId: string, instruction: string, base: any): Promise<void> {
   if (moduleId !== DEFAULT_MODULE) return genericPrompt(registry.require(moduleId), instruction, base);
   process.stdout.write(standalonePrompt(instruction, base));
+}
+
+/** Por stderr: cuánto pesa el prompt (estimado, sin tokenizador) frente al máximo de entrada, para decidir antes de enviar. */
+function reportPromptSize(registry: ModuleRegistry, moduleId: string, instruction: string, base: unknown, maxInputTokens?: number): void {
+  const estimated = estimateTokens(promptText(registry, moduleId, instruction, base));
+  const max = resolveTokenLimits({ maxInputTokens }).maxInputTokens;
+  info(`Tamaño estimado del prompt: ~${formatTokens(estimated)} tokens de entrada (máximo ${formatTokens(max)}, --max-input-tokens).${estimated > max ? ' SUPERA el máximo: `generate` lo rechazaría antes de llamar al modelo; recorta con --repo-budget, --repo-include o --repo-exclude.' : ''}`);
 }
 
 function parseTarget(value: string): 'drawio' | 'mermaid' {
@@ -217,7 +231,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
     .option('--config <archivo>', `carga los módulos de terceros de este ${CONFIG_FILE_NAME} (o la variable IARK_CONFIG); por omisión, el ${CONFIG_FILE_NAME} del directorio actual si existe. Cargar un módulo ejecuta su código con los permisos de este proceso`)
     .option('--no-config', `no carga ninguna configuración, ni la del directorio actual ni IARK_CONFIG (o IARK_NO_CONFIG=1)`);
 
-  program
+  const generate = program
     .command('generate')
     .description('Genera (o refina con --from) un modelo C4 a partir de una instrucción en lenguaje natural usando Claude u otro modelo de Foundry')
     .argument('<instrucción>', 'descripción del sistema o instrucción de refinamiento')
@@ -228,7 +242,10 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
     .option('-m, --model <modelo>', `modelo (por defecto ${DEFAULT_AI_MODEL}; en Foundry, el nombre de tu despliegue o AI_MODEL / ANTHROPIC_FOUNDRY_MODEL)`)
     .option('-e, --effort <nivel>', `esfuerzo de razonamiento (${EFFORTS.join('|')})`, parseEffort)
     .option('-d, --direction <dir>', `dirección del autolayout (${DIRECTIONS.join('|')})`, parseDirection)
-    .option('--retries <n>', 'reintentos si el modelo devuelve un documento inválido', parseRetries, 1)
+    .option('--retries <n>', 'reintentos si el modelo devuelve un documento inválido (por el esquema o por las reglas del módulo, ver --no-verify)', parseRetries, 1)
+    .option('--no-verify', 'no pasar el resultado por las reglas (`validate`) del módulo ni reintentar por ellas; por omisión sus errores se le devuelven al modelo')
+    .option('--allow-invalid', 'si tras los reintentos el documento sigue con errores de las reglas del módulo, aceptarlo igualmente (se avisa); por omisión falla con el informe de incidencias', false)
+    .option('--strict', 'como `validate --strict`: los avisos de las reglas del módulo también se devuelven al modelo y cuentan como fallo', false)
     .option('--locale <es|en>', 'idioma de las etiquetas de tipo en el .drawio', 'es')
     .option('--density <auto|compact|spacious>', 'densidad del autolayout', parseDensity)
     .option('--distribution <auto|centered|elk>', 'distribución del autolayout', parseDistribution)
@@ -239,43 +256,71 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
     .option('--repo-include <glob>', REPO_INCLUDE_HELP, collectRepoInclude)
     .option('--repo-exclude <glob>', REPO_EXCLUDE_HELP, collectRepoExclude)
     .option('--repo-budget <kb>', REPO_BUDGET_HELP, parseRepoBudget)
-    .option('--dry-run', DRY_RUN_HELP, false)
+    .option('--dry-run', DRY_RUN_HELP, false);
+  addBudgetOptions(generate)
     .addHelpText('after', REPO_PRIVACY_HELP)
     .action(async (instruction: string, opts) => {
       assertRepoFlags(opts);
       const base = opts.from ? await readBaseDocument(registry, opts.from, opts.module) : undefined;
       const repo = await prepareRepo(instruction, opts, opts.module);
+      // Con --from-repo, un prompt demasiado grande dice qué recortar del resumen del repositorio.
+      const repoHint = repo ? { budgetKb: Math.round((opts.repoBudget ?? DEFAULT_BUDGET_BYTES) / 1024) } : undefined;
       if (repo) {
         instruction = repo.instruction;
         if (opts.dryRun) {
           reportRepoFiles(repo.digest);
           await emitPrompt(registry, opts.module, instruction, base);
+          reportPromptSize(registry, opts.module, instruction, base, opts.maxInputTokens);
           return;
         }
         reportRepoSummary(repo.digest, true);
       }
       if (opts.module !== DEFAULT_MODULE) {
-        await genericGenerate(registry.require(opts.module), instruction, { base, provider: opts.provider, model: opts.model, effort: opts.effort, retries: opts.retries, json: opts.json, out: opts.out });
+        await genericGenerate(registry.require(opts.module), instruction, {
+          base,
+          provider: opts.provider,
+          model: opts.model,
+          effort: opts.effort,
+          retries: opts.retries,
+          json: opts.json,
+          out: opts.out,
+          maxTokens: opts.maxTokens,
+          budgetTokens: opts.budgetTokens,
+          maxInputTokens: opts.maxInputTokens,
+          verify: opts.verify,
+          allowInvalid: opts.allowInvalid,
+          strict: opts.strict,
+          repo: repoHint,
+        });
         return;
       }
-      const result = await generateDocument({
-        instruction,
-        base,
-        provider: opts.provider,
-        model: opts.model,
-        effort: opts.effort,
-        direction: opts.direction,
-        distribution: opts.distribution,
-        density: opts.density,
-        maxRetries: opts.retries,
-        onProgress: info,
-      });
+      const result = await withAiErrors(
+        () =>
+          generateDocument({
+            instruction,
+            base,
+            provider: opts.provider,
+            model: opts.model,
+            effort: opts.effort,
+            direction: opts.direction,
+            distribution: opts.distribution,
+            density: opts.density,
+            maxRetries: opts.retries,
+            ...tokenLimitOptions(opts),
+            verify: opts.verify,
+            allowInvalid: opts.allowInvalid,
+            retryOn: opts.strict ? 'warning' : 'error',
+            onProgress: info,
+          }),
+        repoHint,
+      );
       const { document } = result;
       info(
         `Modelo generado con ${result.model} (${result.provider}) en ${result.attempts} intento(s): ${document.model.elements.length} elementos, ` +
           `${document.model.relationships.length} relaciones, ${document.views.length} vistas ` +
           `(${result.usage.inputTokens} tokens de entrada, ${result.usage.outputTokens} de salida).`,
       );
+      reportGeneration(result);
       if (opts.json) {
         writeOutput(opts.json, jsonOut(document));
         info(`JSON escrito en ${opts.json}`);
@@ -487,7 +532,10 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       const repo = await prepareRepo(instruction, opts, opts.module);
       if (repo) reportRepoSummary(repo.digest);
       await emitPrompt(registry, opts.module, repo ? repo.instruction : instruction, base);
+      if (repo) reportPromptSize(registry, opts.module, repo.instruction, base);
     });
+
+  registerCommentary(program, registry, (moduleId, file, useStdin) => readDiagram(registry, moduleId, file, useStdin));
 
   program
     .command('example')
@@ -676,9 +724,13 @@ export async function prepareStartup(argv: readonly string[] = process.argv, opt
   return { registry, config, settings: { plugins, ...(config.defaultModule ? { defaultModule: config.defaultModule } : {}) } };
 }
 
-export async function run(argv = process.argv): Promise<void> {
+/**
+ * Ejecuta el CLI con `argv`. `registry` (módulos propios o de terceros) solo lo usan las pruebas: con él no se lee ninguna
+ * configuración y se usa tal cual; por omisión, los módulos de la suite más los de la configuración (`prepareStartup`).
+ */
+export async function run(argv = process.argv, registry?: ModuleRegistry): Promise<void> {
   try {
-    const startup = await prepareStartup(argv);
+    const startup: Startup = registry ? { registry, settings: {} } : await prepareStartup(argv);
     const program = buildProgram(startup.registry, startup.settings);
     await program.parseAsync(argv);
   } catch (error) {

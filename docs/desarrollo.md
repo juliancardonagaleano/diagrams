@@ -22,6 +22,8 @@ npm run packages:check   # los empaqueta (npm pack), los instala en una carpeta 
 npm run cli -- serve --static dist/app   # servicio HTTP + sitio en http://127.0.0.1:8787 (tras npm run build)
 npm run deploy:pages   # publica el sitio en la rama gh-pages desde un equipo con permiso de escritura (ver despliegue-pages.md)
 npm run docker:smoke   # construye la imagen y la prueba de verdad como servicio gestionado (necesita Docker y Linux)
+npm run evals      # evals de prompts de la IA, offline con respuestas grabadas (sin red ni claves; lo corre también npm test)
+npm run evals:live # los mismos casos contra el modelo REAL configurado: gasta tokens, exige --yes (ver ia.md, «Evals de prompts»)
 ```
 
 Requisitos: **Node 22.12 o superior** (el que usan la imagen Docker y el CI; `@types/node` es la 22; lo fijan `.nvmrc` y `engines` de `package.json`, que llegan en la PR de gobernanza). Las dependencias de ejecución (`commander` 15, `vitest` 5, `mermaid` 12) no admiten Node 20.
@@ -86,6 +88,7 @@ Los siete paquetes de `packages/` se pueden publicar en npm (comparten la versi�
   y recorre el servicio gestionado contra un GitHub de mentira (`tests/helpers/fakeGithub.ts`): inicio de sesión, un proyecto en el volumen, reiniciar y
   sustituir el contenedor, copia de seguridad y restauración, bind mount, secreto por archivo y que nada secreto salga en `docker logs`. Necesita Docker y Linux
   (`--network host`); sin ellos se salta con un mensaje. No forma parte de `npm test`.
+- **IA** (ver [ia.md](ia.md)): los clientes de modelo se simulan (`tests/helpers/modeloSimulado.ts`: un Chat Completions de mentira y un entorno hermético sin las `AI_*` de la sesión), así que `npm test` nunca llama a un modelo ni usa la red. `tests/evals.test.ts` corre los evals offline y comprueba que el ejecutor detecta lo que debe; `tests/ai-live.test.ts` es la única prueba que llamaría a un modelo real y **se salta** salvo con `IARK_LIVE_AI=1` y credenciales.
 
 ## Decisiones de diseño
 
