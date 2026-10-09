@@ -301,13 +301,19 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     if (readOnly || document === undefined) return;
     const label = spec.nodeKinds.find((k) => k.kind === kind)?.label ?? kind;
     const parentNode = single ? graph?.nodes.find((n) => n.id === single) : undefined;
-    const id = commit(spec.addNode(document, kind, `${label} nuevo`, parentNode?.id, viewId));
+    const result = spec.addNode(document, kind, `${label} nuevo`, parentNode?.id, viewId);
+    const id = commit(result);
     if (!id) return;
-    const rect = wrapper.current?.getBoundingClientRect();
-    const center = flow.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 400) / 2 + Math.random() * 60 - 30, y: (rect?.top ?? 0) + (rect?.height ?? 300) / 2 + Math.random() * 60 - 30 });
-    const next = new Map(moved).set(id, { x: Math.round(center.x - 90), y: Math.round(center.y - 36) });
-    setMoved(next);
-    writePositions(key, next);
+    // Un nodo que nace dentro de una zona (un contenedor C4 en el límite de su sistema) no se coloca a mano en el centro de la
+    // pantalla, donde quedaría fuera de ella: lo coloca el autolayout dentro de su zona.
+    const inGroup = result.ok && !!spec.project(result.document, viewId).nodes.find((n) => n.id === id)?.parentId;
+    if (!inGroup) {
+      const rect = wrapper.current?.getBoundingClientRect();
+      const center = flow.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 400) / 2 + Math.random() * 60 - 30, y: (rect?.top ?? 0) + (rect?.height ?? 300) / 2 + Math.random() * 60 - 30 });
+      const next = new Map(moved).set(id, { x: Math.round(center.x - 90), y: Math.round(center.y - 36) });
+      setMoved(next);
+      writePositions(key, next);
+    }
     setSelection(new Set([id]));
   };
 

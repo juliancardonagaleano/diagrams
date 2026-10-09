@@ -153,6 +153,18 @@ describe('lienzo común con C4', () => {
     await waitFor(() => expect(screen.queryByTestId(`node-${created.id}`)).toBeNull());
   });
 
+  it('lo que nace dentro de un límite lo coloca el autolayout; lo que nace suelto, en el centro de la pantalla', async () => {
+    mount({ viewId: 'contenedores' });
+    await ready('db', 'contenedores');
+    const stored = (): string | null => window.localStorage.getItem('iark.canvas.c4.contenedores');
+    fireEvent.click(screen.getByTestId('add-container'));
+    await waitFor(() => expect(screen.getByTestId('node-contenedor-nuevo')).toBeInTheDocument());
+    expect(stored()).toBeNull();
+    fireEvent.click(screen.getByTestId('add-person'));
+    await waitFor(() => expect(screen.getByTestId('node-persona-nueva')).toBeInTheDocument());
+    expect(JSON.parse(stored()!).map(([id]: [string]) => id)).toEqual(['persona-nueva']);
+  });
+
   it('avisa, sin tocar el documento, si la vista no muestra el tipo de elemento que se añade', async () => {
     const harness = mount();
     await ready('banca', 'contexto');
