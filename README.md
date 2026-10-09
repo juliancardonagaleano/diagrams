@@ -12,7 +12,7 @@
 
 ## Inicio rápido
 
-Requisitos: **Node 22.12 o superior** (el que usan la imagen Docker y el CI; lo fijan `.nvmrc` y `engines` de `package.json`).
+Requisitos: **Node 22.13 o superior** (el que usan la imagen Docker y el CI; lo fijan `.nvmrc` y `engines` de `package.json`; la 22.13 es la primera que trae `node:sqlite` sin banderas, que usa el almacén de cuentas del servicio gestionado).
 
 ```bash
 npm install
@@ -126,7 +126,7 @@ Lo imprescindible antes de exponer algo (el detalle está en cada documento y la
 
 - **`iark serve` solo habla HTTP**: para usarlo por internet va detrás de un proxy con HTTPS (`--trust-proxy`); ver [docs/servicio.md](docs/servicio.md).
 - **Con una carpeta de trabajo (`--workspace`) y fuera de loopback exige autenticación** (`--tokens` o `--accounts`); sin ella, no arranca. La imagen Docker no fija ningún espacio de trabajo a propósito.
-- **Los tokens y las sesiones se guardan solo como hash** en disco; el secreto de la OAuth App de GitHub no tiene opción de línea de comandos (entorno o archivo).
+- **Los tokens y las sesiones se guardan solo como hash** en disco (las cuentas, en una base SQLite 0600 con transacciones); el secreto de la OAuth App de GitHub no tiene opción de línea de comandos (entorno o archivo).
 - **`--from-repo` solo lee una lista blanca** de archivos y redacta los secretos antes de enviar nada al modelo; `--dry-run` enseña exactamente qué se enviaría ([docs/ia.md](docs/ia.md)).
 - **Cargar un módulo de terceros ejecuta su código** con los permisos del proceso: solo se carga la configuración que señalas tú (`--config`, `IARK_CONFIG` o el `iark.config.json` del directorio actual), nunca la de un proyecto clonado (`--from-repo`) ni la de una carpeta de trabajo (`--workspace`); `--no-config` lo desactiva ([docs/plugins.md](docs/plugins.md)).
 - **Al embeber, fija el origen del anfitrión** (`&origin=https://mi-host`): sin él las respuestas de `postMessage` van a `*` ([docs/embebido.md](docs/embebido.md)).
@@ -145,7 +145,7 @@ Todo lo que antes vivía en este README está en [`docs/`](docs/indice.md), con 
 Las seis especialidades, el banco de trabajo, la federación, los proyectos y el servicio gestionado están hechos; el proyecto está en la **Fase 1 «Endurecer»** de su plan de robustecimiento (seguridad, compuerta de CI, documentos de proyecto). Qué está hecho, qué falta y los límites conocidos: [docs/roadmap.md](docs/roadmap.md). Los que conviene saber desde el principio:
 
 - No hay colaboración en tiempo real ni trabajo sin conexión: dos personas sobre el mismo diagrama no se mezclan, el segundo guardado pregunta qué versión conservar.
-- El servicio gestionado es de una sola réplica (las cuentas son un archivo JSON con un único escritor) y no tiene pantalla de administración de cuentas, solo la API.
+- El servicio gestionado es de una sola máquina (las cuentas van en una base SQLite del disco local: varios procesos sobre ella son seguros, pero no hay réplicas en máquinas distintas; el camino a Postgres es una decisión pendiente, ver [docs/cuentas-github.md](docs/cuentas-github.md#camino-a-postgres-y-réplicas-una-decisión-pendiente-no-tomada)) y no tiene pantalla de administración de cuentas, solo la API.
 - La generación con IA solo se ha probado de verdad con un modelo (DeepSeek-V4-Pro por Foundry, 28-09-2026): ver [docs/ia.md](docs/ia.md#prueba-real-de-generate).
 - Quedan fuera de alcance el servidor MCP, las vistas de despliegue y de código de C4 y exportar a DSL de Structurizr.
 

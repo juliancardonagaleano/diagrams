@@ -6,7 +6,7 @@ El proyecto está en español: documentación, comentarios del código, mensajes
 
 ## Requisitos
 
-- **Node 22** (el repositorio trae un `.nvmrc`; `nvm use` lo selecciona). `package.json` exige `>=22.12.0` en `engines` porque lo piden de verdad `commander` 15 (el CLI), Vitest 5 y Mermaid 12.
+- **Node 22** (el repositorio trae un `.nvmrc`; `nvm use` lo selecciona). `package.json` exige `>=22.13.0` en `engines` porque lo piden de verdad `commander` 15 (el CLI), Vitest 5, Mermaid 12 y el almacén SQLite de las cuentas (`node:sqlite`, disponible sin banderas desde la 22.13).
 - **npm**, que viene con Node. Instala las dependencias con `npm ci` (respeta `package-lock.json`; no uses `npm install` salvo que cambies dependencias a propósito).
 - Para las pruebas de extremo a extremo, un Chromium: `playwright.config.ts` usa `CHROMIUM_PATH` o, si no existe, `/opt/pw-browsers/chromium`, y no descarga ninguno.
 - Docker solo si tocas el `Dockerfile`, `deploy/` o quieres ejecutar `npm run docker:smoke` (no forma parte de `npm test`).

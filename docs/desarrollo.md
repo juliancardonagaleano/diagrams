@@ -24,7 +24,7 @@ npm run deploy:pages   # publica el sitio en la rama gh-pages desde un equipo co
 npm run docker:smoke   # construye la imagen y la prueba de verdad como servicio gestionado (necesita Docker y Linux)
 ```
 
-Requisitos: **Node 22.12 o superior** (el que usan la imagen Docker y el CI; `@types/node` es la 22; lo fijan `.nvmrc` y `engines` de `package.json`, que llegan en la PR de gobernanza). Las dependencias de ejecución (`commander` 15, `vitest` 5, `mermaid` 12) no admiten Node 20.
+Requisitos: **Node 22.13 o superior** (el que usan la imagen Docker y el CI; `@types/node` es la 22; lo fijan `.nvmrc` y `engines` de `package.json`, que llegan en la PR de gobernanza). Las dependencias de ejecución (`commander` 15, `vitest` 5, `mermaid` 12) no admiten Node 20.
 
 ## Estructura del proyecto
 
@@ -82,9 +82,10 @@ Los siete paquetes de `packages/` se pueden publicar en npm (comparten la versi�
   falla (`npx playwright show-trace test-results/.../trace.zip`). Las particularidades (puerto, esperas, iframes) están en
   [Trampas conocidas](#trampas-conocidas).
 - **Módulos de terceros** (`tests/plugins-cli.test.ts`): el CLI empaquetado de verdad contra `examples/plugin-riesgos` con un `@iark/kernel` compilado como se publica (`tests/helpers/pluginProject.ts`): cargar, descubrir la configuración, los fallos con código 2, que no se cargue de `--from-repo` ni de `--workspace`, y `iark serve --config` con su hilo de cálculo. Las unidades están en `src/cli/plugins/*.test.ts` y `src/cli/registry.test.ts`; `tests/paquetes.test.ts` vigila la declaración de los paquetes publicables.
+- **Almacén de cuentas** (`src/cli/accounts/`): `tests/helpers/accountStoreContract.ts` es la batería común del contrato `AccountStore` y la corren el almacén JSON (`jsonStore.test.ts`) y el SQLite (`sqliteStore.test.ts`, que añade lo propio: ajustes, migraciones del esquema, rollback, dos conexiones, reinicio); `storeEquivalence.test.ts` los compara paso a paso con el mismo guion; `migrate.test.ts` prueba la importación del JSON; `sqliteProcesses.test.ts` lanza procesos de verdad (`tests/helpers/sqliteWorker.ts`) sobre una misma base (topes, cuentas duplicadas, `SIGKILL`); `serveAccountsSqlite.test.ts` pone dos servidores HTTP sobre una base, y `tests/accounts-cli.test.ts` prueba `iark serve` y `iark accounts` empaquetados. Para correr **toda** la API de cuentas contra SQLite en vez de JSON: `IARK_TEST_ACCOUNTS_STORE=sqlite npx vitest run src/cli/serve*.test.ts` (y lo mismo con Playwright: `IARK_TEST_ACCOUNTS_STORE=sqlite npx playwright test tests/e2e/projects-cloud-github.spec.ts`).
 - **Imagen Docker** (`npm run docker:smoke`, `scripts/docker-smoke-cuentas.ts`): construye la imagen (o usa una con `--image`), la ejecuta de verdad
   y recorre el servicio gestionado contra un GitHub de mentira (`tests/helpers/fakeGithub.ts`): inicio de sesión, un proyecto en el volumen, reiniciar y
-  sustituir el contenedor, copia de seguridad y restauración, bind mount, secreto por archivo y que nada secreto salga en `docker logs`. Necesita Docker y Linux
+  sustituir el contenedor, copia de seguridad (`iark accounts backup`) y restauración, actualizar desde cuentas en JSON, bind mount, secreto por archivo y que nada secreto salga en `docker logs`. Necesita Docker y Linux
   (`--network host`); sin ellos se salta con un mensaje. No forma parte de `npm test`.
 
 ## Decisiones de diseño

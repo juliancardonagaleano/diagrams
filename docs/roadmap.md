@@ -88,7 +88,7 @@ Que cada módulo sea útil con los archivos reales de quien lo usa.
 
 Que una instancia gestionada se pueda operar y medir.
 
-- **Cuentas transaccionales**: las cuentas son un JSON con un único escritor (una sola réplica); pasar a un almacén transaccional y a varias réplicas.
+- **Cuentas en varias máquinas**: las cuentas ya van en un almacén transaccional (SQLite, seguro con varios procesos sobre un disco local; el JSON queda como opción de un solo proceso). Falta, y es una decisión de quien aloja, el salto a réplicas en máquinas distintas (Postgres, interfaz asíncrona, estado del inicio de sesión compartido): ver [Camino a Postgres y réplicas](cuentas-github.md#camino-a-postgres-y-réplicas-una-decisión-pendiente-no-tomada).
 - **Observabilidad y auditoría**: el servidor no registra accesos ni quién cambió qué; registros estructurados, métricas y auditoría.
 - **Colaboración y sin conexión**: hoy los cambios de dos personas no se mezclan, no hay tiempo real ni trabajo sin conexión, y no hay instantáneas guardadas en el navegador.
 - **Administración de cuentas**: pantalla de administración (hoy solo la API `/api/admin/users`) y cuotas de disco por persona.
@@ -107,7 +107,7 @@ Los pendientes menores y límites conocidos al 2026-10-08, con la fase en la que
 | Seguridad | Un token guardado en el navegador queda expuesto a un XSS del sitio que lo use; `iark serve` no habla TLS (hace falta un proxy con https) | 1 |
 | Nube gestionada | No hay pantalla de administración de cuentas (solo la API `/api/admin/users`: invitar sin un proyecto, desactivar, cambiar roles) y sin cuotas de disco por persona | 4 |
 | Nube gestionada | El inicio de sesión recarga la página (sin ventana emergente) | 4 |
-| Nube gestionada | Una sola réplica: las cuentas son un JSON con un único escritor | 4 |
+| Nube gestionada | Una sola máquina: las cuentas van en SQLite sobre un disco local (varios procesos, sí; varias máquinas, no); el estado del inicio de sesión de GitHub y los frenos de intentos viven en la memoria de cada proceso (detrás de un balanceador hace falta afinidad de sesión); el tope de proyectos por persona se comprueba fuera de la transacción de las cuentas. El salto a Postgres es una decisión pendiente | 4 |
 | Nube gestionada | El freno de intentos solo lee la última entrada de `X-Forwarded-For` (plataformas con otra cabecera, como `Fly-Client-IP`, comparten freno) | 4 |
 | Nube gestionada | No se ha probado con un certificado público real ni en una plataforma concreta | 4 |
 | Versionado | No hay instantáneas guardadas en el navegador (se compara con archivos, git o un JSON abierto) | 4 |

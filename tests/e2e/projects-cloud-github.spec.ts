@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
 import { startManagedCloud, type ManagedCloud } from './cloud-server';
@@ -16,7 +16,7 @@ const ANA: FakeProfile = { id: 4101, login: 'ana-dev', name: 'Ana Pérez' };
 const BETO: FakeProfile = { id: 4102, login: 'beto-dev', name: 'Beto Ruiz' };
 const ROOT: FakeProfile = { id: 4100, login: 'root-admin', name: 'Admin de la instancia' };
 
-const test = base.extend<{ origin: string; start: (options?: { admins?: FakeProfile[]; signup?: 'open' | 'invite' }) => Promise<ManagedCloud> }>({
+const test = base.extend<{ origin: string; start: (options?: { admins?: FakeProfile[]; signup?: 'open' | 'invite'; store?: 'json' | 'sqlite' }) => Promise<ManagedCloud> }>({
   origin: async ({ baseURL }, use) => use(new URL(baseURL!).origin),
   start: async ({ origin }, use) => {
     const started: ManagedCloud[] = [];
@@ -179,6 +179,43 @@ test.describe('proyectos en la nube con inicio de sesión de GitHub', () => {
     expect(old.status).toBe(401);
     expect(cloud.github.revoked).toHaveLength(2); // el token de GitHub se revocó en cada inicio de sesión: IArk no conserva acceso
     expect(errors).toEqual([]);
+  });
+
+  test('con las cuentas en SQLite (--accounts-store sqlite): iniciar sesión, crear y guardar un proyecto, y tras reiniciar el servicio la misma sesión sigue vigente con todo', async ({ page, start }) => {
+    const cloud = await start({ signup: 'open', store: 'sqlite' });
+    expect(cloud.accounts).toMatch(/cuentas\.db$/);
+    const errors = await open(page);
+    await logIn(page, cloud, ANA);
+    await expect(page.locator('.wb-toast')).toContainText('Sesión iniciada como Ana Pérez (@ana-dev)');
+    const token = sessionOf((await stored(page)).local, cloud)!;
+    expect(token).toMatch(/^iark_s_/);
+
+    await page.getByRole('button', { name: 'Proyectos…' }).click();
+    await createProject(page, 'En SQLite');
+    await dialog(page).getByRole('button', { name: /Guardar en «En SQLite»/ }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Vista SVG' }).click();
+    await edit(page, 'Guardado con SQLite');
+    await expect(saveStatus(page)).toHaveAttribute('data-save', 'saved', { timeout: 15000 });
+    await expect.poll(() => onDisk(cloud)).toEqual(['Guardado con SQLite']);
+
+    // las cuentas están en una base con modo 0600 (y del token de sesión solo se guardó su hash)
+    expect(statSync(cloud.accounts).mode & 0o777).toBe(0o600);
+    expect(existsSync(cloud.accounts.replace(/\.db$/, '.json'))).toBe(false);
+    await expect.poll(() => readFileSync(cloud.accounts).includes(Buffer.from(token))).toBe(false);
+
+    // el servicio se reinicia: la sesión de la página (su token) sigue valiendo y el proyecto sigue siendo de Ana, como administradora
+    await cloud.restart();
+    expect((await projectsOf(cloud, token)).map((p) => [p.name, p.role])).toEqual([['En SQLite', 'admin']]);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('project-bar')).toBeVisible({ timeout: 20000 });
+    await page.getByRole('button', { name: 'Proyectos…' }).click();
+    await expect(storage(page).getByTestId('storage-status')).toHaveText('Conectado');
+    await expect(dialog(page).getByRole('heading', { name: 'En SQLite' })).toBeVisible();
+    expect(errors).toEqual([]);
+
+    // una persona que no entró nunca no se cuela por el reinicio: sin sesión, 401
+    expect((await fetch(`${cloud.url}/api/projects`, { headers: { Authorization: 'Bearer iark_s_inventado' } })).status).toBe(401);
   });
 
   test('una sesión cerrada desde otro sitio: el guardado avisa, conserva el texto y «Iniciar sesión» la retoma sin perder lo ya guardado', async ({ page, start }) => {
