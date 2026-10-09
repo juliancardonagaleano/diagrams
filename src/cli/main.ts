@@ -29,6 +29,7 @@ import { registerTrace } from './trace';
 import { registerDiff } from './diff';
 import { registerProject } from './project';
 import { registerAuth } from './auth';
+import { registerAccounts } from './accounts/cli';
 import { setupAccounts } from './accounts/setup';
 import { TokenError, TokenStore } from './tokens';
 import { FolderProjectStore } from './workspace';
@@ -583,6 +584,8 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       process.env.IARK_TOKENS || undefined,
     )
     .option('--accounts <archivo>', 'activa el inicio de sesión con GitHub: archivo donde el servicio guarda las cuentas, las sesiones y a qué proyectos pertenece cada persona (o IARK_ACCOUNTS). Pide también --github-client-id, el secreto en IARK_GITHUB_CLIENT_SECRET, --public-url y --workspace', process.env.IARK_ACCOUNTS || undefined)
+    .option('--accounts-store <almacén>', '«json» (por omisión): un archivo para una sola instancia; «sqlite»: una base transaccional (node:sqlite) que varias instancias pueden compartir sobre un disco local (o IARK_ACCOUNTS_STORE). Un JSON existente se pasa a SQLite con `iark accounts migrate`', process.env.IARK_ACCOUNTS_STORE || undefined)
+    .option('--accounts-import <archivo>', 'con --accounts-store sqlite: al arrancar, si la base está vacía, importa este JSON de cuentas (con copia de seguridad; no hace nada si no existe o ya se importó) (o IARK_ACCOUNTS_IMPORT)', process.env.IARK_ACCOUNTS_IMPORT || undefined)
     .option('--github-client-id <id>', 'Client ID de la OAuth App de GitHub (o IARK_GITHUB_CLIENT_ID); el Client secret va solo en IARK_GITHUB_CLIENT_SECRET o IARK_GITHUB_CLIENT_SECRET_FILE', process.env.IARK_GITHUB_CLIENT_ID || undefined)
     .option('--github-url <url>', 'con GitHub Enterprise Server, su dirección (o IARK_GITHUB_URL); por omisión https://github.com', process.env.IARK_GITHUB_URL || undefined)
     .option('--github-api-url <url>', 'con GitHub Enterprise Server, su API (o IARK_GITHUB_API_URL); por omisión https://api.github.com', process.env.IARK_GITHUB_API_URL || undefined)
@@ -650,7 +653,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       if (projects) {
         info(`  espacio de trabajo: ${projects.root} · proyectos: /api/projects`);
         if (accounts) {
-          info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
+          info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}, almacén ${accounts.store.kind}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
           if (!loopback) info(tlsNote('GitHub solo devuelve a la persona a la dirección pública, y las sesiones viajan por ella.'));
         }
       }
@@ -662,7 +665,16 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       // `logrotate` rota los registros y avisa con SIGHUP: se vuelven a abrir los archivos (solo si hay alguno; no existe en Windows).
       if (process.platform !== 'win32' && observed.observability.hasFiles) process.on('SIGHUP', () => observed.observability.reopen());
       await new Promise<void>((resolveClosed) => {
-        const stop = (): void => void server.close(() => void (pool?.close() ?? Promise.resolve()).then(() => observed.observability.close()).then(() => resolveClosed()));
+        const stop = (): void =>
+          void server.close(
+            () =>
+              void (pool?.close() ?? Promise.resolve())
+                .then(() => observed.observability.close())
+                .then(() => {
+                  accounts?.store.close(); // cierra la base de cuentas (SQLite) con limpieza: vuelca el diario WAL al archivo
+                  resolveClosed();
+                }),
+          );
         process.once('SIGINT', stop);
         process.once('SIGTERM', stop);
       });
@@ -672,6 +684,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
   registerDiff(program, registry, importSource, defaultModule);
   registerProject(program, registry);
   registerAuth(program);
+  registerAccounts(program);
   registerModuleCommands(program, registry);
 
   return program;

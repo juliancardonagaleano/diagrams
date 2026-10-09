@@ -19,7 +19,8 @@ iark modules  [--json]
 iark project  list|create|rename|delete|show|add|get|rename-diagram|remove|copy|export|import|check|trace   # proyectos en una carpeta de trabajo (ver proyectos.md)
 iark auth     create|list|revoke   # tokens de acceso de `iark serve --tokens` (ver servicio.md, «Servidor para varias personas»)
 iark trace    <módulo=archivo>... [--from <módulo:id>] [--direction refs|referrers|both] [--depth n] [--format markdown|mermaid|svg|json] [--type <tipo>]... [--orphans [módulo[:tipo]]] [--matrix [module|kind]] [--coverage "<origen> -> <destino>"]... [--min-coverage n] [--strict] [--strict-unresolved] [--out archivo]   # trazabilidad entre módulos: enlaces tipados, huérfanos, matriz y cobertura (ver trazabilidad.md)
-iark serve    [--static dist/app] [--port 8787] [--host 127.0.0.1] [--cors <orígenes>] [--workspace <carpeta>] [--tokens <archivo> | --accounts <archivo> …] [--access-log <archivo|->] [--audit-log <archivo|->] [--metrics [--metrics-token <token>]]   # servicio HTTP (ver servicio.md; registros, auditoría, salud y métricas: observabilidad.md)
+iark serve    [--static dist/app] [--port 8787] [--host 127.0.0.1] [--cors <orígenes>] [--workspace <carpeta>] [--tokens <archivo> | --accounts <archivo> [--accounts-store json|sqlite] [--accounts-import <json>] …] [--access-log <archivo|->] [--audit-log <archivo|->] [--metrics [--metrics-token <token>]]   # servicio HTTP (ver servicio.md; registros, auditoría, salud y métricas: observabilidad.md)
+iark accounts migrate|backup|info   # mantenimiento de la base SQLite de cuentas de `iark serve --accounts-store sqlite`: pasar el JSON de antes, copia coherente y estado (ver cuentas-github.md)
 iark <módulo> <comando>   # comandos propios de cada módulo (p. ej. `iark integration catalog`)
 
 # Opciones globales (valen antes o después del comando)

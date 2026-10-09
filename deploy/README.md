@@ -16,3 +16,8 @@ docker compose logs iark                                          # debe decir �
 ```
 
 Observabilidad (ver [`docs/observabilidad.md`](../docs/observabilidad.md)): el compose manda el registro de accesos de IArk a la salida estándar (`docker compose logs iark`, con la rotación de Docker) y la auditoría —quién cambió qué, también lo denegado— a `/data/audit.jsonl` en el volumen. El `HEALTHCHECK` consulta `/healthz`; `/readyz` y `/metrics` (esta última apagada, con token) están para un monitor o Prometheus.
+
+Las cuentas, las sesiones y a quién se compartió cada proyecto van en una **base SQLite** (`/data/accounts.db`, dentro del mismo volumen): transaccional, con modo WAL, pensada para un disco local. Dos cosas que cambian respecto a copiar archivos:
+
+- **Copias de seguridad**: la base se copia con `docker compose exec iark node dist/cli/index.js accounts backup /data/accounts-<fecha>.db` (una copia coherente con el servicio en marcha), no con `tar` o `cp` de `accounts.db`. Los pasos completos, y la restauración, están en la guía (sección 6).
+- **Si ya tenías el servicio con las cuentas en JSON** (`/data/accounts.json`), no hay que hacer nada a mano: el compose lleva `IARK_ACCOUNTS_IMPORT=/data/accounts.json` y la primera arrancada las importa a la base (sin tocar el JSON y con una copia de seguridad suya). Detalles y cómo volver atrás: sección 7 de la guía.
