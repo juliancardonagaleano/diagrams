@@ -1,6 +1,6 @@
 export * from './module/types';
 export * from './module/editor';
-export { ModuleRegistry, UnknownModuleError } from './module/registry';
+export { ModuleRegistry, UnknownModuleError, pickImporter } from './module/registry';
 export * from './module/operations';
 export * from './module/trace';
 export * from './module/trace-svg';
@@ -23,6 +23,7 @@ export {
 export { extractJson } from './util/extractJson';
 export { MAX_ID_LENGTH, pickId } from './import/ids';
 export { Warnings } from './import/warnings';
+export { IMPORT_LIMITS, textSizeProblem, treeProblem, type TreeLimits } from './import/limits';
 export { standalonePrompt as moduleStandalonePrompt } from './ai/standalone';
 export { generateStructured, GenerationError, type Effort, type StructuredOptions, type StructuredResult } from './ai/structured';
 export { createAiClient, credentialsHint, openaiSettings, resolveModel, resolveProvider, type AiProvider, type Env } from './ai/client';
