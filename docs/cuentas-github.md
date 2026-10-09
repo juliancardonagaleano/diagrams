@@ -71,7 +71,7 @@ curl -X PUT https://iark.ejemplo.org/api/projects/tienda/members/carla \
 
 ## Administrar las cuentas de la instancia
 
-Solo para quien administra la instancia (una persona con rol `admin` o un token de `--tokens` con rol `admin`; los demás, 403). Es lo que usará la pantalla de administración y también sirve desde la línea de comandos:
+Solo para quien administra la instancia (una persona con rol `admin` o un token de `--tokens` con rol `admin`; los demás, 403). Es lo que usa la [pantalla de administración](#pantalla-de-administración) y también sirve desde la línea de comandos:
 
 | Petición | Qué hace |
 |---|---|
@@ -80,3 +80,27 @@ Solo para quien administra la instancia (una persona con rol `admin` o un token 
 | `DELETE /api/admin/users/<usuario>` | Cancela la invitación de quien todavía no ha entrado. Con quien ya entró, 409 `conflict`: se desactiva |
 
 Nadie puede cambiar su propio rol ni desactivarse (409 `self`: que lo haga otra persona), y a quien figura en `--admins` no se le puede bajar de rol ni desactivar desde la API (409 `listed-admin`): su rol lo manda la lista. Un `PUT` con `siteRole: "admin"` hace administradora a otra persona sin tocar `--admins`; quitarle el rol es otro `PUT`.
+
+## Pantalla de administración
+
+Quien administra la instancia no necesita la API a mano. El gestor de proyectos (**Proyectos…** en el banco de trabajo y en el editor C4) trae, arriba, en «Dónde se guardan» y junto a «Cambiar…», el botón **Administrar cuentas…**: abre **Administración de la instancia**, una ventana sobre `/api/admin/users`.
+
+**Quién la ve.** Solo una persona con sesión de GitHub y `siteRole: admin`. Para un miembro, un invitado, un token (aunque tenga rol `admin`: las cuentas de servicio usan la API) o los proyectos de este navegador no hay botón ni enlace, y el gestor no pide nada a `/api/admin`. El botón no es la seguridad: el servidor vuelve a comprobar el rol en cada petición, así que si a alguien se lo quitan con la ventana abierta, la siguiente lectura o cambio responde 403 y la ventana deja de mostrar cuentas.
+
+**Qué muestra.** Una tabla con una fila por cuenta: foto (o su inicial), `@usuario`, nombre, las marcas «tú» y «en --admins», el rol, el estado (*Activa*, *Invitación pendiente* o *Desactivada*), el último acceso y a cuántos proyectos pertenece. Por omisión van primero los administradores, luego los miembros y los invitados, y dentro de cada rol por usuario. Se puede **buscar** por usuario o nombre (sin distinguir mayúsculas ni acentos), **filtrar** (por rol, invitaciones pendientes o desactivadas) y **ordenar** (por rol, usuario, último acceso o proyectos). Encima de la tabla, un resumen: cuántas cuentas, administradores, invitaciones pendientes y desactivadas hay.
+
+**Qué se puede hacer**
+
+| Acción | Cómo | Petición |
+|---|---|---|
+| Invitar | Formulario «Invitar a una persona»: usuario de GitHub (con o sin `@`) y rol inicial (miembro por omisión). Queda como invitación pendiente hasta que esa persona entre con su cuenta. Un nombre que ya tiene cuenta o invitación no se invita: la pantalla lo dice y no lo pide, porque el servidor, ante un nombre que conoce, cambia su rol en lugar de invitar | `PUT` con `siteRole` (201) |
+| Cambiar el rol | El selector de la fila deja un **borrador**; **Guardar rol** lo aplica (con un aviso de lo que da si es de administrador) y **Descartar** lo quita. Mover el selector no cambia nada por sí solo: con el teclado cada flecha dispara el cambio, y alguien podría dar el rol de administrador sin querer | `PUT { siteRole }` |
+| Desactivar | Pide confirmación en la propia fila. Cierra sus sesiones y no le deja volver a entrar | `PUT { disabled: true }` |
+| Reactivar | Sin confirmación: se deshace con otro clic | `PUT { disabled: false }` |
+| Cancelar una invitación | Solo de quien aún no ha entrado. Pide confirmación; también la quita de los proyectos a los que la hubieran invitado | `DELETE` |
+
+**Lo que no ofrece, y por qué.** Tu propia cuenta (409 `self`) y las de `--admins` (409 `listed-admin`) salen en la lista, pero sin selector ni botón de desactivar, con la razón a la vista: su rol y su acceso los manda la lista del servicio, que se cambia en su configuración (`IARK_ADMINS`). Tampoco se puede administrar una cuenta cuyo nombre el servicio apartó con un `~` (alguien que cambió de nombre en GitHub dejó el suyo a otra persona): la API no puede nombrarla.
+
+**Errores.** El mensaje del servidor se muestra tal cual, precedido de lo que se intentaba («No se pudo cambiar el rol de @beto. …»), y la lista se vuelve a leer: lo que se ve es lo que dice el servidor. Lo escrito no se pierde: si falla una invitación, el usuario y el rol siguen en el formulario; si falla un cambio de rol, el borrador sigue en la fila. 403 (ya no administras la instancia) y 401 (la sesión caducó) retiran la lista y dicen qué hacer; sin conexión, la última lista leída sigue a la vista y «Actualizar» o el siguiente intento la recupera. 409 se muestra con el texto del servidor sea cual sea su código (`self`, `listed-admin`, `conflict` al cancelar la invitación de quien acaba de entrar, `limit` con 500 invitaciones sin aceptar). El seguro de «la instancia no se queda sin administradores» no es `last-admin` (ese código es de los proyectos): es que nadie baja de rol ni se desactiva a sí mismo.
+
+**Teclado, lector de pantalla y pantalla pequeña.** Todo se hace con el teclado: el foco queda dentro de la ventana, **Escape** cancela una confirmación y, si no hay ninguna, cierra la ventana (y el foco vuelve al botón que la abrió); al confirmar, el foco cae en «No»; al terminar una acción vuelve a la fila donde estaba. La lista es una tabla con encabezados, cada control lleva el nombre de la cuenta a la que afecta («Desactivar a @beto») y los avisos se anuncian (`role="status"` y `role="alert"`). En una pantalla estrecha (700 px o menos) cada cuenta pasa a ser una tarjeta, sin desplazamiento lateral. Usa los mismos colores que el resto del gestor, así que sigue el tema claro u oscuro.

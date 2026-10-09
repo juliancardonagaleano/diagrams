@@ -26,7 +26,23 @@ curl -X POST 'localhost:8787/api/security/export?format=svg&view=dfd' -d @exampl
 | `GET /healthz` · `GET /readyz` | Vivo (`200 {"status":"ok"}`) y listo (`200` o `503` según la carpeta de trabajo, los tokens, las cuentas y el cálculo). Sin autenticación y sin detalles |
 | `GET /metrics` | Métricas de Prometheus. Solo con `--metrics`: con `--metrics-token` o, sin él, solo desde loopback |
 
-Con `--workspace <carpeta>` añade además la API de proyectos (`/api/projects…`, con sus propias reglas de seguridad: ver [API HTTP de proyectos](proyectos.md#api-http-de-proyectos)); con `--tokens <archivo>` (o con `--accounts`, el inicio de sesión con GitHub: ver [Servicio gestionado](cuentas-github.md)) exige un token con rol en esa API y puede escuchar fuera de loopback (ver [Servidor para varias personas (nube autoalojada)](#servidor-para-varias-personas-nube-autoalojada)); sin ella, el servicio no guarda estado. Sin dependencias (`node:http`). Sin `--cors` solo responde al mismo origen; `--cors https://mi-app.example` (o `*`) abre la API a un navegador de otro origen. El cuerpo máximo es de 5 MB. La generación con IA sigue viviendo solo en el CLI.
+Con `--workspace <carpeta>` añade además la API de proyectos (`/api/projects…`, con sus propias reglas de seguridad: ver [API HTTP de proyectos](proyectos.md#api-http-de-proyectos)); con `--tokens <archivo>` (o con `--accounts`, el inicio de sesión con GitHub: ver [Servicio gestionado](cuentas-github.md)) exige un token con rol en esa API y puede escuchar fuera de loopback (ver [Servidor para varias personas (nube autoalojada)](#servidor-para-varias-personas-nube-autoalojada)); sin ella, el servicio no guarda estado. Sin dependencias (`node:http`). Sin `--cors` solo responde al mismo origen; `--cors https://mi-app.example` (o `*`) abre la API a un navegador de otro origen. El cuerpo máximo es de 5 MB. La IA (`generate`, `explain` y `review`) sigue viviendo solo en el CLI: ver [Por qué no hay IA en el servicio](#por-qué-no-hay-ia-en-el-servicio).
+
+### Por qué no hay IA en el servicio
+
+`iark serve` no expone `generate`, `explain` ni `review`, ni ninguna otra ruta que llame a un modelo (`/api/<módulo>/schema?kind=generation` solo devuelve el JSON Schema de la salida de IA: es un dato, no llama a nadie). En el CLI quien ejecuta el comando usa sus propias claves y paga lo suyo; en el servicio, **cada petición sería dinero de quien lo despliega**, y hoy el servicio no tiene con qué contenerlo:
+
+- Las rutas de cálculo cuestan CPU, y eso se acota con hilos de trabajo, tiempo máximo y cola limitada; una llamada a un modelo cuesta dinero, y un solo prompt puede llegar a decenas de miles de tokens (por omisión, hasta 100.000 de entrada y 200.000 en total por llamada, ver [IA](ia.md#topes-de-tokens-sin-precios)).
+- Sin `--tokens` ni `--accounts` todo está abierto; con `--public-compute` el cálculo queda abierto a propósito. Una ruta de IA así vaciaría la cuenta del modelo con peticiones anónimas.
+- Con tokens o cuentas hay identidad y rol, pero **no hay contabilidad por persona**: el servicio no registra accesos ni cuenta consumo, así que una sola persona (o un token filtrado) podría gastar todo el presupuesto sin que nadie lo vea.
+
+**Qué habría que exigir antes de añadirla** (los tres a la vez, no uno):
+
+1. **Credencial obligatoria**: la ruta de IA nunca se abre con `--public-compute` ni en un servicio sin tokens ni cuentas; exige un token o una sesión con el rol que se decida (por ejemplo `editor` o superior), también en loopback, y la clave del modelo es del servidor (variable de entorno o secreto), nunca de la petición.
+2. **Cuota por persona**: un contador por token o cuenta (no por dirección IP) de peticiones y de tokens por día, guardado en disco para que sobreviva a un reinicio, con `429` y `Retry-After` al agotarse.
+3. **Tope de presupuesto**: un tope global del servicio (tokens por día o por mes, sumados entre todas las personas) además de los topes por petición que ya existen (`--max-tokens`, `--budget-tokens`, `--max-input-tokens`); al agotarse responde sin llamar al modelo (`503`) y lo anota para quien administra.
+
+Además haría falta registrar quién gastó qué (hoy el servidor no registra accesos) y mantener fuera de la ruta `--from-repo`, porque leería el disco del servidor. Está **sin implementar** a propósito: la prueba `src/cli/serveSinIa.test.ts` fija que no existe ninguna ruta de IA, y quien añada una tendrá que cambiarla junto con estos tres requisitos. Mientras tanto, quien necesite IA desde una interfaz tiene el CLI, `iark prompt` (sin clave) y la pestaña **IA** del editor web (copiar el prompt, pegar el JSON).
 
 Cada respuesta lleva `X-Request-Id`. El registro de accesos (`--access-log`), la auditoría de cambios (`--audit-log`), la salud y las métricas están en [Observabilidad](observabilidad.md); los registros y las métricas están apagados por omisión.
 

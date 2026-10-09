@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
-import { normalizeBaseUrl, ProjectError, type AuthProviders, type RemoteSession } from '@iark/kernel';
+import { normalizeBaseUrl, ProjectError, type AuthProviders, type PublicUser, type RemoteSession } from '@iark/kernel';
 import { browserAreas, chooseLocalBackend, forgetBackend, hostOf, loadBackend, saveBackend, type StorageAreas } from './backend';
 import { currentPage, loadProviders, mixedContentWarning, testConnection, type ConnectionResult, type PageInfo } from './connection';
 import { detectManagedServer, getLoginNotice, isSessionToken, setLoginNotice, startGithubLogin, subscribeLoginNotice, type ManagedServer } from './login';
@@ -29,6 +29,12 @@ export interface StoragePanelProps {
    * (`detectManagedServer`); `false` no pregunta (las pruebas que cuentan las peticiones al servidor).
    */
   detect?: false | (() => Promise<ManagedServer | undefined>);
+  /**
+   * Abre la pantalla de administración de la instancia. El botón «Administrar cuentas…» solo existe si se da esto **y** el servidor activo es una
+   * instancia con cuentas en la que la persona con sesión tiene `siteRole: 'admin'`; para cualquier otra persona (o con un token, o en este
+   * navegador) el panel no ofrece nada ni deja rastro.
+   */
+  onAdminister?(me: PublicUser): void;
 }
 
 type Status = 'connecting' | 'connected' | 'offline' | 'rejected';
@@ -44,7 +50,7 @@ const STATUS_TEXT: Record<Status, string> = { connecting: 'Comprobando…', conn
  * Con una sesión de persona se ve quién eres y se puede cerrar la sesión; si caduca, el panel lo dice y deja volver a entrar.
  * Con un servidor que no ofrece GitHub (autoalojado con `--tokens`) todo es como siempre.
  */
-export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChange, notify, reload, fetch: fetchImpl, areas: areasProp, page: pageProp, startLogin, detect }: StoragePanelProps) {
+export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChange, notify, reload, fetch: fetchImpl, areas: areasProp, page: pageProp, startLogin, detect, onAdminister }: StoragePanelProps) {
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const areas = useMemo(() => areasProp ?? browserAreas(), [areasProp]);
   const page = useMemo(() => pageProp ?? currentPage(), [pageProp]);
@@ -364,9 +370,16 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
             </span>
           )}
         </span>
-        <button type="button" onClick={() => onToggle(!open)} aria-expanded={open} aria-controls="pj-storage-body">
-          {open ? 'Ocultar' : remote ? 'Cambiar…' : 'Conectar a un servidor…'}
-        </button>
+        <span className="pj-actions">
+          {user?.siteRole === 'admin' && onAdminister && session.canAdminister && (
+            <button type="button" onClick={() => onAdminister(user)} aria-haspopup="dialog" data-testid="admin-open">
+              Administrar cuentas…
+            </button>
+          )}
+          <button type="button" onClick={() => onToggle(!open)} aria-expanded={open} aria-controls="pj-storage-body">
+            {open ? 'Ocultar' : remote ? 'Cambiar…' : 'Conectar a un servidor…'}
+          </button>
+        </span>
       </div>
 
       {open && (

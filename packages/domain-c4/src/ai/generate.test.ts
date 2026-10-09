@@ -120,6 +120,47 @@ describe('generateDocument', () => {
   });
 });
 
+describe('generateDocument: verificación con las reglas del módulo C4 (validate)', () => {
+  // Cumple el esquema y la conversión, pero la vista de contenedores no tiene alcance: es un error de `validate()` (analyzeDocument).
+  const sinAlcance: GeneratedDocument = { ...good, views: good.views.map((v) => (v.id === 'cont' ? { ...v, scopeId: null } : v)) };
+  const parseCalls = (client: Anthropic) => (client.beta.messages.parse as unknown as ReturnType<typeof vi.fn>).mock.calls;
+
+  it('un error de reglas se devuelve al modelo con su texto y el reintento lo corrige', async () => {
+    const client = fakeClient([sinAlcance, good]);
+    const r = await generateDocument({ instruction: 'Una tienda', client, skipLayout: true });
+    expect(r.attempts).toBe(2);
+    expect(r.repaired).toBe(true);
+    expect(r.retries).toEqual({ schema: 0, rules: 1 });
+    expect(r.verification).toBe('passed');
+    const second = (parseCalls(client)[1][0] as { messages: Array<{ role: string; content: unknown }> }).messages;
+    expect(String(second[2].content)).toMatch(/\[error\] La vista "Contenedores" \(container\) necesita un alcance/);
+    // Los avisos (elementos sin descripción, por ejemplo) no reintentan: salen en issues.
+    expect(r.issues.length).toBeGreaterThan(0);
+    expect(r.issues.every((i) => i.severity !== 'error')).toBe(true);
+  });
+
+  it('tras agotar los reintentos falla con el informe, y --allow-invalid lo acepta marcado', async () => {
+    await expect(generateDocument({ instruction: 'x', client: fakeClient([sinAlcance, sinAlcance]), skipLayout: true })).rejects.toThrow(/no produjo un documento que cumpla las reglas del módulo tras 2 intentos:\n- \[error\] La vista "Contenedores"/);
+    const r = await generateDocument({ instruction: 'x', client: fakeClient([sinAlcance, sinAlcance]), skipLayout: true, allowInvalid: true });
+    expect(r.verification).toBe('accepted-invalid');
+    expect(r.issues.some((i) => i.severity === 'error')).toBe(true);
+  });
+
+  it('verify: false (--no-verify) acepta el documento sin pasar por las reglas', async () => {
+    const client = fakeClient([sinAlcance]);
+    const r = await generateDocument({ instruction: 'x', client, skipLayout: true, verify: false });
+    expect(r.attempts).toBe(1);
+    expect(r.verification).toBe('skipped');
+    expect(r.issues).toEqual([]);
+  });
+
+  it('un documento correcto no reintenta y devuelve el desglose de intentos con sus tokens', async () => {
+    const r = await generateDocument({ instruction: 'x', client: fakeClient([good]), skipLayout: true });
+    expect(r.repaired).toBe(false);
+    expect(r.attemptLog).toEqual([{ attempt: 1, trigger: 'initial', outcome: 'valid', inputTokens: 100, outputTokens: 200 }]);
+  });
+});
+
 describe('generateDocument con un modelo de Foundry compatible con OpenAI', () => {
   const ALL = ['AI_BASE_URL', 'AI_API_KEY', 'AI_MODEL', 'ANTHROPIC_FOUNDRY_BASE_URL', 'ANTHROPIC_FOUNDRY_API_KEY', 'ANTHROPIC_FOUNDRY_MODEL'];
   const env: Record<string, string> = { AI_BASE_URL: 'https://r.openai.azure.com/openai/v1', AI_API_KEY: 'k', AI_MODEL: 'DeepSeek-V4-Pro' };

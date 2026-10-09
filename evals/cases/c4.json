@@ -1,0 +1,108 @@
+{
+  "module": "c4",
+  "cases": [
+    {
+      "id": "tienda-en-linea",
+      "kind": "generate",
+      "instruction": "Una tienda en línea. El cliente compra desde una aplicación web en React; la aplicación web llama a una API en Node.js, que guarda los pedidos en una base de datos PostgreSQL. Incluye la vista de contexto y la de contenedores.",
+      "notes": "Camino feliz: un solo intento, con vistas de contexto y de contenedores y sin avisos del validador.",
+      "expect": {
+        "kinds": { "person": 1, "softwareSystem": 1, "container": 3 },
+        "mentions": ["React", "Node.js", "PostgreSQL"],
+        "maxWarnings": 0,
+        "loop": { "attempts": 1, "repaired": false, "retries": { "schema": 0, "rules": 0 }, "verification": "passed" },
+        "prompt": { "systemContains": ["modelo C4", "NO produces coordenadas"], "userContains": ["PostgreSQL"], "maxInputTokens": 6000 }
+      }
+    },
+    {
+      "id": "banca-reintento-esquema",
+      "kind": "generate",
+      "instruction": "Banca por internet: un cliente usa una aplicación móvil que habla con una API de banca; la API consulta un sistema bancario central externo.",
+      "notes": "Bucle por el esquema: la primera respuesta del modelo no es JSON (prosa con un bloque de código cortado) y la segunda sí.",
+      "expect": {
+        "kinds": { "person": 1, "softwareSystem": 2, "container": 2 },
+        "mentions": ["Sistema bancario central"],
+        "loop": { "attempts": 2, "repaired": true, "retries": { "schema": 1, "rules": 0 }, "verification": "passed" }
+      }
+    },
+    {
+      "id": "pedidos-reintento-reglas",
+      "kind": "generate",
+      "instruction": "Plataforma de pedidos: el comprador hace pedidos en un portal Angular, que los envía a un servicio de pedidos en Java; el servicio publica los pedidos pendientes en una cola RabbitMQ y cobra con una pasarela de pagos externa.",
+      "notes": "Bucle por las reglas del módulo: la primera respuesta cumple el esquema, pero la vista de contenedores no tiene alcance y validate() de C4 la marca como error; la segunda lo corrige.",
+      "expect": {
+        "kinds": { "softwareSystem": 2, "container": 3 },
+        "mentions": ["RabbitMQ"],
+        "maxWarnings": 0,
+        "loop": { "attempts": 2, "repaired": true, "retries": { "schema": 0, "rules": 1 }, "verification": "passed" }
+      }
+    },
+    {
+      "id": "refinar-conservando-refs",
+      "kind": "generate",
+      "instruction": "Añade un contenedor «Caché» con Redis que la API consulta antes de ir a la base de datos.",
+      "base": {
+        "version": "1.0",
+        "workspace": { "name": "Tienda" },
+        "model": {
+          "elements": [
+            { "id": "cliente", "type": "person", "name": "Cliente", "description": "Compra en la tienda", "ref": "urn:iark:c4:cliente" },
+            { "id": "tienda", "type": "softwareSystem", "name": "Tienda en línea", "description": "Vende productos", "ref": "urn:iark:c4:tienda" },
+            { "id": "api", "type": "container", "name": "API", "description": "Reglas de negocio", "technology": "Node.js", "parentId": "tienda", "ref": "urn:iark:c4:api" },
+            { "id": "db", "type": "container", "name": "Base de datos", "description": "Guarda los pedidos", "technology": "PostgreSQL", "parentId": "tienda", "shape": "database", "ref": "urn:iark:c4:db" }
+          ],
+          "relationships": [
+            { "id": "r1", "sourceId": "cliente", "targetId": "api", "description": "Hace pedidos con", "technology": "HTTPS/JSON" },
+            { "id": "r2", "sourceId": "api", "targetId": "db", "description": "Lee y escribe en", "technology": "SQL" }
+          ]
+        },
+        "views": [
+          { "id": "cont", "type": "container", "scopeId": "tienda", "title": "Contenedores", "elements": [{ "id": "cliente" }, { "id": "api" }, { "id": "db" }] }
+        ]
+      },
+      "notes": "Refinamiento: el modelo no recibe ni devuelve las URN (ref); el kernel las restituye para los ids que se conservan. Comprueba que no se pierde ni se inventa ninguna.",
+      "expect": {
+        "kinds": { "container": 3 },
+        "mentions": ["Redis"],
+        "noInventedRefs": true,
+        "loop": { "attempts": 1, "repaired": false },
+        "prompt": { "userContains": ["Base de datos", "Caché"] }
+      }
+    },
+    {
+      "id": "explicar-banca",
+      "kind": "explain",
+      "document": "examples/banca.json",
+      "notes": "Explica un diagrama C4 con tres niveles (contexto, contenedores y componentes).",
+      "expect": {
+        "headings": ["Resumen", "Cómo funciona", "Piezas clave"],
+        "mentions": ["Aplicación API", "Sistema bancario central"],
+        "prompt": { "systemContains": ["## Resumen", "Narra de lo general a lo particular"], "userContains": ["\"elements\""], "maxInputTokens": 9000 }
+      }
+    },
+    {
+      "id": "revisar-tienda-sin-descripciones",
+      "kind": "review",
+      "document": {
+        "version": "1.0",
+        "workspace": { "name": "Tienda" },
+        "model": {
+          "elements": [
+            { "id": "cliente", "type": "person", "name": "Cliente" },
+            { "id": "tienda", "type": "softwareSystem", "name": "Tienda en línea" },
+            { "id": "db", "type": "container", "name": "Base de datos", "description": "Guarda los pedidos", "parentId": "tienda", "shape": "database" },
+            { "id": "legado", "type": "softwareSystem", "name": "Sistema heredado", "description": "Gestiona el inventario antiguo" }
+          ],
+          "relationships": [{ "id": "r1", "sourceId": "cliente", "targetId": "tienda" }]
+        },
+        "views": [{ "id": "contexto", "type": "systemContext", "scopeId": "tienda", "title": "Contexto", "elements": [{ "id": "cliente" }, { "id": "tienda" }] }]
+      },
+      "notes": "Revisión de un documento con avisos de validate(): el prompt debe llevar las incidencias y la respuesta, las seis secciones.",
+      "expect": {
+        "headings": ["Resumen", "Incidencias del validador", "Inconsistencias", "Riesgos", "Ausencias", "Recomendaciones"],
+        "mentions": ["Sistema heredado", "Base de datos"],
+        "prompt": { "systemContains": ["Eres un revisor de arquitectura"], "userContains": ["Incidencias del validador del módulo (8)", "no tiene descripción", "no indica tecnología"] }
+      }
+    }
+  ]
+}

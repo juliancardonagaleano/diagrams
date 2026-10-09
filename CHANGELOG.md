@@ -5,6 +5,7 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 ## [Unreleased]
 
 - Cambios de la fase 1 del plan de robustecimiento en curso.
+- Pantalla «Administración de la instancia» para quien administra un servicio con cuentas (`siteRole: admin`): lista, busca y filtra las cuentas, invita por usuario de GitHub, cambia el rol, desactiva y reactiva, y cancela invitaciones, con confirmación y los errores del servidor a la vista. Se abre con «Administrar cuentas…» en «Dónde se guardan» y a los demás no les aparece; el cliente HTTP gana `listAccounts`, `setAccount` y `cancelInvitation`. Ver [`docs/cuentas-github.md`](docs/cuentas-github.md#pantalla-de-administración).
 - Observabilidad de `iark serve` ([`docs/observabilidad.md`](docs/observabilidad.md)):
   - Cada respuesta lleva `X-Request-Id` (se respeta el de la petición si tiene hasta 64 caracteres seguros; si no, un UUID), que también sale en los registros y en el aviso de un error interno.
   - `--access-log <archivo|->` (`IARK_ACCESS_LOG`): registro de accesos en JSON por línea (plantilla de la ruta sin identificadores ni query string, estado, duración, bytes, dirección según `--trust-proxy`, quién llama). Nunca anota credenciales, cookies, el código ni el verificador del inicio de sesión, cuerpos ni contenido.
@@ -12,7 +13,7 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
   - `GET /healthz` (vivo) y `GET /readyz` (listo: carpeta de trabajo escribible, tokens, cuentas y cálculo). El `HEALTHCHECK` de la imagen y del compose pasa a consultar `/healthz`.
   - `--metrics` (`IARK_METRICS=1`) sirve `GET /metrics` en formato Prometheus, con `--metrics-token` (`IARK_METRICS_TOKEN`) o solo a loopback; el arranque se niega a abrirlas fuera de loopback sin token. Sin etiquetas por persona, proyecto ni dirección.
   - `SIGHUP` vuelve a abrir los archivos de registro tras rotarlos. `deploy/docker-compose.yml` manda los accesos a la salida estándar y la auditoría a `/data/audit.jsonl`.
-  - `docker:smoke` comprueba `/healthz`, `/readyz` y que `/metrics` no existe por omisión (no se ejecutó al escribir el cambio).
+  - `docker:smoke` comprueba `/healthz`, `/readyz` y que `/metrics` no existe por omisión; además, su comprobación del «Client secret equivocado» esperaba un registro vacío y ahora espera el motivo (`GitHub no lo aceptó (rejected)`) sin el secreto, que es lo que el servicio escribe desde que lo cuenta la guía de despliegue.
 
 ### Añadido
 
@@ -28,6 +29,15 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 - `iark trace` y `iark project trace`: `--type` (repetible), `--orphans [módulo[:tipo]]`, `--matrix [module|kind]`, `--coverage <regla>` (repetible), `--min-coverage <n>` y `--strict-unresolved`. `POST /api/trace` acepta `types`, `orphans`, `matrix` y `coverage`.
 - Vista web `trazabilidad.html`: filtro por tipo de enlace, tipo en las aristas del grafo y en la lista de enlaces, y pestañas Matriz (con colores de calor accesibles), Huérfanos y Cobertura. El panel de propiedades del banco de trabajo elige el tipo del enlace y «Referenciado por» lo muestra.
 
+**IA: verificación, topes y evals (fase 3, acción 9)**
+
+- `iark generate` **verifica lo generado con `validate()` del módulo** (con las tres plataformas: `anthropic`, `foundry` y `openai`) y reintenta devolviéndole al modelo los errores de las reglas, además de los del esquema. `--no-verify` lo desactiva, `--allow-invalid` acepta el documento aunque siga con errores, y `--strict` también devuelve los avisos. El informe dice cuántos reintentos fueron por el esquema y cuántos por las reglas.
+- **Topes de tokens, sin precios**: `--max-tokens` (salida por llamada, 16.000 por omisión), `--budget-tokens` (total sumado en los reintentos, 200.000) y `--max-input-tokens` (rechaza antes de llamar un prompt estimado mayor, 100.000), o `IARK_AI_MAX_TOKENS`, `IARK_AI_BUDGET_TOKENS` e `IARK_AI_MAX_INPUT_TOKENS`. Con `--from-repo`, el rechazo dice qué recortar; `--dry-run` y `prompt` informan del tamaño estimado. Informe de tokens por intento y totales.
+- **`iark explain` y `iark review`**: explican o revisan en Markdown un diagrama de cualquier módulo (`--module`, `--lang es|en`, `--out`, `--stdin`, y las opciones de plataforma, modelo y presupuesto); `review` pasa al modelo las incidencias de `validate()`. `AiSpec` gana tres campos opcionales (`serialize`, `explainGuide`, `reviewGuide`): los módulos y plugins que no los tengan siguen funcionando.
+- **Evals de prompts**: `npm run evals` (16 casos de los seis módulos con respuestas grabadas a mano en `evals/recorded/`, sin red ni claves, también dentro de `npm test`) y `npm run evals:live` (modelo real, con `--yes` y tope de tokens por ejecución). Informe por módulo y por caso.
+- `tests/ai-live.test.ts`: prueba real de la IA que se salta sin `IARK_LIVE_AI=1` y credenciales (ver [docs/ia.md](docs/ia.md#prueba-real-automatizada-testsai-livetestts)).
+- Documentado por qué `iark serve` no ofrece IA y qué habría que exigir antes de añadirla ([docs/servicio.md](docs/servicio.md#por-qué-no-hay-ia-en-el-servicio)), con una prueba que fija que no hay ninguna ruta.
+
 ### Cambiado
 
 - `iark modules` imprime una tercera línea por módulo con su origen (`incorporado` o el especificador del plugin), el `contractVersion` y la `documentVersion`.
@@ -35,6 +45,11 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 - El `persist` del editor C4 (`localStorage`) tiene `migrate` y pasa el documento por las migraciones del módulo C4; antes, lo guardado con otra versión de la forma persistida se descartaba. Los `load`/`merge` del protocolo del editor C4 aceptan documentos antiguos migrables en vez de rechazarlos por el literal de la versión.
 - `iark trace --strict`, además de fallar (código 3) con referencias mal formadas, inexistentes o ambiguas, falla si una cobertura medida queda por debajo del mínimo (100 % por omisión). Las referencias a módulos sin documento seguían sin contar con `--strict`, y ahora la nueva `--strict-unresolved` permite contarlas.
 - Los informes de trazabilidad rotulan el tipo del enlace (Markdown, Mermaid y SVG) salvo en `depends-on`; los documentos sin `refType` producen el mismo informe que antes y el JSON solo crece (`type` en cada enlace).
+- **`generate` ahora también verifica con `validate()`**: un documento que cumple el esquema pero incumple las reglas del módulo (hoy, solo los errores de C4) ya no se acepta a la primera: se reintenta y, si sigue mal, termina con código 3 (antes, 0). `--no-verify` devuelve el comportamiento anterior. Los códigos de salida de la IA pasan a ser `2` (uso o prompt demasiado grande), `3` (incumple las reglas) y `4` (resto de errores del modelo).
+
+### Corregido
+
+- Con la API de Anthropic y con Claude en Foundry, una respuesta cortada por el tope de salida o que no cumplía el esquema de zod no se podía reintentar ni explicar (el SDK la rechazaba al analizarla); ahora se trata como en las demás plataformas.
 
 ## [0.1.0] - 2026-10-07
 

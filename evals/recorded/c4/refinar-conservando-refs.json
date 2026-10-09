@@ -1,0 +1,104 @@
+{
+  "case": "refinar-conservando-refs",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Refinamiento sobre un documento base: el modelo devuelve el modelo completo (sin las URN) y el kernel restituye las del documento base.",
+  "promptSha256": "6253d029e26fd49d842f648dd8a43a2af5aa4be69ff88b243a51e04e841787e5",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "Tienda",
+          "description": null
+        },
+        "elements": [
+          {
+            "id": "cliente",
+            "type": "person",
+            "name": "Cliente",
+            "description": "Compra en la tienda",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "tienda",
+            "type": "softwareSystem",
+            "name": "Tienda en línea",
+            "description": "Vende productos",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "api",
+            "type": "container",
+            "name": "API",
+            "description": "Reglas de negocio",
+            "technology": "Node.js",
+            "external": false,
+            "parentId": "tienda",
+            "shape": null
+          },
+          {
+            "id": "db",
+            "type": "container",
+            "name": "Base de datos",
+            "description": "Guarda los pedidos",
+            "technology": "PostgreSQL",
+            "external": false,
+            "parentId": "tienda",
+            "shape": "database"
+          },
+          {
+            "id": "cache",
+            "type": "container",
+            "name": "Caché",
+            "description": "Guarda el catálogo consultado con más frecuencia",
+            "technology": "Redis",
+            "external": false,
+            "parentId": "tienda",
+            "shape": "database"
+          }
+        ],
+        "relationships": [
+          {
+            "id": "r1",
+            "sourceId": "cliente",
+            "targetId": "api",
+            "description": "Hace pedidos con",
+            "technology": "HTTPS/JSON"
+          },
+          {
+            "id": "r2",
+            "sourceId": "api",
+            "targetId": "db",
+            "description": "Lee y escribe en",
+            "technology": "SQL"
+          },
+          {
+            "id": "r3",
+            "sourceId": "api",
+            "targetId": "cache",
+            "description": "Consulta antes de ir a la base de datos",
+            "technology": "Redis"
+          }
+        ],
+        "views": [
+          {
+            "id": "cont",
+            "type": "container",
+            "scopeId": "tienda",
+            "title": "Contenedores",
+            "elementIds": [
+              "cliente",
+              "api",
+              "db",
+              "cache"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

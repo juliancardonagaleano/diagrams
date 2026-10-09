@@ -7,6 +7,8 @@ import {
   parseBundle,
   ProjectError,
   snapshotProject,
+  type AccountChange,
+  type AdminAccount,
   type Diagram,
   type DiagramMeta,
   type HttpProjectStore,
@@ -422,6 +424,33 @@ export class ProjectSession {
     }
     await this.members.removeMember(projectId, me.login);
     await this.refresh({ background: true });
+  }
+
+  // ───────────── administrar la instancia (solo con un servidor con cuentas) ─────────────
+
+  /** ¿Este almacén sabe administrar cuentas? Solo un servidor; que la persona sea administradora de la instancia lo decide el servidor (403 si no). */
+  get canAdminister(): boolean {
+    return typeof (this.store as { listAccounts?: unknown }).listAccounts === 'function';
+  }
+
+  private get accounts(): Pick<HttpProjectStore, 'listAccounts' | 'setAccount' | 'cancelInvitation'> {
+    if (!this.canAdminister) throw new ProjectError('invalid', 'Este almacén no administra cuentas: hace falta un servidor con inicio de sesión de GitHub.');
+    return this.store as unknown as HttpProjectStore;
+  }
+
+  /** Las cuentas de la instancia (y sus invitaciones sin reclamar). `forbidden` si quien llama no la administra. */
+  listAccounts(): Promise<AdminAccount[]> {
+    return this.accounts.listAccounts();
+  }
+
+  /** Cambia el rol o la activación de una cuenta; con un nombre que no existe, la invita (`created`). */
+  setAccount(login: string, change: AccountChange): Promise<{ account: AdminAccount; created: boolean }> {
+    return this.accounts.setAccount(login, change);
+  }
+
+  /** Cancela la invitación de quien todavía no ha entrado. */
+  cancelInvitation(login: string): Promise<void> {
+    return this.accounts.cancelInvitation(login);
   }
 
   /** El proyecto completo en el archivo único: nombre sugerido y contenido. */
