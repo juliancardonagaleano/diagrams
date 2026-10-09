@@ -40,6 +40,16 @@ services:
       # Dónde se guarda todo: en el volumen de abajo, que es lo único que hay que copiar.
       IARK_WORKSPACE: /data/workspace
       IARK_ACCOUNTS: /data/accounts.json
+      # Registros (docs/observabilidad.md). Los accesos van a la salida estándar (`-`), que recoge `docker compose logs iark` y rota el
+      # `logging` de abajo (10 MB × 3): una línea JSON por petición, sin query string, cuerpos ni credenciales, con la dirección real del cliente
+      # (por --trust-proxy) y el usuario: son datos personales, ver «Datos personales» en docs/observabilidad.md. La auditoría (quién cambió qué, también lo
+      # denegado) va a un archivo del volumen, 0600 y que solo se añade; el compose no lo rota: ver «Rotar los registros» en docs/observabilidad.md.
+      IARK_ACCESS_LOG: "${IARK_ACCESS_LOG:--}"
+      IARK_AUDIT_LOG: "${IARK_AUDIT_LOG:-/data/audit.jsonl}"
+      # Métricas de Prometheus (GET /metrics). Apagadas por omisión; para encenderlas pon IARK_METRICS=1 e IARK_METRICS_TOKEN (de 16 a 256
+      # caracteres, p. ej. `openssl rand -hex 32`) en deploy/.env. Caddy no las publica: Prometheus las lee por la red interna, en iark:8787.
+      IARK_METRICS: "${IARK_METRICS:-}"
+      IARK_METRICS_TOKEN: "${IARK_METRICS_TOKEN:-}"
       # La OAuth App de GitHub. El Client secret NO va aquí: es el Docker secret de abajo.
       IARK_GITHUB_CLIENT_ID: "${IARK_GITHUB_CLIENT_ID:?Falta IARK_GITHUB_CLIENT_ID en deploy/.env (el Client ID de la OAuth App de GitHub)}"
       IARK_GITHUB_CLIENT_SECRET_FILE: /run/secrets/github_client_secret
@@ -61,7 +71,8 @@ services:
       - iark-data:/data
     expose:
       - "8787"
-    # El HEALTHCHECK viene en la imagen (consulta /api/modules, que es público). Caddy espera a que esté sano para arrancar.
+    # El HEALTHCHECK viene en la imagen (consulta /healthz: «vivo», público y sin tocar el disco; /readyz es el «listo» que mira un monitor).
+    # Caddy espera a que esté sano para arrancar.
     # Endurecido: la imagen ya corre como `node` (no root); el sistema de archivos es de solo lectura salvo /data y /tmp, y sin capacidades.
     read_only: true
     tmpfs:

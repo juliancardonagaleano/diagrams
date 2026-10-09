@@ -1,7 +1,8 @@
+import { existsSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import type { ComputeExecutor, ComputeJob, ComputeOutcome, ComputeReply, ComputeRequest, ComputeRunOptions, ComputeWorkerInit } from './compute';
+import type { ComputeExecutor, ComputeJob, ComputeOutcome, ComputeReply, ComputeRequest, ComputeRunOptions, ComputeStats, ComputeWorkerInit } from './compute';
 import type { ResolvedPlugin } from './plugins/resolve';
 
 /**
@@ -96,6 +97,12 @@ export class ComputePool implements ComputeExecutor {
   private readonly queue: Task[] = [];
   private sequence = 0;
   private closed = false;
+  private completed = 0;
+  private timeouts = 0;
+  private rejected = 0;
+  private crashes = 0;
+  /** Hilos que se cayeron seguidos sin que ninguno llegara a contestar una operación (un hilo roto: archivo que falta, memoria, paquete dañado). */
+  private crashesInARow = 0;
 
   constructor(options: ComputePoolOptions = {}) {
     // Un valor que no es un número (NaN, Infinity) se toma como no indicado: un tope que no topa es peor que el de por omisión.
@@ -125,6 +132,25 @@ export class ComputePool implements ComputeExecutor {
     return this.queue.length;
   }
 
+  /** Recuentos para las métricas (`GET /metrics`). */
+  stats(): ComputeStats {
+    return { size: this.size, workers: this.workers, active: this.active, queued: this.queued, completed: this.completed, timeouts: this.timeouts, rejected: this.rejected, crashes: this.crashes };
+  }
+
+  /**
+   * ¿Puede atender trabajos? (`/readyz`.) No arranca ningún hilo para averiguarlo (costaría unos 70 MB en un servicio que quizá no calcula nada):
+   * comprueba que el pool no se cerró, que el archivo del hilo existe y que los últimos hilos no se cayeron todos sin contestar (3 seguidos). Un
+   * pool ocupado o con la cola llena sigue vivo: eso es carga, no avería, y lo cuentan las métricas.
+   */
+  healthy(): boolean {
+    if (this.closed || this.crashesInARow >= 3) return false;
+    try {
+      return existsSync(typeof this.workerFile === 'string' ? this.workerFile : fileURLToPath(this.workerFile));
+    } catch {
+      return false;
+    }
+  }
+
   run(job: ComputeJob, options: ComputeRunOptions = {}): Promise<ComputeOutcome> {
     return new Promise((resolve) => {
       if (this.closed) return resolve(unavailable('El servicio se está deteniendo: reintente en unos segundos.', 'stopping', { 'Retry-After': String(this.retryAfterSeconds) }));
@@ -138,6 +164,7 @@ export class ComputePool implements ComputeExecutor {
       }
       if (slot) return this.start(slot, task);
       if (this.queue.length >= this.maxQueue) {
+        this.rejected += 1;
         return resolve(
           unavailable(
             `El servicio está ocupado calculando (${this.size} operaciones en curso y ${this.queue.length} en espera): reintente en unos segundos.`,
@@ -206,6 +233,8 @@ export class ComputePool implements ComputeExecutor {
     const task = slot.task;
     if (slot.retired || !task || reply?.id !== task.id) return;
     slot.task = undefined;
+    this.completed += 1;
+    this.crashesInARow = 0;
     this.settle(task, reply.outcome);
     this.release(slot);
   }
@@ -221,6 +250,7 @@ export class ComputePool implements ComputeExecutor {
 
   private expired(slot: Slot, task: Task): void {
     if (slot.retired || slot.task !== task) return;
+    this.timeouts += 1;
     this.settle(task, unavailable(`La operación superó el tiempo límite de ${this.timeoutMs / 1000} s y se canceló: el documento es demasiado grande o complejo para calcularlo ahora.`, 'timeout'));
     slot.task = undefined;
     void this.retire(slot);
@@ -230,6 +260,8 @@ export class ComputePool implements ComputeExecutor {
   /** Un hilo que se cae: la operación que llevaba recibe un error y se le busca relevo a las que esperan. */
   private crashed(slot: Slot, error: Error & { code?: string }): void {
     if (slot.retired) return;
+    this.crashes += 1;
+    this.crashesInARow += 1;
     const task = slot.task;
     slot.task = undefined;
     void this.retire(slot);

@@ -74,16 +74,16 @@ export interface ProjectsApiContext {
   sendJson(res: ServerResponse, status: number, value: unknown, headers?: Record<string, string>): void;
 }
 
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+export const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** `localhost:8787` → `localhost`; `[::1]:8787` → `[::1]`. */
-function hostName(host: string | undefined): string {
+export function hostName(host: string | undefined): string {
   return /^(\[[^\]]+\]|[^:]+)(?::\d+)?$/.exec((host ?? '').trim().toLowerCase())?.[1] ?? '';
 }
 
 /** ¿La conexión llegó por una dirección de loopback del servidor? (`127.x`, `::1` o su forma IPv4-mapeada). */
-const isLoopbackAddress = (address: string | undefined): boolean => !!address && (address === '::1' || address.startsWith('127.') || address.startsWith('::ffff:127.'));
+export const isLoopbackAddress = (address: string | undefined): boolean => !!address && (address === '::1' || address.startsWith('127.') || address.startsWith('::ffff:127.'));
 
 /** ¿Puede este `Origin` usar la API de proyectos? Los de `--cors` por su texto exacto, y el propio sitio (mismo host y puerto que `Host`). */
 export function projectOriginAllowed(origin: string, host: string | undefined, cors: string[]): boolean {

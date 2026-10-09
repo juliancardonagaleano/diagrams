@@ -358,6 +358,19 @@ export class AccountStore {
     return this.state.users.length;
   }
 
+  /** Solo recuentos, para las métricas: cuántas cuentas hay (activas, desactivadas, pendientes de entrar) y cuántas sesiones vigentes. Nunca datos de las personas. */
+  stats(): { users: number; active: number; disabled: number; pending: number; sessions: number } {
+    const now = this.now().getTime();
+    let disabled = 0;
+    let pending = 0;
+    for (const user of this.state.users) {
+      if (user.disabled) disabled += 1;
+      else if (user.githubId === undefined) pending += 1;
+    }
+    const sessions = this.state.sessions.filter((s) => Date.parse(s.expiresAt) > now).length;
+    return { users: this.state.users.length, active: this.state.users.length - disabled - pending, disabled, pending, sessions };
+  }
+
   users(): AccountUser[] {
     return this.state.users.map((u) => ({ ...u }));
   }

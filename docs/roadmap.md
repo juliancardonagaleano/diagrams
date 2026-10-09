@@ -35,6 +35,7 @@ El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 | Versionado de diagramas | **Hecho**: `iark diff` y pestaña «Comparar» (sin instantáneas en el navegador) | [cli.md](cli.md#comparar-versiones-de-un-diagrama-iark-diff) |
 | Proyectos y nube | **Hecho**: carpeta de trabajo, navegador, servidor propio con tokens, inicio de sesión de GitHub, compartir proyectos, API y pantalla de administración de cuentas | [proyectos.md](proyectos.md) · [servicio.md](servicio.md) · [cuentas-github.md](cuentas-github.md) |
 | Despliegue | **Hecho**: GitHub Pages automático, imagen Docker y `deploy/` con Caddy | [despliegue-pages.md](despliegue-pages.md) · [despliegue-nube.md](despliegue-nube.md) |
+| Observabilidad | **Hecho** (v1, apagada por omisión): `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz`, `/readyz` y métricas de Prometheus en `iark serve` | [observabilidad.md](observabilidad.md) |
 | Pruebas | **Hecho**: unitarias, e2e estables y prueba real de la imagen (`docker:smoke`) | [desarrollo.md](desarrollo.md) |
 | Endurecimiento | **En curso** (Fase 1) | [abajo](#fase-1-endurecer-en-curso) |
 
@@ -89,7 +90,7 @@ Que cada módulo sea útil con los archivos reales de quien lo usa.
 Que una instancia gestionada se pueda operar y medir.
 
 - **Cuentas transaccionales**: las cuentas son un JSON con un único escritor (una sola réplica); pasar a un almacén transaccional y a varias réplicas.
-- **Observabilidad y auditoría**: el servidor no registra accesos ni quién cambió qué; registros estructurados, métricas y auditoría.
+- **Observabilidad y auditoría** *(hecho: registro de accesos, auditoría, salud y métricas en `iark serve`, ver [observabilidad.md](observabilidad.md))*. Queda lo que ese documento reconoce en «Límites»: probarlo con un Prometheus, `logrotate` y una plataforma reales, reunir los registros de varias réplicas cuando las haya, y trazas distribuidas.
 - **Colaboración y sin conexión**: hoy los cambios de dos personas no se mezclan, no hay tiempo real ni trabajo sin conexión, y no hay instantáneas guardadas en el navegador.
 - **Administración de cuentas**: cuotas de disco por persona. La pantalla de administración (invitar, roles, desactivar, cancelar invitaciones) ya está hecha: [cuentas-github.md](cuentas-github.md#pantalla-de-administración).
 - **Interfaz es/en**: la interfaz está en español.
@@ -110,6 +111,7 @@ Los pendientes menores y límites conocidos al 2026-10-08, con la fase en la que
 | Nube gestionada | Una sola réplica: las cuentas son un JSON con un único escritor | 4 |
 | Nube gestionada | El freno de intentos solo lee la última entrada de `X-Forwarded-For` (plataformas con otra cabecera, como `Fly-Client-IP`, comparten freno) | 4 |
 | Nube gestionada | No se ha probado con un certificado público real ni en una plataforma concreta | 4 |
+| Nube gestionada | La observabilidad no se ha probado con un Prometheus, un `logrotate` ni un Caddy reales; los registros y las métricas son de una sola instancia (sin reunir varias réplicas) y no hay trazas distribuidas; la auditoría no es a prueba de manipulación (envío a un sistema externo o `chattr +a`) ni cubre las lecturas | 4 |
 | Versionado | No hay instantáneas guardadas en el navegador (se compara con archivos, git o un JSON abierto) | 4 |
 | Versionado | El resaltado de cambios no llega al lienzo C4 embebido (es un iframe; el panel sí funciona) | 3 |
 | Versionado | La pestaña «Comparar» comparte nombre con la vista «Comparar» de Plataforma (entornos lado a lado); podría llamarse «Versiones» | 3 |
@@ -136,7 +138,7 @@ La exportación SVG y PNG desde el modo embebido figuraba aquí como fuera de al
 
 Límites de diseño vigentes, con su explicación en cada documento:
 
-- **Servicio**: `iark serve` solo habla HTTP, no registra accesos, y con `--tokens` los tokens no caducan y sus roles valen para toda la carpeta de trabajo (con `--accounts`, inicio de sesión de GitHub, hay permisos por proyecto) ([servicio.md](servicio.md)).
+- **Servicio**: `iark serve` solo habla HTTP, no registra accesos ni cambios salvo que se active (`--access-log`, `--audit-log`; llevan usuario e IP: [observabilidad.md](observabilidad.md)), y con `--tokens` los tokens no caducan y sus roles valen para toda la carpeta de trabajo (con `--accounts`, inicio de sesión de GitHub, hay permisos por proyecto) ([servicio.md](servicio.md)).
 - **Proyectos**: sin trabajo sin conexión ni tiempo real; cada guardado envía el documento entero (límite de 5 MB) y la lista incluye todos los diagramas, pensado para carpetas pequeñas o medianas ([proyectos.md](proyectos.md)).
 - **Importadores**: lo que no se mapea se avisa, no se importa (capas y formas ocultas en `.drawio`, despliegue y vistas `dynamic` en el DSL de Structurizr, `.drawio.svg` y `.drawio.png`…) ([importadores.md](importadores.md)).
 - **Módulos de terceros**: se cargan en el CLI y en `iark serve`, no en el sitio web (sin editor visual, sin entrada en el banco de trabajo ni en el shell); cargar uno ejecuta su código con los permisos del proceso y por eso solo se carga la configuración que señala quien ejecuta el comando; no se descargan ni se instalan solos y no hay recarga en caliente ([plugins.md](plugins.md)). Los paquetes `@iark/*` están listos para publicarse pero no se han publicado.
