@@ -32,7 +32,7 @@ describe('iark import --module data (DDL de SQL y dbt)', () => {
 
   it('modules lista los dos importadores nuevos junto al de Mermaid', () => {
     const manifest = JSON.parse(run(['modules', '--json']).out) as { modules: Array<{ id: string; importFormats: string[] }> };
-    expect(manifest.modules.find((m) => m.id === 'data')!.importFormats).toEqual(['mermaid', 'ddl', 'dbt']);
+    expect(manifest.modules.find((m) => m.id === 'data')!.importFormats).toEqual(['mermaid', 'ddl', 'dbt', 'openlineage']);
   });
 
   it('importa un volcado de PostgreSQL con --format ddl: JSON válido por stdout, resumen y avisos por stderr', () => {

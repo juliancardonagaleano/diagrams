@@ -1,0 +1,1041 @@
+[
+  {
+    "eventType": "START",
+    "eventTime": "2025-03-01T02:00:03.120Z",
+    "run": {
+      "runId": "d76545bb-cdbb-5a09-80d8-0b4f46542632",
+      "facets": {
+        "parent": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+          "run": {
+            "runId": "4069bbcc-8c39-5a87-b17e-725c0324559c"
+          },
+          "job": {
+            "namespace": "airflow://prod",
+            "name": "etl_diario"
+          }
+        },
+        "nominalTime": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/NominalTimeRunFacet.json#/$defs/NominalTimeRunFacet",
+          "nominalStartTime": "2025-03-01T02:00:00Z"
+        }
+      }
+    },
+    "job": {
+      "namespace": "airflow://prod",
+      "name": "etl_diario.ingesta_pedidos",
+      "facets": {
+        "jobType": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+          "processingType": "BATCH",
+          "integration": "AIRFLOW",
+          "jobType": "TASK"
+        },
+        "documentation": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationJobFacet.json#/$defs/DocumentationJobFacet",
+          "description": "Copia cada noche los pedidos y los clientes al lago de datos"
+        },
+        "ownership": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipJobFacet.json#/$defs/OwnershipJobFacet",
+          "owners": [
+            {
+              "name": "team:plataforma-datos",
+              "type": "MAINTAINER"
+            }
+          ]
+        },
+        "sql": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SQLJobFacet.json#/$defs/SQLJobFacet",
+          "query": "SELECT * FROM ventas.public.pedidos"
+        }
+      }
+    },
+    "inputs": [
+      {
+        "namespace": "postgres://pedidos-db.interno:5432",
+        "name": "ventas.public.pedidos",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint",
+                "description": "Identificador del pedido"
+              },
+              {
+                "name": "cliente_id",
+                "type": "bigint"
+              },
+              {
+                "name": "importe",
+                "type": "numeric(12,2)",
+                "description": "Importe total con impuestos"
+              },
+              {
+                "name": "creado_en",
+                "type": "timestamp"
+              }
+            ]
+          },
+          "documentation": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationDatasetFacet.json#/$defs/DocumentationDatasetFacet",
+            "description": "Pedidos confirmados de la tienda"
+          },
+          "ownership": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipDatasetFacet.json#/$defs/OwnershipDatasetFacet",
+            "owners": [
+              {
+                "name": "team:pedidos",
+                "type": "MAINTAINER"
+              }
+            ]
+          },
+          "dataSource": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet",
+            "name": "pedidos-db",
+            "uri": "postgres://pedidos-db.interno:5432"
+          }
+        }
+      },
+      {
+        "namespace": "postgres://pedidos-db.interno:5432",
+        "name": "ventas.public.clientes",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint"
+              },
+              {
+                "name": "nombre",
+                "type": "varchar(120)"
+              },
+              {
+                "name": "email",
+                "type": "varchar(200)",
+                "description": "Correo del cliente"
+              }
+            ]
+          },
+          "ownership": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipDatasetFacet.json#/$defs/OwnershipDatasetFacet",
+            "owners": [
+              {
+                "name": "team:pedidos",
+                "type": "MAINTAINER"
+              }
+            ]
+          },
+          "dataSource": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet",
+            "name": "pedidos-db",
+            "uri": "postgres://pedidos-db.interno:5432"
+          }
+        }
+      }
+    ],
+    "outputs": [],
+    "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+  },
+  {
+    "eventType": "COMPLETE",
+    "eventTime": "2025-03-01T02:07:41.512Z",
+    "run": {
+      "runId": "d76545bb-cdbb-5a09-80d8-0b4f46542632",
+      "facets": {
+        "parent": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+          "run": {
+            "runId": "4069bbcc-8c39-5a87-b17e-725c0324559c"
+          },
+          "job": {
+            "namespace": "airflow://prod",
+            "name": "etl_diario"
+          }
+        },
+        "nominalTime": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/NominalTimeRunFacet.json#/$defs/NominalTimeRunFacet",
+          "nominalStartTime": "2025-03-01T02:00:00Z"
+        }
+      }
+    },
+    "job": {
+      "namespace": "airflow://prod",
+      "name": "etl_diario.ingesta_pedidos",
+      "facets": {
+        "jobType": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+          "processingType": "BATCH",
+          "integration": "AIRFLOW",
+          "jobType": "TASK"
+        },
+        "documentation": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationJobFacet.json#/$defs/DocumentationJobFacet",
+          "description": "Copia cada noche los pedidos y los clientes al lago de datos"
+        },
+        "ownership": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipJobFacet.json#/$defs/OwnershipJobFacet",
+          "owners": [
+            {
+              "name": "team:plataforma-datos",
+              "type": "MAINTAINER"
+            }
+          ]
+        },
+        "sql": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SQLJobFacet.json#/$defs/SQLJobFacet",
+          "query": "SELECT * FROM ventas.public.pedidos"
+        }
+      }
+    },
+    "inputs": [
+      {
+        "namespace": "postgres://pedidos-db.interno:5432",
+        "name": "ventas.public.pedidos",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint",
+                "description": "Identificador del pedido"
+              },
+              {
+                "name": "cliente_id",
+                "type": "bigint"
+              },
+              {
+                "name": "importe",
+                "type": "numeric(12,2)",
+                "description": "Importe total con impuestos"
+              },
+              {
+                "name": "creado_en",
+                "type": "timestamp"
+              }
+            ]
+          },
+          "documentation": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationDatasetFacet.json#/$defs/DocumentationDatasetFacet",
+            "description": "Pedidos confirmados de la tienda"
+          },
+          "ownership": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipDatasetFacet.json#/$defs/OwnershipDatasetFacet",
+            "owners": [
+              {
+                "name": "team:pedidos",
+                "type": "MAINTAINER"
+              }
+            ]
+          },
+          "dataSource": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet",
+            "name": "pedidos-db",
+            "uri": "postgres://pedidos-db.interno:5432"
+          }
+        }
+      },
+      {
+        "namespace": "postgres://pedidos-db.interno:5432",
+        "name": "ventas.public.clientes",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint"
+              },
+              {
+                "name": "nombre",
+                "type": "varchar(120)"
+              },
+              {
+                "name": "email",
+                "type": "varchar(200)",
+                "description": "Correo del cliente"
+              }
+            ]
+          },
+          "ownership": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipDatasetFacet.json#/$defs/OwnershipDatasetFacet",
+            "owners": [
+              {
+                "name": "team:pedidos",
+                "type": "MAINTAINER"
+              }
+            ]
+          },
+          "dataSource": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet",
+            "name": "pedidos-db",
+            "uri": "postgres://pedidos-db.interno:5432"
+          }
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "namespace": "s3://lago-tienda",
+        "name": "/raw/pedidos/",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint"
+              },
+              {
+                "name": "cliente_id",
+                "type": "bigint"
+              },
+              {
+                "name": "importe",
+                "type": "decimal(12,2)"
+              },
+              {
+                "name": "creado_en",
+                "type": "timestamp"
+              }
+            ]
+          },
+          "storage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/StorageDatasetFacet.json#/$defs/StorageDatasetFacet",
+            "storageLayer": "delta",
+            "fileFormat": "parquet"
+          },
+          "columnLineage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ColumnLineageDatasetFacet.json#/$defs/ColumnLineageDatasetFacet",
+            "fields": {
+              "id": {
+                "inputFields": [
+                  {
+                    "namespace": "postgres://pedidos-db.interno:5432",
+                    "name": "ventas.public.pedidos",
+                    "field": "id",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "IDENTITY",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ],
+                "transformationType": "IDENTITY",
+                "transformationDescription": "copia"
+              },
+              "cliente_id": {
+                "inputFields": [
+                  {
+                    "namespace": "postgres://pedidos-db.interno:5432",
+                    "name": "ventas.public.pedidos",
+                    "field": "cliente_id",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "IDENTITY",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "importe": {
+                "inputFields": [
+                  {
+                    "namespace": "postgres://pedidos-db.interno:5432",
+                    "name": "ventas.public.pedidos",
+                    "field": "importe",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "IDENTITY",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "creado_en": {
+                "inputFields": [
+                  {
+                    "namespace": "postgres://pedidos-db.interno:5432",
+                    "name": "ventas.public.pedidos",
+                    "field": "creado_en",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "IDENTITY",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "namespace": "s3://lago-tienda",
+        "name": "/raw/clientes/",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint"
+              },
+              {
+                "name": "nombre",
+                "type": "string"
+              },
+              {
+                "name": "email_hash",
+                "type": "string",
+                "description": "Correo con hash"
+              }
+            ]
+          },
+          "storage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/StorageDatasetFacet.json#/$defs/StorageDatasetFacet",
+            "storageLayer": "delta",
+            "fileFormat": "parquet"
+          },
+          "columnLineage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ColumnLineageDatasetFacet.json#/$defs/ColumnLineageDatasetFacet",
+            "fields": {
+              "id": {
+                "inputFields": [
+                  {
+                    "namespace": "postgres://pedidos-db.interno:5432",
+                    "name": "ventas.public.clientes",
+                    "field": "id",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "IDENTITY",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "nombre": {
+                "inputFields": [
+                  {
+                    "namespace": "postgres://pedidos-db.interno:5432",
+                    "name": "ventas.public.clientes",
+                    "field": "nombre",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "IDENTITY",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "email_hash": {
+                "inputFields": [
+                  {
+                    "namespace": "postgres://pedidos-db.interno:5432",
+                    "name": "ventas.public.clientes",
+                    "field": "email",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "TRANSFORMATION",
+                        "description": "sha256(email)",
+                        "masking": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ],
+    "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+  },
+  {
+    "eventType": "COMPLETE",
+    "eventTime": "2025-03-01T03:15:09.002Z",
+    "run": {
+      "runId": "57d6744b-5a08-5269-97b2-9200fa7e6de8",
+      "facets": {
+        "processing_engine": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+          "version": "3.5.1",
+          "name": "spark",
+          "openlineageAdapterVersion": "1.20.0"
+        }
+      }
+    },
+    "job": {
+      "namespace": "spark://cluster-analitica",
+      "name": "transformar_ventas",
+      "facets": {
+        "jobType": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+          "processingType": "BATCH",
+          "integration": "SPARK",
+          "jobType": "JOB"
+        },
+        "documentation": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationJobFacet.json#/$defs/DocumentationJobFacet",
+          "description": "Agrega las ventas por día y cliente"
+        },
+        "ownership": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipJobFacet.json#/$defs/OwnershipJobFacet",
+          "owners": [
+            {
+              "name": "team:analitica",
+              "type": "OWNER"
+            }
+          ]
+        }
+      }
+    },
+    "inputs": [
+      {
+        "namespace": "s3://lago-tienda",
+        "name": "/raw/pedidos/",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint"
+              },
+              {
+                "name": "cliente_id",
+                "type": "bigint"
+              },
+              {
+                "name": "importe",
+                "type": "decimal(12,2)"
+              },
+              {
+                "name": "creado_en",
+                "type": "timestamp"
+              }
+            ]
+          },
+          "storage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/StorageDatasetFacet.json#/$defs/StorageDatasetFacet",
+            "storageLayer": "delta",
+            "fileFormat": "parquet"
+          }
+        }
+      },
+      {
+        "namespace": "s3://lago-tienda",
+        "name": "/raw/clientes/",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint"
+              },
+              {
+                "name": "nombre",
+                "type": "string"
+              },
+              {
+                "name": "email_hash",
+                "type": "string",
+                "description": "Correo con hash"
+              }
+            ]
+          },
+          "storage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/StorageDatasetFacet.json#/$defs/StorageDatasetFacet",
+            "storageLayer": "delta",
+            "fileFormat": "parquet"
+          }
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "namespace": "snowflake://acme-analitica",
+        "name": "ANALITICA.VENTAS.PEDIDOS_DIARIOS",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "cliente_id",
+                "type": "NUMBER(38,0)"
+              },
+              {
+                "name": "dia",
+                "type": "DATE"
+              },
+              {
+                "name": "total",
+                "type": "NUMBER(14,2)",
+                "description": "Suma de los importes del día"
+              },
+              {
+                "name": "email_hash",
+                "type": "VARCHAR"
+              }
+            ]
+          },
+          "documentation": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationDatasetFacet.json#/$defs/DocumentationDatasetFacet",
+            "description": "Ventas agregadas por día y cliente"
+          },
+          "ownership": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipDatasetFacet.json#/$defs/OwnershipDatasetFacet",
+            "owners": [
+              {
+                "name": "team:analitica",
+                "type": "MAINTAINER"
+              }
+            ]
+          },
+          "columnLineage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ColumnLineageDatasetFacet.json#/$defs/ColumnLineageDatasetFacet",
+            "fields": {
+              "cliente_id": {
+                "inputFields": [
+                  {
+                    "namespace": "s3://lago-tienda",
+                    "name": "/raw/pedidos/",
+                    "field": "cliente_id",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "IDENTITY",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "dia": {
+                "inputFields": [
+                  {
+                    "namespace": "s3://lago-tienda",
+                    "name": "/raw/pedidos/",
+                    "field": "creado_en",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "TRANSFORMATION",
+                        "description": "date_trunc('day', creado_en)",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "total": {
+                "inputFields": [
+                  {
+                    "namespace": "s3://lago-tienda",
+                    "name": "/raw/pedidos/",
+                    "field": "importe",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "AGGREGATION",
+                        "description": "sum(importe)",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "email_hash": {
+                "inputFields": [
+                  {
+                    "namespace": "s3://lago-tienda",
+                    "name": "/raw/clientes/",
+                    "field": "email_hash",
+                    "transformations": [
+                      {
+                        "type": "DIRECT",
+                        "subtype": "IDENTITY",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              },
+              "tendencia": {
+                "inputFields": [
+                  {
+                    "namespace": "s3://otro-lago",
+                    "name": "/raw/serie/",
+                    "field": "valor",
+                    "transformations": [
+                      {
+                        "type": "INDIRECT",
+                        "subtype": "FILTER",
+                        "description": "",
+                        "masking": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ],
+    "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+  },
+  {
+    "eventType": "RUNNING",
+    "eventTime": "2025-03-01T03:20:00.000Z",
+    "run": {
+      "runId": "8b7d6d13-9395-5b7d-b27c-2e64ed20c96c",
+      "facets": {}
+    },
+    "job": {
+      "namespace": "flink://cluster-tiempo-real",
+      "name": "publicar_resumen",
+      "facets": {
+        "jobType": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/flink",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+          "processingType": "STREAMING",
+          "integration": "FLINK",
+          "jobType": "JOB"
+        }
+      }
+    },
+    "inputs": [
+      {
+        "namespace": "snowflake://acme-analitica",
+        "name": "ANALITICA.VENTAS.PEDIDOS_DIARIOS",
+        "facets": {}
+      }
+    ],
+    "outputs": [
+      {
+        "namespace": "kafka://broker-1.interno:9092",
+        "name": "ventas.resumen",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/flink",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "cliente_id",
+                "type": "long"
+              },
+              {
+                "name": "total",
+                "type": "double"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/flink",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+  },
+  {
+    "eventType": "COMPLETE",
+    "eventTime": "2025-03-01T04:00:00.000Z",
+    "run": {
+      "runId": "ce57a70a-35eb-5fab-a47b-8ca5c0eb69f8",
+      "facets": {
+        "processing_engine": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+          "version": "3.5.1",
+          "name": "spark",
+          "openlineageAdapterVersion": "1.20.0"
+        }
+      }
+    },
+    "job": {
+      "namespace": "spark://cluster-analitica",
+      "name": "compactar_pedidos",
+      "facets": {
+        "jobType": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+          "processingType": "BATCH",
+          "integration": "SPARK",
+          "jobType": "JOB"
+        },
+        "documentation": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/DocumentationJobFacet.json#/$defs/DocumentationJobFacet",
+          "description": "Agrega las ventas por día y cliente"
+        },
+        "ownership": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/OwnershipJobFacet.json#/$defs/OwnershipJobFacet",
+          "owners": [
+            {
+              "name": "team:analitica",
+              "type": "OWNER"
+            }
+          ]
+        }
+      }
+    },
+    "inputs": [
+      {
+        "namespace": "s3://lago-tienda",
+        "name": "/raw/pedidos/",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint"
+              },
+              {
+                "name": "cliente_id",
+                "type": "bigint"
+              },
+              {
+                "name": "importe",
+                "type": "decimal(12,2)"
+              },
+              {
+                "name": "creado_en",
+                "type": "timestamp"
+              }
+            ]
+          },
+          "storage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/StorageDatasetFacet.json#/$defs/StorageDatasetFacet",
+            "storageLayer": "delta",
+            "fileFormat": "parquet"
+          }
+        }
+      },
+      {
+        "namespace": "s3://lago-tienda",
+        "name": "/raw/politicas/",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "clave",
+                "type": "string"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "namespace": "s3://lago-tienda",
+        "name": "/raw/pedidos/",
+        "facets": {
+          "schema": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+            "fields": [
+              {
+                "name": "id",
+                "type": "bigint"
+              },
+              {
+                "name": "cliente_id",
+                "type": "bigint"
+              },
+              {
+                "name": "importe",
+                "type": "decimal(12,2)"
+              },
+              {
+                "name": "creado_en",
+                "type": "timestamp"
+              }
+            ]
+          },
+          "storage": {
+            "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+            "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/StorageDatasetFacet.json#/$defs/StorageDatasetFacet",
+            "storageLayer": "delta",
+            "fileFormat": "parquet"
+          }
+        }
+      }
+    ],
+    "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/spark",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+  },
+  {
+    "eventType": "COMPLETE",
+    "eventTime": "2025-03-01T05:00:00.000Z",
+    "run": {
+      "runId": "6b7428a7-5fa7-5af9-a819-b64101fbdfe7",
+      "facets": {}
+    },
+    "job": {
+      "namespace": "airflow://prod",
+      "name": "auditar.revisar_pedidos",
+      "facets": {}
+    },
+    "inputs": [
+      {
+        "namespace": "postgres://pedidos-db.interno:5432",
+        "name": "ventas.public.pedidos",
+        "facets": {}
+      }
+    ],
+    "outputs": [],
+    "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+  },
+  {
+    "eventType": "FAIL",
+    "eventTime": "2025-03-01T06:00:00.000Z",
+    "run": {
+      "runId": "17ba1b8f-7ff3-567e-a7a5-9e637ff6651d",
+      "facets": {
+        "errorMessage": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/ErrorMessageRunFacet.json#/$defs/ErrorMessageRunFacet",
+          "message": "tiempo de espera agotado",
+          "programmingLanguage": "PYTHON"
+        }
+      }
+    },
+    "job": {
+      "namespace": "airflow://prod",
+      "name": "etl_diario.limpiar_temporales",
+      "facets": {}
+    },
+    "inputs": [
+      {
+        "namespace": "postgres://pedidos-db.interno:5432",
+        "name": "ventas.public.temporales",
+        "facets": {}
+      }
+    ],
+    "outputs": [
+      {
+        "namespace": "postgres://pedidos-db.interno:5432",
+        "name": "ventas.public.temporales_limpios",
+        "facets": {}
+      }
+    ],
+    "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+  },
+  {
+    "eventTime": "2025-03-01T06:30:00.000Z",
+    "dataset": {
+      "namespace": "postgres://pedidos-db.interno:5432",
+      "name": "ventas.public.pedidos",
+      "facets": {
+        "schema": {
+          "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/SchemaDatasetFacet.json#/$defs/SchemaDatasetFacet",
+          "fields": [
+            {
+              "name": "id",
+              "type": "bigint",
+              "description": "Identificador del pedido"
+            },
+            {
+              "name": "cliente_id",
+              "type": "bigint"
+            },
+            {
+              "name": "importe",
+              "type": "numeric(12,2)",
+              "description": "Importe total con impuestos"
+            },
+            {
+              "name": "creado_en",
+              "type": "timestamp"
+            }
+          ]
+        }
+      }
+    },
+    "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.20.0/integration/airflow",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/DatasetEvent"
+  }
+]

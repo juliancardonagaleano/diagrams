@@ -9,6 +9,7 @@ import { toSvg } from './export/render';
 import { fromDbt, looksLikeDbtManifest } from './import/fromDbt';
 import { fromDdl, looksLikeDdl } from './import/fromDdl';
 import { fromMermaid } from './import/fromMermaid';
+import { fromOpenLineage, looksLikeOpenLineage } from './import/fromOpenLineage';
 import { analyzeData } from './issues';
 import { dataDocumentSchema, dataJsonSchema } from './schema';
 import { DATA_DOCUMENT_VERSION, type DataDocument } from './types';
@@ -38,6 +39,15 @@ const dbtImporter: Importer<DataDocument> = {
   extensions: ['.json'],
   detect: looksLikeDbtManifest,
   import: (text, ctx) => fromDbt(text, { name: ctx.name, fallbackName: ctx.fallbackName }),
+};
+
+/** Eventos de OpenLineage (uno, una lista o NDJSON). Comparte `.json` con dbt: el contenido decide cuál es. */
+const openLineageImporter: Importer<DataDocument> = {
+  id: 'openlineage',
+  label: 'OpenLineage (eventos)',
+  extensions: ['.json', '.jsonl', '.ndjson'],
+  detect: looksLikeOpenLineage,
+  import: (text, ctx) => fromOpenLineage(text, { name: ctx.name, fallbackName: ctx.fallbackName }),
 };
 
 const mermaidExporter: Exporter<DataDocument> = {
@@ -86,12 +96,12 @@ export const dataModule: DomainModule<DataDocument> = {
   id: 'data',
   name: 'Arquitectura de datos',
   version: '0.1.0',
-  description: 'Linaje, modelo entidad-relación (pata de gallo o UML), gobierno del dato y catálogo (productos de datos, APIs y glosario): dominios, pipelines, clasificación, datos personales y contratos por motor de base de datos; importa de Mermaid, DDL de SQL y dbt y exporta a Mermaid, SVG, draw.io y DDL.',
+  description: 'Linaje, modelo entidad-relación (pata de gallo o UML), gobierno del dato y catálogo (productos de datos, APIs y glosario): dominios, pipelines, clasificación, datos personales y contratos por motor de base de datos; importa de Mermaid, DDL de SQL, dbt y OpenLineage y exporta a Mermaid, SVG, draw.io y DDL.',
   documentVersion: DATA_DOCUMENT_VERSION,
   schema: dataDocumentSchema as unknown as DomainModule<DataDocument>['schema'],
   jsonSchema: dataJsonSchema,
   validate: (doc): ModuleIssue[] => analyzeData(doc),
-  importers: [mermaidImporter, ddlImporter, dbtImporter],
+  importers: [mermaidImporter, ddlImporter, dbtImporter, openLineageImporter],
   exporters: [mermaidExporter, svgExporter, drawioExporter, ddlExporter],
   ai: dataAiSpec,
   entities: (doc): EntityRef[] => [
