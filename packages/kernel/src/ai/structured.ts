@@ -4,7 +4,7 @@ import { carryRefs } from '../module/refs';
 import type { AiSpec, ModuleIssue } from '../module/types';
 import { extractJson } from '../util/extractJson';
 import { estimateTokens, planCall, resolveTokenLimits, TokenMeter, truncationError, type CallEstimate, type TokenLimitOptions, type TokenLimits } from './budget';
-import { createAiClient, credentialsHint, openaiSettings, resolveModel, resolveProvider, type AiProvider } from './client';
+import { createAiClient, credentialsHint, openaiSettings, resolveModel, resolveProvider, type AiProvider, type Env } from './client';
 import { describeApiError, formatModuleIssues, GenerationError, VerificationError } from './errors';
 import { chatCompletion, initialCompatState, type ChatMessage } from './openaiCompat';
 
@@ -27,6 +27,8 @@ export interface StructuredOptions<TDoc> extends TokenLimitOptions {
   fetch?: typeof fetch;
   /** Modelo (en Foundry, el nombre de tu despliegue). */
   model?: string;
+  /** Entorno del que se leen las credenciales, el modelo y los topes (`IARK_AI_*`). Por omisión `process.env`; lo usan las pruebas y los evals para no depender de la sesión. */
+  env?: Env;
   effort?: Effort;
   /** Reintentos si el modelo devuelve un documento inválido (por el esquema o por las reglas del módulo). */
   maxRetries?: number;
@@ -187,7 +189,7 @@ function claudeConversation<TDoc>(
  * garantizan el esquema, así que el JSON Schema va también en el prompt y la respuesta se valida aquí con zod.
  */
 function openaiConversation<TDoc>(model: string, spec: AiSpec<TDoc>, options: StructuredOptions<TDoc>): Conversation {
-  const { baseURL, apiKey } = openaiSettings();
+  const { baseURL, apiKey } = openaiSettings(options.env);
   if (!baseURL || !apiKey) throw new GenerationError(credentialsHint('openai'));
   const schema = spec.generationJsonSchema();
   const messages: ChatMessage[] = [
@@ -233,11 +235,11 @@ const issueKey = (i: ModuleIssue): string => `${i.severity}|${i.elementId ?? ''}
  */
 export async function generateStructured<TDoc>(spec: AiSpec<TDoc>, options: StructuredOptions<TDoc>): Promise<StructuredResult<TDoc>> {
   // Un cliente de Anthropic inyectado implica el protocolo de Anthropic, sea cual sea el entorno.
-  const provider = resolveProvider(options.provider ?? (options.client ? 'anthropic' : undefined));
-  const model = resolveModel(provider, options.model, options.defaultModel);
+  const provider = resolveProvider(options.provider ?? (options.client ? 'anthropic' : undefined), options.env);
+  const model = resolveModel(provider, options.model, options.defaultModel, options.env);
   const maxRetries = options.maxRetries ?? 1;
   const progress = options.onProgress ?? (() => {});
-  const limits = resolveTokenLimits(options);
+  const limits = resolveTokenLimits(options, options.env);
   const verifying = options.verify !== false && options.validate !== undefined;
 
   /** Las reglas del módulo, con sus fallos convertidos en `GenerationError` (un módulo defectuoso no debe verse como un error inesperado). */
@@ -258,7 +260,7 @@ export async function generateStructured<TDoc>(spec: AiSpec<TDoc>, options: Stru
     conversation =
       provider === 'openai'
         ? openaiConversation(model, spec, options)
-        : claudeConversation(options.client ?? (await createAiClient(provider)), provider, model, spec, options);
+        : claudeConversation(options.client ?? (await createAiClient(provider, options.env)), provider, model, spec, options);
   } catch (error) {
     if (error instanceof GenerationError) throw error;
     throw new GenerationError(describeApiError(error, provider), error);

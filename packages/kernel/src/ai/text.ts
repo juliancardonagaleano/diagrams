@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { estimateTokens, planCall, resolveTokenLimits, type TokenLimitOptions, type TokenLimits } from './budget';
-import { createAiClient, credentialsHint, openaiSettings, resolveModel, resolveProvider, type AiProvider } from './client';
+import { createAiClient, credentialsHint, openaiSettings, resolveModel, resolveProvider, type AiProvider, type Env } from './client';
 import { describeApiError, GenerationError } from './errors';
 import { chatCompletion, type CompatState } from './openaiCompat';
 import type { Effort } from './structured';
@@ -15,6 +15,8 @@ export interface TextOptions extends TokenLimitOptions {
   provider?: AiProvider | 'auto';
   fetch?: typeof fetch;
   model?: string;
+  /** Entorno del que se leen las credenciales, el modelo y los topes. Por omisión `process.env`. */
+  env?: Env;
   effort?: Effort;
   onProgress?: (message: string) => void;
 }
@@ -36,10 +38,10 @@ export interface TextResult {
  * (`truncated`) y no como error, porque media explicación sigue sirviendo.
  */
 export async function generateText(options: TextOptions): Promise<TextResult> {
-  const provider = resolveProvider(options.provider ?? (options.client ? 'anthropic' : undefined));
-  const model = resolveModel(provider, options.model, options.defaultModel);
+  const provider = resolveProvider(options.provider ?? (options.client ? 'anthropic' : undefined), options.env);
+  const model = resolveModel(provider, options.model, options.defaultModel, options.env);
   const progress = options.onProgress ?? (() => {});
-  const limits = resolveTokenLimits(options);
+  const limits = resolveTokenLimits(options, options.env);
 
   const fixedTokens = estimateTokens(options.system);
   const userTokens = estimateTokens(options.user);
@@ -48,7 +50,7 @@ export async function generateText(options: TextOptions): Promise<TextResult> {
 
   try {
     if (provider === 'openai') {
-      const { baseURL, apiKey } = openaiSettings();
+      const { baseURL, apiKey } = openaiSettings(options.env);
       if (!baseURL || !apiKey) throw new GenerationError(credentialsHint('openai'));
       // Texto libre: sin `response_format`.
       const state: CompatState = { format: 'none', tokenParam: 'max_tokens' };
@@ -66,7 +68,7 @@ export async function generateText(options: TextOptions): Promise<TextResult> {
       });
       return { text: result.text, model: result.model, provider, truncated: result.finishReason === 'length', usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens }, limits };
     }
-    const client = options.client ?? (await createAiClient(provider));
+    const client = options.client ?? (await createAiClient(provider, options.env));
     const response = await client.beta.messages.create({
       model,
       max_tokens: callMaxTokens,
