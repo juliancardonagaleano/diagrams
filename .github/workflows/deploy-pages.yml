@@ -69,6 +69,8 @@ jobs:
         run: npm run build:app
         env:
           OUT_DIR: dist/pages
+          # Servidor de proyectos que el sitio propone por omisión (variable del repositorio; vacía, no propone ninguno).
+          VITE_IARK_SERVER: ${{ vars.IARK_SERVER_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: pages-site
