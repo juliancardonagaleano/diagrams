@@ -26,7 +26,7 @@ Monorepo con workspaces de npm (`packages/*`). Los paquetes internos se consumen
 | `packages/kernel/` | `@iark/kernel`: lo común a todas las especialidades. Contrato `DomainModule`, registro de módulos, URN, manifiesto de federación, IA estructurada, sintaxis Mermaid, layout y SVG de grafos, diff, proyectos. No toca el DOM ni el sistema de archivos. |
 | `packages/domain-c4/`, `domain-integration/`, `domain-data/`, `domain-enterprise/`, `domain-platform/`, `domain-security/` | Un módulo de dominio por especialidad: esquema, validación, vistas, importadores y exportadores, prompts de IA y editor. Sin DOM. |
 | `src/cli/` | El CLI `iark` (commander), `iark serve` y su API, almacenes de proyectos y cuentas. |
-| `src/app/` | El editor C4 (React, Vite, React Flow, Semi UI, Tailwind). |
+| `src/app/` | El editor C4 clásico (React, Vite, React Flow, Semi UI, Tailwind). El banco de trabajo (`src/modules-app/`) abre C4 en su lienzo común, descrito por `packages/domain-c4/src/editor.ts`. |
 | `src/modules-app/`, `src/trace-app/`, `src/shell/`, `src/projects/` | Banco de trabajo de módulos, trazabilidad, shell de la suite y proyectos guardados en el navegador. |
 | `src/embed/` | Protocolo `postMessage`, SDK de anfitrión y Web Component `<iark-module>`. |
 | `tests/` | Pruebas de integración (`tests/*.test.ts`), los datos de prueba (`tests/fixtures/`) y los e2e de Playwright (`tests/e2e/`). Las pruebas unitarias viven junto al código (`*.test.ts(x)`). |

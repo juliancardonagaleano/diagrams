@@ -88,6 +88,18 @@ Si escribes el módulo en TypeScript, **compílalo a ESM** (`tsc`, `tsup`…) y 
 
 Opcionales: `entities` (elementos referenciables por URN: entran en `iark trace`), `views`, `traceViews`, `cliCommands` (subcomandos `iark <módulo> <comando>`), `ai`, `diff`, `migrations` y `editor`. Un módulo que exporta una **fábrica** (`export default () => defineModule({...})`, también asíncrona) se acepta: el CLI la ejecuta al cargarlo y, si falla, lo dice.
 
+`editor` describe el lienzo interactivo del módulo (`EditorSpec`, en [`packages/kernel/src/module/editor.ts`](../packages/kernel/src/module/editor.ts)): figuras y relaciones, proyección del documento a un grafo, campos del panel de propiedades y las operaciones de alta, edición y borrado. Todo lo que se añade a `EditorSpec` para un módulo con niveles de detalle (el de C4 es el ejemplo: `packages/domain-c4/src/editor.ts`) es **opcional**, y un módulo que no lo usa funciona igual:
+
+| Opcional | Para qué |
+|---|---|
+| `EdgeNotation.addable: false` | Un tipo de relación derivado (C4: la implícita entre ancestros visibles) que se dibuja pero no se crea a mano; si solo queda un tipo creable, el lienzo no muestra el selector «Relación». |
+| `EditorNode.shape` | Figura propia de un nodo (C4: base de datos, cola, navegador o móvil), que sustituye a la de su tipo. |
+| `EditResult.view` | El resultado lleva el lienzo a otra vista (bajar de nivel). Con el mismo documento es solo navegación: no entra en el deshacer. |
+| `viewId` en `EditorAction` (`prompt.initial`, `prompt.suggestions`, `disabled`, `run`) y en `canConnect` | La vista abierta, para acciones y reglas que dependen de ella. |
+| `EditorAction.shortcut` (`'alt+down'` o `'alt+up'`) | La acción reclama Alt+↓ / Alt+↑ cuando el elemento no tiene enlace que seguir ni hay diagrama al que volver. |
+| `layout(document, viewId, { fresh })` | `fresh` lo pide el botón Autolayout (Ctrl+L): recalcular la colocación aunque el documento ya guarde posiciones. |
+| `breadcrumb(document, viewId)` | Camino de vistas hasta la abierta (`{ id, label }[]`); con más de un tramo el lienzo lo dibuja sobre el diagrama y cada tramo abre su vista. |
+
 Los comandos que lleven una opción o argumento que toque el disco, la red o procesos deben marcarlo `local: true`; así el servicio HTTP no los ofrece a un cliente remoto (ver `CommandOption.local`).
 
 ### Qué se comprueba al cargarlo
