@@ -53,7 +53,7 @@ import { deriveView, type DerivedView } from './model/viewDerivation';
 /**
  * Edición interactiva de C4 en el lienzo común de la suite (`DomainModule.editor`): las figuras, los tipos de elemento, las
  * relaciones, las vistas por nivel (contexto, contenedores, componentes), el anidado de contenedores en sus límites y las
- * operaciones del modelo. El lienzo, el panel de propiedades, los enlaces entre diagramas, el deshacer y «Comparar» son los
+ * operaciones del modelo. El lienzo, el panel de propiedades, los enlaces entre diagramas, el deshacer y «Versiones» son los
  * comunes; este archivo solo dice qué es C4. El documento no cambia: lo que se edita aquí es el mismo JSON del editor C4 clásico.
  */
 
@@ -108,7 +108,7 @@ const lower = (type: ElementType): string => ELEMENT_TYPE_LABELS[type].toLowerCa
 
 // ───────────── proyección ─────────────
 
-/** La vista pedida o, sin indicar, la primera; `undefined` si el documento no la tiene (p. ej. al proyectar la versión base de «Comparar»). */
+/** La vista pedida o, sin indicar, la primera; `undefined` si el documento no la tiene (p. ej. al proyectar la versión base de «Versiones»). */
 function findView(doc: C4Document, viewId?: string): C4View | undefined {
   return viewId === undefined ? doc.views[0] : doc.views.find((v) => v.id === viewId);
 }

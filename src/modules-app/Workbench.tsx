@@ -212,7 +212,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
     ['diagram', hasCanvas ? (renders ? 'Vista SVG' : 'JSON') : 'Diagrama'],
     ['issues', `Problemas${problemCount ? ` (${problemCount})` : ''}`],
     ['reports', 'Informes'],
-    ['compare', compare?.state.diff ? `Comparar (${compare.state.diff.summary.total})` : 'Comparar'],
+    ['compare', compare?.state.diff ? `Versiones (${compare.state.diff.summary.total})` : 'Versiones'],
     ['export', 'Exportar'],
     // Los avisos de la última importación (venga de donde venga) se ven en esta pestaña hasta que se edite el documento.
     ['import', `Importar${state.lastImport?.warnings.length ? ` (${state.lastImport.warnings.length})` : ''}`],

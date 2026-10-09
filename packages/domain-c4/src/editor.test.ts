@@ -44,7 +44,7 @@ describe('proyección C4', () => {
     expect(contexto.nodes.every((n) => n.parentId === undefined)).toBe(true);
     const componentes = c4Editor.project(doc, 'componentes-api');
     expect(componentes.nodes.find((n) => n.id === 'signin')).toMatchObject({ kind: 'component', parentId: 'api' });
-    // Sin indicar vista se usa la primera; una vista que no existe (la versión base de «Comparar») no tiene nada que dibujar.
+    // Sin indicar vista se usa la primera; una vista que no existe (la versión base de «Versiones») no tiene nada que dibujar.
     expect(c4Editor.project(doc).nodes.map((n) => n.id)).toEqual(c4Editor.project(doc, 'contexto').nodes.map((n) => n.id));
     expect(c4Editor.project(doc, 'no-existe')).toEqual({ nodes: [], edges: [] });
   });

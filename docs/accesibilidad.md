@@ -13,7 +13,7 @@ Superficies auditadas, cada una en tema claro y oscuro:
 | Superficie | Dónde está | Qué se audita |
 |---|---|---|
 | Editor C4 clásico | `index.html`, `src/app/` | Vista inicial, los cinco menús abiertos, las pestañas Relaciones, Vistas e IA, el panel JSON, un elemento seleccionado (ficha desplegada), los diálogos de atajos, «Acerca de», vista previa de Mermaid y el gestor de proyectos. |
-| Banco de trabajo | `modulos.html`, `src/modules-app/` | Los seis módulos, todas sus pestañas (lienzo con y sin panel de propiedades, informes, problemas, exportar, importar, comparar con y sin diferencias, vista SVG, contratos), el gestor de proyectos y la ayuda de atajos. |
+| Banco de trabajo | `modulos.html`, `src/modules-app/` | Los seis módulos, todas sus pestañas (lienzo con y sin panel de propiedades, informes, problemas, exportar, importar, versiones con y sin diferencias, vista SVG, contratos), el gestor de proyectos y la ayuda de atajos. |
 | Lienzo común | `src/modules-app/canvas/` | Lo anterior, más el recorrido por teclado y los nombres accesibles de nodos y relaciones (pruebas unitarias). |
 | Suite | `suite.html`, `src/shell/` | La página con un módulo embebido en su `<iframe>`. |
 | Trazabilidad | `trazabilidad.html`, `src/trace-app/` | Vacía y con ejemplos, en las siete pestañas. |
@@ -86,16 +86,17 @@ Por regla, antes del trabajo (violaciones = regla × superficie × tema; entre p
 
 ### Lectores de pantalla
 
-- Cada nodo se anuncia con **tipo, nombre, tecnología, zona, a quién envía y de quién recibe, si enlaza con otro módulo y su marca en «Comparar»** («Contenedor: API de pedidos, Node.js. Dentro de «Sistema de pedidos». Sale hacia 2: Base de datos y Cola. Recibe de 1: Web.»). Cada relación, **de dónde a dónde va**. Los textos que React Flow trae en inglés (descripción de las teclas, aviso de movimiento, controles, minimapa) están en español.
+- Cada nodo se anuncia con **tipo, nombre, tecnología, zona, a quién envía y de quién recibe, si enlaza con otro módulo y su marca en «Versiones»** («Contenedor: API de pedidos, Node.js. Dentro de «Sistema de pedidos». Sale hacia 2: Base de datos y Cola. Recibe de 1: Web.»). Cada relación, **de dónde a dónde va**. Los textos que React Flow trae en inglés (descripción de las teclas, aviso de movimiento, controles, minimapa) están en español.
 - El lienzo se anuncia con cuántos elementos y relaciones tiene y cómo recorrerlo. Una región `aria-live` anuncia qué quedó seleccionado y qué se movió o borró.
 - Landmarks y encabezados: un `h1` por página (visible en el banco completo y en el editor clásico, oculto en el modo embebido), `main`, `header`, `nav` y `aside` con nombre donde hay más de uno; los títulos de sección bajan de nivel de uno en uno.
+- **Marcas del nodo** (`EditorNode.marks`): cada una es una imagen con su frase completa por nombre accesible (en Plataforma, «Equivalente en Producción: Base de pedidos») y esa misma frase se añade a lo que el lector de pantalla lee del nodo; el texto corto que se ve («≈ Producción») no se lee solo. La píldora lleva tinta y borde oscuros sobre fondo blanco propio, así que su contraste no depende del tema.
 - Los selectores de Semi UI llevan `aria-labelledby` hacia su etiqueta visible (su nombre propio es el literal «selected»), sin `aria-activedescendant` fantasma y con la flecha decorativa oculta; las etiquetas de las fichas están unidas a sus campos con `for`.
 - Axe ya no encuentra botones ni enlaces sin nombre (`button-name`, `link-name`); los iconos decorativos van con `aria-hidden`.
 - El aviso «hay una versión más nueva» de los proyectos en un servidor (otra persona guardó el diagrama abierto) vive en una región `role="status"` (`aria-live="polite"`) que está siempre en la página y vacía mientras no hay aviso, para que se anuncie el texto cuando aparece; «Cargar la nueva» e «Ignorar» son botones normales alcanzables con Tab, y al cargar el foco pasa a la región, que anuncia el resultado. Una prueba e2e (`tests/e2e/projects-cloud-eventos.spec.ts`) comprueba el rol, el teclado, un contraste de al menos 4,5:1 en tema claro y oscuro y que no desborda a 390 px; con axe sobre la barra del proyecto solo si `@axe-core/playwright` está instalado. **No se probó con un lector de pantalla real.**
 
 ### Contraste
 
-- **Banco, suite y trazabilidad**: el color primario se separó en un relleno (`--wb-primary`, con texto blanco encima) y en un texto/línea (`--wb-primary-ink`); el texto atenuado (`--wb-muted`), los bordes de los campos (`--wb-control-border`, 3:1), el anillo de foco (`--wb-focus`) y los rellenos de los signos de «Comparar» tienen sus propios valores en cada tema. Los pares están en `contraste.test.ts`.
+- **Banco, suite y trazabilidad**: el color primario se separó en un relleno (`--wb-primary`, con texto blanco encima) y en un texto/línea (`--wb-primary-ink`); el texto atenuado (`--wb-muted`), los bordes de los campos (`--wb-control-border`, 3:1), el anillo de foco (`--wb-focus`) y los rellenos de los signos de «Versiones» tienen sus propios valores en cada tema. Los pares están en `contraste.test.ts`.
 - **Editor clásico**: texto atenuado (`--c4-text-muted`, el de Semi daba 2,1:1), anillo de foco, textos de los botones claros de peligro y primario en el tema oscuro, tinta de los nodos por contraste real (`tintaLegible`) y no por brillo.
 - **Lienzo**: el título de una zona lleva un fondo propio y un color oscurecido solo lo justo para llegar a 4,5:1 sobre él; el anillo de foco de los nodos es siempre claro-sobre-claro u oscuro-sobre-oscuro según el tema.
 

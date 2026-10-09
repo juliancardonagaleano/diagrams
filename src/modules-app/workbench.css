@@ -22,7 +22,7 @@
   --wb-info: #175e7a;
   --wb-info-bg: #e6f2f7;
   --wb-ok: #166a38;
-  /* Rellenos sólidos con texto blanco encima (los signos «+», «−» y «~» de Comparar): iguales en los dos temas. */
+  /* Rellenos sólidos con texto blanco encima (los signos «+», «−» y «~» de «Versiones»): iguales en los dos temas. */
   --wb-ok-solid: #166a38;
   --wb-error-solid: #b42318;
   --wb-warning-solid: #8a5200;
@@ -534,7 +534,7 @@ pre.wb-out {
 .at-chip { padding: 2px 8px; font-size: 12px; font-family: var(--wb-mono); border-radius: 10px; }
 .at-used small { color: var(--wb-text-2); }
 
-/* Pestaña «Comparar»: qué se añadió, quitó y modificó respecto a otra versión del documento. */
+/* Pestaña «Versiones»: qué se añadió, quitó y modificó respecto a otra versión del documento. */
 .wb-compare { display: flex; flex-direction: column; gap: 10px; }
 .wb-compare .wb-hint { margin: 0; color: var(--wb-text-2); font-size: 12px; }
 .wb-compare .wb-toolbar { padding: 0; border: 0; background: transparent; }

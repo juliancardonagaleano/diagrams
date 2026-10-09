@@ -276,7 +276,7 @@ test.describe('C4 en el lienzo común', () => {
     expect(errors).toEqual([]);
   });
 
-  test('Comparar marca en C4 lo nuevo, lo modificado y lo quitado, también como fantasma, y se quita de un clic', async ({ page }) => {
+  test('La pestaña «Versiones» marca en C4 lo nuevo, lo modificado y lo quitado, también como fantasma, y se quita de un clic', async ({ page }) => {
     const errors = await open(page);
     // La versión anterior: `cliente` se llamaba de otra forma, no existía el sistema de correo (ni sus relaciones) y había un contenedor de auditoría.
     const before = banca();
@@ -288,7 +288,7 @@ test.describe('C4 en el lienzo común', () => {
       view.elements = view.elements.filter((e: { id: string }) => e.id !== 'email');
       if (view.id === 'contenedores') view.elements.push({ id: 'auditoria' });
     }
-    await page.getByRole('tab', { name: /^Comparar/ }).click();
+    await page.getByRole('tab', { name: /^Versiones/ }).click();
     await page.getByLabel('Abrir archivo a comparar…').setInputFiles(asFile('banca-anterior.json', before));
     await expect(page.getByTestId('compare-summary')).toBeVisible({ timeout: 20000 });
     await page.getByRole('tab', { name: 'Lienzo' }).click();

@@ -2,7 +2,7 @@ import { t, tp } from '../i18n';
 import { analyzeText, diffDocuments, hasChanges, type Analysis, type AnyModule, type DocumentDiff } from '@iark/kernel';
 
 /**
- * Qué cambió entre dos documentos de un mismo módulo, para el historial de versiones. Es el mismo motor de `iark diff` y de la pestaña «Comparar» del
+ * Qué cambió entre dos documentos de un mismo módulo, para el historial de versiones. Es el mismo motor de `iark diff` y de la pestaña «Versiones» del
  * banco de trabajo (`diffDocuments` con las reglas de diff del módulo): la maquetación guardada y el orden de las listas no cuentan como cambio.
  */
 export type VersionChange =

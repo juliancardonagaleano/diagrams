@@ -74,6 +74,31 @@ test.describe('lienzo de plataforma: infraestructura, metadatos y acciones', () 
     await expect(page.getByTestId('canvas-view').locator('option', { hasText: 'Pruebas de carga' })).toHaveCount(1);
   });
 
+  test('un recurso con equivalente declarado lleva la marca «≈ entorno», con nombre accesible, y la pierde al quitar la equivalencia', async ({ page }) => {
+    const errors = await open(page);
+    await selectView(page, 'env:dev');
+    // El ejemplo no declara equivalencias: sin marcas. «Duplicar entorno» declara cada copia equivalente de su original.
+    await expect(page.locator('.cv-node-marks')).toHaveCount(0);
+    await page.locator('[data-testid="node-pedidos-db-dev"]').click();
+    await page.getByTestId('action-duplicate-environment').click();
+    await page.getByTestId('action-prompt').getByRole('textbox').fill('Pruebas de carga');
+    await page.getByTestId('action-prompt').getByRole('button', { name: 'Aceptar' }).click();
+    await selectView(page, 'env:dev');
+    const mark = page.getByTestId('node-pedidos-db-dev').getByRole('img', { name: /^Equivalente en Pruebas de carga: / });
+    await expect(mark).toBeVisible();
+    await expect(mark).toHaveText('≈ Pruebas de carga');
+    await expect(mark).toHaveAttribute('title', /^Equivalente en Pruebas de carga: /);
+    await page.screenshot({ path: 'test-results/platform-equivalentes.png' });
+    // Al revés: la copia, en su entorno, apunta al original.
+    await selectView(page, 'env:pruebas-de-carga');
+    await expect(page.getByTestId('node-pedidos-db-dev-pruebas-de-carga').getByRole('img', { name: 'Equivalente en Desarrollo: Base de pedidos (dev)' })).toBeVisible();
+    // Y se quita desde el panel de propiedades: la marca de ese recurso desaparece.
+    await page.getByTestId('node-pedidos-db-dev-pruebas-de-carga').click();
+    await page.getByLabel('Equivalente en otro entorno').selectOption('');
+    await expect(page.getByTestId('marks-pedidos-db-dev-pruebas-de-carga')).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
   test('la vista «Comparar» pone dos entornos lado a lado y marca lo que difiere', async ({ page }) => {
     const errors = await open(page);
     await selectView(page, 'compare:dev:prod');
