@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EditorSpec } from '@iark/kernel';
 import { enterpriseEditor, enterpriseModule, type EnterpriseDocument } from '@iark/domain-enterprise';
 import example from '../../../examples/empresa-arquitectura.json';
@@ -98,6 +98,11 @@ describe('lienzo empresarial', () => {
 });
 
 describe('matriz capacidad × aplicación en el lienzo', () => {
+  // La matriz del ejemplo tiene cientos de celdas y jsdom no encuadra la cámara: con el recorte de nodos fuera de pantalla solo
+  // quedarían montadas las que caen en el rectángulo de 800 × 600 que simulan los mocks. En un navegador el encuadre las muestra todas.
+  beforeEach(() => window.history.replaceState({}, '', '/?cull=off'));
+  afterEach(() => window.history.replaceState({}, '', '/'));
+
   const ready = async (): Promise<void> => {
     await waitFor(() => expect(screen.getByTestId('node-cell:ventas-online|tienda-web')).toBeInTheDocument(), { timeout: 20000 });
   };

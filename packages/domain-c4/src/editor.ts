@@ -212,13 +212,13 @@ function anchorOf(box: Rect, side: PortSide): { x: number; y: number } {
 }
 
 /** La colocación de C4 (guardada en la vista o calculada con ELK) en la forma que dibuja el lienzo común. */
-async function layout(doc: C4Document, viewId?: string, options?: { fresh?: boolean }): Promise<GraphLayout | undefined> {
+async function layout(doc: C4Document, viewId?: string, options?: { fresh?: boolean; signal?: AbortSignal }): Promise<GraphLayout | undefined> {
   const view = findView(doc, viewId);
   if (!view) return undefined;
   const derived: DerivedView = deriveView(doc, view.id);
   // Sin elementos que colocar (solo el límite vacío del alcance), el autolayout común basta.
   if (derived.nodes.length === 0) return undefined;
-  const result = await layoutView(doc, view.id, { force: options?.fresh === true });
+  const result = await layoutView(doc, view.id, { force: options?.fresh === true, ...(options?.signal ? { signal: options.signal } : {}) });
   const nodes: Box[] = result.positions.map(({ id, x, y, width, height }) => ({ id, x, y, width, height }));
   const groups: Box[] = result.boundaries.map(({ id, x, y, width, height }) => ({ id, x, y, width, height }));
   const boxes = new Map([...nodes, ...groups].map((b) => [b.id, b]));
