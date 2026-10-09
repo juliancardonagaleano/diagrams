@@ -6,6 +6,14 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 
 - Cambios de la fase 1 del plan de robustecimiento en curso.
 - Pantalla «Administración de la instancia» para quien administra un servicio con cuentas (`siteRole: admin`): lista, busca y filtra las cuentas, invita por usuario de GitHub, cambia el rol, desactiva y reactiva, y cancela invitaciones, con confirmación y los errores del servidor a la vista. Se abre con «Administrar cuentas…» en «Dónde se guardan» y a los demás no les aparece; el cliente HTTP gana `listAccounts`, `setAccount` y `cancelInvitation`. Ver [`docs/cuentas-github.md`](docs/cuentas-github.md#pantalla-de-administración).
+- Observabilidad de `iark serve` ([`docs/observabilidad.md`](docs/observabilidad.md)):
+  - Cada respuesta lleva `X-Request-Id` (se respeta el de la petición si tiene hasta 64 caracteres seguros; si no, un UUID), que también sale en los registros y en el aviso de un error interno.
+  - `--access-log <archivo|->` (`IARK_ACCESS_LOG`): registro de accesos en JSON por línea (plantilla de la ruta sin identificadores ni query string, estado, duración, bytes, dirección según `--trust-proxy`, quién llama). Nunca anota credenciales, cookies, el código ni el verificador del inicio de sesión, cuerpos ni contenido.
+  - `--audit-log <archivo|->` (`IARK_AUDIT_LOG`): auditoría de quién intentó cambiar qué (proyectos, diagramas, miembros, cuentas, inicios de sesión), con el resultado `ok`, `denied` o `error`; también las peticiones denegadas. Archivo `0600` al que solo se añade; si falla, el servicio sigue y avisa.
+  - `GET /healthz` (vivo) y `GET /readyz` (listo: carpeta de trabajo escribible, tokens, cuentas y cálculo). El `HEALTHCHECK` de la imagen y del compose pasa a consultar `/healthz`.
+  - `--metrics` (`IARK_METRICS=1`) sirve `GET /metrics` en formato Prometheus, con `--metrics-token` (`IARK_METRICS_TOKEN`) o solo a loopback; el arranque se niega a abrirlas fuera de loopback sin token. Sin etiquetas por persona, proyecto ni dirección.
+  - `SIGHUP` vuelve a abrir los archivos de registro tras rotarlos. `deploy/docker-compose.yml` manda los accesos a la salida estándar y la auditoría a `/data/audit.jsonl`.
+  - `docker:smoke` comprueba `/healthz`, `/readyz` y que `/metrics` no existe por omisión; además, su comprobación del «Client secret equivocado» esperaba un registro vacío y ahora espera el motivo (`GitHub no lo aceptó (rejected)`) sin el secreto, que es lo que el servicio escribe desde que lo cuenta la guía de despliegue.
 
 ### Añadido
 

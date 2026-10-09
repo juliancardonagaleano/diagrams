@@ -14,3 +14,5 @@ docker volume create iark-data                                    # una sola vez
 docker compose up -d --build
 docker compose logs iark                                          # debe decir «inicio de sesión: GitHub (…)»
 ```
+
+Observabilidad (ver [`docs/observabilidad.md`](../docs/observabilidad.md)): el compose manda el registro de accesos de IArk a la salida estándar (`docker compose logs iark`, con la rotación de Docker) y la auditoría —quién cambió qué, también lo denegado— a `/data/audit.jsonl` en el volumen. El `HEALTHCHECK` consulta `/healthz`; `/readyz` y `/metrics` (esta última apagada, con token) están para un monitor o Prometheus.

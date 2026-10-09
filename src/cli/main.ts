@@ -22,6 +22,7 @@ import { PluginError, type ResolvedPlugin } from './plugins/resolve';
 import { ComputePool } from './computePool';
 import { addComputeOptions, resolveComputeSettings } from './computeConfig';
 import { createSuiteServer } from './serve';
+import { addObservabilityOptions, setupObservability } from './observability/options';
 import { isLoopbackHost } from './serveAuth';
 import { parseFrameAncestors } from './securityHeaders';
 import { registerTrace } from './trace';
@@ -596,6 +597,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       process.env.IARK_FRAME_ANCESTORS || undefined,
     )
     .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy (o IARK_TRUST_PROXY=true). No lo active sin proxy', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''));
+  addObservabilityOptions(serve);
   addComputeOptions(serve).action(async (opts) => {
       if (opts.static && !existsSync(opts.static)) throw new CliError(`La carpeta del sitio «${opts.static}» no existe (¿falta \`npm run build\`?).`);
       if (opts.workspace && existsSync(opts.workspace) && !statSync(opts.workspace).isDirectory()) throw new CliError(`El espacio de trabajo «${opts.workspace}» no es una carpeta.`, 2);
@@ -620,13 +622,15 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         );
       }
       const compute = resolveComputeSettings(opts);
+      // Registros y métricas (apagados por omisión): se abren antes de escuchar, para que un archivo que no se puede abrir sea un error de uso y no un servicio a medias.
+      const observed = setupObservability(opts, { host: opts.host, trustProxy: !!opts.trustProxy, version: CLI_VERSION });
       // Al arrancar el archivo de tokens debe existir y ser válido (si no, error de uso): después se relee cuando cambia, y un problema deniega todo.
       // Protege la API de proyectos y, también sin espacio de trabajo, las rutas de cálculo.
       const tokens = opts.tokens ? TokenStore.open(opts.tokens) : undefined;
       // El cálculo (ELK, análisis de documentos grandes) corre en hilos aparte, con tiempo límite y cola acotada: ver `computePool.ts`.
       // Cada hilo construye su propio registro: con los mismos módulos de terceros que el principal, o un plugin funcionaría en el CLI y fallaría aquí.
       const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue, plugins: settings.plugins }) : undefined;
-      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute });
+      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute, observability: observed.observability, metricsToken: observed.metricsToken });
       await new Promise<void>((resolveListening, rejectListening) => {
         server.once('error', rejectListening);
         server.listen(opts.port, opts.host, resolveListening);
@@ -635,6 +639,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       const port = typeof address === 'object' && address ? address.port : opts.port;
       info(`IArk - DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port}${opts.static ? ` (sitio: ${opts.static})` : ' (solo API)'}`);
       info(`  manifiesto: /.well-known/iark.json · módulos: /api/modules`);
+      for (const line of observed.lines) info(line);
       const thirdParty = registry.ids().filter((id) => registry.originOf(id) !== undefined);
       if (thirdParty.length > 0) info(`  módulos de terceros (se operan por la API y salen en el manifiesto; el sitio web no los trae): ${thirdParty.join(', ')}`);
       if (pool) info(`  cálculo: hasta ${pool.size} hilo(s) de trabajo · tiempo límite ${pool.timeoutMs / 1000} s por operación · cola de ${pool.maxQueue}`);
@@ -654,8 +659,10 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         if (tokens.size === 0) info('aviso: el archivo no tiene ningún token: cree uno con `iark auth create <nombre> --role admin` (no hace falta reiniciar).');
         if (!loopback) info(tlsNote('si no, los tokens viajan en claro.'));
       }
+      // `logrotate` rota los registros y avisa con SIGHUP: se vuelven a abrir los archivos (solo si hay alguno; no existe en Windows).
+      if (process.platform !== 'win32' && observed.observability.hasFiles) process.on('SIGHUP', () => observed.observability.reopen());
       await new Promise<void>((resolveClosed) => {
-        const stop = (): void => void server.close(() => void (pool?.close() ?? Promise.resolve()).then(() => resolveClosed()));
+        const stop = (): void => void server.close(() => void (pool?.close() ?? Promise.resolve()).then(() => observed.observability.close()).then(() => resolveClosed()));
         process.once('SIGINT', stop);
         process.once('SIGTERM', stop);
       });
