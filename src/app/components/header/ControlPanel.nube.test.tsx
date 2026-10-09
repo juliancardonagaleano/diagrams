@@ -100,7 +100,7 @@ describe('encabezado del editor C4 con proyectos', () => {
     expect(onManage).toHaveBeenCalledWith('storage');
   });
 
-  it('un corte de red al guardar deja «Reintentar», y al volver la conexión se guarda', async () => {
+  it('un corte de red al guardar dice «Sin conexión: 1 cambio pendiente», y al volver la conexión se guarda', async () => {
     const server = fakeServer();
     const project = await server.store.createProject({ name: 'Banca' });
     const meta = await server.store.saveDiagram(project.id, { module: 'c4', name: 'Contexto', text: doc('Banca A') });
@@ -109,10 +109,62 @@ describe('encabezado del editor C4 con proyectos', () => {
     await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Guardado en «Banca» · servidor'));
     server.down = true;
     act(() => useDocumentStore.getState().setWorkspaceName('Banca B'));
-    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('No se pudo guardar'), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Sin conexión: 1 cambio pendiente'), { timeout: 5000 });
+    expect(screen.getByTestId('save-status')).toHaveAttribute('role', 'status');
+    expect(screen.getByTestId('save-status')).toHaveAttribute('data-save', 'offline');
     server.down = false;
-    await userEvent.click(screen.getByTestId('retry-save'));
+    await userEvent.click(screen.getByTestId('retry-now'));
     await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Guardado en «Banca» · servidor'));
     expect(JSON.parse((await server.store.getDiagram(project.id, meta.id))!.text).workspace.name).toBe('Banca B');
+  });
+
+  describe('un conflicto con otra persona', () => {
+    async function conflicted() {
+      const server = fakeServer();
+      const project = await server.store.createProject({ name: 'Banca' });
+      const meta = await server.store.saveDiagram(project.id, { module: 'c4', name: 'Contexto', text: doc('Banca A') });
+      localStorage.setItem(`iark.projects.last:${URL_}`, JSON.stringify({ projectId: project.id, diagramId: meta.id }));
+      await setup(server, { remote: true });
+      await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Guardado en «Banca» · servidor'));
+      await server.store.saveDiagram(project.id, { id: meta.id, text: doc('Banca de otra persona') });
+      act(() => useDocumentStore.getState().setWorkspaceName('Banca mía'));
+      await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Hay un conflicto que resolver'), { timeout: 5000 });
+      const nameOnServer = async (): Promise<string> => JSON.parse((await server.store.getDiagram(project.id, meta.id))!.text).workspace.name;
+      return { server, project, meta, nameOnServer };
+    }
+
+    it('se indica y se resuelve con «Quedarme con la mía» tras confirmar', async () => {
+      const { nameOnServer } = await conflicted();
+      expect(await nameOnServer()).toBe('Banca de otra persona'); // no se pisa mientras no se elija
+      await userEvent.click(screen.getByTestId('resolve-conflict'));
+      await userEvent.click(screen.getByRole('button', { name: 'Quedarme con la mía' }));
+      expect(screen.getByTestId('conflict-confirm')).toBeInTheDocument();
+      expect(await nameOnServer()).toBe('Banca de otra persona'); // sigue sin pisarse hasta confirmar
+      await userEvent.click(screen.getByRole('button', { name: 'Sí, quedarme con la mía' }));
+      await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Guardado en «Banca» · servidor'));
+      expect(await nameOnServer()).toBe('Banca mía');
+    });
+
+    it('«Quedarme con la del servidor» carga la del servidor en el editor y descarta la mía', async () => {
+      const { nameOnServer } = await conflicted();
+      await userEvent.click(screen.getByTestId('resolve-conflict'));
+      await userEvent.click(screen.getByRole('button', { name: 'Quedarme con la del servidor' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Sí, quedarme con la del servidor' }));
+      await waitFor(() => expect(screen.getByTestId('save-status')).toHaveTextContent('Guardado en «Banca» · servidor'));
+      expect(useDocumentStore.getState().doc.workspace.name).toBe('Banca de otra persona');
+      expect(await nameOnServer()).toBe('Banca de otra persona');
+    });
+
+    it('«Guardar la mía como diagrama nuevo» deja la del servidor intacta y crea la copia', async () => {
+      const { server, project, nameOnServer } = await conflicted();
+      await userEvent.click(screen.getByTestId('resolve-conflict'));
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar la mía como diagrama nuevo' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar la copia' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      const copy = (await server.store.getProject(project.id))!.diagrams.find((d) => d.name === 'Contexto (mi versión)');
+      expect(copy).toBeDefined();
+      expect(JSON.parse((await server.store.getDiagram(project.id, copy!.id))!.text).workspace.name).toBe('Banca mía');
+      expect(await nameOnServer()).toBe('Banca de otra persona');
+    });
   });
 });

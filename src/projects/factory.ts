@@ -1,6 +1,7 @@
 import { HttpProjectStore } from '@iark/kernel';
 import { hostOf, loadBackend, pointerKey, type BackendConfig } from './backend';
 import { IndexedDbProjectStore } from './indexedDbStore';
+import { identityAt } from './offlineSync';
 import { localPointer, pointerAt, ProjectSession, type SessionOptions } from './session';
 
 /**
@@ -33,6 +34,8 @@ export function createProjectSession(options: CreateSessionOptions = {}): Projec
       persist: false,
       debounceMs: REMOTE_DEBOUNCE_MS,
       backend: { kind: 'remote', url: store.baseUrl, host: hostOf(store.baseUrl), ...(config.label ? { label: config.label } : {}) },
+      // los cambios que no llegan al servidor se guardan en este navegador y se reenvían solos; quién fue la última persona (no su token) se recuerda por servidor
+      offline: { identity: identityAt(`iark.projects.identity:${store.baseUrl}`) },
       ...options.session,
     });
   }

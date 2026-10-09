@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { IDBFactory } from 'fake-indexeddb';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryProjectStore } from '@iark/kernel';
 import { BACKEND_KEY, loadBackend, saveBackend, TOKEN_KEY_PREFIX, type StorageAreas } from './backend';
 import { createProjectSession } from './factory';
-import { ProjectSession } from './session';
+import { ProjectSession, type SessionOptions } from './session';
 import { StoragePanel, type StoragePanelProps } from './StoragePanel';
 import { fakeServer, type FakeServer } from './testing';
 
@@ -16,8 +17,8 @@ const DEV = { protocol: 'http:', origin: 'http://localhost:5173' };
 const localSession = (): ProjectSession => new ProjectSession(new MemoryProjectStore(), { broadcast: false, persist: false });
 
 /** Una sesión con servidor (por la fábrica, como en la app) sobre un servidor simulado. */
-async function remoteSession(server: FakeServer, token?: string): Promise<ProjectSession> {
-  const session = createProjectSession({ config: { kind: 'remote', url: URL_, token }, fetch: server.fetch, session: { broadcast: false, pollMs: 0, debounceMs: 10 } });
+async function remoteSession(server: FakeServer, token?: string, extra: SessionOptions = {}): Promise<ProjectSession> {
+  const session = createProjectSession({ config: { kind: 'remote', url: URL_, token }, fetch: server.fetch, session: { broadcast: false, pollMs: 0, debounceMs: 10, ...extra } });
   await session.init();
   return session;
 }
@@ -38,6 +39,8 @@ const test = (): HTMLElement => screen.getByTestId('storage-test');
 
 describe('panel «Dónde se guardan»', () => {
   beforeEach(() => {
+    // una base de IndexedDB nueva por prueba: la cola de cambios sin conexión es persistente y no debe pasar de una a otra
+    globalThis.indexedDB = new IDBFactory();
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -224,10 +227,28 @@ describe('panel «Dónde se guardan»', () => {
       expect(loadBackend()).toMatchObject({ kind: 'local', server: { url: URL_, token: 'secreto' } });
     });
 
-    it('si lo pendiente no pudo guardarse, pide confirmar antes de recargar porque se perdería', async () => {
+    it('un cambio que no pudo enviarse por la red queda guardado en este navegador: volver a él no lo pierde ni pide confirmar', async () => {
       const server = fakeServer();
       saveBackend({ url: URL_ });
       const session = await remoteSession(server);
+      await session.createProject('Tienda');
+      await session.createDiagram({ module: 'c4', name: 'A', text: 'a0' });
+      server.down = true;
+      session.queueSave('sin enviar');
+      await waitFor(() => expect(session.getState().save).toBe('offline'));
+      expect(session.dirty).toBe(false);
+      const { reload } = renderPanel(session, server);
+      expect(screen.getByTestId('storage-status')).toHaveTextContent('Sin conexión');
+      await userEvent.click(screen.getByRole('button', { name: 'Volver a este navegador' }));
+      await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+      expect(screen.queryByTestId('storage-loss')).toBeNull(); // sobrevive a recargar: se enviará al volver a ese servidor
+      expect(loadBackend().kind).toBe('local');
+    });
+
+    it('si lo pendiente no pudo guardarse ni en este navegador (sin trabajo sin conexión), pide confirmar antes de recargar porque se perdería', async () => {
+      const server = fakeServer();
+      saveBackend({ url: URL_ });
+      const session = await remoteSession(server, undefined, { offline: false });
       await session.createProject('Tienda');
       await session.createDiagram({ module: 'c4', name: 'A', text: 'a0' });
       server.down = true;

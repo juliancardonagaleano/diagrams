@@ -202,9 +202,11 @@ test.describe('proyectos en la nube (servidor propio)', () => {
       const mine = JSON.parse(await editor(page).inputValue());
       mine.workspace.name = 'Desde la primera';
       await editor(page).fill(JSON.stringify(mine, null, 2));
-      await expect(page.getByTestId('save-conflict')).toContainText('Otra persona u otro equipo guardó', { timeout: 15000 });
-      await page.getByRole('button', { name: 'Cargar la otra' }).click();
-      await expect(page.getByTestId('save-conflict')).toHaveCount(0);
+      await expect(saveStatus(page)).toHaveText('Hay un conflicto que resolver', { timeout: 15000 });
+      await page.getByTestId('resolve-conflict').click();
+      await page.getByRole('button', { name: 'Quedarme con la del servidor' }).click();
+      await page.getByRole('button', { name: 'Sí, quedarme con la del servidor' }).click();
+      await expect(page.getByTestId('conflict-dialog')).toHaveCount(0);
       expect(JSON.parse(await editor(page).inputValue()).workspace.name).toBe('Desde la otra sesión');
       await expect(saveStatus(page)).toHaveText('Guardado en «Tienda» · servidor');
 
@@ -214,8 +216,10 @@ test.describe('proyectos en la nube (servidor propio)', () => {
       await expect(saveStatus(other)).toHaveAttribute('data-save', 'saved', { timeout: 15000 });
       mine.workspace.name = 'Gana la primera';
       await editor(page).fill(JSON.stringify(mine, null, 2));
-      await expect(page.getByTestId('save-conflict')).toBeVisible({ timeout: 15000 });
-      await page.getByRole('button', { name: 'Quedarme con mi versión' }).click();
+      await expect(saveStatus(page)).toHaveText('Hay un conflicto que resolver', { timeout: 15000 });
+      await page.getByTestId('resolve-conflict').click();
+      await page.getByRole('button', { name: 'Quedarme con la mía' }).click();
+      await page.getByRole('button', { name: 'Sí, quedarme con la mía' }).click();
       await expect(saveStatus(page)).toHaveText('Guardado en «Tienda» · servidor', { timeout: 15000 });
       await expect.poll(() => JSON.parse(onDisk(server, projectId)[0].text).workspace.name).toBe('Gana la primera');
     } finally {
@@ -353,7 +357,7 @@ test.describe('proyectos en la nube (servidor propio)', () => {
     await expect.poll(() => JSON.parse(onDisk(server, projectId)[0].text).workspace.name).toBe('Lo que escribí sin token');
   });
 
-  test('un corte de red al guardar deja «Reintentar» y se reintenta solo al volver la conexión', async ({ page, server }) => {
+  test('un corte de red al guardar queda «Sin conexión» y se envía solo al volver la conexión', async ({ page, server }) => {
     const { projectId, diagramId } = await seed(server);
     await preconnect(page.context(), server);
     await open(page, `project=${projectId}&diagram=${diagramId}`);
@@ -364,8 +368,8 @@ test.describe('proyectos en la nube (servidor propio)', () => {
     const doc = JSON.parse(await editor(page).inputValue());
     doc.workspace.name = 'Escrito sin red';
     await editor(page).fill(JSON.stringify(doc, null, 2));
-    await expect(saveStatus(page)).toContainText('No se pudo guardar', { timeout: 15000 });
-    await expect(page.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+    await expect(saveStatus(page)).toHaveText('Sin conexión: 1 cambio pendiente', { timeout: 15000 });
+    await expect(page.getByRole('button', { name: 'Reintentar ahora' })).toBeVisible();
 
     // vuelve la red: el aviso `online` del navegador reintenta solo
     await page.unroute(`${server.url}/api/projects/**`);

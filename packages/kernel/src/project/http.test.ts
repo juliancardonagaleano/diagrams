@@ -114,7 +114,11 @@ describe('HttpProjectStore', () => {
 
   it('el 429 dice cuánto esperar y un 401 sin mensaje lo explica', async () => {
     const limited = store(() => ({ status: 429, body: {}, headers: { 'Retry-After': '12' } })).store;
-    expect((await failure(limited.listProjects())).message).toContain('12 s');
+    const limitedError = await failure(limited.listProjects());
+    expect(limitedError.message).toContain('12 s');
+    expect(limitedError.info).toMatchObject({ status: 429, retryAfterSec: 12 }); // quien reintenta respeta la espera
+    const sinEspera = await failure(store(() => ({ status: 429, body: {} })).store.listProjects());
+    expect(sinEspera.info.retryAfterSec).toBeUndefined();
     const noToken = store(() => ({ status: 401, body: {} })).store;
     expect((await failure(noToken.listProjects())).message).toContain('token');
   });

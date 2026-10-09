@@ -51,18 +51,20 @@ describe('barra del proyecto: indicación del almacén', () => {
     session.dispose();
   });
 
-  it('un guardado que falla por la red muestra el motivo y «Reintentar», que lo guarda cuando vuelve la conexión', async () => {
+  it('un guardado que falla por la red dice «Sin conexión: 1 cambio pendiente», lo guarda en este navegador y «Reintentar ahora» lo envía cuando vuelve la conexión', async () => {
     const server = fakeServer();
     const session = await remote(server);
     const { project, meta } = await setup(session);
     server.down = true;
     session.queueSave('lo último');
-    await waitFor(() => expect(status()).toHaveTextContent(/No se pudo guardar: No se pudo conectar/));
-    expect(status()).toHaveAttribute('data-save', 'error');
+    await waitFor(() => expect(status()).toHaveTextContent(/^Sin conexión: 1 cambio pendiente$/));
+    expect(status()).toHaveAttribute('data-save', 'offline');
+    expect(status()).toHaveAttribute('role', 'status');
     expect(screen.queryByTestId('reconnect')).toBeNull();
     server.down = false;
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar ahora' }));
     await waitFor(() => expect(status()).toHaveTextContent(/^Guardado en «Tienda» · servidor$/));
+    expect(screen.queryByTestId('offline-actions')).toBeNull();
     expect((await server.store.getDiagram(project.id, meta.id))?.text).toBe('lo último');
     session.dispose();
   });
@@ -133,18 +135,81 @@ describe('barra del proyecto: indicación del almacén', () => {
     down.dispose();
   });
 
-  it('un conflicto con otra persona se explica y se resuelve con los mismos botones', async () => {
-    const server = fakeServer();
-    const session = await remote(server);
-    const { project, meta, controller } = await setup(session);
-    await server.store.saveDiagram(project.id, { id: meta.id, text: pretty({ ...FAKE_DOC, name: 'de otra persona' }) });
-    session.queueSave('mío');
-    await waitFor(() => expect(screen.getByTestId('save-conflict')).toHaveTextContent('Otra persona u otro equipo guardó «Pedidos» mientras lo editabas.'));
-    await userEvent.click(screen.getByRole('button', { name: 'Quedarme con mi versión' }));
-    await waitFor(() => expect(status()).toHaveTextContent(/^Guardado en «Tienda» · servidor$/));
-    expect((await server.store.getDiagram(project.id, meta.id))?.text).toBe('mío');
-    await act(async () => controller.dispose());
-    session.dispose();
+  describe('un conflicto con otra persona', () => {
+    async function conflicted() {
+      const server = fakeServer();
+      const session = await remote(server);
+      const ctx = await setup(session);
+      await server.store.saveDiagram(ctx.project.id, { id: ctx.meta.id, text: pretty({ ...FAKE_DOC, name: 'de otra persona' }) });
+      session.queueSave('mío');
+      await waitFor(() => expect(status()).toHaveTextContent('Hay un conflicto que resolver'));
+      return { server, session, ...ctx };
+    }
+
+    it('se indica con «Hay un conflicto que resolver» y no pisa lo del servidor mientras no se elija', async () => {
+      const { server, session, project, meta, controller } = await conflicted();
+      expect(status()).toHaveAttribute('data-save', 'conflict');
+      expect(screen.getByTestId('resolve-conflict')).toHaveAccessibleName('Resolver el conflicto…');
+      expect((await server.store.getDiagram(project.id, meta.id))?.text).toContain('de otra persona');
+      await act(async () => controller.dispose());
+      session.dispose();
+    });
+
+    it('«Quedarme con la mía» pide confirmar y luego sustituye a la del servidor', async () => {
+      const { server, session, project, meta, controller } = await conflicted();
+      await userEvent.click(screen.getByTestId('resolve-conflict'));
+      const dialog = screen.getByRole('dialog', { name: 'Hay un conflicto que resolver' });
+      expect(dialog).toHaveFocus();
+      await userEvent.click(screen.getByRole('button', { name: 'Quedarme con la mía' }));
+      expect(screen.getByTestId('conflict-confirm')).toHaveTextContent('lo que cambió la otra persona se perderá');
+      expect((await server.store.getDiagram(project.id, meta.id))?.text).toContain('de otra persona'); // aún no
+      await userEvent.click(screen.getByRole('button', { name: 'Sí, quedarme con la mía' }));
+      await waitFor(() => expect(status()).toHaveTextContent(/^Guardado en «Tienda» · servidor$/));
+      expect((await server.store.getDiagram(project.id, meta.id))?.text).toBe('mío');
+      expect(screen.queryByRole('dialog')).toBeNull();
+      await act(async () => controller.dispose());
+      session.dispose();
+    });
+
+    it('«Quedarme con la del servidor» descarta la mía (con confirmación) y deja en pantalla la del servidor', async () => {
+      const { server, session, project, meta, controller } = await conflicted();
+      await userEvent.click(screen.getByTestId('resolve-conflict'));
+      await userEvent.click(screen.getByRole('button', { name: 'Quedarme con la del servidor' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Sí, quedarme con la del servidor' }));
+      await waitFor(() => expect(status()).toHaveTextContent(/^Guardado en «Tienda» · servidor$/));
+      expect((await server.store.getDiagram(project.id, meta.id))?.text).toContain('de otra persona');
+      expect(session.unsentCount).toBe(0);
+      expect(controller.getState().text).toContain('de otra persona');
+      await act(async () => controller.dispose());
+      session.dispose();
+    });
+
+    it('«Guardar la mía como diagrama nuevo» crea una copia con otro nombre y deja intacta la del servidor', async () => {
+      const { server, session, project, meta, controller } = await conflicted();
+      await userEvent.click(screen.getByTestId('resolve-conflict'));
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar la mía como diagrama nuevo' }));
+      const name = screen.getByLabelText('Nombre del diagrama nuevo');
+      expect(name).toHaveValue('Pedidos (mi versión)');
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar la copia' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      const copy = (await server.store.getProject(project.id))!.diagrams.find((d) => d.name === 'Pedidos (mi versión)');
+      expect(copy).toBeDefined();
+      expect((await server.store.getDiagram(project.id, copy!.id))?.text).toBe('mío');
+      expect((await server.store.getDiagram(project.id, meta.id))?.text).toContain('de otra persona');
+      await act(async () => controller.dispose());
+      session.dispose();
+    });
+
+    it('Escape cierra el cuadro sin decidir nada', async () => {
+      const { session, controller } = await conflicted();
+      await userEvent.click(screen.getByTestId('resolve-conflict'));
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(status()).toHaveTextContent('Hay un conflicto que resolver');
+      expect(screen.getByTestId('resolve-conflict')).toHaveFocus();
+      await act(async () => controller.dispose());
+      session.dispose();
+    });
   });
 
   it('una lectura en segundo plano que falla no tira la barra: sigue «Guardado» y lo avisa', async () => {

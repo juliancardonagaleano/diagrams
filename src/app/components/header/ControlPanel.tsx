@@ -6,6 +6,8 @@ import { isEmbedMode, useDocumentStore, useTemporalStore } from '../../store/doc
 import { relativeTime } from '../../utils/files';
 import { AboutModal, ShortcutsModal } from './HelpModals';
 import { MermaidPreviewModal } from './MermaidPreviewModal';
+import { OfflineActions } from '../../../projects/OfflineActions';
+import { offlineIndicator } from '../../../projects/offlineText';
 import { C4_MODULE, type ProjectBinding } from '../../projects/useProjectBinding';
 import { DIRECTIONS, DISTRIBUTIONS } from './FloatingToolbar';
 
@@ -77,7 +79,7 @@ export interface ControlPanelProps {
   projects?: { binding: ProjectBinding; onManage: (panel?: 'storage') => void };
 }
 
-const SAVE_LABEL = { idle: 'Guardado', pending: 'Guardando…', saving: 'Guardando…', saved: 'Guardado', error: 'No se pudo guardar', conflict: 'Conflicto de guardado' } as const;
+const SAVE_LABEL = { idle: 'Guardado', pending: 'Guardando…', saving: 'Guardando…', saved: 'Guardado', error: 'No se pudo guardar', conflict: 'Conflicto de guardado', offline: 'Sin conexión' } as const;
 
 export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPanelProps) {
   const name = useDocumentStore((s) => s.doc.workspace.name);
@@ -256,8 +258,12 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
   // Con una sesión de persona (inicio de sesión de GitHub) no se «rechaza un token»: la sesión caducó, y un 403 es el rol en el proyecto, no un token que cambiar.
   const withSession = projectSession?.credential === 'session';
   const rejectedText = withSession ? 'Tu sesión caducó' : 'El servidor no aceptó el token';
-  const projectStatus =
-    remote && projectState && !projectState.available
+  // Con un servidor, el trabajo sin conexión y los conflictos tienen su propio texto y su propia resolución (tres salidas, con confirmación).
+  const indicator = projectState ? offlineIndicator(projectState) : undefined;
+  const queuedConflict = (projectState?.offline?.conflicts ?? 0) > 0;
+  const projectStatus = indicator
+    ? indicator.text
+    : remote && projectState && !projectState.available
       ? projectState.errorCode === 'unauthorized'
         ? rejectedText
         : 'Servidor no disponible'
@@ -350,7 +356,8 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
             Reintentar
           </Button>
         )}
-        {attached && projectState?.save === 'conflict' && (
+        {remote && projectSession && <OfflineActions session={projectSession} resolve={(choice, key, name) => projects!.binding.resolveConflict(choice, { key, name })} />}
+        {attached && projectState?.save === 'conflict' && !queuedConflict && (
           <span className="flex items-center gap-2 text-sm" role="alert" data-testid="save-conflict">
             {remote ? 'Otra persona u otro equipo guardó' : 'Otra pestaña guardó'} «{attached.name}» mientras lo editabas.
             <Button size="small" onClick={() => resolveConflict('overwrite')}>
@@ -361,7 +368,12 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
             </Button>
           </span>
         )}
-        <span className="text-sm text-color-2 hidden md:inline" role="status" data-testid="save-status" data-save={attached ? projectState?.save : undefined}>
+        <span
+          className={indicator ? 'c4-save-note text-sm' : 'text-sm text-color-2 hidden md:inline'}
+          role="status"
+          data-testid="save-status"
+          data-save={indicator ? indicator.kind : attached ? projectState?.save : undefined}
+        >
           {status}
         </span>
         {isEmbedMode ? (

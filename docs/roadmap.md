@@ -19,7 +19,7 @@ El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 1. **Endurecida**: sin hallazgos de seguridad altos, con compuerta de CI, rama protegida y los documentos de proyecto en su sitio (licencia, política de seguridad, guía de contribución y registro de cambios).
 2. **Abierta**: cualquiera puede añadir un módulo, un importador o un paquete de iconos sin tocar este repositorio, y los documentos migran entre versiones del contrato.
 3. **Profunda**: cada módulo importa los formatos reales de su mundo, la IA verifica lo que genera y se mide con evals, C4 comparte el lienzo común, y todo es accesible y rápido.
-4. **Escalable**: una instancia gestionada con cuentas transaccionales, observabilidad y auditoría, colaboración y trabajo sin conexión, administración de cuentas e interfaz en español e inglés.
+4. **Escalable**: una instancia gestionada con cuentas transaccionales, observabilidad y auditoría, colaboración en tiempo real, administración de cuentas e interfaz en español e inglés.
 
 ## Estado actual
 
@@ -91,7 +91,7 @@ Que una instancia gestionada se pueda operar y medir.
 
 - **Cuentas en varias máquinas**: las cuentas ya van en un almacén transaccional (SQLite, seguro con varios procesos sobre un disco local; el JSON queda como opción de un solo proceso). Falta, y es una decisión de quien aloja, el salto a réplicas en máquinas distintas (Postgres, interfaz asíncrona, estado del inicio de sesión compartido): ver [Camino a Postgres y réplicas](cuentas-github.md#camino-a-postgres-y-réplicas-una-decisión-pendiente-no-tomada).
 - **Observabilidad y auditoría** *(hecho: registro de accesos, auditoría, salud y métricas en `iark serve`, ver [observabilidad.md](observabilidad.md))*. Queda lo que ese documento reconoce en «Límites»: probarlo con un Prometheus, `logrotate` y una plataforma reales, reunir los registros de varias réplicas cuando las haya, y trazas distribuidas.
-- **Colaboración y sin conexión**: hoy los cambios de dos personas no se mezclan, no hay tiempo real ni trabajo sin conexión, y no hay instantáneas guardadas en el navegador.
+- **Colaboración** *(hecho: trabajo sin conexión con los proyectos en un servidor, ver [proyectos.md](proyectos.md))*. Queda: hoy los cambios de dos personas no se mezclan y no hay tiempo real; abrir y listar proyectos sigue necesitando al servidor, y no hay instantáneas guardadas en el navegador.
 - **Administración de cuentas**: cuotas de disco por persona. La pantalla de administración (invitar, roles, desactivar, cancelar invitaciones) ya está hecha: [cuentas-github.md](cuentas-github.md#pantalla-de-administración).
 - **Interfaz es/en**: la interfaz está en español.
 
@@ -129,7 +129,7 @@ Los pendientes menores y límites conocidos al 2026-10-08, con la fase en la que
 | Importadores | «Abrir archivo…» del encabezado admite un solo archivo (el de «Abrir archivo a importar…» admite varios `.tf` o los archivos de un chart de Helm) | 3 |
 | Paquetes | Quedan imports de solo pruebas sin declarar en su paquete y resueltos por la raíz (`fast-xml-parser` en data, platform y security, `mermaid` en data, `@anthropic-ai/sdk` en c4 y `vitest`) | 2 |
 | Proyectos | IndexedDB se puede borrar con los datos del sitio (hay *Exportar*); dos personas o pestañas sobre el mismo diagrama no se mezclan (el segundo guardado pregunta qué versión conservar) | 4 |
-| Proyectos | No hay trabajo sin conexión (un guardado que falla por la red se reintenta solo, pero solo lo que sigue en memoria) ni tiempo real entre personas (la lista se relee al volver el foco y cada 30 s) | 4 |
+| Proyectos | No hay tiempo real entre personas (la lista se relee al volver el foco y cada 30 s); el trabajo sin conexión conserva lo escrito en el navegador, pero abrir y listar proyectos sigue necesitando al servidor | 4 |
 
 El pendiente sobre el entorno de pruebas («el entorno de este repositorio no trae `fake-indexeddb` instalado») pasó a las [trampas conocidas](desarrollo.md#trampas-conocidas) de `docs/desarrollo.md`.
 
@@ -142,7 +142,7 @@ La exportación SVG y PNG desde el modo embebido figuraba aquí como fuera de al
 Límites de diseño vigentes, con su explicación en cada documento:
 
 - **Servicio**: `iark serve` solo habla HTTP, no registra accesos ni cambios salvo que se active (`--access-log`, `--audit-log`; llevan usuario e IP: [observabilidad.md](observabilidad.md)), y con `--tokens` los tokens no caducan y sus roles valen para toda la carpeta de trabajo (con `--accounts`, inicio de sesión de GitHub, hay permisos por proyecto) ([servicio.md](servicio.md)).
-- **Proyectos**: sin trabajo sin conexión ni tiempo real; cada guardado envía el documento entero (límite de 5 MB) y la lista incluye todos los diagramas, pensado para carpetas pequeñas o medianas ([proyectos.md](proyectos.md)).
+- **Proyectos**: sin tiempo real, y abrir o listar proyectos necesita al servidor (lo escrito sin red sí se conserva); cada guardado envía el documento entero (límite de 5 MB) y la lista incluye todos los diagramas, pensado para carpetas pequeñas o medianas ([proyectos.md](proyectos.md)).
 - **Importadores**: lo que no se mapea se avisa, no se importa (capas y formas ocultas en `.drawio`, despliegue y vistas `dynamic` en el DSL de Structurizr, `.drawio.svg` y `.drawio.png`, datos y anotaciones en BPMN, `webhooks` en OpenAPI, plantillas de un chart de Helm…), y nada se lee de la red ni del disco al importar ([importadores.md](importadores.md)).
 - **Módulos de terceros**: se cargan en el CLI y en `iark serve`, no en el sitio web (sin editor visual, sin entrada en el banco de trabajo ni en el shell); cargar uno ejecuta su código con los permisos del proceso y por eso solo se carga la configuración que señala quien ejecuta el comando; no se descargan ni se instalan solos y no hay recarga en caliente ([plugins.md](plugins.md)). Los paquetes `@iark/*` están listos para publicarse pero no se han publicado.
 - **Módulos**: al importar DDL o dbt no se deduce nada de gobierno (solo lo que declare el `meta` de dbt), y los importadores de plataforma no escriben `counterpartOf` porque nada en esos formatos dice qué recurso es el equivalente de otro entorno ([datos.md](modulos/datos.md), [plataforma.md](modulos/plataforma.md)).

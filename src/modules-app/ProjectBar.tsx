@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from 'react';
+import { OfflineActions } from '../projects/OfflineActions';
+import { offlineIndicator } from '../projects/offlineText';
 import type { WorkbenchController, WorkbenchState } from './controller';
 
 /**
@@ -31,6 +33,30 @@ export function ProjectBar({
   const withSession = session.credential === 'session';
   const rejectedText = withSession ? 'Tu sesión caducó' : 'El servidor no aceptó el token';
   const run = (work: () => Promise<void>): void => void work().catch((error: Error) => notify(error.message));
+  // Con un servidor, el trabajo sin conexión y los conflictos tienen su propio texto y su propia resolución (tres salidas, con confirmación).
+  const indicator = offlineIndicator(projects);
+  const queuedConflict = (projects.offline?.conflicts ?? 0) > 0;
+  const statusText = !projects.available
+    ? remote
+      ? projects.errorCode === 'unauthorized'
+        ? rejectedText
+        : 'Servidor no disponible'
+      : 'Almacenamiento no disponible'
+    : attached
+      ? projects.save === 'pending' || projects.save === 'saving'
+        ? 'Guardando…'
+        : projects.save === 'error'
+          ? projects.saveErrorCode === 'unauthorized'
+            ? `${rejectedText}: ${withSession ? 'los últimos cambios no se han guardado' : (projects.saveError ?? 'no se guardaron los últimos cambios')}`
+            : projects.saveErrorCode === 'forbidden'
+              ? `Sin permiso para guardar en el servidor: ${projects.saveError ?? 'el rol de este token no lo permite'}`
+              : `No se pudo guardar: ${projects.saveError ?? 'error desconocido'}`
+          : projects.save === 'conflict'
+            ? 'Hay un conflicto de guardado'
+            : `Guardado en «${project?.name}»${where}${projects.syncError ? ' (sin conexión con el servidor)' : ''}`
+      : draft
+        ? 'Borrador: aún no está en el proyecto'
+        : '';
 
   const byModule = new Map<string, NonNullable<typeof project>['diagrams']>();
   for (const d of project?.diagrams ?? []) byModule.set(d.module, [...(byModule.get(d.module) ?? []), d]);
@@ -78,28 +104,8 @@ export function ProjectBar({
           Guardar en «{project.name}»
         </button>
       )}
-      <span className="wb-save" role="status" data-testid="save-status" data-save={attached ? projects.save : draft ? 'draft' : 'none'}>
-        {!projects.available
-          ? remote
-            ? projects.errorCode === 'unauthorized'
-              ? rejectedText
-              : 'Servidor no disponible'
-            : 'Almacenamiento no disponible'
-          : attached
-            ? projects.save === 'pending' || projects.save === 'saving'
-              ? 'Guardando…'
-              : projects.save === 'error'
-                ? projects.saveErrorCode === 'unauthorized'
-                  ? `${rejectedText}: ${withSession ? 'los últimos cambios no se han guardado' : (projects.saveError ?? 'no se guardaron los últimos cambios')}`
-                  : projects.saveErrorCode === 'forbidden'
-                    ? `Sin permiso para guardar en el servidor: ${projects.saveError ?? 'el rol de este token no lo permite'}`
-                    : `No se pudo guardar: ${projects.saveError ?? 'error desconocido'}`
-                : projects.save === 'conflict'
-                  ? 'Hay un conflicto de guardado'
-                  : `Guardado en «${project?.name}»${where}${projects.syncError ? ' (sin conexión con el servidor)' : ''}`
-            : draft
-              ? 'Borrador: aún no está en el proyecto'
-              : ''}
+      <span className="wb-save" role="status" data-testid="save-status" data-save={indicator ? indicator.kind : attached ? projects.save : draft ? 'draft' : 'none'}>
+        {indicator ? indicator.text : statusText}
       </span>
       {rejected && remote && (
         <button type="button" className="primary" onClick={() => onManage('storage')} data-testid="reconnect">
@@ -116,7 +122,8 @@ export function ProjectBar({
           Reintentar
         </button>
       )}
-      {attached && projects.save === 'conflict' && (
+      {remote && <OfflineActions session={session} resolve={(choice, key, name) => controller.resolveConflict(choice, { key, name })} />}
+      {attached && projects.save === 'conflict' && !queuedConflict && (
         <span className="wb-conflict" role="alert" data-testid="save-conflict">
           {remote ? 'Otra persona u otro equipo guardó' : 'Otra pestaña guardó'} «{attached.name}» mientras lo editabas.
           <button type="button" onClick={() => run(() => controller.resolveConflict('overwrite'))}>
