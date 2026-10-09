@@ -2,6 +2,8 @@
 
 Guía para quien **aloja** el servicio: dejar DIAgrams en internet con «Iniciar sesión con GitHub», HTTPS y los datos en un disco que no se pierde. No hace falta ser experta en infraestructura: lo técnico ya viene en la imagen Docker y en [`deploy/`](../deploy/). Aquí está lo que tienes que hacer tú, en orden.
 
+**¿Sin máquina propia?** Hay otra forma de alojarlo, sin VPS ni disco: el sitio en GitHub Pages, el servicio en Render y los datos en Supabase (Postgres). Está en [`despliegue-render-supabase.md`](despliegue-render-supabase.md); de este documento valen igual la OAuth App (paso 1), entrar como administradora (paso 4) y la solución de problemas (paso 8).
+
 Cada paso dice quién lo hace:
 
 - **Lo haces tú**: solo puede hacerlo la persona dueña del servicio (cuentas, dominio, contraseñas, contratar la máquina).
@@ -90,6 +92,8 @@ docker compose up -d --build            # la primera vez compila la imagen: tard
 *Ya está hecho en el compose*: el volumen heredará de la imagen la carpeta `/data` con el dueño correcto (`node`, 1000:1000); `iark` solo escribe en `/data` y `/tmp`; `caddy` no arranca hasta que `iark` esté sano.
 
 ### Alternativa: una plataforma de contenedores (Fly.io, Render, Railway…)
+
+> **Render sin disco persistente, con los datos en Supabase:** si la plataforma no ofrece disco (o no quieres pagarlo), las cuentas y los proyectos pueden ir a Postgres (`IARK_ACCOUNTS_STORE=postgres`, `IARK_WORKSPACE_STORE=postgres` e `IARK_DATABASE_URL`) y entonces no hacen falta ni `/data` ni los puntos 1 y 2 de abajo sobre el disco. La guía completa, con un `render.yaml` de partida, está en [`despliegue-render-supabase.md`](despliegue-render-supabase.md). Lo que sigue describe la variante con disco y SQLite.
 
 Sirve cualquiera que cumpla **todos** estos requisitos. **No he probado ninguna plataforma concreta** y por eso no incluyo una configuración de ejemplo: cada una cambia sus campos y sus límites; **comprueba en su documentación los precios y los límites vigentes** (sobre todo del disco persistente y de si apaga el servicio por inactividad).
 
