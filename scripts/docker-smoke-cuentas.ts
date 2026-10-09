@@ -491,7 +491,8 @@ async function main(): Promise<number> {
       const kept = await get(svc.base, '/api/projects', token);
       check(kept.status === 200 && kept.body.some?.((p: { id: string; role: string }) => p.id === 'heredado' && p.role === 'admin'), 'la sesión de antes sigue valiendo y el proyecto sigue siendo suyo', JSON.stringify(kept));
       const listing = asRoot(volume, 'cd /d && sha256sum accounts.json && stat -c "%u:%g %a %n" accounts.db && ls accounts.json.bak-* | wc -l && stat -c "%a" accounts.json.bak-*').split('\n');
-      check(listing[0] === before, 'el JSON original no se modificó', `${before}\n${listing[0]}`);
+      // `sha256sum` antepone el hash al nombre, que aquí difiere (`/d/accounts.json` frente a `accounts.json`): se compara solo el hash.
+      check(listing[0].split(/\s+/)[0] === before.split(/\s+/)[0], 'el JSON original no se modificó', `${before}\n${listing[0]}`);
       check(listing[1] === '1000:1000 600 accounts.db' && listing[2]?.trim() === '1' && listing[3] === '600', 'la base es de node (0600) y hay una sola copia de seguridad del JSON, también 0600', listing.join('\n'));
       // reiniciar con la importación todavía puesta no repite nada
       check(docker(['restart', svc.name]).status === 0, '`docker restart` con IARK_ACCOUNTS_IMPORT todavía puesto termina bien');
