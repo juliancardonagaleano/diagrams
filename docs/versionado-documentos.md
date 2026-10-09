@@ -38,7 +38,7 @@ export const dataModule: DomainModule<DataDocument> = {
 | es de una versión anterior sin cadena | «La versión X del documento no está soportada por el módulo «id» (versión actual: Y). Hay migraciones desde: …» |
 | es de una versión **más nueva** | «Este documento se creó con una versión más nueva (X) del formato; el módulo «id» entiende hasta la Y. Actualiza DIAgrams para abrirlo.» |
 
-`analyzeValue` y `analyzeText` migran **antes** de validar con el esquema, así que todo lo que pasa por ellos hereda la migración: el banco de trabajo, el servicio HTTP (`POST /api/<módulo>/validate`…), `iark project check`, los borradores del navegador, los proyectos, «Comparar» y las exportaciones. El análisis de un documento migrado trae `migrated: { from, to }` y una incidencia informativa («Documento migrado de la versión X a Y; al guardarlo se escribe en la nueva»). El archivo o el borrador **no se reescriben solos**: se escribe la versión nueva cuando la persona guarda, o con `iark migrate`.
+`analyzeValue` y `analyzeText` migran **antes** de validar con el esquema, así que todo lo que pasa por ellos hereda la migración: el banco de trabajo, el servicio HTTP (`POST /api/<módulo>/validate`…), `iark project check`, los borradores del navegador, los proyectos, «Versiones» y las exportaciones. El análisis de un documento migrado trae `migrated: { from, to }` y una incidencia informativa («Documento migrado de la versión X a Y; al guardarlo se escribe en la nueva»). El archivo o el borrador **no se reescriben solos**: se escribe la versión nueva cuando la persona guarda, o con `iark migrate`.
 
 ### Cómo evoluciona un esquema
 

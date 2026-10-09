@@ -17,7 +17,7 @@ async function open(page: Page, module: string): Promise<string[]> {
 
 /** Abre otra versión con «Abrir archivo a comparar…» y espera a que se muestre lo que cambió. */
 async function compareWith(page: Page, file: ReturnType<typeof asFile>): Promise<void> {
-  await page.getByRole('tab', { name: /^Comparar/ }).click();
+  await page.getByRole('tab', { name: /^Versiones/ }).click();
   await page.getByLabel('Abrir archivo a comparar…').setInputFiles(file);
   await expect(page.getByTestId('compare-summary')).toBeVisible({ timeout: 20000 });
 }
@@ -35,7 +35,7 @@ test.describe('comparar versiones en el banco de trabajo', () => {
     await compareWith(page, asFile('pedidos-anterior.json', before));
 
     await expect(page.getByTestId('compare-summary')).toContainText('1 quitado, 1 modificado (1 campo).');
-    await expect(page.getByRole('tab', { name: 'Comparar (2)' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Versiones (2)' })).toBeVisible();
     await expect(page.getByTestId('change-removed-nodes-erp-heredado')).toContainText('ERP heredado');
     await expect(page.getByTestId('change-changed-nodes-tienda-web')).toContainText('name: "Tienda web (antes)" → "Tienda web"');
 
@@ -61,7 +61,7 @@ test.describe('comparar versiones en el banco de trabajo', () => {
     await expect(page.getByTestId('compare-bar')).toHaveCount(0);
     await expect(page.locator('[data-diff]')).toHaveCount(0);
     await expect(page.getByTestId('node-erp-heredado')).toHaveCount(0);
-    await expect(page.getByRole('tab', { name: 'Comparar' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Versiones' })).toBeVisible();
     expect(errors).toEqual([]);
   });
 
@@ -92,7 +92,7 @@ test.describe('comparar versiones en el banco de trabajo', () => {
     }
     await compareWith(page, asFile('banca-reordenada.json', moved));
     await expect(page.getByTestId('compare-summary')).toContainText('Sin cambios.');
-    await expect(page.getByRole('tab', { name: 'Comparar (0)' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Versiones (0)' })).toBeVisible();
 
     // Con contenido distinto: un elemento renombrado, otro que ya no está y una relación quitada.
     const before = example('banca.json');
@@ -118,7 +118,7 @@ test.describe('comparar versiones en el banco de trabajo', () => {
 
   test('un archivo que no sirve se explica en la propia pestaña y no cambia nada', async ({ page }) => {
     await open(page, 'security');
-    await page.getByRole('tab', { name: 'Comparar' }).click();
+    await page.getByRole('tab', { name: 'Versiones' }).click();
     await page.getByLabel('Abrir archivo a comparar…').setInputFiles({ name: 'roto.json', mimeType: 'application/json', buffer: Buffer.from('{ no es json') });
     await expect(page.getByTestId('compare-error')).toContainText('«roto.json» no es JSON válido');
     await expect(page.getByTestId('compare-summary')).toHaveCount(0);

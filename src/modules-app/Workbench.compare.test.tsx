@@ -37,15 +37,15 @@ async function open(): Promise<WorkbenchController> {
 const fileWith = (content: string, name: string): File => Object.defineProperty(new File([content], name, { type: 'application/json' }), 'text', { value: async () => content });
 
 const paste = async (text: string): Promise<void> => {
-  await userEvent.click(screen.getByRole('tab', { name: /^Comparar/ }));
+  await userEvent.click(screen.getByRole('tab', { name: /^Versiones/ }));
   fireEvent.change(screen.getByLabelText('JSON de la versión con la que comparar'), { target: { value: text } });
   await userEvent.click(screen.getByTestId('compare-run'));
 };
 
-describe('pestaña «Comparar»', () => {
+describe('pestaña «Versiones»', () => {
   it('sin comparar, el lienzo es el de siempre: sin marcas, sin barra y sin fantasmas', async () => {
     await open();
-    expect(screen.getByRole('tab', { name: 'Comparar' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Versiones' })).toBeInTheDocument();
     expect(screen.queryByTestId('compare-bar')).toBeNull();
     expect(document.querySelectorAll('[data-diff]')).toHaveLength(0);
     expect(document.querySelectorAll('.cv-diff')).toHaveLength(0);
@@ -57,7 +57,7 @@ describe('pestaña «Comparar»', () => {
     await paste(JSON.stringify(base()));
 
     expect(await screen.findByTestId('compare-summary')).toHaveTextContent('1 añadido, 1 quitado, 2 modificados (2 campos). Documento actual frente a «JSON pegado».');
-    expect(screen.getByRole('tab', { name: 'Comparar (4)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Versiones (4)' })).toBeInTheDocument();
     expect(within(screen.getByTestId('compare-added')).getByTestId('change-added-nodes-libre')).toHaveTextContent('Servicio libre');
     expect(within(screen.getByTestId('compare-removed')).getByTestId('change-removed-nodes-antiguo')).toHaveTextContent('Servicio antiguo');
     const api = screen.getByTestId('change-changed-nodes-api');
@@ -93,7 +93,7 @@ describe('pestaña «Comparar»', () => {
     await paste(JSON.stringify(base()));
     await userEvent.click(await screen.findByTestId('compare-clear'));
     await waitFor(() => expect(screen.queryByTestId('compare-summary')).toBeNull());
-    expect(screen.getByRole('tab', { name: 'Comparar' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Versiones' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: 'Lienzo' }));
     expect(screen.queryByTestId('compare-bar')).toBeNull();
@@ -109,13 +109,13 @@ describe('pestaña «Comparar»', () => {
 
   it('«Abrir archivo a comparar…» lee el archivo; «Ver cambios» de la barra vuelve a la lista', async () => {
     await open();
-    await userEvent.click(screen.getByRole('tab', { name: 'Comparar' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Versiones' }));
     await userEvent.upload(screen.getByLabelText('Abrir archivo a comparar…'), fileWith(JSON.stringify(base()), 'version-anterior.json'));
     expect(await screen.findByTestId('compare-summary')).toHaveTextContent('Documento actual frente a «version-anterior.json».');
 
     await userEvent.click(screen.getByRole('tab', { name: 'Lienzo' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Ver cambios' }));
-    expect(screen.getByRole('tab', { name: /^Comparar/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^Versiones/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('change-added-nodes-libre')).toBeInTheDocument();
   });
 
@@ -125,7 +125,7 @@ describe('pestaña «Comparar»', () => {
     expect(await screen.findByTestId('compare-summary')).toHaveTextContent('1 añadido, 1 quitado, 2 modificados');
     controller.setText(pretty(base()));
     await waitFor(() => expect(screen.getByTestId('compare-summary')).toHaveTextContent('Sin cambios.'));
-    expect(screen.getByRole('tab', { name: 'Comparar (0)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Versiones (0)' })).toBeInTheDocument();
     expect(screen.queryByTestId('compare-added')).toBeNull();
   });
 
@@ -154,7 +154,7 @@ describe('pestaña «Comparar»', () => {
     await paste(JSON.stringify(base()));
     await screen.findByTestId('compare-summary');
     await controller.selectModule('otro');
-    await userEvent.click(await screen.findByRole('tab', { name: 'Comparar' }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Versiones' }));
     expect(screen.queryByTestId('compare-summary')).toBeNull();
     expect(screen.queryByTestId('compare-clear')).toBeNull();
   });

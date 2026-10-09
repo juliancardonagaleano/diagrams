@@ -124,9 +124,9 @@ describe('el resto de cuadros grandes del banco de trabajo', () => {
     expect(controller.getState().text).toBe(text);
   });
 
-  it('«Comparar»: el JSON de la otra versión se pega de una vez', async () => {
+  it('«Versiones»: el JSON de la otra versión se pega de una vez', async () => {
     await openWorkbench();
-    await userEvent.click(screen.getByRole('tab', { name: /^Comparar/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /^Versiones/ }));
     const area = screen.getByLabelText('JSON de la versión con la que comparar') as HTMLTextAreaElement;
     const text = lines(1000);
     expect(beforeInput(area, text).defaultPrevented).toBe(true);

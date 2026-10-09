@@ -94,6 +94,7 @@ Opcionales: `entities` (elementos referenciables por URN: entran en `iark trace`
 |---|---|
 | `EdgeNotation.addable: false` | Un tipo de relación derivado (C4: la implícita entre ancestros visibles) que se dibuja pero no se crea a mano; si solo queda un tipo creable, el lienzo no muestra el selector «Relación». |
 | `EditorNode.shape` | Figura propia de un nodo (C4: base de datos, cola, navegador o móvil), que sustituye a la de su tipo. |
+| `EditorNode.marks` | Marcas con nombre accesible propio sobre el nodo (`{ text, title }[]`): el lienzo pinta `text` en una píldora blanca en su esquina inferior izquierda y `title` es su nombre accesible, su ayuda y parte de lo que el lector de pantalla lee del nodo. Plataforma las usa para «≈ Producción» (el equivalente declarado en otro entorno). A diferencia de `badges` (solo texto), no pierde la frase completa. |
 | `EditResult.view` | El resultado lleva el lienzo a otra vista (bajar de nivel). Con el mismo documento es solo navegación: no entra en el deshacer. |
 | `viewId` en `EditorAction` (`prompt.initial`, `prompt.suggestions`, `disabled`, `run`) y en `canConnect` | La vista abierta, para acciones y reglas que dependen de ella. |
 | `EditorAction.shortcut` (`'alt+down'` o `'alt+up'`) | La acción reclama Alt+↓ / Alt+↑ cuando el elemento no tiene enlace que seguir ni hay diagrama al que volver. |
