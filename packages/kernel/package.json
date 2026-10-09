@@ -1,13 +1,58 @@
 {
   "name": "@iark/kernel",
   "version": "0.1.0",
-  "private": true,
   "description": "IArk - DIAgrams: núcleo común de la suite (contrato de módulo, registro, manifiesto federado, utilidades de importación e IA)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/juliancardonagaleano/iark-diagrams.git",
+    "directory": "packages/kernel"
+  },
+  "homepage": "https://github.com/juliancardonagaleano/iark-diagrams#readme",
+  "bugs": {
+    "url": "https://github.com/juliancardonagaleano/iark-diagrams/issues"
+  },
+  "keywords": [
+    "iark",
+    "architecture",
+    "diagrams",
+    "kernel"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./endpoint": "./src/module/endpoint.ts",
+    "./protocol": "./src/module/protocol.ts",
     "./jitless": "./src/util/zodJitless.ts"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepack": "node -e \"console.error('Este package.json es el de desarrollo (su exports apunta a src/*.ts): no se publica. Ejecuta npm run packages:build en la raíz y publica ./dist-packages/kernel'); process.exit(1)\""
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./endpoint": {
+        "types": "./dist/endpoint.d.ts",
+        "default": "./dist/endpoint.js"
+      },
+      "./protocol": {
+        "types": "./dist/protocol.d.ts",
+        "default": "./dist/protocol.js"
+      },
+      "./jitless": {
+        "types": "./dist/jitless.d.ts",
+        "default": "./dist/jitless.js"
+      }
+    }
   },
   "dependencies": {
     "@anthropic-ai/foundry-sdk": "^0.5.0",

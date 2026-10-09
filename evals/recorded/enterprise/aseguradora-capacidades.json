@@ -1,0 +1,129 @@
+{
+  "case": "aseguradora-capacidades",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Mapa de capacidades con aplicaciones que las soportan y la tecnología sobre la que corren.",
+  "promptSha256": "228df366f868b84fd13653fde9a71102800f3ad6d381867d154b792ae3f5a1e1",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "Aseguradora",
+          "description": "Capacidades y aplicaciones de seguros de auto"
+        },
+        "units": [
+          {
+            "id": "auto",
+            "name": "Seguros de Auto",
+            "description": null,
+            "parentId": null,
+            "external": null
+          },
+          {
+            "id": "ti",
+            "name": "Tecnologías de la Información",
+            "description": null,
+            "parentId": null,
+            "external": null
+          }
+        ],
+        "capabilities": [
+          {
+            "id": "siniestros",
+            "name": "Gestión de siniestros",
+            "description": "Recibir, evaluar y liquidar siniestros",
+            "parentId": null,
+            "ownerId": "auto",
+            "importance": "core",
+            "maturity": 3
+          },
+          {
+            "id": "suscripcion",
+            "name": "Suscripción de pólizas",
+            "description": null,
+            "parentId": null,
+            "ownerId": "auto",
+            "importance": "core",
+            "maturity": 4
+          }
+        ],
+        "processes": [
+          {
+            "id": "liquidar",
+            "name": "Liquidación de un siniestro",
+            "description": null,
+            "ownerId": "auto"
+          }
+        ],
+        "applications": [
+          {
+            "id": "claimspro",
+            "name": "ClaimsPro",
+            "description": "Tramita los siniestros",
+            "technology": null,
+            "vendor": "ClaimsPro Inc.",
+            "ownerId": "ti",
+            "lifecycle": "active",
+            "criticality": "high",
+            "external": true,
+            "annualCost": null,
+            "users": null,
+            "strategy": "keep",
+            "endOfLife": null
+          },
+          {
+            "id": "polizas",
+            "name": "Sistema de pólizas",
+            "description": null,
+            "technology": "Java",
+            "vendor": null,
+            "ownerId": "ti",
+            "lifecycle": "active",
+            "criticality": "critical",
+            "external": null,
+            "annualCost": null,
+            "users": null,
+            "strategy": "migrate",
+            "endOfLife": null
+          }
+        ],
+        "technologies": [
+          {
+            "id": "oracle",
+            "name": "Oracle Database",
+            "description": null,
+            "kind": "database",
+            "version": "19c",
+            "ownerId": "ti",
+            "lifecycle": "active",
+            "endOfLife": null
+          }
+        ],
+        "valueStreams": [],
+        "valueStages": [],
+        "businessServices": [],
+        "relations": [
+          {
+            "id": "r1",
+            "kind": "supports",
+            "sourceId": "claimspro",
+            "targetId": "siniestros",
+            "description": null
+          },
+          {
+            "id": "r2",
+            "kind": "supports",
+            "sourceId": "polizas",
+            "targetId": "suscripcion",
+            "description": null
+          },
+          {
+            "id": "r3",
+            "kind": "runs-on",
+            "sourceId": "polizas",
+            "targetId": "oracle",
+            "description": null
+          }
+        ]
+      }
+    }
+  ]
+}

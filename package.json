@@ -47,9 +47,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.test.json --noEmit && tsc -p examples/plugin-riesgos/tsconfig.json",
     "schema": "tsx scripts/generate-schema.ts",
     "manifest": "tsx scripts/generate-manifest.ts",
+    "evals": "tsx scripts/evals.ts",
+    "evals:live": "tsx scripts/evals.ts --mode live",
     "cli": "tsx src/cli/index.ts",
     "e2e": "playwright test",
     "deploy:pages": "bash scripts/deploy-gh-pages.sh",
@@ -57,7 +59,9 @@
     "test:coverage": "vitest run --coverage",
     "verify": "npm run typecheck && npm test && npm run build && npm run e2e",
     "verify:fast": "npm run typecheck && vitest run --changed origin/master --passWithNoTests",
-    "hooks:install": "git config core.hooksPath .githooks"
+    "hooks:install": "git config core.hooksPath .githooks",
+    "packages:build": "tsx scripts/packages.ts build",
+    "packages:check": "tsx scripts/packages.ts check"
   },
   "dependencies": {
     "@anthropic-ai/foundry-sdk": "^0.5.0",

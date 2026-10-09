@@ -1,0 +1,116 @@
+{
+  "case": "banca-reintento-esquema",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. La primera respuesta es prosa con un bloque de código cortado (no es JSON): el bucle reintenta por el esquema y la segunda respuesta es correcta.",
+  "promptSha256": "08b1402e95884c9f8d982f96fd8044c12d1d0e0f9afb91cd2a46bfb1f61717b6",
+  "responses": [
+    "Claro, aquí tienes el modelo C4 que me pediste:\n\n```json\n{\n  \"workspace\": { \"name\": \"Banca por internet\", \"description\": \"Un cliente consulta y paga desde el móvil.\" },\n  \"elements\": [\n    { \"id\": \"cliente\", \"type\": \"person\", \"name\": \"Cliente\", ...\n```\n\nSi quieres añadir más detalle, dímelo.",
+    {
+      "content": {
+        "workspace": {
+          "name": "Banca por internet",
+          "description": "Un cliente consulta y paga desde el móvil."
+        },
+        "elements": [
+          {
+            "id": "cliente",
+            "type": "person",
+            "name": "Cliente",
+            "description": "Titular de cuentas del banco",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "banca",
+            "type": "softwareSystem",
+            "name": "Banca móvil",
+            "description": "Permite consultar saldos y hacer pagos desde el móvil",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "central",
+            "type": "softwareSystem",
+            "name": "Sistema bancario central",
+            "description": "Guarda cuentas y movimientos",
+            "technology": null,
+            "external": true,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "app-movil",
+            "type": "container",
+            "name": "Aplicación móvil",
+            "description": "Aplicación para iOS y Android",
+            "technology": "Kotlin y Swift",
+            "external": false,
+            "parentId": "banca",
+            "shape": "mobile"
+          },
+          {
+            "id": "api",
+            "type": "container",
+            "name": "API de banca",
+            "description": "Expone las operaciones de la aplicación móvil",
+            "technology": "Java, Spring Boot",
+            "external": false,
+            "parentId": "banca",
+            "shape": null
+          }
+        ],
+        "relationships": [
+          {
+            "id": "r1",
+            "sourceId": "cliente",
+            "targetId": "app-movil",
+            "description": "Consulta saldos y paga con",
+            "technology": null
+          },
+          {
+            "id": "r2",
+            "sourceId": "app-movil",
+            "targetId": "api",
+            "description": "Llama a",
+            "technology": "JSON/HTTPS"
+          },
+          {
+            "id": "r3",
+            "sourceId": "api",
+            "targetId": "central",
+            "description": "Consulta cuentas y registra pagos en",
+            "technology": "XML/HTTPS"
+          }
+        ],
+        "views": [
+          {
+            "id": "contexto",
+            "type": "systemContext",
+            "scopeId": "banca",
+            "title": "Contexto de la banca móvil",
+            "elementIds": [
+              "cliente",
+              "banca",
+              "central"
+            ]
+          },
+          {
+            "id": "contenedores",
+            "type": "container",
+            "scopeId": "banca",
+            "title": "Contenedores de la banca móvil",
+            "elementIds": [
+              "cliente",
+              "app-movil",
+              "api",
+              "central"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { basename, dirname, extname, resolve } from 'node:path';
 import { InvalidArgumentError, type Command } from 'commander';
-import { diffDocuments, formatDiffJson, formatDiffMarkdown, formatDiffText, hasChanges, type DomainModule, type ModuleRegistry } from '@iark/kernel';
+import { diffDocuments, formatDiffJson, formatDiffMarkdown, formatDiffText, hasChanges, parseModuleDocument, type DomainModule, type ModuleRegistry } from '@iark/kernel';
 import { DocumentValidationError, formatIssues, parseDocument } from '@core/model/schema';
 import { DEFAULT_MODULE } from './registry';
 import { CliError, extractJson, info, readInput, writeOutput } from './io';
@@ -94,19 +94,21 @@ async function loadDocument(registry: ModuleRegistry, module: DomainModule<any>,
       throw error;
     }
   }
-  const parsed = module.schema.safeParse(json);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `- ${i.path.join('.') ? `${i.path.join('.')}: ` : ''}${i.message}`).join('\n');
+  // Un documento de una versión anterior se migra antes de compararlo: así «antes» y «después» se comparan en la misma versión.
+  const parsed = parseModuleDocument(module, json);
+  if (!parsed.ok) {
+    const issues = parsed.issues.map((i) => `- ${i.path !== '(raíz)' ? `${i.path}: ` : ''}${i.message}`).join('\n');
     throw new CliError(`${which} (${origin}) no es un documento válido para el módulo «${module.id}»:\n${issues}`, 2);
   }
-  return parsed.data;
+  if (parsed.migrated) info(`aviso (${origin}): documento migrado de la versión ${parsed.migrated.from} a ${parsed.migrated.to} antes de compararlo.`);
+  return parsed.document;
 }
 
 /**
  * `iark diff <antes> [<después>]`: qué cambió entre dos versiones de un diagrama, de cualquier módulo de la suite. Es una
  * operación transversal sobre el documento (como `trace`), por eso cuelga del CLI y no de `cliCommands`.
  */
-export function registerDiff(program: Command, registry: ModuleRegistry, importSource: ImportSource): void {
+export function registerDiff(program: Command, registry: ModuleRegistry, importSource: ImportSource, defaultModule: string = DEFAULT_MODULE): void {
   program
     .command('diff')
     .description(
@@ -116,7 +118,7 @@ export function registerDiff(program: Command, registry: ModuleRegistry, importS
     .argument('<antes>', 'versión anterior: JSON del módulo o cualquier fuente que importe (o "-" para stdin); con --rev, el archivo a comparar')
     .argument('[después]', 'versión nueva (sin --rev es obligatoria)')
     .option('--rev <revisión>', 'compara <antes> tal como estaba en esta revisión de git (rama, etiqueta o commit: HEAD, main, v1.2, 3f2a1bc) con su copia de trabajo')
-    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', DEFAULT_MODULE)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', defaultModule)
     .option('--format <formato>', `salida: ${FORMATS.join(' | ')} (markdown sirve para pegar en una PR o un changelog)`, parseFormat, 'text')
     .option('--exit-code', 'termina con código 1 si hay cambios (como `git diff --exit-code`); sin la opción, 0 aunque los haya', false)
     .option('-o, --out <archivo>', 'archivo de salida (por defecto stdout)')

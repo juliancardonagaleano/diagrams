@@ -1,0 +1,75 @@
+name: Release packages
+
+# Publica en npm los paquetes `@iark/kernel` y `@iark/domain-*` (los siete comparten versión, la de package.json de la raíz).
+# SOLO se lanza a mano (workflow_dispatch): ni un push ni una etiqueta publican nada.
+#
+#  - dry-run (por omisión: true)  `npm publish --dry-run`: prepara y empaqueta cada paquete y muestra lo que se publicaría, sin publicar.
+#  - dry-run false                publica de verdad con `--provenance --access public`.
+#
+# Antes de la primera publicación real (pendiente de quien administra el proyecto, ver docs/desarrollo.md):
+#  1. Que exista la organización o ámbito `@iark` en npm y que quien publica pueda publicar en él.
+#  2. El secreto `NPM_TOKEN` del repositorio (un token de automatización con permiso de escritura sobre el ámbito).
+# Si el ámbito `@iark` no estuviera disponible, hay que renombrar los paquetes (nombres, imports y documentación) antes de publicar.
+#
+# Los paquetes se publican desde `dist-packages/<carpeta>` (los prepara `npm run packages:build`), no desde `packages/<carpeta>`: el
+# `package.json` de desarrollo apunta a `src/*.ts` y rechaza `npm publish` a propósito.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Solo simular la publicación (npm publish --dry-run). Desmárcalo para publicar de verdad.'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-packages
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # la procedencia firmada (--provenance) la emite GitHub Actions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --no-audit --no-fund
+      - name: Comprobar tipos
+        run: npm run typecheck
+      - name: Preparar los paquetes (JS + tipos en dist-packages/)
+        run: npm run packages:build
+      - name: Comprobar que se instalan y funcionan solos
+        run: npm run packages:check
+      - name: Publicar (simulación)
+        if: ${{ inputs.dry-run }}
+        run: |
+          for dir in dist-packages/*/; do
+            echo "::group::npm publish --dry-run $dir"
+            npm publish "$dir" --dry-run --access public
+            echo "::endgroup::"
+          done
+      - name: Publicar en npm
+        if: ${{ !inputs.dry-run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::Falta el secreto NPM_TOKEN del repositorio."
+            exit 1
+          fi
+          # El kernel primero: los demás paquetes dependen de él.
+          for dir in dist-packages/kernel dist-packages/domain-*; do
+            echo "::group::npm publish $dir"
+            npm publish "$dir" --provenance --access public
+            echo "::endgroup::"
+          done

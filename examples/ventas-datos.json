@@ -17,7 +17,7 @@
         { "name": "pais", "type": "text" }
       ]
     },
-    { "id": "erp", "kind": "source", "name": "ERP de pedidos", "technology": "PostgreSQL", "engine": "postgresql", "domainId": "ventas", "owner": "Equipo Ventas", "ref": "urn:iark:integration:pedidos" },
+    { "id": "erp", "kind": "source", "name": "ERP de pedidos", "technology": "PostgreSQL", "engine": "postgresql", "domainId": "ventas", "owner": "Equipo Ventas", "ref": "urn:iark:integration:pedidos", "refType": "derives" },
     {
       "id": "erp-pedidos", "kind": "table", "name": "pedidos", "parentId": "erp", "classification": "internal",
       "columns": [

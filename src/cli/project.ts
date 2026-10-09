@@ -26,7 +26,7 @@ import {
   type ProjectSummary,
 } from '@iark/kernel';
 import { CliError, info, readInput, writeOutput } from './io';
-import { addTraceViewOptions, renderTrace, type TraceViewOptions } from './trace';
+import { addTraceViewOptions, buildTraceOutput, emitTrace, type TraceViewOptions } from './trace';
 import { FolderProjectStore } from './workspace';
 
 /** Carpeta de trabajo por omisión (relativa al directorio actual). */
@@ -375,7 +375,7 @@ export function registerProject(program: Command, registry: ModuleRegistry): voi
 
   addTraceViewOptions(
     sub('trace')
-      .description('Trazabilidad dentro de un proyecto: enlaces por URN entre sus diagramas (de módulos distintos o del mismo), referencias sin resolver y, con --from, qué alcanza un elemento')
+      .description('Trazabilidad dentro de un proyecto: enlaces tipados por URN entre sus diagramas (de módulos distintos o del mismo), referencias sin resolver, huérfanos, matriz, cobertura y, con --from, qué alcanza un elemento')
       .argument('<proyecto>', 'id o nombre'),
   )
     .option('-o, --out <archivo>', 'archivo de salida (por omisión, stdout)')
@@ -386,6 +386,6 @@ export function registerProject(program: Command, registry: ModuleRegistry): voi
       const trace = projectTrace(await snapshotProject(store, found.id), registry);
       for (const skipped of trace.skipped) info(`aviso: se omite el diagrama «${skipped.name}» (${skipped.module}): ${skipped.detail}`);
       const owners = Object.fromEntries([...trace.owners].map(([urn, diagrams]) => [urn, diagrams.map((d) => ({ id: d.id, name: d.name, module: d.module }))]));
-      writeOutput(opts.out, await renderTrace(trace.graph, opts, { project: { id: found.id, name: found.name }, owners, skipped: trace.skipped }));
+      emitTrace(opts.out, await buildTraceOutput(trace.graph, opts, registry.ids(), { project: { id: found.id, name: found.name }, owners, skipped: trace.skipped }));
     });
 }

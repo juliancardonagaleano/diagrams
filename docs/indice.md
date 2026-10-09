@@ -11,6 +11,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | [importadores.md](importadores.md) | Importar y exportar: `.drawio`, DSL de Structurizr y Mermaid; tabla de los formatos de cada módulo. |
 | [proyectos.md](proyectos.md) | Proyectos: carpeta de trabajo y `iark project`, API HTTP de proyectos, proyectos en el navegador y guardar en un servidor propio. |
 | [trazabilidad.md](trazabilidad.md) | Enlaces entre módulos por URN (`iark trace`, `trazabilidad.html`). |
+| [plugins.md](plugins.md) | Módulos de terceros sin tocar el repositorio: `iark.config.json`, escribir un módulo paso a paso (ejemplo en `examples/plugin-riesgos/`), seguridad, `iark serve` y Docker, paquetes `@iark/*` y qué no hace (el sitio web no los carga). |
 
 ## Módulos (especialidades)
 
@@ -31,6 +32,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | [embebido.md](embebido.md) | Embeber en otra aplicación: iframe + `postMessage`, SDK de anfitrión, protocolo de módulos, Web Component `<iark-module>` y federación por manifiesto. |
 | [servicio.md](servicio.md) | `iark serve`: rutas de la API, imagen Docker y servidor para varias personas con tokens (roles, CORS, HTTPS, límites). |
 | [cuentas-github.md](cuentas-github.md) | Servicio gestionado con inicio de sesión de GitHub: flujo, quién ve qué, compartir proyectos y administrar cuentas. |
+| [observabilidad.md](observabilidad.md) | Operar `iark serve`: `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz` y `/readyz`, métricas de Prometheus, rotación de registros y datos personales. |
 
 ## Despliegue
 
@@ -38,13 +40,14 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 |---|---|
 | [despliegue-pages.md](despliegue-pages.md) | El sitio estático en GitHub Pages (workflow, rama `gh-pages`, URL). |
 | [despliegue-nube.md](despliegue-nube.md) | Guía paso a paso del servicio con servidor: OAuth App de GitHub, DNS, primer arranque, copias de seguridad y actualización. |
-| [`deploy/`](../deploy/README.md) | Los archivos de esa guía: `docker-compose.yml` con Caddy, `Caddyfile` y `.env.example`. |
+| [`deploy/`](../deploy/README.md) | Los archivos de esa guía: `docker-compose.yml` con Caddy (registros a la salida estándar y `HEALTHCHECK` en `/healthz`), `Caddyfile` y `.env.example`. |
 
 ## Desarrollo y proyecto
 
 | Documento | Qué cuenta |
 |---|---|
-| [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, decisiones de diseño y trampas conocidas. |
+| [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, paquetes publicables (`packages:build`, `packages:check`, publicar en npm), decisiones de diseño y trampas conocidas. |
+| [versionado-documentos.md](versionado-documentos.md) | Cómo evoluciona un esquema sin romper lo guardado: `documentVersion` y migraciones por módulo (`iark migrate`), `contractVersion` del contrato `DomainModule` (el que cumple un [módulo de terceros](plugins.md)) y negociación de la versión del protocolo embebido y del manifiesto. |
 | [roadmap.md](roadmap.md) | Visión, estado actual, pendientes reales, límites conocidos y el plan de robustecimiento en cuatro fases. |
 | [historial.md](historial.md) | Lo ya hecho, por fases y por tandas, y el plan original de la suite. |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) · [SECURITY.md](../SECURITY.md) · [CHANGELOG.md](../CHANGELOG.md) · [LICENSE](../LICENSE) | Cómo contribuir, cómo informar de una vulnerabilidad, qué cambió en cada versión y la licencia. |

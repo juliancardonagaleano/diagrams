@@ -135,6 +135,12 @@
           "ref": {
             "type": "string"
           },
+          "refType": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Tipo del enlace que declara `ref` (vocabulario abierto; sugeridos: depends-on, implements, deploys, protects, realizes, derives, documents). Sin él, el enlace es «depends-on»."
+          },
           "tags": {
             "type": "array",
             "items": {

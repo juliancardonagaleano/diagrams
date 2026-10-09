@@ -1,0 +1,260 @@
+{
+  "case": "ventas-lakehouse",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Un caso de linaje: orígenes, lakehouse, almacén con datos personales, informe y relación entre tablas.",
+  "promptSha256": "e5841a35d9cc01378f293da46f6632feba0083e543c45e153e018bfd66ce32e0",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "Analítica de ventas",
+          "description": "Del CRM y los pedidos al almacén de ventas"
+        },
+        "domains": [
+          {
+            "id": "ventas",
+            "name": "Ventas",
+            "description": null,
+            "owner": "Equipo de Datos de Ventas"
+          }
+        ],
+        "assets": [
+          {
+            "id": "crm",
+            "kind": "source",
+            "name": "CRM",
+            "description": null,
+            "technology": "SaaS",
+            "engine": null,
+            "owner": null,
+            "steward": null,
+            "domainId": "ventas",
+            "parentId": null,
+            "classification": null,
+            "pii": null,
+            "retention": null,
+            "external": true,
+            "columns": null,
+            "inputPorts": null,
+            "outputPorts": null,
+            "exposes": null,
+            "freshness": null,
+            "sla": null,
+            "protocol": null,
+            "endpoint": null
+          },
+          {
+            "id": "pedidos-db",
+            "kind": "database",
+            "name": "Base de pedidos",
+            "description": null,
+            "technology": "PostgreSQL",
+            "engine": "postgresql",
+            "owner": "Equipo Pedidos",
+            "steward": null,
+            "domainId": "ventas",
+            "parentId": null,
+            "classification": null,
+            "pii": null,
+            "retention": null,
+            "external": null,
+            "columns": null,
+            "inputPorts": null,
+            "outputPorts": null,
+            "exposes": null,
+            "freshness": null,
+            "sla": null,
+            "protocol": null,
+            "endpoint": null
+          },
+          {
+            "id": "lakehouse",
+            "kind": "lake",
+            "name": "Lakehouse",
+            "description": null,
+            "technology": "Delta Lake",
+            "engine": null,
+            "owner": null,
+            "steward": null,
+            "domainId": "ventas",
+            "parentId": null,
+            "classification": null,
+            "pii": null,
+            "retention": null,
+            "external": null,
+            "columns": null,
+            "inputPorts": null,
+            "outputPorts": null,
+            "exposes": null,
+            "freshness": null,
+            "sla": null,
+            "protocol": null,
+            "endpoint": null
+          },
+          {
+            "id": "almacen",
+            "kind": "warehouse",
+            "name": "Almacén de ventas",
+            "description": null,
+            "technology": "Snowflake",
+            "engine": null,
+            "owner": null,
+            "steward": null,
+            "domainId": "ventas",
+            "parentId": null,
+            "classification": null,
+            "pii": null,
+            "retention": null,
+            "external": null,
+            "columns": null,
+            "inputPorts": null,
+            "outputPorts": null,
+            "exposes": null,
+            "freshness": null,
+            "sla": null,
+            "protocol": null,
+            "endpoint": null
+          },
+          {
+            "id": "clientes",
+            "kind": "table",
+            "name": "clientes",
+            "description": null,
+            "technology": null,
+            "engine": null,
+            "owner": "Equipo de Datos de Ventas",
+            "steward": null,
+            "domainId": "ventas",
+            "parentId": "almacen",
+            "classification": "confidential",
+            "pii": true,
+            "retention": null,
+            "external": null,
+            "columns": null,
+            "inputPorts": null,
+            "outputPorts": null,
+            "exposes": null,
+            "freshness": null,
+            "sla": null,
+            "protocol": null,
+            "endpoint": null
+          },
+          {
+            "id": "fact-ventas",
+            "kind": "table",
+            "name": "fact_ventas",
+            "description": null,
+            "technology": null,
+            "engine": null,
+            "owner": null,
+            "steward": null,
+            "domainId": "ventas",
+            "parentId": "almacen",
+            "classification": "internal",
+            "pii": null,
+            "retention": null,
+            "external": null,
+            "columns": null,
+            "inputPorts": null,
+            "outputPorts": null,
+            "exposes": null,
+            "freshness": null,
+            "sla": null,
+            "protocol": null,
+            "endpoint": null
+          },
+          {
+            "id": "informe-ventas",
+            "kind": "report",
+            "name": "Ventas mensuales",
+            "description": null,
+            "technology": null,
+            "engine": null,
+            "owner": "Equipo Comercial",
+            "steward": null,
+            "domainId": "ventas",
+            "parentId": null,
+            "classification": "internal",
+            "pii": null,
+            "retention": null,
+            "external": null,
+            "columns": null,
+            "inputPorts": null,
+            "outputPorts": null,
+            "exposes": null,
+            "freshness": null,
+            "sla": null,
+            "protocol": null,
+            "endpoint": null
+          }
+        ],
+        "pipelines": [
+          {
+            "id": "carga-lakehouse",
+            "name": "Carga nocturna al lakehouse",
+            "kind": "replication",
+            "inputs": [
+              "crm",
+              "pedidos-db"
+            ],
+            "outputs": [
+              "lakehouse"
+            ],
+            "tool": "Airbyte",
+            "schedule": "cada noche a las 02:00",
+            "description": null,
+            "owner": null,
+            "anonymizes": null,
+            "mappings": null
+          },
+          {
+            "id": "elt-ventas",
+            "name": "ELT de ventas",
+            "kind": "elt",
+            "inputs": [
+              "lakehouse"
+            ],
+            "outputs": [
+              "clientes",
+              "fact-ventas"
+            ],
+            "tool": "dbt",
+            "schedule": "cada noche a las 04:00",
+            "description": null,
+            "owner": null,
+            "anonymizes": null,
+            "mappings": null
+          },
+          {
+            "id": "publica-informe",
+            "name": "Actualiza el informe de ventas",
+            "kind": "batch",
+            "inputs": [
+              "fact-ventas"
+            ],
+            "outputs": [
+              "informe-ventas"
+            ],
+            "tool": null,
+            "schedule": "cada mañana a las 07:00",
+            "description": null,
+            "owner": null,
+            "anonymizes": null,
+            "mappings": null
+          }
+        ],
+        "relations": [
+          {
+            "id": "ventas-clientes",
+            "sourceId": "fact-ventas",
+            "targetId": "clientes",
+            "cardinality": "N:1",
+            "description": "Cada venta es de un cliente",
+            "sourceMin": null,
+            "targetMin": null
+          }
+        ],
+        "terms": []
+      }
+    }
+  ]
+}

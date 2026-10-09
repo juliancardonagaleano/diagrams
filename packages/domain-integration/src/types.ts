@@ -58,6 +58,8 @@ export interface IntegrationNode {
   parentId?: string;
   /** Referencia a un elemento de otro módulo (`urn:iark:c4:tienda`). */
   ref?: string;
+  /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
+  refType?: string;
   tags?: string[];
   /** Contrato que describe este nodo (la OpenAPI de una API, el JSON de un servidor MCP, el evento de un tópico…). */
   contractId?: string;

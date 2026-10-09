@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { HttpError } from '../httpError';
 import { bearerToken, clientAddress, FailureLimiter, type Authenticator } from '../serveAuth';
 import { GithubError } from './github';
-import type { Accounts } from './service';
+import type { Accounts, PublicUser } from './service';
 import { AccountError, SESSION_PREFIX } from './store';
 
 /**
@@ -106,6 +106,13 @@ export interface AuthApiContext {
   sendJson(res: ServerResponse, status: number, value: unknown, headers?: Record<string, string>): void;
   /** El reloj en milisegundos para los plazos y topes (las pruebas lo adelantan). */
   now?: () => number;
+  /** Para la auditoría (`observability/`): una persona completó el inicio de sesión, es decir, cambió su código por una sesión. */
+  onLogin?(req: IncomingMessage, user: PublicUser): void;
+  /**
+   * Para la auditoría: un intento de iniciar sesión que no llegó a sesión. `reason` es un código estable (`access_denied`, `not_invited`,
+   * `disabled`, `state-mismatch`, `invalid-grant`, `github_unavailable`, `login_failed`) y `login` el nombre de GitHub, si se llegó a saber.
+   */
+  onLoginFailed?(req: IncomingMessage, failure: { reason: string; result: 'denied' | 'error'; login?: string }): void;
 }
 
 const PAGE = (message: string): string =>
@@ -184,26 +191,31 @@ export function createAuthApi(ctx: AuthApiContext): (req: IncomingMessage, res: 
     logins.delete(state);
     const bound = cookie(req, COOKIE);
     if (!pending || pending.expires <= wall() || !bound || !sameText(bound, state)) {
+      ctx.onLoginFailed?.(req, { reason: 'state-mismatch', result: 'denied' });
       return ctx.send(res, 400, PAGE('El inicio de sesión caducó o no se empezó desde este navegador. Vuelve a empezar desde IArk.'), { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': cookieHeader('', 0) });
     }
-    const fail = (reason: string): void => back(res, pending.redirect, { iark_error: reason });
+    const fail = (reason: string, result: 'denied' | 'error' = 'denied', login?: string): void => {
+      ctx.onLoginFailed?.(req, { reason, result, login });
+      back(res, pending.redirect, { iark_error: reason });
+    };
     if (url.searchParams.get('error')) return fail('access_denied'); // la persona no aceptó en GitHub
     const code = url.searchParams.get('code');
-    if (!code || code.length > 512) return fail('login_failed');
+    if (!code || code.length > 512) return fail('login_failed', 'error');
+    let profile: Awaited<ReturnType<typeof github.profileFromCode>> | undefined;
     let user;
     try {
-      const profile = await github.profileFromCode(code, accounts.callbackUrl);
+      profile = await github.profileFromCode(code, accounts.callbackUrl);
       user = accounts.store.signIn(profile, { signup: accounts.signup, admin: accounts.isAdminProfile(profile) });
     } catch (error) {
-      if (error instanceof AccountError && error.code === 'not-invited') return fail('not_invited');
-      if (error instanceof AccountError && error.code === 'disabled') return fail('disabled');
+      if (error instanceof AccountError && error.code === 'not-invited') return fail('not_invited', 'denied', profile?.login);
+      if (error instanceof AccountError && error.code === 'disabled') return fail('disabled', 'denied', profile?.login);
       if (error instanceof GithubError) {
         // Para quien opera el servicio (un Client secret equivocado es el error más común): el motivo, nunca el código ni el secreto.
         process.stderr.write(`inicio de sesión: GitHub no lo aceptó (${error.code}): ${error.message}\n`);
-        return fail(error.code === 'unavailable' ? 'github_unavailable' : 'login_failed');
+        return error.code === 'unavailable' ? fail('github_unavailable', 'error') : fail('login_failed', 'error');
       }
       process.stderr.write(`error al iniciar sesión: ${(error as Error).message}\n`);
-      return fail('login_failed');
+      return fail('login_failed', 'error', profile?.login);
     }
     trim(codes);
     const issued = randomBytes(32).toString('base64url');
@@ -227,6 +239,7 @@ export function createAuthApi(ctx: AuthApiContext): (req: IncomingMessage, res: 
     }
     const invalid = (): HttpError => {
       exchanges.fail(address);
+      ctx.onLoginFailed?.(req, { reason: 'invalid-grant', result: 'denied' });
       return new HttpError(400, 'El código de inicio de sesión no es válido o caducó: vuelve a iniciar sesión.', { code: 'invalid-grant' });
     };
     if (!body || typeof body.code !== 'string' || typeof body.verifier !== 'string' || body.code.length > 512 || !VERIFIER.test(body.verifier)) throw invalid();
@@ -238,6 +251,7 @@ export function createAuthApi(ctx: AuthApiContext): (req: IncomingMessage, res: 
     const user = accounts.store.findUser(found.userId);
     if (!user || user.disabled) throw invalid();
     const session = accounts.store.createSession(user.id, accounts.sessionTtlMs);
+    ctx.onLogin?.(req, accounts.publicUser(user));
     ctx.sendJson(res, 200, { token: session.token, expiresAt: session.expiresAt, user: accounts.publicUser(user) });
   }
 

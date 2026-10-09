@@ -42,6 +42,59 @@ test.describe('vista de trazabilidad entre módulos', () => {
     await expect(page.getByRole('img', { name: /Alcance de Servicio de pedidos \(integration:pedidos\): 2 elementos/ })).toBeVisible();
   });
 
+  test('enlaces tipados: filtro por tipo, matriz con desglose, huérfanos y cobertura sobre los ejemplos', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto('/trazabilidad.html?examples=1&tab=links', { waitUntil: 'domcontentloaded' });
+    const summary = page.locator('#summary');
+    await expect(summary).toContainText('6 documentos · 15 enlaces');
+
+    // cada enlace muestra su tipo y el filtro deja ver solo los marcados
+    await expect(page.locator('.tr-link-type.typed', { hasText: 'protects' })).toHaveCount(5);
+    await page.getByRole('checkbox', { name: 'implements (4)' }).check();
+    await expect(summary).toContainText('6 documentos · 4 de 15 enlaces');
+    await expect(page.getByRole('heading', { name: 'Plataforma → Integración (4)' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Seguridad → Plataforma/ })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Todos' }).click();
+    await expect(summary).toContainText('6 documentos · 15 enlaces');
+
+    // matriz: cabeceras con scope, el número exacto en cada celda y el desglose por tipo
+    await page.getByRole('tab', { name: 'Matriz' }).click();
+    const matrix = page.getByRole('table', { name: /Enlaces por módulo/ });
+    await expect(matrix).toBeVisible();
+    await expect(matrix.locator('thead th[scope="col"]').first()).toHaveText('Origen \\ Destino');
+    await expect(matrix.locator('tbody th[scope="row"]')).toHaveCount(4);
+    const cell = matrix.locator('td[data-count="5"]');
+    await expect(cell).toHaveText('5');
+    await expect(cell).toHaveAttribute('title', /5 enlaces de Seguridad a Plataforma: protects 5/);
+    await expect(page.getByRole('table', { name: 'Desglose por tipo de enlace' })).toBeVisible();
+    await page.getByLabel('Cruzar por').selectOption('kind');
+    await expect(page.getByRole('table', { name: /Enlaces por tipo de elemento/ })).toBeVisible();
+
+    // huérfanos: las cuatro zonas de seguridad no tienen ningún enlace
+    await page.getByRole('tab', { name: 'Huérfanos' }).click();
+    await page.locator('#orphans-module').selectOption('security');
+    await page.locator('#orphans-kind').selectOption('zone');
+    await expect(page.locator('.tr-summary')).toHaveText('4 de 4 elementos no tienen ningún enlace.');
+    await expect(page.getByRole('heading', { name: 'Seguridad · zone (4 de 4)' })).toBeVisible();
+
+    // cobertura: dos reglas medidas contra el mínimo (100 % por omisión) y una línea mala que no impide medir las demás
+    await page.getByRole('tab', { name: 'Cobertura' }).click();
+    await page.getByLabel('Reglas de cobertura').fill('security:asset -> platform\nplatform:service -> integration\nnada -> platform');
+    await page.getByRole('button', { name: 'Medir' }).click();
+    await expect(page.getByRole('alert')).toContainText('Línea 3');
+    const assets = page.locator('tr[data-rule="security:asset -> platform"]');
+    await expect(assets).toContainText('45,5 %');
+    await expect(assets).toContainText('por debajo del mínimo');
+    await expect(page.locator('tr[data-rule="platform:service -> integration"]')).toContainText('66,7 %');
+    await expect(page.getByText('SIN cubrir (6)')).toBeVisible();
+
+    await page.getByLabel('Mínimo (%)').fill('40');
+    await page.getByRole('button', { name: 'Medir' }).click();
+    await expect(assets).toContainText('cumple');
+    expect(errors).toEqual([]);
+  });
+
   test('documentos por archivo o pegados: un módulo sin su destino deja la referencia sin resolver y un JSON roto no borra nada', async ({ page }) => {
     await page.goto('/trazabilidad.html', { waitUntil: 'domcontentloaded' });
     const security = page.locator('section[data-module="security"]');

@@ -1,5 +1,5 @@
 import type { DomainModule, EntityRef, Exporter, Importer, ModuleIssue, ViewRef } from '@iark/kernel';
-import { looksLikeMermaid, sourceFilesOf } from '@iark/kernel';
+import { CONTRACT_VERSION, looksLikeMermaid, sourceFilesOf } from '@iark/kernel';
 import { platformAiSpec } from './ai/generation';
 import { platformCommands } from './commands';
 import { platformEditor } from './editor';
@@ -112,6 +112,7 @@ export const platformModule: DomainModule<PlatformDocument> = {
   name: 'Arquitectura de plataforma',
   version: '0.1.0',
   description: 'Entornos, redes, recursos, servicios, despliegues y pipelines, con topología, despliegue por entorno e impacto; importa de Mermaid, Terraform, Kubernetes, CloudFormation y Helm y exporta a Mermaid, SVG y draw.io.',
+  contractVersion: CONTRACT_VERSION,
   documentVersion: PLATFORM_DOCUMENT_VERSION,
   schema: platformDocumentSchema as unknown as DomainModule<PlatformDocument>['schema'],
   jsonSchema: platformJsonSchema,

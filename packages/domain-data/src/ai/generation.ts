@@ -253,4 +253,10 @@ export const dataAiSpec: AiSpec<DataDocument> = {
   },
   retry: (issues) => `El modelo devuelto no pasó la validación. Corrige estos problemas y devuelve el modelo completo de nuevo:\n${issues}`,
   toDocument: (generated) => generatedToData(generated as GeneratedData),
+  // Para `iark explain` y `iark review`: la proyección compacta del documento y qué destacar y qué mirar en este módulo.
+  serialize: toGenerated,
+  explainGuide:
+    'Cuenta de dónde nacen los datos (fuentes), por qué pipelines pasan y dónde terminan (almacenes, informes, modelos, APIs); explica las tablas y sus relaciones si hay modelo entidad-relación; di quién es dueño de cada activo y su clasificación o si contiene datos personales, y las definiciones del glosario si las hay.',
+  reviewGuide:
+    'Mira: activos sin dueño o sin custodio; datos personales (pii) o clasificación confidencial sin control visible en el destino; informes o modelos sin un pipeline que los alimente; pipelines con entradas o salidas que no existen en el linaje; tablas sin clave primaria o relaciones sin cardinalidad; la misma información duplicada en varios activos sin una fuente de verdad; productos de datos sin frescura ni SLA; APIs de datos que exponen activos sensibles; términos del glosario sin definición, sin responsable o sin enlazar a ningún activo.',
 };

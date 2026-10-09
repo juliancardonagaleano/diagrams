@@ -176,6 +176,67 @@ describe('iark serve: API por módulo', () => {
     expect((await twice.json()).error).toMatch(/aparece más de una vez/);
   });
 
+  it('POST /api/trace: cada enlace trae su tipo y, sin los campos nuevos, la respuesta es la de siempre', async () => {
+    const documents = [
+      { module: 'security', document: JSON.parse(security) },
+      { module: 'platform', document: JSON.parse(example('plataforma-ejemplo.json')) },
+      { module: 'integration', document: JSON.parse(example('pedidos-integracion.json')) },
+    ];
+    const plain = await (await post('/api/trace', JSON.stringify({ documents }))).json();
+    expect(Object.keys(plain).sort()).toEqual(['graph', 'mermaid', 'report', 'svg']);
+    expect(plain.graph.links).toHaveLength(11);
+    expect(plain.graph.links.map((l: { type: string }) => l.type).sort()).toEqual(['deploys', 'deploys', 'implements', 'implements', 'implements', 'implements', 'protects', 'protects', 'protects', 'protects', 'protects']);
+    expect(plain.graph.notices).toEqual([]);
+    expect(plain.mermaid).toContain('-.->|protects|');
+    expect(plain.report).toContain('Por tipo: protects 5, implements 4, deploys 2.');
+  });
+
+  it('POST /api/trace: types filtra los enlaces; orphans, matrix y coverage añaden sus informes', async () => {
+    const documents = [
+      { module: 'security', document: JSON.parse(security) },
+      { module: 'platform', document: JSON.parse(example('plataforma-ejemplo.json')) },
+      { module: 'integration', document: JSON.parse(example('pedidos-integracion.json')) },
+    ];
+    const ask = async (extra: Record<string, unknown>) => (await post('/api/trace', JSON.stringify({ documents, ...extra }))).json();
+
+    const typed = await ask({ types: ['implements'] });
+    expect(typed.types).toEqual(['implements']);
+    expect(typed.graph.links).toHaveLength(4);
+    expect((typed.mermaid.match(/-\.->/g) ?? []).length).toBe(4);
+    const reach = await ask({ types: ['implements'], from: 'urn:iark:integration:pedidos', direction: 'referrers' });
+    expect(reach.reached.map((r: { node: { urn: string } }) => r.node.urn)).toEqual(['urn:iark:integration:pedidos', 'urn:iark:platform:pedidos']);
+
+    const full = await ask({ orphans: true, matrix: 'module', coverage: ['security:asset -> platform', 'platform:service -> integration'] });
+    expect(full.orphans).toMatchObject({ filter: {}, count: expect.any(Number) });
+    expect(full.matrix).toMatchObject({ by: 'module', total: 11, rows: ['security', 'platform'] });
+    expect(full.coverage).toHaveLength(2);
+    expect(full.coverage[0]).toMatchObject({ applicable: true, total: 11, percent: 45.5 });
+    expect(full.coverage[0].uncovered.map((n: { id: string }) => n.id)).toContain('cliente');
+    expect(full.coverage[1].rule.text).toBe('platform:service -> integration');
+
+    const scoped = await ask({ orphans: 'security:zone' });
+    expect(scoped.orphans.filter).toEqual({ module: 'security', kind: 'zone' });
+    expect(scoped.orphans.count).toBe(4);
+    expect((await ask({ orphans: { module: 'platform', kind: 'service' } })).orphans.groups).toHaveLength(1);
+    expect((await ask({ matrix: true })).matrix.by).toBe('module');
+    expect((await ask({ matrix: 'kind' })).matrix.by).toBe('kind');
+
+    // los errores de uso son 400 con un mensaje que dice qué campo
+    const bad = async (extra: Record<string, unknown>) => {
+      const response = await post('/api/trace', JSON.stringify({ documents, ...extra }));
+      return { status: response.status, error: (await response.json()).error as string };
+    };
+    expect(await bad({ types: 'implements' })).toMatchObject({ status: 400, error: expect.stringMatching(/"types"/) });
+    expect(await bad({ types: ['Mal Tipo'] })).toMatchObject({ status: 400 });
+    expect(await bad({ orphans: 'nada' })).toMatchObject({ status: 400, error: expect.stringMatching(/"orphans": no existe el módulo «nada»/) });
+    expect(await bad({ orphans: 'data' })).toMatchObject({ status: 400, error: expect.stringMatching(/«data» no está entre los documentos aportados/) });
+    expect(await bad({ orphans: 3 })).toMatchObject({ status: 400 });
+    expect(await bad({ matrix: 'raro' })).toMatchObject({ status: 400, error: expect.stringMatching(/"matrix"/) });
+    expect(await bad({ coverage: 'security -> platform' })).toMatchObject({ status: 400, error: expect.stringMatching(/"coverage"/) });
+    expect(await bad({ coverage: ['sin flecha'] })).toMatchObject({ status: 400, error: expect.stringMatching(/forma origen -> destino/) });
+    expect(await bad({ coverage: ['nada -> platform'] })).toMatchObject({ status: 400, error: expect.stringMatching(/no existe el módulo «nada»/) });
+  });
+
   it('responde 404 al módulo o la acción desconocidos y 405 (con Allow) al método equivocado', async () => {
     const unknown = await fetch(`${base}/api/nada/capabilities`);
     expect(unknown.status).toBe(404);

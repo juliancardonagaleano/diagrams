@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { documentSchema } from '@core/model/schema';
+import { EMBED_PROTOCOL_VERSION } from '@iark/kernel/protocol';
+import { validateDocument } from '@core/model/schema';
 import type { C4Document, LayoutDirection } from '@core/model/types';
 
 /**
@@ -7,17 +8,38 @@ import type { C4Document, LayoutDirection } from '@core/model/types';
  * (`?embed=1&proto=json`), inspirado en el de draw.io (embed.diagrams.net).
  * Los mensajes son objetos JSON (o su serialización) con `event` (iframe → host)
  * o `action` (host → iframe).
+ *
+ * Versión: `PROTOCOL_VERSION` (`mayor.menor`). El `init` del iframe la lleva en `version` y la primera acción `load` del
+ * anfitrión en `version`; cada lado la compara con la suya (`negotiateProtocol`) y, si la mayor difiere, emite un `error` con
+ * `code: 'incompatible-protocol'` en vez de funcionar a medias. Un lado que no la declara habla 1.0; lo desconocido se ignora.
  */
 
-export const PROTOCOL_VERSION = '1.0';
+export const PROTOCOL_VERSION = EMBED_PROTOCOL_VERSION;
 
 export type ExportFormat = 'json' | 'drawio' | 'svg' | 'png';
 
 // ───────────── host → iframe (action) ─────────────
 
+/**
+ * Documento C4 de una acción: el objeto o su texto JSON. El objeto se valida ya aquí con el esquema del módulo (así un
+ * documento inválido se rechaza con su motivo, p. ej. «padre inexistente»), pero MIGRANDO antes lo que venga de una versión
+ * anterior del formato (`validateDocument`); el texto se valida al aplicarlo. El valor que llega a la acción es el original,
+ * no el normalizado: quien lo aplica lo vuelve a pasar por `validateDocument`.
+ */
+const incomingDocument = z
+  .custom<C4Document | string>((value) => typeof value === 'string' || (!!value && typeof value === 'object' && !Array.isArray(value)), 'El documento debe ser un objeto o un texto JSON')
+  .superRefine((value, ctx) => {
+    if (typeof value === 'string') return;
+    const result = validateDocument(value);
+    if (result.ok) return;
+    for (const issue of result.issues) ctx.addIssue({ code: 'custom', path: issue.path ? issue.path.split('.') : [], message: issue.message });
+  });
+
 export const loadActionSchema = z.object({
   action: z.literal('load'),
-  document: z.union([documentSchema, z.string()]).optional(),
+  /** Versión del protocolo (`mayor.menor`) que habla el anfitrión; el SDK la añade siempre. Omitida vale 1.0. */
+  version: z.string().optional(),
+  document: incomingDocument.optional(),
   autosave: z.boolean().optional(),
   title: z.string().optional(),
   readOnly: z.boolean().optional(),
@@ -37,7 +59,7 @@ export const configureActionSchema = z.object({
 
 export const mergeActionSchema = z.object({
   action: z.literal('merge'),
-  document: z.union([documentSchema, z.string()]),
+  document: incomingDocument,
   autoLayout: z.boolean().optional(),
 });
 
@@ -126,6 +148,8 @@ export interface ErrorEvent {
   message: string;
   issues?: Array<{ path: string; message: string }>;
   requestId?: string;
+  /** Qué clase de error es, si el anfitrión puede actuar según ella: `incompatible-protocol` (la versión mayor del protocolo difiere). */
+  code?: string;
 }
 export interface LayoutDoneEvent {
   event: 'autoLayout';

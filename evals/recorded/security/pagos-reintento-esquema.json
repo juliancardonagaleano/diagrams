@@ -1,0 +1,463 @@
+{
+  "case": "pagos-reintento-esquema",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. La primera respuesta cumple el esquema de salida pero un flujo parte de un activo que no existe: la conversión al documento falla (referencia inexistente), el bucle reintenta por el esquema con ese mensaje y la segunda respuesta lo corrige.",
+  "promptSha256": "c976bc3ac549cccea49138cc25563601405f8f86bfe522c9a3d10a83c8bb4f53",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "API de pagos",
+          "description": "Modelo de amenazas de una API de pagos expuesta a internet"
+        },
+        "zones": [
+          {
+            "id": "internet",
+            "name": "Internet",
+            "trust": "untrusted",
+            "parentId": null,
+            "description": null
+          },
+          {
+            "id": "perimetro",
+            "name": "Perímetro",
+            "trust": "dmz",
+            "parentId": null,
+            "description": null
+          },
+          {
+            "id": "interna",
+            "name": "Red interna",
+            "trust": "internal",
+            "parentId": null,
+            "description": null
+          },
+          {
+            "id": "datos",
+            "name": "Zona de datos",
+            "trust": "restricted",
+            "parentId": null,
+            "description": null
+          }
+        ],
+        "assets": [
+          {
+            "id": "cliente",
+            "name": "Cliente",
+            "kind": "actor",
+            "zoneId": "internet",
+            "description": null,
+            "technology": null,
+            "owner": null,
+            "classification": null,
+            "encryptedAtRest": null,
+            "authentication": null,
+            "rotation": null,
+            "encrypted": null
+          },
+          {
+            "id": "waf",
+            "name": "WAF",
+            "kind": "process",
+            "zoneId": "perimetro",
+            "description": null,
+            "technology": "WAF gestionado",
+            "owner": null,
+            "classification": null,
+            "encryptedAtRest": null,
+            "authentication": null,
+            "rotation": null,
+            "encrypted": null
+          },
+          {
+            "id": "api",
+            "name": "API de pagos",
+            "kind": "process",
+            "zoneId": "interna",
+            "description": null,
+            "technology": "Java, Spring Boot",
+            "owner": null,
+            "classification": "confidential",
+            "encryptedAtRest": null,
+            "authentication": null,
+            "rotation": null,
+            "encrypted": null
+          },
+          {
+            "id": "db",
+            "name": "Base de tarjetas",
+            "kind": "datastore",
+            "zoneId": "datos",
+            "description": null,
+            "technology": "PostgreSQL",
+            "owner": null,
+            "classification": "restricted",
+            "encryptedAtRest": true,
+            "authentication": null,
+            "rotation": null,
+            "encrypted": null
+          },
+          {
+            "id": "secretos",
+            "name": "Gestor de secretos",
+            "kind": "secret",
+            "zoneId": "datos",
+            "description": null,
+            "technology": null,
+            "owner": null,
+            "classification": null,
+            "encryptedAtRest": true,
+            "authentication": null,
+            "rotation": true,
+            "encrypted": null
+          }
+        ],
+        "flows": [
+          {
+            "id": "f-cliente-waf",
+            "sourceId": "cliente",
+            "targetId": "waf",
+            "description": "Peticiones de pago",
+            "protocol": "HTTPS",
+            "classification": null,
+            "encrypted": true,
+            "authentication": "token"
+          },
+          {
+            "id": "f-waf-api",
+            "sourceId": "gateway",
+            "targetId": "api",
+            "description": null,
+            "protocol": "HTTPS",
+            "classification": null,
+            "encrypted": true,
+            "authentication": "mtls"
+          },
+          {
+            "id": "f-api-db",
+            "sourceId": "api",
+            "targetId": "db",
+            "description": "Guarda tarjetas tokenizadas",
+            "protocol": "PostgreSQL sobre TLS",
+            "classification": "restricted",
+            "encrypted": true,
+            "authentication": "password"
+          },
+          {
+            "id": "f-api-secretos",
+            "sourceId": "api",
+            "targetId": "secretos",
+            "description": "Lee las credenciales de la pasarela",
+            "protocol": "HTTPS",
+            "classification": null,
+            "encrypted": true,
+            "authentication": "mtls"
+          }
+        ],
+        "threats": [
+          {
+            "id": "t-suplantacion",
+            "title": "Suplantación de un cliente con un token robado",
+            "category": "spoofing",
+            "targetId": "f-cliente-waf",
+            "likelihood": "medium",
+            "impact": "high",
+            "status": "open",
+            "description": null,
+            "controlIds": [
+              "c-mfa"
+            ]
+          },
+          {
+            "id": "t-exfiltracion",
+            "title": "Exfiltración de tarjetas de la base de datos",
+            "category": "information-disclosure",
+            "targetId": "db",
+            "likelihood": "low",
+            "impact": "critical",
+            "status": "mitigated",
+            "description": null,
+            "controlIds": [
+              "c-cifrado",
+              "c-aislamiento"
+            ]
+          },
+          {
+            "id": "t-inyeccion",
+            "title": "Inyección SQL contra la API de pagos",
+            "category": "tampering",
+            "targetId": "api",
+            "likelihood": "medium",
+            "impact": "high",
+            "status": "mitigated",
+            "description": null,
+            "controlIds": [
+              "c-waf"
+            ]
+          }
+        ],
+        "controls": [
+          {
+            "id": "c-mfa",
+            "name": "Autenticación multifactor en los pagos de importe alto",
+            "kind": "authentication",
+            "status": "planned",
+            "description": null,
+            "owner": null
+          },
+          {
+            "id": "c-cifrado",
+            "name": "Cifrado en reposo con claves gestionadas",
+            "kind": "encryption",
+            "status": "implemented",
+            "description": null,
+            "owner": null
+          },
+          {
+            "id": "c-aislamiento",
+            "name": "La zona de datos solo es accesible desde la API",
+            "kind": "network",
+            "status": "implemented",
+            "description": null,
+            "owner": null
+          },
+          {
+            "id": "c-waf",
+            "name": "Reglas OWASP en el WAF",
+            "kind": "validation",
+            "status": "implemented",
+            "description": null,
+            "owner": null
+          }
+        ]
+      }
+    },
+    {
+      "content": {
+        "workspace": {
+          "name": "API de pagos",
+          "description": "Modelo de amenazas de una API de pagos expuesta a internet"
+        },
+        "zones": [
+          {
+            "id": "internet",
+            "name": "Internet",
+            "trust": "untrusted",
+            "parentId": null,
+            "description": null
+          },
+          {
+            "id": "perimetro",
+            "name": "Perímetro",
+            "trust": "dmz",
+            "parentId": null,
+            "description": null
+          },
+          {
+            "id": "interna",
+            "name": "Red interna",
+            "trust": "internal",
+            "parentId": null,
+            "description": null
+          },
+          {
+            "id": "datos",
+            "name": "Zona de datos",
+            "trust": "restricted",
+            "parentId": null,
+            "description": null
+          }
+        ],
+        "assets": [
+          {
+            "id": "cliente",
+            "name": "Cliente",
+            "kind": "actor",
+            "zoneId": "internet",
+            "description": null,
+            "technology": null,
+            "owner": null,
+            "classification": null,
+            "encryptedAtRest": null,
+            "authentication": null,
+            "rotation": null,
+            "encrypted": null
+          },
+          {
+            "id": "waf",
+            "name": "WAF",
+            "kind": "process",
+            "zoneId": "perimetro",
+            "description": null,
+            "technology": "WAF gestionado",
+            "owner": null,
+            "classification": null,
+            "encryptedAtRest": null,
+            "authentication": null,
+            "rotation": null,
+            "encrypted": null
+          },
+          {
+            "id": "api",
+            "name": "API de pagos",
+            "kind": "process",
+            "zoneId": "interna",
+            "description": null,
+            "technology": "Java, Spring Boot",
+            "owner": null,
+            "classification": "confidential",
+            "encryptedAtRest": null,
+            "authentication": null,
+            "rotation": null,
+            "encrypted": null
+          },
+          {
+            "id": "db",
+            "name": "Base de tarjetas",
+            "kind": "datastore",
+            "zoneId": "datos",
+            "description": null,
+            "technology": "PostgreSQL",
+            "owner": null,
+            "classification": "restricted",
+            "encryptedAtRest": true,
+            "authentication": null,
+            "rotation": null,
+            "encrypted": null
+          },
+          {
+            "id": "secretos",
+            "name": "Gestor de secretos",
+            "kind": "secret",
+            "zoneId": "datos",
+            "description": null,
+            "technology": null,
+            "owner": null,
+            "classification": null,
+            "encryptedAtRest": true,
+            "authentication": null,
+            "rotation": true,
+            "encrypted": null
+          }
+        ],
+        "flows": [
+          {
+            "id": "f-cliente-waf",
+            "sourceId": "cliente",
+            "targetId": "waf",
+            "description": "Peticiones de pago",
+            "protocol": "HTTPS",
+            "classification": null,
+            "encrypted": true,
+            "authentication": "token"
+          },
+          {
+            "id": "f-waf-api",
+            "sourceId": "waf",
+            "targetId": "api",
+            "description": null,
+            "protocol": "HTTPS",
+            "classification": null,
+            "encrypted": true,
+            "authentication": "mtls"
+          },
+          {
+            "id": "f-api-db",
+            "sourceId": "api",
+            "targetId": "db",
+            "description": "Guarda tarjetas tokenizadas",
+            "protocol": "PostgreSQL sobre TLS",
+            "classification": "restricted",
+            "encrypted": true,
+            "authentication": "password"
+          },
+          {
+            "id": "f-api-secretos",
+            "sourceId": "api",
+            "targetId": "secretos",
+            "description": "Lee las credenciales de la pasarela",
+            "protocol": "HTTPS",
+            "classification": null,
+            "encrypted": true,
+            "authentication": "mtls"
+          }
+        ],
+        "threats": [
+          {
+            "id": "t-suplantacion",
+            "title": "Suplantación de un cliente con un token robado",
+            "category": "spoofing",
+            "targetId": "f-cliente-waf",
+            "likelihood": "medium",
+            "impact": "high",
+            "status": "open",
+            "description": null,
+            "controlIds": [
+              "c-mfa"
+            ]
+          },
+          {
+            "id": "t-exfiltracion",
+            "title": "Exfiltración de tarjetas de la base de datos",
+            "category": "information-disclosure",
+            "targetId": "db",
+            "likelihood": "low",
+            "impact": "critical",
+            "status": "mitigated",
+            "description": null,
+            "controlIds": [
+              "c-cifrado",
+              "c-aislamiento"
+            ]
+          },
+          {
+            "id": "t-inyeccion",
+            "title": "Inyección SQL contra la API de pagos",
+            "category": "tampering",
+            "targetId": "api",
+            "likelihood": "medium",
+            "impact": "high",
+            "status": "mitigated",
+            "description": null,
+            "controlIds": [
+              "c-waf"
+            ]
+          }
+        ],
+        "controls": [
+          {
+            "id": "c-mfa",
+            "name": "Autenticación multifactor en los pagos de importe alto",
+            "kind": "authentication",
+            "status": "planned",
+            "description": null,
+            "owner": null
+          },
+          {
+            "id": "c-cifrado",
+            "name": "Cifrado en reposo con claves gestionadas",
+            "kind": "encryption",
+            "status": "implemented",
+            "description": null,
+            "owner": null
+          },
+          {
+            "id": "c-aislamiento",
+            "name": "La zona de datos solo es accesible desde la API",
+            "kind": "network",
+            "status": "implemented",
+            "description": null,
+            "owner": null
+          },
+          {
+            "id": "c-waf",
+            "name": "Reglas OWASP en el WAF",
+            "kind": "validation",
+            "status": "implemented",
+            "description": null,
+            "owner": null
+          }
+        ]
+      }
+    }
+  ]
+}

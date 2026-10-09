@@ -3,6 +3,7 @@ import '@iark/kernel/jitless';
 import '../modules-app/workbench.css';
 import './shell.css';
 import { createIarkEmbed } from '../embed/iark-embed';
+import { INCOMPATIBLE_PROTOCOL_CODE } from '@iark/kernel/protocol';
 import { createIarkModuleEmbed } from '../embed/iark-module-embed';
 import type { ModuleCapabilitiesInfo, ModuleEvent } from '../embed/moduleProtocol';
 import { loadManifest, manifestOrigin, type ResolvedManifest, type ResolvedModule } from './manifest';
@@ -34,6 +35,14 @@ function print(label: string, payload?: unknown): void {
   const line = document.createElement('div');
   line.textContent = `${new Date().toLocaleTimeString()}  ${label}${payload === undefined ? '' : '  ' + JSON.stringify(payload).slice(0, 140)}`;
   log.prepend(line);
+}
+
+/** El iframe (o este SDK) rechazó el apretón de manos por una versión mayor distinta del protocolo: se dice sobre el escenario, no solo en el registro. */
+function reportEmbedError(e: { message: string; code?: string; issues?: unknown }): void {
+  print('error', { message: e.message, ...(e.code ? { code: e.code } : {}), ...(e.issues ? { issues: e.issues } : {}) });
+  if (e.code !== INCOMPATIBLE_PROTOCOL_CODE || stage.querySelector('[data-protocol-problem]')) return;
+  stage.prepend(Object.assign(document.createElement('p'), { className: 'wb-note', role: 'alert', textContent: e.message }));
+  stage.firstElementChild?.setAttribute('data-protocol-problem', '');
 }
 
 function describeModule(m: ResolvedModule, caps?: ModuleCapabilitiesInfo): void {
@@ -90,7 +99,7 @@ function mount(m: ResolvedModule, common: { container: HTMLElement; url: string;
       onInit: () => print('init', { module: m.id }),
       onLoad: ({ document }) => print('load', { module: m.id, elementos: document.model.elements.length }),
       onChange: (document) => print('change', { module: m.id, elementos: document.model.elements.length }),
-      onError: (e) => print('error', e),
+      onError: reportEmbedError,
     });
   } else {
     embed = createIarkModuleEmbed({
@@ -104,7 +113,7 @@ function mount(m: ResolvedModule, common: { container: HTMLElement; url: string;
         } else if (event.event === 'load') print('load', { module: event.module, problemas: event.issues.length });
         else if (event.event === 'change') print('change', { module: event.module, problemas: event.issues.length });
         else if (event.event === 'viewChange') print('viewChange', { viewId: event.viewId });
-        else if (event.event === 'error') print('error', { message: event.message });
+        else if (event.event === 'error') reportEmbedError(event);
       },
     });
   }
@@ -132,8 +141,9 @@ async function connect(typed: string): Promise<void> {
     print('error', { message: (error as Error).message });
     return;
   }
-  state.textContent = `${manifest.name} v${manifest.version} · ${manifest.modules.length} módulos`;
-  print('manifiesto', { url, modulos: manifest.modules.map((m) => m.id) });
+  const apart = manifest.rejected.length > 0 ? ` (${manifest.rejected.length} no compatible${manifest.rejected.length === 1 ? '' : 's'})` : '';
+  state.textContent = `${manifest.name} v${manifest.version} · ${manifest.modules.length} módulos${apart}`;
+  print('manifiesto', { url, protocolo: manifest.protocol, modulos: manifest.modules.map((m) => m.id) });
   for (const m of manifest.modules) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -143,6 +153,14 @@ async function connect(typed: string): Promise<void> {
     button.querySelector('small')!.textContent = `${m.id} · v${m.version}`;
     button.addEventListener('click', () => open(m));
     nav.append(button);
+  }
+  // Los módulos que exigen un contrato más nuevo que el de esta suite no se ofrecen: se avisa por qué en vez de ocultarlos en silencio.
+  for (const rejected of manifest.rejected) {
+    nav.append(Object.assign(document.createElement('p'), { className: 'wb-note', role: 'alert', textContent: rejected.reason }));
+    print('módulo no compatible', { module: rejected.id, motivo: rejected.reason });
+  }
+  if (manifest.modules.length === 0 && manifest.rejected.length > 0) {
+    stage.append(Object.assign(document.createElement('p'), { className: 'wb-empty', textContent: 'Ningún módulo de esta instancia es compatible con esta suite: actualiza IArk.' }));
   }
   const wanted = params.get('module');
   const first = manifest.modules.find((m) => m.id === wanted) ?? manifest.modules.find((m) => m.id !== 'c4') ?? manifest.modules[0];
