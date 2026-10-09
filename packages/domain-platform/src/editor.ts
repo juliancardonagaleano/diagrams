@@ -1,6 +1,6 @@
-import { REF_TYPE_FIELD, uniqueId, type EdgeNotation, type EditResult, type EditorAction, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
+import { REF_TYPE_FIELD, uniqueId, type EdgeNotation, type EditResult, type EditorAction, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeMark, type NodeNotation } from '@iark/kernel';
 import { duplicateEnvironment, findEnvironment, nextEnvironment, promoteDeployments, scaleReplicas, toggleApproval } from './actions';
-import { counterpartErrors, dropCounterparts } from './counterparts';
+import { counterpartErrors, counterpartMarks, dropCounterparts } from './counterparts';
 import { formatCost } from './costs';
 import { drawMatrix, matrixIsDrawn } from './export/matrix';
 import { DEPENDENCY_STYLES, EXPOSURE_ZONES, EXTERNAL_COLOR, RESOURCE_COLORS, RESOURCE_SHAPES, SERVICE_COLORS, SERVICE_SHAPES, buildScene } from './export/render';
@@ -446,6 +446,8 @@ export const platformEditor: EditorSpec<PlatformDocument> = {
     const matrix = matrixIsDrawn(view) ? drawMatrix(doc, view) : undefined;
     const scene = matrix?.scene ?? buildScene(doc, view);
     const all = indexElements(doc);
+    // El equivalente declarado en otro entorno se marca en el recurso; la comparación ya empareja los dos lados y no necesita la marca.
+    const twins = view.type === 'compare' ? new Map<string, NodeMark[]>() : counterpartMarks(doc);
     const networks = new Map(doc.networks.map((n) => [n.id, n]));
     const kinds = new Map(NODE_KIND_NOTATION.map((k) => [k.kind, k]));
     const nodes: EditorNode[] = [];
@@ -467,6 +469,7 @@ export const platformEditor: EditorSpec<PlatformDocument> = {
         label,
         parentId: g.groupId,
         ref: (element?.item as { ref?: string } | undefined)?.ref,
+        ...(twins.has(g.elementId) ? { marks: twins.get(g.elementId) } : {}),
         fill: network ? NETWORK_FILLS[exposureOf(network)] : undefined,
         ...(network ? { border: EXPOSURE_ZONES[exposureOf(network)].border } : {}),
         ...(g.icon ? { icon: g.icon.paths, iconColor: g.icon.color } : {}),
@@ -484,6 +487,7 @@ export const platformEditor: EditorSpec<PlatformDocument> = {
         badges: [...(n.diff && n.badge ? [n.badge] : []), ...rest.slice(1).filter(Boolean), ...(matrix ? [] : metadataBadges(doc, id, view.type !== 'costs'))],
         parentId: n.groupId,
         ref: shownAsInstance ? undefined : (n.elementId ? (all.get(n.elementId)?.item as { ref?: string } | undefined)?.ref : undefined),
+        ...(!shownAsInstance && n.elementId && twins.has(n.elementId) ? { marks: twins.get(n.elementId) } : {}),
         fill: n.fill,
         stroke: n.stroke === '#0f172a55' ? undefined : n.stroke,
         dashed: n.dashed,

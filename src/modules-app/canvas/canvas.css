@@ -113,6 +113,10 @@
 .cv-legend li { display: flex; align-items: center; gap: 6px; }
 .cv-legend-swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgb(15 23 42 / 0.35); }
 
+/* Marcas del nodo (`EditorNode.marks`; Plataforma: «≈ Producción», el equivalente en otro entorno): píldoras blancas con tinta oscura sobre el borde inferior izquierdo. El lienzo es siempre claro, así que no dependen del tema; tinta y borde pasan de 7:1 sobre su propio fondo. */
+.cv-node-marks { position: absolute; bottom: -9px; left: 6px; z-index: 2; display: flex; gap: 4px; max-width: calc(100% - 12px); }
+.cv-node-mark { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 6px; border: 1px solid #0f3d52; border-radius: 8px; background: #fff; color: #0f3d52; font-size: 11px; line-height: 15px; font-weight: 600; }
+
 /* Comparar versiones: lo nuevo y lo modificado se marcan con el color y una insignia discretos (el lienzo es siempre claro, en los dos temas); lo quitado, como fantasma discontinuo bajo el dibujo. */
 .cv-flow { --cv-diff-added: #166a38; --cv-diff-modified: #8a5200; --cv-diff-removed: #b42318; }
 .cv-node[data-diff='added'] { filter: drop-shadow(0 0 0 2px var(--cv-diff-added)) drop-shadow(0 0 4px var(--cv-diff-added)); }

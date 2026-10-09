@@ -240,6 +240,22 @@ for (const tema of TEMAS) {
         await auditar(page, 'Banco integration · Lienzo comparando', tema);
       });
 
+      test('plataforma: lienzo con la marca del equivalente en otro entorno', async ({ page }) => {
+        test.setTimeout(90_000);
+        await abrirBanco(page, 'platform', tema);
+        await page.getByTestId('canvas-view').selectOption('env:dev');
+        await canvasReady(page, 'env:dev');
+        // «Duplicar entorno» declara cada copia equivalente de su original: el lienzo marca los recursos con «≈ entorno».
+        await page.locator('[data-testid="node-pedidos-db-dev"]').click();
+        await page.getByTestId('action-duplicate-environment').click();
+        await page.getByTestId('action-prompt').getByRole('textbox').fill('Pruebas de carga');
+        await page.getByTestId('action-prompt').getByRole('button', { name: 'Aceptar' }).click();
+        await page.getByTestId('canvas-view').selectOption('env:dev');
+        await canvasReady(page, 'env:dev');
+        await expect(page.getByTestId('marks-pedidos-db-dev')).toBeVisible();
+        await auditar(page, 'Banco platform · Lienzo con equivalentes', tema);
+      });
+
       test('importar: aviso de resultado', async ({ page }) => {
         await abrirBanco(page, 'integration', tema);
         await page.getByRole('tab', { name: /^Importar/ }).click();
