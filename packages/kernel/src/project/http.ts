@@ -13,13 +13,16 @@ import type { Diagram, DiagramMeta, ProjectRole, ProjectStore, ProjectSummary, S
  *
  * Con cuentas (`iark serve --accounts`, inicio de sesión con GitHub) el mismo cliente sabe además qué formas de entrar ofrece el
  * servidor (`providers`), cambiar el código que devuelve GitHub por una sesión (`exchangeLoginCode`), cerrarla (`logout`) y
- * compartir un proyecto (`listMembers`, `setMember`, `removeMember`). La sesión es un token más: se da en `token`.
+ * compartir un proyecto (`listMembers`, `setMember`, `removeMember`). La sesión es un token más: se da en `token`. Quien administra la
+ * instancia tiene además las cuentas (`listAccounts`, `setAccount`, `cancelInvitation`, sobre `/api/admin/users`).
  *
  * Códigos del servidor sin equivalente local, traducidos al más cercano (el original queda en `error.info.serverCode`):
  *   `last-admin` (409: no se puede quitar ni degradar al último administrador) → `conflict`: el estado del proyecto lo impide.
  *   `limit` (409 al compartir; 403 al crear más proyectos de los permitidos) → `invalid`: la petición es válida pero no cabe; sobre
  *   todo **no** es `forbidden`, que las pantallas leen como «el token no alcanza» y mandan a cambiar de token.
  *   `invalid-grant` (400 al cambiar un código de inicio de sesión que no vale o caducó) → `invalid`, por su estado.
+ *   `self` (409: nadie cambia su propio rol ni se desactiva) y `listed-admin` (409: quien figura en `--admins` no baja de rol ni se desactiva
+ *   desde la API) → `conflict`, igual que `last-admin`: el estado de la cuenta lo impide.
  */
 
 export interface HttpProjectStoreOptions {
@@ -94,10 +97,40 @@ export interface ProjectMember {
   you?: boolean;
 }
 
+/** Una cuenta de la instancia tal como la ve quien la administra (`GET /api/admin/users`). */
+export interface AdminAccount {
+  id: string;
+  /** Nombre de usuario de GitHub, sin `@`. */
+  login: string;
+  name?: string;
+  avatarUrl?: string;
+  /** El rol que tiene ahora en la instancia (si figura en `--admins` es `admin`, aunque la cuenta guarde otro). */
+  siteRole: SiteRole;
+  /** Un administrador la desactivó: no puede entrar. */
+  disabled: boolean;
+  /** Es una invitación que nadie ha reclamado todavía: esa persona aún no ha entrado con su cuenta de GitHub. */
+  pending: boolean;
+  /** Figura en la lista de administradores del servicio (`--admins`): su rol y su acceso los manda esa lista y no se pueden bajar desde aquí. */
+  listed: boolean;
+  /** Cuándo se creó la cuenta o la invitación (ISO 8601). */
+  createdAt: string;
+  /** La última vez que entró (ISO 8601); no existe en una invitación pendiente. */
+  lastLoginAt?: string;
+  /** A cuántos proyectos pertenece. */
+  projects: number;
+}
+
+/** Lo que un administrador puede cambiar de una cuenta: su rol en la instancia y si está desactivada. */
+export interface AccountChange {
+  siteRole?: SiteRole;
+  disabled?: boolean;
+}
+
 /** Las sesiones de persona que reparte el inicio de sesión de GitHub empiezan así; los tokens de `iark auth` (`iark_…`), no. */
 export const SESSION_TOKEN_PREFIX = 'iark_s_';
 
 const API = '/api/projects';
+const ADMIN_USERS = '/api/admin/users';
 const LOCAL_CODES: ReadonlySet<string> = new Set<ProjectErrorCode>(['not-found', 'exists', 'invalid', 'conflict']);
 const ROLES: ReadonlySet<string> = new Set<ProjectRole>(['viewer', 'editor', 'admin']);
 const SITE_ROLES: ReadonlySet<string> = new Set<SiteRole>(['admin', 'member', 'guest']);
@@ -130,6 +163,7 @@ function errorFromResponse(status: number, payload: Payload, retryAfter: string 
   if (code && LOCAL_CODES.has(code)) return new ProjectError(code as ProjectErrorCode, message || `Error ${status}.`, info);
   // Antes que el estado: un `limit` llega como 403 al crear proyectos y no es un problema de rol.
   if (code === 'last-admin') return new ProjectError('conflict', message || 'No se puede quitar ni degradar al último administrador del proyecto.', { ...info, serverCode: code });
+  if (code === 'self' || code === 'listed-admin') return new ProjectError('conflict', message || 'La cuenta no admite ese cambio.', { ...info, serverCode: code });
   if (code === 'limit') return new ProjectError('invalid', message || 'Se alcanzó el máximo que permite este servidor.', { ...info, serverCode: code });
   if (code === 'invalid-grant') return new ProjectError('invalid', message || 'El código de inicio de sesión no es válido o caducó: vuelve a iniciar sesión.', { ...info, serverCode: code });
   if (status === 401 || code === 'unauthorized') return new ProjectError('unauthorized', message || 'El servidor pide un token de acceso válido.', info);
@@ -169,6 +203,26 @@ function parseMember(value: unknown): ProjectMember | undefined {
     role: typeof member.role === 'string' && ROLES.has(member.role) ? (member.role as ProjectRole) : 'viewer',
     pending: member.pending === true,
     ...(member.you === true ? { you: true } : {}),
+  };
+}
+
+/** Una cuenta de la respuesta de administración, o `undefined` si no tiene lo mínimo. Un rol desconocido se lee como el de menos permisos. */
+function parseAccount(value: unknown): AdminAccount | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const account = value as Record<string, unknown>;
+  if (typeof account.id !== 'string' || typeof account.login !== 'string' || !account.login) return undefined;
+  return {
+    id: account.id,
+    login: account.login,
+    ...(typeof account.name === 'string' && account.name ? { name: account.name } : {}),
+    ...(typeof account.avatarUrl === 'string' && account.avatarUrl ? { avatarUrl: account.avatarUrl } : {}),
+    siteRole: typeof account.siteRole === 'string' && SITE_ROLES.has(account.siteRole) ? (account.siteRole as SiteRole) : 'guest',
+    disabled: account.disabled === true,
+    pending: account.pending === true,
+    listed: account.listed === true,
+    createdAt: typeof account.createdAt === 'string' ? account.createdAt : '',
+    ...(typeof account.lastLoginAt === 'string' && account.lastLoginAt ? { lastLoginAt: account.lastLoginAt } : {}),
+    projects: typeof account.projects === 'number' && Number.isFinite(account.projects) ? Math.max(0, Math.trunc(account.projects)) : 0,
   };
 }
 
@@ -288,6 +342,40 @@ export class HttpProjectStore implements ProjectStore {
     await this.request('DELETE', `${API}/${encodeURIComponent(projectId)}/members/${encodeURIComponent(cleanLogin(login))}`);
   }
 
+  // ───────────── cuentas: administrar la instancia ─────────────
+
+  /**
+   * Las cuentas de la instancia (con sus invitaciones sin reclamar), por nombre de usuario. Solo quien administra la instancia (una persona con rol
+   * `admin` o un token de `--tokens` con rol `admin`): a los demás el servidor responde `forbidden`; sin cuentas (`--accounts`), `unavailable` (404).
+   */
+  async listAccounts(): Promise<AdminAccount[]> {
+    const found = await this.request('GET', ADMIN_USERS);
+    return (Array.isArray(found) ? found : []).flatMap((entry: unknown) => {
+      const account = parseAccount(entry);
+      return account ? [account] : [];
+    });
+  }
+
+  /**
+   * Cambia el rol de la instancia de una cuenta o la desactiva y reactiva (desactivarla cierra sus sesiones). Con un nombre de usuario que **no
+   * existe** el servidor crea una invitación (rol `member` si no se dice otro) y `created` es `true`: es la forma de invitar a la instancia sin
+   * compartir un proyecto. `conflict` (`serverCode`: `self`) con la propia cuenta y (`listed-admin`) con quien figura en `--admins`;
+   * `invalid` (`limit`) si ya hay el máximo de invitaciones sin reclamar.
+   */
+  async setAccount(login: string, change: AccountChange): Promise<{ account: AdminAccount; created: boolean }> {
+    const name = cleanLogin(login);
+    const body: AccountChange = { ...(change.siteRole !== undefined ? { siteRole: change.siteRole } : {}), ...(change.disabled !== undefined ? { disabled: change.disabled } : {}) };
+    const { status, payload } = await this.exchange('PUT', `${ADMIN_USERS}/${encodeURIComponent(name)}`, body);
+    const account = parseAccount(payload);
+    if (!account) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una cuenta.`);
+    return { account, created: status === 201 };
+  }
+
+  /** Cancela la invitación de quien todavía no ha entrado. Con quien ya entró el servidor responde `conflict`: se le quita el acceso desactivando su cuenta. */
+  async cancelInvitation(login: string): Promise<void> {
+    await this.request('DELETE', `${ADMIN_USERS}/${encodeURIComponent(cleanLogin(login))}`);
+  }
+
   async listProjects(): Promise<ProjectSummary[]> {
     return (await this.request('GET', API)) as ProjectSummary[];
   }
@@ -346,6 +434,11 @@ export class HttpProjectStore implements ProjectStore {
 
   /** `anonymous`: una ruta pública (providers, exchange) a la que no hace falta —ni conviene— mandar el token. */
   private async request(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown, options: { anonymous?: boolean } = {}): Promise<unknown> {
+    return (await this.exchange(method, path, body, options)).payload;
+  }
+
+  /** Como `request`, pero devuelve también el estado de la respuesta (201 «creado» frente a 200 «cambiado» importa al invitar). */
+  private async exchange(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown, options: { anonymous?: boolean } = {}): Promise<{ status: number; payload: unknown }> {
     // El servidor exige `Content-Type: application/json` en todo lo que modifica (también DELETE, con el cuerpo vacío).
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (method !== 'GET') headers['Content-Type'] = 'application/json';
@@ -380,6 +473,6 @@ export class HttpProjectStore implements ProjectStore {
       }
     }
     if (!response.ok) throw errorFromResponse(response.status, payload && typeof payload === 'object' ? (payload as Payload) : {}, response.headers.get('Retry-After'));
-    return payload;
+    return { status: response.status, payload };
   }
 }

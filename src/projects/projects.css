@@ -87,6 +87,7 @@
 }
 .pj-dialog input[type='text'],
 .pj-dialog input[type='password'],
+.pj-dialog input[type='search'],
 .pj-dialog select {
   padding: 5px 8px;
   border-radius: 6px;
@@ -498,4 +499,198 @@ td.pj-actions > * {
 .pj-pending {
   border-style: dashed;
   color: var(--pj-text-2);
+}
+
+/* ───────────── Administración de la instancia ───────────── */
+.pj-admin-overlay {
+  z-index: 2100;
+}
+.pj-admin {
+  width: min(1040px, 100%);
+}
+.pj-admin-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pj-admin-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow: auto;
+  min-height: 0;
+}
+.pj-admin-invite {
+  padding-top: 0;
+  border-top: 0;
+}
+.pj-admin-invite .pj-row input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+.pj-admin-invite .pj-row label.pj-grow {
+  flex: 1 1 200px;
+}
+.pj-admin-field-error {
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.pj-admin-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.pj-admin-tools label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--pj-text-2);
+  font-size: 12px;
+}
+.pj-admin-tools label.pj-grow {
+  flex: 1 1 200px;
+}
+.pj-admin-tools input[type='search'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+.pj-admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--pj-bg);
+}
+.pj-admin-table th[scope='row'] {
+  color: var(--pj-text);
+  font-weight: inherit;
+}
+.pj-admin-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 170px;
+}
+.pj-admin-table th.pj-admin-who {
+  display: table-cell;
+}
+.pj-admin-table th.pj-admin-who > * {
+  vertical-align: middle;
+}
+.pj-admin-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+}
+.pj-admin-name small {
+  flex-basis: 100%;
+  color: var(--pj-text-2);
+}
+.pj-admin-table .pj-avatar {
+  display: inline-flex;
+  margin-right: 8px;
+}
+.pj-admin-role {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 260px;
+}
+.pj-admin-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pj-admin-states {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.pj-chip.pj-on {
+  color: var(--pj-ok);
+  border-color: var(--pj-ok);
+}
+.pj-chip.pj-off {
+  color: var(--pj-error);
+  border-color: var(--pj-error);
+}
+.pj-admin-table tr[data-disabled='true'] .pj-admin-name strong {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.pj-admin-actions .pj-confirm {
+  display: inline-block;
+  max-width: 340px;
+  white-space: normal;
+}
+.pj-admin-actions .pj-confirm button {
+  margin: 4px 6px 0 0;
+}
+td.pj-admin-actions {
+  white-space: normal;
+}
+
+/* En una pantalla pequeña cada cuenta es una tarjeta: nada obliga a desplazarse de lado. La tabla conserva su semántica (roles explícitos en el HTML). */
+@media (max-width: 700px) {
+  .pj-admin-body {
+    padding: 10px 12px;
+  }
+  .pj-admin-table,
+  .pj-admin-table tbody,
+  .pj-admin-table tr,
+  .pj-admin-table td,
+  .pj-admin-table th.pj-admin-who {
+    display: block;
+  }
+  .pj-admin-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .pj-admin-table tr {
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    border: 1px solid var(--pj-border);
+    border-radius: 8px;
+  }
+  .pj-admin-table td,
+  .pj-admin-table th.pj-admin-who {
+    border-bottom: 0;
+    padding: 4px 0;
+  }
+  .pj-admin-table th.pj-admin-who {
+    display: flex;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--pj-border);
+  }
+  .pj-admin-table td[data-label] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 12px;
+  }
+  .pj-admin-table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--pj-text-2);
+    font-size: 12px;
+  }
+  .pj-admin-role {
+    align-items: flex-end;
+    max-width: none;
+    text-align: right;
+  }
+  .pj-admin-actions .pj-confirm {
+    max-width: none;
+  }
+  .pj-admin-tools label,
+  .pj-admin-tools label.pj-grow {
+    flex: 1 1 100%;
+  }
 }
