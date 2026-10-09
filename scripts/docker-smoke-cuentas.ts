@@ -329,7 +329,8 @@ async function main(): Promise<number> {
       const attempt = await loginWithGithub(svc.base, fake, ADMIN);
       check(!attempt.token && attempt.fragment.get('iark_error') === 'login_failed', 'GitHub rechaza las credenciales: la persona vuelve con #iark_error=login_failed', attempt.fragment.toString());
       const output = logs(svc.name);
-      check(!/login_failed|incorrect_client_credentials|GitHub no aceptó/.test(output), 'y el servicio no escribe nada en el registro (por eso la guía lo cuenta aparte)', output);
+      // El motivo sí sale en el registro, para quien opera el servicio (ver «Vuelves con #iark_error=login_failed» en la guía); el secreto, nunca.
+      check(/inicio de sesión: GitHub no lo aceptó \(rejected\)/.test(output) && !output.includes('un-secreto-que-no-es'), 'y el registro dice el motivo («GitHub no lo aceptó (rejected)») sin el secreto ni el código', output);
       docker(['stop', svc.name]);
     });
 
