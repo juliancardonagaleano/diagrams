@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react';
-import { HistoryDialog } from '../projects/HistoryDialog';
+import { HistoryDialog } from '../projects/lazy';
 import { NewerVersionNotice } from '../projects/NewerVersionNotice';
 import { OfflineActions } from '../projects/OfflineActions';
 import { offlineIndicator } from '../projects/offlineText';

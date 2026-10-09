@@ -11,8 +11,7 @@ import { useActions } from './hooks/useActions';
 import { useProjectBinding } from './projects/useProjectBinding';
 import { MODULE_SOURCES } from '../modules-app/modules';
 import { getLoginNotice, setLoginNotice } from '../projects/login';
-import { HistoryDialog } from '../projects/HistoryDialog';
-import { ProjectsDialog } from '../projects/ProjectsDialog';
+import { HistoryDialog, ProjectsDialog } from '../projects/lazy';
 import { isEmbedMode, useDocumentStore } from './store/documentStore';
 
 const params = new URLSearchParams(window.location.search);
