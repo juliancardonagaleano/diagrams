@@ -51,6 +51,7 @@
     "schema": "tsx scripts/generate-schema.ts",
     "manifest": "tsx scripts/generate-manifest.ts",
     "evals": "tsx scripts/evals.ts",
+    "perf": "tsx scripts/perf.ts",
     "evals:live": "tsx scripts/evals.ts --mode live",
     "cli": "tsx src/cli/index.ts",
     "e2e": "playwright test",

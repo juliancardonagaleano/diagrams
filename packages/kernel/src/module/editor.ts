@@ -290,9 +290,10 @@ export interface EditorSpec<TDoc> {
   /**
    * Colocación propia de una vista (p. ej. la cuadrícula anidada de un mapa de capacidades). Si devuelve `undefined`, el
    * lienzo aplica el autolayout común por capas. `options.fresh` lo pide el botón Autolayout: recalcular la colocación
-   * aunque el documento ya guarde posiciones (C4 las guarda en cada vista y, sin él, las respeta).
+   * aunque el documento ya guarde posiciones (C4 las guarda en cada vista y, sin él, las respeta). `options.signal` corta el
+   * cálculo si el lienzo ya no lo necesita (cambió de vista o la persona pulsó «Cancelar»): hay que rechazar con un `AbortError`.
    */
-  layout?(document: TDoc, viewId?: string, options?: { fresh?: boolean }): GraphLayout | undefined | Promise<GraphLayout | undefined>;
+  layout?(document: TDoc, viewId?: string, options?: { fresh?: boolean; signal?: AbortSignal }): GraphLayout | undefined | Promise<GraphLayout | undefined>;
   /**
    * Camino de vistas que lleva hasta `viewId`, de la más general a la abierta (C4: «C1 Contexto › C2 Contenedores › C3
    * Componentes»). Si tiene más de una, el lienzo la muestra sobre el diagrama y cada tramo abre su vista. Sin él, o con una

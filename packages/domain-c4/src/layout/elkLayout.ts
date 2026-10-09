@@ -1,4 +1,5 @@
-import ELK, { type ElkExtendedEdge, type ElkNode } from 'elkjs/lib/elk.bundled.js';
+import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
+import { isAbortError, layoutElk } from '@iark/kernel';
 import { deriveView, type DerivedBoundary, type DerivedNode, type DerivedView } from '../model/viewDerivation';
 import {
   BOUNDARY_PADDING,
@@ -33,6 +34,8 @@ export interface LayoutOptions {
   force?: boolean;
   /** Una sola pasada de ELK (sin probar candidatos ni medir calidad). */
   fast?: boolean;
+  /** Al abortarse, el cálculo se corta (el hilo de trabajo de ELK se termina) y la promesa se rechaza con un `AbortError`. */
+  signal?: AbortSignal;
 }
 
 export interface PositionedElement {
@@ -79,12 +82,6 @@ export const DEFAULTS = { direction: 'DOWN' as LayoutDirection, spacing: 70, lay
 
 const DENSITY_FACTOR: Record<Exclude<LayoutDensity, 'auto'>, number> = { compact: 0.8, spacious: 1.3 };
 
-let elkInstance: InstanceType<typeof ELK> | null = null;
-function elk(): InstanceType<typeof ELK> {
-  if (!elkInstance) elkInstance = new ELK();
-  return elkInstance;
-}
-
 export interface ResolvedLayoutParams {
   /** Dirección preferida (resuelta desde 'auto' según el nivel de la vista). */
   direction: LayoutDirection;
@@ -94,6 +91,8 @@ export interface ResolvedLayoutParams {
   spacing: number;
   layerSpacing: number;
   density: LayoutDensity;
+  /** Cancela el cálculo en curso (viene de `LayoutOptions.signal`). */
+  signal?: AbortSignal;
 }
 
 /** Dirección preferida por nivel: C1 arriba→abajo; C2 y C3 izquierda→derecha. */
@@ -121,6 +120,7 @@ export function resolveLayoutParams(derived: DerivedView, options: LayoutOptions
     spacing: Math.round(explicitSpacing ?? DEFAULTS.spacing * factor),
     layerSpacing: Math.round(explicitLayer ?? DEFAULTS.layerSpacing * factor),
     density,
+    ...(options.signal ? { signal: options.signal } : {}),
   };
 }
 
@@ -164,7 +164,7 @@ export async function layoutDerivedView(derived: DerivedView, options: LayoutOpt
       // algunos nodos tienen posición — p. ej. tras añadir un elemento existente a la vista. En vez
       // de propagar el error (que rompía el autolayout y la exportación a .drawio de todo el
       // documento), se recalcula la vista completa con la estrategia normal.
-      if (!interactive) throw error;
+      if (!interactive || isAbortError(error)) throw error;
     }
   }
   return smartLayout(derived, params);
@@ -297,7 +297,8 @@ export async function runElkLayout(derived: DerivedView, params: ResolvedLayoutP
   });
 
   const graph: ElkNode = { id: 'root', layoutOptions: rootOptions, children: topLevel, edges: elkEdges };
-  const result = await elk().layout(graph);
+  // ELK corre donde decide el núcleo: un hilo de trabajo en el navegador (la página no se congela), el hilo actual en Node.
+  const result = await layoutElk(graph, { signal: params.signal });
 
   const positions: PositionedElement[] = [];
   const boundaryPositions: PositionedElement[] = [];

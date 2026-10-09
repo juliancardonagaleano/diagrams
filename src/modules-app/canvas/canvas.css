@@ -22,7 +22,11 @@
 .cv-keys dt { flex: 0 0 auto; min-width: 150px; font-weight: 600; }
 .cv-keys dd { margin: 0; color: var(--wb-text-2); }
 .cv-body { display: flex; flex: 1; min-height: 0; }
-.cv-flow { flex: 1; min-width: 0; background: var(--wb-canvas); }
+.cv-flow { position: relative; flex: 1; min-width: 0; background: var(--wb-canvas); }
+.cv-busy { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 15; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; background: var(--wb-surface); color: var(--wb-text); border: 1px solid var(--wb-border); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); font-size: 12px; }
+.cv-busy-spinner { width: 14px; height: 14px; border: 2px solid var(--wb-border); border-top-color: var(--wb-primary); border-radius: 50%; animation: cv-spin 0.9s linear infinite; }
+@keyframes cv-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cv-busy-spinner { animation: none; } }
 .cv-inspector { flex: 0 0 260px; overflow: auto; padding: 10px 12px; border-left: 1px solid var(--wb-border); background: var(--wb-surface); font-size: 12px; }
 .cv-inspector.cv-empty { padding: 16px 12px; text-align: left; }
 .cv-inspector h2 { margin: 0 0 8px; font-size: 13px; }

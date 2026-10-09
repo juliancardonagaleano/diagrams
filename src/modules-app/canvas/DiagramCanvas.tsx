@@ -12,14 +12,15 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { layoutGraph, pretty, type EditResult, type EditorSpec, type GraphLayout } from '@iark/kernel';
+import { isAbortError, pretty, type EditResult, type EditorSpec, type GraphLayout } from '@iark/kernel';
 import './canvas.css';
 import { ActionPrompt } from './ActionPrompt';
+import { autolayoutGraph } from './autolayout';
 import { anunciarSeleccion, describirNodo, describirRelacion, indexarRelaciones } from '../a11y/etiquetas';
 import { duracion } from '../a11y/movimiento';
 import { desplazar, direccionDe, ETIQUETAS_LIENZO, vecinoEnDireccion, type Caja, type Direccion } from '../a11y/teclado';
 import type { CanvasCompare } from '../compare';
-import { absolutePositions, buildFlow, dropTarget, ghostNodes, layoutLabelText, movedByDrag, removedNodes, structureKey, type FlowEdge, type FlowNode } from './flow';
+import { absolutePositions, buildFlow, dropTarget, ghostNodes, movedByDrag, removedNodes, structureKey, type DiffMark, type FlowEdge, type FlowNode } from './flow';
 import type { EditHistory } from './history';
 import { ConnectForm } from './ConnectForm';
 import { ElementList } from './ElementList';
@@ -29,6 +30,7 @@ import { NotationNode } from './NotationNode';
 import { actionAvailability, applySelectionChanges, describeSelection, focusNodes, NO_SELECTION, removeAll, resolveSelection, toggleSelected, type Selection } from './selection';
 import { ShapeSvg } from './shapes';
 import { CANVAS_SHORTCUTS, matchShortcut } from './shortcuts';
+import { decorateEdges, decorateNodes, type EdgeCache, type NodeCache } from './stable';
 
 export interface DiagramCanvasProps {
   moduleId: string;
@@ -58,6 +60,26 @@ export interface DiagramCanvasProps {
 
 /** Sin cajas calculadas: `buildFlow` coloca cada elemento en su cuadrícula de reserva. */
 const EMPTY_LAYOUT: GraphLayout = { nodes: [], groups: [], edges: [], width: 0, height: 0 };
+
+/**
+ * A partir de cuántos nodos el lienzo solo monta los que caen en pantalla (`onlyRenderVisibleElements`). Por debajo, montarlos todos
+ * es lo más barato y deja cada nodo en el DOM (lectores de pantalla, tabulador); por encima, cada nodo cuesta decenas de elementos
+ * del DOM y el lienzo se arrastra (ver docs/rendimiento.md). La selección, la comparación y los enlaces no dependen del DOM, así
+ * que siguen funcionando con los nodos fuera de pantalla.
+ */
+export const CULL_FROM_NODES = 150;
+
+/**
+ * `?cull=on` / `?cull=off` en la dirección fuerzan el recorte con cualquier tamaño (diagnóstico y comparación en docs/rendimiento.md;
+ * las pruebas con jsdom que necesitan todos los nodos en el DOM, como la matriz de cientos de celdas, lo apagan). Sin él, decide el tamaño.
+ */
+export function cullSetting(search: string = typeof window === 'undefined' ? '' : window.location.search): 'auto' | 'on' | 'off' {
+  const value = new URLSearchParams(search).get('cull');
+  return value === 'on' || value === 'off' ? value : 'auto';
+}
+
+/** Cuánto tarda un cálculo antes de que el lienzo avise de que está calculando (evita el parpadeo en los diagramas pequeños). */
+const BUSY_AFTER_MS = 400;
 
 const nodeTypes = { notation: NotationNode };
 const edgeTypes = { notation: NotationEdge };
@@ -118,7 +140,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const mainViews = views.filter((v) => !v.variantOf);
   const variants = baseViewId ? views.filter((v) => v.id === baseViewId || v.variantOf === baseViewId) : [];
   const variantsLabel = variants.find((v) => v.variantsLabel)?.variantsLabel ?? 'Colorear por';
-  const signature = graph ? structureKey(graph) : '';
+  const signature = useMemo(() => (graph ? structureKey(graph) : ''), [graph]);
 
   const selectedIds = useMemo(() => resolveSelection(graph, selection), [graph, selection]);
   const selectionKey = selectedIds.join('\u0000');
@@ -140,6 +162,8 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const [fittedFor, setFittedFor] = useState('');
   // Estructura cuyo autolayout falló (ELK rechazó o la colocación propia del módulo lanzó): se avisa y el lienzo se asienta igual.
   const [failedFor, setFailedFor] = useState('');
+  // Estructura cuyo cálculo canceló la persona con «Cancelar»: se avisa y el lienzo se asienta con la colocación provisional.
+  const [cancelledFor, setCancelledFor] = useState('');
   const layoutKey = `${key}\u0000${signature}`;
   const layoutKeyRef = useRef(layoutKey);
   layoutKeyRef.current = layoutKey;
@@ -160,10 +184,15 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const documentRef = useRef(document);
   documentRef.current = document;
   const layoutSeq = useRef(0);
+  // El cálculo en marcha: se aborta al lanzar otro (lo que ya no hace falta no compite por el hilo de trabajo), al cancelar y al desmontar.
+  const layoutAbort = useRef<AbortController | undefined>(undefined);
   const relayout = useCallback(async (fresh = false) => {
     const g = graphRef.current;
     if (!g) return;
     const seq = ++layoutSeq.current;
+    layoutAbort.current?.abort();
+    const abort = new AbortController();
+    layoutAbort.current = abort;
     const wanted = layoutKeyRef.current;
     const forKey = keyRef.current;
     const apply = (result: GraphLayout): void => {
@@ -171,45 +200,57 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
       layoutOwner.current = forKey;
       setLayout(result);
       setFailedFor('');
+      setCancelledFor('');
       setLaidFor(wanted);
     };
-    // Si la colocación falla no se deja el lienzo colgado en «pending»: se conserva el dibujo que ya hubiera de esta misma
+    // Si la colocación falla o se cancela no se deja el lienzo colgado en «pending»: se conserva el dibujo que ya hubiera de esta misma
     // vista (o, sin él, el de reserva de `buildFlow`: cuadrícula, con las posiciones arrastradas a mano por encima), se da la
     // estructura por colocada y se avisa. Un fallo de un autolayout que ya no es el último (otra vista, otra estructura) se ignora.
-    const fail = (): void => {
-      if (seq !== layoutSeq.current) return;
+    const settleWithoutLayout = (): void => {
       const keep = layoutOwner.current === forKey;
       setLayout((previous) => (keep && previous ? previous : EMPTY_LAYOUT));
       layoutOwner.current = forKey;
-      setFailedFor(wanted);
       setLaidFor(wanted);
     };
     try {
-      const own = spec.layout && documentRef.current !== undefined ? await spec.layout(documentRef.current, viewId, fresh ? { fresh: true } : undefined) : undefined;
-      if (own) return apply(own);
-      const kinds = new Map(spec.nodeKinds.map((k) => [k.kind, k]));
-      const parents = new Set(g.nodes.filter((n) => n.parentId).map((n) => n.parentId as string));
-      const result = await layoutGraph(
-        g.nodes.filter((n) => !parents.has(n.id)).map((n) => ({ id: n.id, width: n.width ?? kinds.get(n.kind)?.width ?? 180, height: n.height ?? kinds.get(n.kind)?.height ?? 72, groupId: n.parentId })),
-        g.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, label: layoutLabelText(e) })),
-        g.nodes.filter((n) => parents.has(n.id)).map((n) => ({ id: n.id, groupId: n.parentId })),
-        { direction: 'RIGHT' },
-      );
-      apply(result);
-    } catch {
-      fail();
+      apply(await autolayoutGraph(spec, documentRef.current, g, viewId, { signal: abort.signal, fresh }));
+    } catch (error) {
+      if (seq !== layoutSeq.current) return;
+      settleWithoutLayout();
+      // Abortado y todavía el último: lo canceló la persona (los abortos por un cálculo nuevo o por desmontar ya no son el último).
+      if (isAbortError(error)) {
+        setCancelledFor(wanted);
+        setFailedFor('');
+      } else {
+        setFailedFor(wanted);
+        setCancelledFor('');
+      }
     }
   }, [spec, viewId]);
   useEffect(() => {
     void relayout();
   }, [signature, relayout]);
-  // Al desmontar, un autolayout en vuelo (ELK tarda) deja de ser el último: su respuesta tardía no toca el estado de un lienzo que ya no está.
+  // Al desmontar, un autolayout en vuelo (ELK tarda) deja de ser el último y se corta: su respuesta tardía no toca el estado de un lienzo que ya no está.
   useEffect(
     () => () => {
       layoutSeq.current++;
+      layoutAbort.current?.abort();
     },
     [],
   );
+  const cancelLayout = useCallback(() => layoutAbort.current?.abort(), []);
+
+  // El estado «calculando»: se muestra si el cálculo pasa de BUSY_AFTER_MS, para no parpadear en los diagramas pequeños.
+  const calculating = laidFor !== layoutKey && document !== undefined;
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!calculating) {
+      setSlow(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSlow(true), BUSY_AFTER_MS);
+    return () => window.clearTimeout(timer);
+  }, [calculating, layoutKey]);
 
   const built = useMemo(() => (graph ? buildFlow(spec, graph, layout, moved) : { nodes: [] as FlowNode[], edges: [] as FlowEdge[] }), [spec, graph, layout, moved]);
   const builtRef = useRef(built);
@@ -221,24 +262,20 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const ghosts = useMemo(() => (compare && graph && compare.removed.size > 0 ? removedNodes(spec, compare.base, viewId, compare.removed, graph) : []), [compare, graph, spec, viewId]);
   // Nombres accesibles (WCAG 4.1.2): tipo, nombre y relaciones de cada nodo; de dónde a dónde va cada relación.
   const relations = useMemo(() => (graph ? indexarRelaciones(graph) : undefined), [graph]);
+  const nodeLabels = useMemo(() => (relations ? { key: relations, of: (n: FlowNode, diff: DiffMark | undefined) => describirNodo(n.data.node, n.data.notation, relations, diff) } : undefined), [relations]);
+  const edgeLabels = useMemo(() => (relations ? { key: relations, of: (e: FlowEdge, diff: DiffMark | undefined) => describirRelacion(e.data.edge, e.data.notation, relations, diff as 'added' | 'modified' | undefined) } : undefined), [relations]);
+  // Los objetos que se entregan a React Flow conservan su identidad mientras no cambie lo que dibujan (ver `stable.ts`): seleccionar
+  // un nodo o arrastrar otro solo repinta esos, no los cientos que hay montados.
+  const nodeCache = useRef(new Map<string, NodeCache>());
+  const edgeCache = useRef(new Map<string, EdgeCache>());
   const nodes = useMemo(() => {
-    const placed = built.nodes.map((n) => {
-      const diff = marks?.get(n.id);
-      return { ...n, selected: selection.has(n.id), ...(relations ? { ariaLabel: describirNodo(n.data.node, n.data.notation, relations, diff) } : {}), ...(diff ? { data: { ...n.data, diff } } : {}) };
-    });
+    const placed = decorateNodes(built.nodes, selection, marks, nodeCache.current, nodeLabels);
     if (ghosts.length === 0) return placed;
     return [...placed, ...ghostNodes(spec, ghosts, built.nodes).map((g) => ({ ...g, ...(relations ? { ariaLabel: describirNodo(g.data.node, g.data.notation, relations, 'removed') } : {}) }))];
-  }, [built.nodes, selection, marks, ghosts, spec, relations]);
-  const edges = useMemo(
-    () =>
-      built.edges.map((e) => ({
-        ...e,
-        selected: selection.has(e.id),
-        ...(relations ? { ariaLabel: describirRelacion(e.data.edge, e.data.notation, relations, marks?.get(e.id) as 'added' | 'modified' | undefined) } : {}),
-        data: { ...e.data, onPick: pick, ...(marks?.get(e.id) ? { diff: marks.get(e.id) } : {}) },
-      })),
-    [built.edges, selection, pick, marks, relations],
-  );
+  }, [built.nodes, selection, marks, ghosts, spec, relations, nodeLabels]);
+  const edges = useMemo(() => decorateEdges(built.edges, selection, pick, marks, edgeCache.current, edgeLabels), [built.edges, selection, pick, marks, edgeLabels]);
+  const cullChoice = useMemo(() => cullSetting(), []);
+  const cull = cullChoice === 'auto' ? nodes.length >= CULL_FROM_NODES : cullChoice === 'on';
 
   // La cámara cuenta como asentada al acabar la animación o, si React Flow la interrumpe sin avisar, poco después. Ese plazo de
   // reserva es un temporizador que sobrevive al lienzo: si éste se desmonta con un encuadre en curso, el plazo (o el final tardío
@@ -453,6 +490,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     writePositions(key, new Map());
     setLaidFor('');
     setFailedFor('');
+    setCancelledFor('');
     setFittedFor('');
     // Al llegar el nuevo autolayout, el efecto de encuadre recoloca la cámara (la vista vuelve a estar sin encuadrar).
     void relayout(true);
@@ -605,7 +643,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const crumbs = spec.breadcrumb?.(document, viewId) ?? [];
 
   return (
-    <div className="cv-root" ref={wrapper} data-testid="module-canvas" data-view={viewId ?? ''} data-layout={settled ? 'ready' : 'pending'}>
+    <div className="cv-root" ref={wrapper} data-testid="module-canvas" data-view={viewId ?? ''} data-layout={settled ? 'ready' : 'pending'} data-culling={cull ? 'on' : 'off'}>
       <div className="cv-toolbar" role="toolbar" aria-label="Herramientas del lienzo">
         {mainViews.length > 1 && (
           <>
@@ -745,6 +783,12 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
         </div>
       )}
 
+      {cancelledFor === layoutKey && (
+        <div className="cv-notice" role="status" data-testid="canvas-layout-cancelled">
+          Se canceló el cálculo de la colocación automática: los elementos se muestran en una colocación provisional. Pulsa Autolayout para calcularla de nuevo.
+        </div>
+      )}
+
       {prompted && prompting && <ActionPrompt key={prompted.id} action={prompted} document={document} viewId={viewId} initial={prompting.initial} onSubmit={(value) => runAction(prompted, value)} onCancel={() => setPrompting(undefined)} />}
 
       {showKeys && (
@@ -760,6 +804,15 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
 
       <div className="cv-body">
         <div className="cv-flow" onKeyDownCapture={onFlowKeyDown}>
+          {calculating && slow && (
+            <div className="cv-busy" role="status" aria-live="polite" data-testid="canvas-busy">
+              <span className="cv-busy-spinner" aria-hidden="true" />
+              <span>Calculando la colocación de {nodes.length} elementos…</span>
+              <button type="button" className="cv-tool" onClick={cancelLayout} data-testid="canvas-busy-cancel">
+                Cancelar
+              </button>
+            </div>
+          )}
           <ReactFlow
             aria-label={`Lienzo del diagrama: ${graph?.nodes.length ?? 0} elementos y ${graph?.edges.length ?? 0} relaciones. Tabulador para recorrer los elementos, flechas para ir al vecino, Intro para abrir las propiedades. Hay una lista de todos los elementos en el botón «Lista».`}
             ariaLabelConfig={ETIQUETAS_LIENZO}
@@ -791,6 +844,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
             deleteKeyCode={null}
             minZoom={0.1}
             maxZoom={2}
+            onlyRenderVisibleElements={cull}
             proOptions={{ hideAttribution: true }}
           >
             <Background gap={20} />

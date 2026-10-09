@@ -1,9 +1,11 @@
-import ELK, { type ElkExtendedEdge, type ElkNode } from 'elkjs/lib/elk.bundled.js';
+import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
+import { layoutElk } from './elk';
 
 /**
  * Autolayout genérico (ELK `layered`) para los módulos que dibujan un grafo de nodos y aristas con agrupaciones
  * opcionales. Es una sola pasada, sin las estrategias de rescate del módulo C4: suficiente para mapas de integración,
- * linaje de datos o topologías de plataforma.
+ * linaje de datos o topologías de plataforma. El cálculo corre donde decide `layoutElk` (un hilo de trabajo en el navegador,
+ * el hilo actual en Node) y se puede cancelar con `signal`.
  */
 export type GraphDirection = 'RIGHT' | 'DOWN' | 'LEFT' | 'UP';
 
@@ -35,6 +37,13 @@ export interface GraphLayoutOptions {
   spacing?: number;
   /** Separación entre capas (px). */
   layerSpacing?: number;
+  /**
+   * Cuánto se esfuerza el cálculo. `normal` (por omisión) es el de siempre. `fast` rebaja el cuidado de ELK en minimizar cruces
+   * (colocación algo menos limpia, mucho más rápida en grafos de cientos de nodos); el lienzo lo usa solo con diagramas muy grandes.
+   */
+  effort?: 'normal' | 'fast';
+  /** Al abortarse, el cálculo se descarta o se corta y la promesa se rechaza con un `AbortError` (ver `isAbortError`). */
+  signal?: AbortSignal;
 }
 
 export interface Box {
@@ -78,11 +87,11 @@ export interface GraphLayout {
   height: number;
 }
 
-let elkInstance: InstanceType<typeof ELK> | null = null;
-function elk(): InstanceType<typeof ELK> {
-  if (!elkInstance) elkInstance = new ELK();
-  return elkInstance;
-}
+/** Opciones de ELK del modo `fast`: un solo barrido de minimización de cruces, sin el ajuste voraz posterior. */
+const FAST_OPTIONS: Record<string, string> = {
+  'elk.layered.thoroughness': '1',
+  'elk.layered.crossingMinimization.greedySwitch.type': 'OFF',
+};
 
 /** Tamaño aproximado de una etiqueta de arista (ELK necesita reservar el hueco). */
 export function estimateLabel(text: string): { width: number; height: number } {
@@ -120,6 +129,7 @@ export async function layoutGraph(nodes: GraphNodeInput[], edges: GraphEdgeInput
       'elk.separateConnectedComponents': 'true',
       'elk.edgeRouting': 'ORTHOGONAL',
       'elk.padding': '[top=20,left=20,bottom=20,right=20]',
+      ...(options.effort === 'fast' ? FAST_OPTIONS : {}),
     },
     children: [],
     edges: edges.map(
@@ -139,7 +149,7 @@ export async function layoutGraph(nodes: GraphNodeInput[], edges: GraphEdgeInput
   for (const g of groups) attach(g.id, g.groupId);
   for (const n of nodes) attach(n.id, n.groupId);
 
-  const laid = await elk().layout(root);
+  const laid = await layoutElk(root, { signal: options.signal });
 
   const nodeBoxes: Box[] = [];
   const groupBoxes: Box[] = [];

@@ -162,6 +162,21 @@ test.describe('las páginas con la CSP puesta', () => {
     expect(w.problems).toEqual([]);
   });
 
+  test('el autolayout corre en un hilo de trabajo con la CSP puesta (worker-src cae en script-src «self»), sin violaciones y sin caer al hilo principal', async ({ page }) => {
+    const w = watch(page);
+    const workers: string[] = [];
+    const downloads: string[] = [];
+    page.on('worker', (worker) => workers.push(worker.url()));
+    page.on('response', (response) => downloads.push(response.url()));
+    await page.goto(`${A.url}/modulos.html?module=platform`, { waitUntil: 'domcontentloaded' });
+    await canvasReady(page);
+    await expect.poll(() => workers.some((url) => /\/assets\/elkWorker-[^/]+\.js$/.test(url))).toBe(true);
+    // Si la política hubiera bloqueado el hilo, el cálculo habría pasado a la salida de emergencia, que se descarga aparte.
+    expect(downloads.filter((url) => /elk-hilo-principal/.test(url))).toEqual([]);
+    expect(await w.violations(), 'sin violaciones de la CSP').toEqual([]);
+    expect(w.problems, 'sin errores de consola ni de página').toEqual([]);
+  });
+
   test('suite y trazabilidad: el shell descubre los módulos, monta un banco y el editor C4 embebidos', async ({ page }) => {
     const w = watch(page);
     await page.goto(`${A.url}/suite.html`, { waitUntil: 'domcontentloaded' });
