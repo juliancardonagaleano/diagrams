@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { bundleFileName, bundleToText, checkProject, createBundle, importBundle, ProjectError, parseBundle, snapshotProject, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
+import { bundleFileName, bundleToText, checkProject, createBundle, importBundle, isVersioned, ProjectError, parseBundle, parseVersionId, snapshotProject, unsupportedVersions, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
 import { accountHttpError } from './accounts/errors';
 import { createMembersApi } from './accounts/members';
 import type { Accounts } from './accounts/service';
@@ -24,6 +24,11 @@ import { isWorkspaceId } from './workspace';
  *   POST   /api/projects/<p>/diagrams                 { module, name?, text } → crea
  *   PATCH  /api/projects/<p>/diagrams/<d>             { name } → renombra
  *   DELETE /api/projects/<p>/diagrams/<d>
+ *   GET    /api/projects/<p>/diagrams/<d>/versions              historial: las versiones del diagrama, la más reciente primero (sin documentos)
+ *   GET    /api/projects/<p>/diagrams/<d>/versions/<n>          → { ...meta, text }
+ *   POST   /api/projects/<p>/diagrams/<d>/versions/<n>/restore  { ifUpdatedAt? } → guarda esa versión como versión NUEVA → { diagram, version, unchanged }
+ *   PATCH  /api/projects/<p>/diagrams/<d>/versions/<n>          { label } → le pone nombre (desde entonces no se sustituye ni se descarta)
+ *   DELETE /api/projects/<p>/diagrams/<d>/versions/<n>          borra una versión CON nombre (solo `admin` del proyecto)
  *   GET    /api/projects/<p>/bundle                   archivo único (iark.project/1), con Content-Disposition
  *   POST   /api/projects/import[?name=]               cuerpo: el archivo único → importa (nunca pisa un proyecto)
  *   GET    /api/projects/<p>/check                    comprobación del proyecto (checkProject)
@@ -107,9 +112,9 @@ function guard(req: IncomingMessage, cors: string[], authenticated: boolean): vo
 /**
  * El rol mínimo que exige una operación. `parts` son los segmentos de la ruta sin `projects` (como en `createProjectsApi`).
  *
- *   viewer  leer: cualquier GET (lista, resumen, diagrama, archivo único, comprobación)
- *   editor  además: crear, guardar, renombrar y borrar diagramas; crear y renombrar proyectos; importar
- *   admin   además: borrar proyectos y gestionar quién pertenece a ellos (`PUT` y `DELETE` en `members`)
+ *   viewer  leer: cualquier GET (lista, resumen, diagrama, archivo único, comprobación, historial de versiones y cada versión)
+ *   editor  además: crear, guardar, renombrar y borrar diagramas; crear y renombrar proyectos; importar; restaurar y nombrar versiones
+ *   admin   además: borrar proyectos, gestionar quién pertenece a ellos (`PUT` y `DELETE` en `members`) y borrar versiones con nombre
  *
  * Lo que no es una lectura exige editor, también un método o una ruta que no existen (un viewer no escribe ni «probando»): la
  * respuesta a un rol insuficiente no depende de si la ruta existe. Se decide **antes** de leer el cuerpo y de tocar el disco.
@@ -118,10 +123,12 @@ export function requiredRole(method: string, parts: string[]): TokenRole {
   if (method === 'GET' || method === 'HEAD') return 'viewer';
   if (method === 'DELETE' && parts.length === 1) return 'admin'; // borrar un proyecto (incluso uno que se llame `import`)
   if (parts[1] === 'members') return 'admin'; // compartir y dejar de compartir (irse uno mismo es la excepción: ver `scopeFor`)
+  // Borrar una versión con nombre es perder historial protegido: lo decide quien administra el proyecto, no cualquiera que pueda editar.
+  if (method === 'DELETE' && parts[1] === 'diagrams' && parts[3] === 'versions') return 'admin';
   return 'editor';
 }
 
-const STATUS: Record<ProjectError['code'], number> = { 'not-found': 404, exists: 409, conflict: 409, invalid: 400, unavailable: 500, unauthorized: 401, forbidden: 403 };
+const STATUS: Record<ProjectError['code'], number> = { 'not-found': 404, exists: 409, conflict: 409, invalid: 400, unavailable: 500, unauthorized: 401, forbidden: 403, unsupported: 501 };
 
 /** Los errores del almacén se responden con el código HTTP que les corresponde y su `code`; el resto se deja como está. */
 function toHttpError(error: unknown): unknown {
@@ -131,12 +138,21 @@ function toHttpError(error: unknown): unknown {
     process.stderr.write(`error del espacio de trabajo: ${error.message}\n`); // la ruta del disco no se le cuenta a quien llama
     return new HttpError(500, 'El espacio de trabajo no está disponible (permisos, disco o carpeta).', { code: error.code });
   }
+  // Un tope que no cabe (demasiadas versiones con nombre) tiene su propio `code`, como `limit` al compartir: no es un contenido inválido.
+  if (error.info.serverCode === 'limit') return new HttpError(409, error.message, { code: 'limit' });
   return new HttpError(STATUS[error.code], error.message, { code: error.code });
 }
 
 function id(value: string, what: string): string {
   if (!isWorkspaceId(value)) throw new HttpError(400, `Identificador de ${what} inválido «${String(value).slice(0, 60)}».`);
   return value;
+}
+
+/** El número de versión de una ruta (`7`), o 400: un entero positivo y corto, nada de `07`, `-1`, `1e3` ni rutas. */
+function versionId(value: string | undefined): number {
+  const parsed = parseVersionId(value);
+  if (parsed === undefined) throw new HttpError(400, `Identificador de versión inválido «${String(value).slice(0, 40)}» (es un número entero positivo).`, { code: 'invalid' });
+  return parsed;
 }
 
 function text(body: Record<string, unknown>, field: string, options: { required?: boolean } = {}): string | undefined {
@@ -234,7 +250,43 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     }
   }
 
-  async function route(req: IncomingMessage, res: ServerResponse, url: URL, parts: string[], projects: ProjectStore, scope: Scope | undefined): Promise<void> {
+  /**
+   * El historial de versiones de un diagrama (`/diagrams/<d>/versions…`). Quién guarda lo decide la identidad de la petición (`actor`), nunca el
+   * cuerpo: un cliente no puede atribuir un guardado a otra persona.
+   */
+  async function versionsRoute(req: IncomingMessage, res: ServerResponse, projects: ProjectStore, rest: string[], actor: string | undefined): Promise<void> {
+    const method = req.method ?? 'GET';
+    const [projectId, , diagramId, , rawVersion, action] = rest;
+    if (!isVersioned(projects)) throw unsupportedVersions();
+    const p = id(projectId, 'proyecto');
+    const d = id(diagramId, 'diagrama');
+    if (rest.length === 4) {
+      if (method !== 'GET') return allow('GET');
+      return sendJson(res, 200, await projects.listVersions(p, d));
+    }
+    const n = versionId(rawVersion);
+    if (rest.length === 5) {
+      if (method === 'GET') {
+        const version = await projects.getVersion(p, d, n);
+        if (!version) throw new ProjectError('not-found', `No existe la versión ${n} del diagrama «${d}» (¿se descartó al rotar el historial?).`);
+        return sendJson(res, 200, version);
+      }
+      if (method === 'PATCH') return sendJson(res, 200, await projects.labelVersion(p, d, n, text(await bodyObject(ctx.readBody, req), 'label', { required: true })!));
+      if (method === 'DELETE') {
+        await projects.deleteVersion(p, d, n);
+        return sendJson(res, 200, { deleted: n });
+      }
+      return allow('GET, PATCH, DELETE');
+    }
+    if (rest.length === 6 && action === 'restore') {
+      if (method !== 'POST') return allow('POST');
+      const body = await bodyObject(ctx.readBody, req);
+      return sendJson(res, 200, await projects.restoreVersion(p, d, n, { ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor }));
+    }
+    throw new HttpError(404, 'Ruta de proyectos desconocida. Ver la lista de rutas de /api/projects en docs/proyectos.md.');
+  }
+
+  async function route(req: IncomingMessage, res: ServerResponse, url: URL, parts: string[], projects: ProjectStore, scope: Scope | undefined, actor: string | undefined): Promise<void> {
     const method = req.method ?? 'GET';
     const [first, second, third] = parts;
 
@@ -291,7 +343,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     if (second === 'diagrams' && parts.length === 2) {
       if (method !== 'POST') return allow('POST');
       const body = await bodyObject(ctx.readBody, req);
-      const created = await projects.saveDiagram(projectId, { module: text(body, 'module', { required: true }), name: text(body, 'name'), text: text(body, 'text', { required: true })! });
+      const created = await projects.saveDiagram(projectId, { module: text(body, 'module', { required: true }), name: text(body, 'name'), text: text(body, 'text', { required: true })!, by: actor });
       return sendJson(res, 201, created, { Location: `/api/projects/${projectId}/diagrams/${created.id}` });
     }
     if (second === 'diagrams' && parts.length === 3) {
@@ -303,7 +355,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       }
       if (method === 'PUT') {
         const body = await bodyObject(ctx.readBody, req);
-        return sendJson(res, 200, await projects.saveDiagram(projectId, { id: diagramId, text: text(body, 'text', { required: true })!, ifUpdatedAt: text(body, 'ifUpdatedAt') }));
+        return sendJson(res, 200, await projects.saveDiagram(projectId, { id: diagramId, text: text(body, 'text', { required: true })!, ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor }));
       }
       if (method === 'PATCH') return sendJson(res, 200, await projects.renameDiagram(projectId, diagramId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!));
       if (method === 'DELETE') {
@@ -312,6 +364,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       }
       return allow('GET, PUT, PATCH, DELETE');
     }
+    if (second === 'diagrams' && parts[3] === 'versions' && parts.length >= 4 && parts.length <= 6) return versionsRoute(req, res, projects, parts, actor);
     throw new HttpError(404, 'Ruta de proyectos desconocida. Ver la lista de rutas de /api/projects en docs/proyectos.md.');
   }
 
@@ -328,8 +381,10 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       scope = scopeFor(identity, ctx.accounts, method, parts);
     }
     guard(req, ctx.cors, !!ctx.auth);
+    // Quién guarda, para el historial: el nombre del token o `@usuario` de la sesión. Sin autenticación no se sabe y no se anota nada.
+    const actor = identity?.kind === 'token' ? identity.name : identity?.kind === 'user' ? `@${identity.user.login}` : undefined;
     try {
-      await route(req, res, url, parts, store, scope);
+      await route(req, res, url, parts, store, scope, actor);
     } catch (error) {
       throw toHttpError(error);
     }

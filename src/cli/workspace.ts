@@ -3,18 +3,38 @@ import { constants, type Stats } from 'node:fs';
 import { link, lstat, mkdir, open, readdir, realpath, rename, rm, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import {
+  applyPlan,
+  cleanBy,
   cleanName,
+  describeContent,
+  findVersion,
+  newestFirst,
+  planDelete,
+  planLabel,
+  planSave,
   PROJECT_BUNDLE_EXTENSION,
   ProjectError,
   requireModuleId,
+  requireVersionId,
+  resolveVersionPolicy,
   sameName,
   slugify,
   uniqueSlug,
+  unsupportedVersions,
+  versionMeta,
+  versionUsageOf,
   type Diagram,
   type DiagramMeta,
+  type DiagramVersion,
   type ProjectStore,
   type ProjectSummary,
+  type RestoredVersion,
+  type RestoreOptions,
   type SaveDiagramInput,
+  type VersionMeta,
+  type VersionPlan,
+  type VersionPolicy,
+  type VersionUsage,
 } from '@iark/kernel';
 
 /**
@@ -24,10 +44,20 @@ import {
  *     <proyecto>/                     el id del proyecto es el nombre del directorio
  *       project.json                  OPCIONAL: nombre, descripción y los nombres de los diagramas (`iark.project.meta/1`)
  *       <diagrama>.<módulo>.json      el documento JSON del módulo, tal cual; el id del diagrama es el nombre sin `.<módulo>.json`
+ *       .versiones/<diagrama>/        OPCIONAL: el historial de versiones del diagrama (ver más abajo); un directorio oculto, que nada más lee
+ *         index.json                  las versiones (id, fecha, quién, nombre, tamaño, hash) y el mayor id dado (`iark.versions/1`)
+ *         000001.json …               el documento de cada versión, tal cual
  *
  * La carpeta es la fuente de verdad: un directorio sin `project.json` es un proyecto (se llama como el directorio) y un
  * `x.<módulo>.json` copiado a mano es un diagrama (se llama `x`, y su fecha de creación es la de modificación del archivo)
  * aunque no esté en el sidecar. Lo que no encaja se ignora sin fallar.
+ *
+ * Historial: cada guardado de un diagrama anota una versión en `.versiones/<diagrama>/` (política y reglas: `versions.ts` del núcleo). El formato de
+ * la carpeta no cambia para nada más: `x.<módulo>.json` y `project.json` son los de siempre, el directorio oculto lo ignoran `iark project check`,
+ * `export`, `import` y quien lea la carpeta con `listProjects`, y se puede borrar entero (se pierde solo el historial) o añadir a `.gitignore`.
+ * Un guardado escribe primero el documento de la versión y el índice (cada uno con la escritura atómica de siempre) y después el diagrama:
+ * si el disco falla a medias, el guardado falla sin cambiar el diagrama. Dos procesos que guarden el MISMO diagrama en el mismo instante pueden
+ * dejar una versión sin anotar en el índice (el documento del diagrama nunca se pierde; el archivo huérfano se limpia en el guardado siguiente).
  *
  * Seguridad: ningún id que llegue de fuera puede salir de la raíz (los ids se validan con una expresión estricta antes de
  * tocar el disco y el destino se comprueba con `relative`), no se sigue ningún enlace simbólico (ni de directorios ni de
@@ -36,6 +66,15 @@ import {
 
 const SIDECAR = 'project.json';
 export const SIDECAR_FORMAT = 'iark.project.meta/1';
+/** Directorio (oculto, dentro de cada proyecto) con el historial de versiones de sus diagramas. */
+export const VERSIONS_DIR = '.versiones';
+export const HISTORY_FORMAT = 'iark.versions/1';
+const HISTORY_INDEX = 'index.json';
+const MAX_HISTORY_INDEX_BYTES = 4 * 1024 * 1024;
+/** El archivo con el documento de una versión: `000007.json` (rellenado con ceros para que el orden alfabético sea el numérico). */
+const versionFile = (id: number): string => `${String(id).padStart(6, '0')}.json`;
+const VERSION_FILE = /^\d{6,}\.json$/;
+
 /** Un documento más grande que esto no es un diagrama razonable (y acota lo que se lee de una carpeta ajena). */
 export const MAX_DOCUMENT_BYTES = 16 * 1024 * 1024;
 const MAX_SIDECAR_BYTES = 4 * 1024 * 1024;
@@ -150,6 +189,72 @@ async function readSidecar(dir: string): Promise<{ data: SidecarRead; ms: number
   }
 }
 
+// ───────────── historial de versiones: el índice de cada diagrama ─────────────
+
+interface HistoryIndex {
+  /** El mayor id dado (los ids no se reutilizan aunque se descarte la versión). */
+  lastId: number;
+  /** El hash del último contenido guardado (ver `PlanInput.headHash`). */
+  head?: string;
+  /** De la más antigua a la más reciente. */
+  versions: VersionMeta[];
+}
+
+const EMPTY_INDEX: HistoryIndex = { lastId: 0, versions: [] };
+const SHA256 = /^[0-9a-f]{64}$/;
+const MAX_VERSION_ID = 999_999_999;
+
+/** Interpreta el índice con tolerancia: una entrada que no se entiende se ignora (su documento huérfano se limpia en el guardado siguiente). */
+function parseHistoryIndex(json: unknown): HistoryIndex {
+  if (!json || typeof json !== 'object' || Array.isArray(json)) return EMPTY_INDEX;
+  const record = json as Record<string, unknown>;
+  if (record.format !== HISTORY_FORMAT || !Array.isArray(record.versions)) return EMPTY_INDEX;
+  const seen = new Map<number, VersionMeta>();
+  for (const entry of record.versions as unknown[]) {
+    if (!entry || typeof entry !== 'object') continue;
+    const v = entry as Record<string, unknown>;
+    const savedAt = safeDate(v.savedAt);
+    if (typeof v.id !== 'number' || !Number.isInteger(v.id) || v.id < 1 || v.id > MAX_VERSION_ID || !savedAt) continue;
+    if (typeof v.hash !== 'string' || !SHA256.test(v.hash) || typeof v.size !== 'number' || !Number.isInteger(v.size) || v.size < 0) continue;
+    const savedBy = cleanBy(v.savedBy);
+    const label = safeName(v.label);
+    seen.set(v.id, {
+      id: v.id,
+      savedAt,
+      ...(savedBy ? { savedBy } : {}),
+      ...(label ? { label } : {}),
+      size: v.size,
+      hash: v.hash,
+      ...(typeof v.restoredFrom === 'number' && Number.isInteger(v.restoredFrom) && v.restoredFrom >= 1 ? { restoredFrom: v.restoredFrom } : {}),
+    });
+  }
+  const versions = [...seen.values()].sort((a, b) => a.id - b.id);
+  const lastId = typeof record.lastId === 'number' && Number.isInteger(record.lastId) && record.lastId >= 0 ? Math.min(record.lastId, MAX_VERSION_ID) : 0;
+  return {
+    lastId: Math.max(lastId, versions[versions.length - 1]?.id ?? 0),
+    ...(typeof record.head === 'string' && SHA256.test(record.head) ? { head: record.head } : {}),
+    versions,
+  };
+}
+
+const serializeHistoryIndex = (index: HistoryIndex): string =>
+  `${JSON.stringify({ format: HISTORY_FORMAT, lastId: index.lastId, ...(index.head ? { head: index.head } : {}), versions: index.versions.map(versionMeta) }, null, 2)}\n`;
+
+/** La política del historial que piden las variables de entorno (`IARK_VERSIONS=off`, `IARK_VERSIONS_COALESCE`, `IARK_VERSIONS_KEEP`, `IARK_VERSIONS_MAX`). */
+export function versionPolicyFromEnv(env: NodeJS.ProcessEnv = process.env): Partial<VersionPolicy> | false {
+  if (/^(off|false|no|0)$/i.test((env.IARK_VERSIONS ?? '').trim())) return false;
+  const number = (name: string): number | undefined => {
+    const raw = (env[name] ?? '').trim();
+    if (!raw) return undefined;
+    if (!/^\d+$/.test(raw)) throw new ProjectError('invalid', `${name} debe ser un entero (se recibió «${raw.slice(0, 40)}»).`);
+    return Number(raw);
+  };
+  const coalesceSeconds = number('IARK_VERSIONS_COALESCE');
+  const keepAutomatic = number('IARK_VERSIONS_KEEP');
+  const maxVersions = number('IARK_VERSIONS_MAX');
+  return { ...(coalesceSeconds !== undefined ? { coalesceSeconds } : {}), ...(keepAutomatic !== undefined ? { keepAutomatic } : {}), ...(maxVersions !== undefined ? { maxVersions } : {}) };
+}
+
 interface LoadedDiagram {
   id: string;
   module: string;
@@ -220,14 +325,32 @@ function descriptionOf(raw: unknown): string | undefined {
   return description || undefined;
 }
 
+export interface FolderProjectStoreOptions {
+  /**
+   * Cuánto historial se guarda por diagrama (ver `VersionPolicy`); `false` para no guardarlo (el almacén lo declara con `keepsVersions: false`).
+   * Por omisión, lo que digan las variables de entorno (`versionPolicyFromEnv`) o, si no dicen nada, `DEFAULT_VERSION_POLICY`.
+   */
+  versions?: Partial<VersionPolicy> | false;
+  /** El reloj de las versiones (las pruebas ponen uno que controlan). */
+  clock?: () => Date;
+}
+
 export class FolderProjectStore implements ProjectStore {
   readonly kind = 'folder';
+  readonly keepsVersions: boolean;
+  /** La política de retención del historial, o `undefined` si este almacén no lo guarda. */
+  readonly versionPolicy: VersionPolicy | undefined;
   /** Ruta absoluta de la carpeta de trabajo. */
   readonly root: string;
   private chain: Promise<unknown> = Promise.resolve();
+  private readonly clock: () => Date;
 
-  constructor(root: string) {
+  constructor(root: string, options: FolderProjectStoreOptions = {}) {
     this.root = resolve(root);
+    const wanted = options.versions ?? versionPolicyFromEnv();
+    this.versionPolicy = wanted === false ? undefined : resolveVersionPolicy(wanted);
+    this.keepsVersions = this.versionPolicy !== undefined;
+    this.clock = options.clock ?? (() => new Date());
   }
 
   // ───────────── utilidades internas ─────────────
@@ -549,11 +672,16 @@ export class FolderProjectStore implements ProjectStore {
     );
   }
 
-  private async updateDiagram(loaded: Loaded, input: SaveDiagramInput): Promise<DiagramMeta> {
+  private async updateDiagram(loaded: Loaded, input: SaveDiagramInput, extra: { restoredFrom?: number; coalesce?: boolean } = {}): Promise<DiagramMeta> {
     const current = this.requireDiagram(loaded, input.id);
     if (input.module !== undefined && input.module !== current.module) throw new ProjectError('invalid', `Un diagrama no cambia de módulo (es de «${current.module}»).`);
     if (input.ifUpdatedAt !== undefined && input.ifUpdatedAt !== iso(current.updatedMs)) {
       throw new ProjectError('conflict', `El diagrama «${current.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`);
+    }
+    // Primero el historial y después el diagrama: si el disco falla en medio, el guardado falla sin haber cambiado el diagrama.
+    if (this.versionPolicy) {
+      const previous = await this.currentText(loaded, current);
+      await this.record(loaded.dir, current.id, { next: input.text, by: cleanBy(input.by), previous: { text: previous, at: iso(current.updatedMs) }, ...extra });
     }
     const updatedMs = await this.writeAtomic(join(loaded.dir, current.file), input.text, { growFrom: current.updatedMs });
     if (!current.fromSidecar) {
@@ -585,12 +713,25 @@ export class FolderProjectStore implements ProjectStore {
       }
     }
     const file = `${id}.${module}.json`;
+    const undo = async (): Promise<void> => {
+      await rm(join(loaded.dir, file), { force: true }).catch(() => undefined);
+      await this.resetHistory(loaded.dir, id).catch(() => undefined);
+    };
+    if (this.versionPolicy) {
+      try {
+        await this.resetHistory(loaded.dir, id); // un resto de un diagrama anterior con este id no es el historial del nuevo
+        await this.record(loaded.dir, id, { next: input.text, by: cleanBy(input.by) });
+      } catch (error) {
+        await undo();
+        throw error;
+      }
+    }
     const draft = draftOf(loaded);
     draft.diagrams.set(id, { name, createdAt: iso(createdMs) });
     try {
       await this.writeSidecar(loaded, draft);
     } catch (error) {
-      await rm(join(loaded.dir, file), { force: true }).catch(() => undefined);
+      await undo();
       throw error;
     }
     return { id, module, name, createdAt: iso(createdMs), updatedAt: iso(createdMs) };
@@ -618,6 +759,7 @@ export class FolderProjectStore implements ProjectStore {
         const loaded = await this.requireProject(projectId);
         const current = this.requireDiagram(loaded, diagramId);
         await unlink(join(loaded.dir, current.file));
+        await this.resetHistory(loaded.dir, current.id).catch(() => undefined); // el historial se va con el diagrama
         if (loaded.hasSidecar) {
           const draft = draftOf(loaded);
           draft.diagrams.delete(current.id);
@@ -626,4 +768,176 @@ export class FolderProjectStore implements ProjectStore {
       }),
     );
   }
+  // ───────────── historial de versiones ─────────────
+
+  /** El texto que tiene ahora el archivo de un diagrama (vacío si desapareció en este instante). */
+  private async currentText(loaded: Loaded, diagram: LoadedDiagram): Promise<string> {
+    return (await readRegular(join(loaded.dir, diagram.file), MAX_DOCUMENT_BYTES, `El diagrama «${diagram.name}»`))?.text ?? '';
+  }
+
+  /**
+   * El directorio del historial de un diagrama (`.versiones/<id>`). Con `create`, lo crea; sin él, `undefined` si no existe. Si `.versiones` o
+   * el directorio del diagrama existen pero no son directorios normales (un enlace simbólico puesto a mano), no se sigue: leer es como no
+   * tener historial y escribir falla con el motivo, para no salir de la carpeta de trabajo.
+   */
+  private async historyDir(projectDir: string, diagramId: string, create: boolean): Promise<string | undefined> {
+    const base = child(projectDir, VERSIONS_DIR);
+    const leaf = child(base, diagramId);
+    for (const path of [base, leaf]) {
+      let st: Stats | undefined;
+      try {
+        st = await lstat(path);
+      } catch (error) {
+        if (!isMissing(error)) throw error;
+      }
+      if (st) {
+        if (st.isDirectory()) continue;
+        if (create) throw new ProjectError('unavailable', `«${path}» no es un directorio normal (¿un enlace simbólico?): quítalo para que se guarde el historial.`);
+        return undefined;
+      }
+      if (!create) return undefined;
+      await mkdir(path).catch((error: unknown) => {
+        if (fsCode(error) !== 'EEXIST') throw error; // otro proceso lo creó a la vez
+      });
+    }
+    return leaf;
+  }
+
+  private async readIndex(dir: string | undefined): Promise<HistoryIndex> {
+    if (!dir) return EMPTY_INDEX;
+    let file;
+    try {
+      file = await readRegular(join(dir, HISTORY_INDEX), MAX_HISTORY_INDEX_BYTES, 'El índice del historial');
+    } catch (error) {
+      if (error instanceof ProjectError) return EMPTY_INDEX; // demasiado grande: se trata como dañado
+      throw error;
+    }
+    if (!file) return EMPTY_INDEX;
+    try {
+      return parseHistoryIndex(JSON.parse(file.text));
+    } catch {
+      return EMPTY_INDEX; // dañado: el historial empieza de nuevo en el guardado siguiente (el diagrama no depende de él)
+    }
+  }
+
+  /** Borra el historial de un diagrama (cuando se borra, o cuando se crea uno con ese id). */
+  private async resetHistory(projectDir: string, diagramId: string): Promise<void> {
+    const dir = await this.historyDir(projectDir, diagramId, false);
+    if (dir) await rm(dir, { recursive: true, force: true });
+  }
+
+  /** Escribe el índice (atómico) y borra los documentos de versiones que ya no figuran en él. */
+  private async writeIndex(dir: string, index: HistoryIndex): Promise<void> {
+    await this.writeAtomic(join(dir, HISTORY_INDEX), serializeHistoryIndex(index));
+    const wanted = new Set(index.versions.map((v) => versionFile(v.id)));
+    for (const name of await readdir(dir)) {
+      if (VERSION_FILE.test(name) && !wanted.has(name)) await rm(join(dir, name), { force: true }).catch(() => undefined);
+    }
+  }
+
+  /** Anota la versión de un guardado según la política. Sin historial (`keepsVersions: false`) no hace nada. */
+  private async record(projectDir: string, diagramId: string, change: { next: string; by?: string; previous?: { text: string; at: string }; restoredFrom?: number; coalesce?: boolean }): Promise<VersionPlan | undefined> {
+    const policy = this.versionPolicy;
+    if (!policy) return undefined;
+    const dir = (await this.historyDir(projectDir, diagramId, true))!;
+    const index = await this.readIndex(dir);
+    const plan = planSave({
+      existing: index.versions,
+      lastId: index.lastId,
+      headHash: index.head,
+      previous: change.previous ? { ...describeContent(change.previous.text), at: change.previous.at } : undefined,
+      next: { savedAt: this.clock().toISOString(), savedBy: change.by, ...describeContent(change.next), restoredFrom: change.restoredFrom },
+      policy,
+      coalesce: change.coalesce ?? true,
+    });
+    for (const version of plan.add) await this.writeAtomic(join(dir, versionFile(version.id)), version.from === 'previous' ? (change.previous?.text ?? '') : change.next);
+    await this.writeIndex(dir, { lastId: plan.lastId, head: plan.headHash, versions: applyPlan(index.versions, plan) });
+    return plan;
+  }
+
+  /** El proyecto y el diagrama existen (o `not-found`) y este almacén guarda historial (o `unsupported`). */
+  private async versioned(projectId: string, diagramId: string): Promise<{ loaded: Loaded; diagram: LoadedDiagram }> {
+    if (!this.versionPolicy) throw unsupportedVersions();
+    const loaded = await this.requireProject(projectId);
+    return { loaded, diagram: this.requireDiagram(loaded, diagramId) };
+  }
+
+  listVersions(projectId: string, diagramId: string): Promise<VersionMeta[]> {
+    return this.guard(async () => {
+      const { loaded, diagram } = await this.versioned(projectId, diagramId);
+      return newestFirst((await this.readIndex(await this.historyDir(loaded.dir, diagram.id, false))).versions).map(versionMeta);
+    });
+  }
+
+  getVersion(projectId: string, diagramId: string, versionId: number): Promise<DiagramVersion | undefined> {
+    return this.guard(async () => {
+      requireVersionId(versionId);
+      const { loaded, diagram } = await this.versioned(projectId, diagramId);
+      const dir = await this.historyDir(loaded.dir, diagram.id, false);
+      const found = (await this.readIndex(dir)).versions.find((v) => v.id === versionId);
+      const file = found && dir ? await readRegular(join(dir, versionFile(versionId)), MAX_DOCUMENT_BYTES, `La versión ${versionId}`) : undefined;
+      return found && file ? { ...versionMeta(found), text: file.text } : undefined;
+    });
+  }
+
+  restoreVersion(projectId: string, diagramId: string, versionId: number, options: RestoreOptions = {}): Promise<RestoredVersion> {
+    return this.guard(async () => {
+      requireVersionId(versionId);
+      return this.exclusive(async () => {
+        const { loaded, diagram } = await this.versioned(projectId, diagramId);
+        const dir = await this.historyDir(loaded.dir, diagram.id, false);
+        const index = await this.readIndex(dir);
+        const found = findVersion(index.versions, versionId);
+        if (options.ifUpdatedAt !== undefined && options.ifUpdatedAt !== iso(diagram.updatedMs)) {
+          throw new ProjectError('conflict', `El diagrama «${diagram.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`);
+        }
+        if (describeContent(await this.currentText(loaded, diagram)).hash === found.hash) {
+          return { diagram: metaOf(diagram), version: versionMeta(index.versions[index.versions.length - 1] ?? found), unchanged: true };
+        }
+        const file = dir ? await readRegular(join(dir, versionFile(versionId)), MAX_DOCUMENT_BYTES, `La versión ${versionId}`) : undefined;
+        if (!file) throw new ProjectError('not-found', `Falta el documento de la versión ${versionId} en el historial.`);
+        const saved = await this.updateDiagram(loaded, { id: diagram.id, text: file.text, by: options.by }, { restoredFrom: versionId, coalesce: false });
+        const after = await this.readIndex(dir);
+        return { diagram: saved, version: versionMeta(after.versions[after.versions.length - 1] ?? found), unchanged: false };
+      });
+    });
+  }
+
+  labelVersion(projectId: string, diagramId: string, versionId: number, label: string): Promise<VersionMeta> {
+    return this.guard(async () => {
+      requireVersionId(versionId);
+      return this.exclusive(async () => {
+        const { loaded, diagram } = await this.versioned(projectId, diagramId);
+        const dir = await this.historyDir(loaded.dir, diagram.id, false);
+        const index = await this.readIndex(dir);
+        const named = planLabel(index.versions, versionId, label, this.versionPolicy!);
+        await this.writeIndex(dir!, { ...index, versions: index.versions.map((v) => (v.id === versionId ? named : v)) });
+        return versionMeta(named);
+      });
+    });
+  }
+
+  deleteVersion(projectId: string, diagramId: string, versionId: number): Promise<void> {
+    return this.guard(async () => {
+      requireVersionId(versionId);
+      return this.exclusive(async () => {
+        const { loaded, diagram } = await this.versioned(projectId, diagramId);
+        const dir = await this.historyDir(loaded.dir, diagram.id, false);
+        const index = await this.readIndex(dir);
+        planDelete(index.versions, versionId);
+        await this.writeIndex(dir!, { ...index, versions: index.versions.filter((v) => v.id !== versionId) }); // también borra el documento de la versión
+      });
+    });
+  }
+
+  versionUsage(projectId: string): Promise<VersionUsage> {
+    return this.guard(async () => {
+      if (!this.versionPolicy) throw unsupportedVersions();
+      const loaded = await this.requireProject(projectId);
+      const all: VersionMeta[] = [];
+      for (const diagram of loaded.diagrams) all.push(...(await this.readIndex(await this.historyDir(loaded.dir, diagram.id, false))).versions);
+      return versionUsageOf(all);
+    });
+  }
+
 }

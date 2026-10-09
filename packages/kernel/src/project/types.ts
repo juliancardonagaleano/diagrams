@@ -60,6 +60,11 @@ export interface SaveDiagramInput {
    * pestaña o proceso lo cambió en medio, falla con `ProjectError('conflict')` en lugar de pisar su trabajo.
    */
   ifUpdatedAt?: string;
+  /**
+   * Quién guarda, para anotarlo en la versión del historial (ver `versions.ts`). Lo rellena quien conoce la identidad: `iark serve` con el
+   * nombre del token o el `@usuario` de la sesión. El cliente remoto (`HttpProjectStore`) no lo envía: lo decide el servidor, no la petición.
+   */
+  by?: string;
 }
 
 /**
@@ -70,6 +75,11 @@ export interface SaveDiagramInput {
 export interface ProjectStore {
   /** `memory`, `indexeddb`, `folder`… para los mensajes y para saber qué ofrecer. */
   readonly kind: string;
+  /**
+   * Indicador de capacidad: `true` si el almacén guarda el historial de versiones de cada diagrama (y cumple `VersionedProjectStore`, ver
+   * `isVersioned`). Ausente o `false`: no lo guarda, y quien lo muestre debe ocultarlo en lugar de fallar.
+   */
+  readonly keepsVersions?: boolean;
   listProjects(): Promise<ProjectSummary[]>;
   getProject(id: string): Promise<ProjectSummary | undefined>;
   createProject(input: { name: string; description?: string }): Promise<ProjectSummary>;
