@@ -168,3 +168,37 @@ describe.skipIf(!postgresAvailable())('Postgres: pool, transacciones y migracion
     expect(await db.ping()).toBe(false);
   });
 });
+
+describe.skipIf(!postgresAvailable())('Postgres: pool compartido por proceso', () => {
+  let server: TestPostgres;
+  beforeAll(async () => {
+    server = await startTestPostgres();
+  }, 120_000);
+  afterAll(async () => {
+    await server?.stop();
+  });
+
+  it('reutiliza el mismo pool y lo cierra con la última referencia', async () => {
+    const { acquireDatabase, releaseDatabase } = await import('./shared');
+    const env = { IARK_DATABASE_URL: server.url, IARK_DATABASE_SCHEMA: uniqueSchema() };
+    const a = await acquireDatabase(env);
+    const b = await acquireDatabase(env);
+    expect(b).toBe(a);
+    await releaseDatabase();
+    expect(await a.ping()).toBe(true); // queda una referencia
+    await releaseDatabase();
+    expect(await a.ping()).toBe(false); // ya cerrado
+    const c = await acquireDatabase(env); // y se puede volver a abrir
+    expect(c).not.toBe(a);
+    expect(await c.ping()).toBe(true);
+    await releaseDatabase();
+  });
+
+  it('si la base no contesta no deja un fallo guardado', async () => {
+    const { acquireDatabase, releaseDatabase } = await import('./shared');
+    await expect(acquireDatabase({ IARK_DATABASE_URL: 'postgres://postgres@127.0.0.1:1/postgres', IARK_DATABASE_SCHEMA: uniqueSchema() })).rejects.toBeInstanceOf(DatabaseError);
+    const ok = await acquireDatabase({ IARK_DATABASE_URL: server.url, IARK_DATABASE_SCHEMA: uniqueSchema() });
+    expect(await ok.ping()).toBe(true);
+    await releaseDatabase();
+  });
+});
