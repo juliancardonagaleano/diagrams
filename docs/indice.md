@@ -11,6 +11,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | [importadores.md](importadores.md) | Importar y exportar: `.drawio`, DSL de Structurizr y Mermaid; tabla de los formatos de cada módulo. |
 | [proyectos.md](proyectos.md) | Proyectos: carpeta de trabajo y `iark project`, API HTTP de proyectos, proyectos en el navegador y guardar en un servidor propio. |
 | [trazabilidad.md](trazabilidad.md) | Enlaces entre módulos por URN (`iark trace`, `trazabilidad.html`). |
+| [plugins.md](plugins.md) | Módulos de terceros sin tocar el repositorio: `iark.config.json`, escribir un módulo paso a paso (ejemplo en `examples/plugin-riesgos/`), seguridad, `iark serve` y Docker, paquetes `@iark/*` y qué no hace (el sitio web no los carga). |
 
 ## Módulos (especialidades)
 
@@ -44,7 +45,8 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 
 | Documento | Qué cuenta |
 |---|---|
-| [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, decisiones de diseño y trampas conocidas. |
+| [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, paquetes publicables (`packages:build`, `packages:check`, publicar en npm), decisiones de diseño y trampas conocidas. |
+| [versionado-documentos.md](versionado-documentos.md) | Cómo evoluciona un esquema sin romper lo guardado: `documentVersion` y migraciones por módulo (`iark migrate`), `contractVersion` del contrato `DomainModule` (el que cumple un [módulo de terceros](plugins.md)) y negociación de la versión del protocolo embebido y del manifiesto. |
 | [roadmap.md](roadmap.md) | Visión, estado actual, pendientes reales, límites conocidos y el plan de robustecimiento en cuatro fases. |
 | [historial.md](historial.md) | Lo ya hecho, por fases y por tandas, y el plan original de la suite. |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) · [SECURITY.md](../SECURITY.md) · [CHANGELOG.md](../CHANGELOG.md) · [LICENSE](../LICENSE) | Cómo contribuir, cómo informar de una vulnerabilidad, qué cambió en cada versión y la licencia. |

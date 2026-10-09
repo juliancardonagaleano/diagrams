@@ -132,6 +132,34 @@ test.describe('editor C4 incrustado a mano, sin ?origin=', () => {
     expect(JSON.parse(result.exported).workspace).toBeTruthy();
   });
 
+  test('negocia la versión del protocolo: el init la lleva y un load de otra versión mayor recibe un error incompatible-protocol', async ({ page }) => {
+    await page.goto('/examples/embed-host.html', { waitUntil: 'domcontentloaded' });
+    const result = await page.evaluate(
+      () =>
+        new Promise<{ initVersion: string; error: { code?: string; message: string } }>((resolve, reject) => {
+          const iframe = document.createElement('iframe');
+          iframe.src = '/?embed=1&proto=json';
+          document.body.appendChild(iframe);
+          let initVersion = '';
+          const timer = setTimeout(() => reject(new Error('el editor no respondió al load de otra versión del protocolo')), 20000);
+          window.addEventListener('message', (e) => {
+            if (e.source !== iframe.contentWindow || typeof e.data !== 'string') return;
+            const msg = JSON.parse(e.data) as { event: string; version?: string; code?: string; message: string };
+            if (msg.event === 'init') {
+              initVersion = msg.version ?? '';
+              iframe.contentWindow!.postMessage(JSON.stringify({ action: 'load', version: '2.0' }), location.origin);
+            } else if (msg.event === 'error') {
+              clearTimeout(timer);
+              resolve({ initVersion, error: { code: msg.code, message: msg.message } });
+            }
+          });
+        }),
+    );
+    expect(result.initVersion).toMatch(/^\d+\.\d+$/);
+    expect(result.error.code).toBe('incompatible-protocol');
+    expect(result.error.message).toMatch(/incompatible.*2\.0/s);
+  });
+
   // El caso «sin origen fiable» (padre de origen opaco: iframe con sandbox, about:blank) no se pudo probar aquí: con un padre así el
   // Chromium de la prueba no llega a cargar el iframe de localhost (queda en chrome-error://) y, con sandbox, el editor hereda además el
   // origen opaco. Lo cubren las pruebas de useEmbedBridge.origin.test.tsx con las fuentes del navegador simuladas.

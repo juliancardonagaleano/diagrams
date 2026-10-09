@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { EMBED_PROTOCOL_VERSION } from '@iark/kernel';
 import { loadManifest, manifestOrigin, ManifestError } from './manifest';
 
 const published = readFileSync(new URL('../../public/.well-known/iark.json', import.meta.url), 'utf8');
@@ -89,5 +90,48 @@ describe('manifestOrigin: a quién apunta un manifiesto recibido por enlace', ()
 
   it('lo que no es una URL no tiene origen', () => {
     expect(manifestOrigin('http://', page)).toBeUndefined();
+  });
+});
+
+describe('versiones del manifiesto: esquema, protocolo y contrato de los módulos', () => {
+  const URL_REMOTA = 'https://otra.example/.well-known/iark.json';
+  const modulo = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: id, version: '1', documentVersion: '1.0', importFormats: [], exportFormats: [], endpoints: { embed: `/w/modulos.html?module=${id}` }, ...extra });
+  const manifiesto = (extra: Record<string, unknown>, modules: unknown[] = [modulo('data')]): string => JSON.stringify({ schema: 'iark.manifest/1', name: 'Otra instancia', version: '2.0.0', modules, ...extra });
+
+  it('el manifiesto publicado lleva el protocolo y el contrato de cada módulo, y se carga sin módulos apartados', async () => {
+    const manifest = await loadManifest('https://juliancardonagaleano.github.io/iark-diagrams/.well-known/iark.json', respond(published));
+    expect(manifest.protocol).toBe(EMBED_PROTOCOL_VERSION);
+    expect(manifest.modules.every((m) => m.contractVersion === 1)).toBe(true);
+    expect(manifest.rejected).toEqual([]);
+  });
+
+  it('una instancia anterior (sin `protocol` ni `contractVersion`) se carga como protocolo 1.0 y contrato 1', async () => {
+    const manifest = await loadManifest(URL_REMOTA, respond(manifiesto({})));
+    expect(manifest.protocol).toBe('1.0');
+    expect(manifest.modules.map((m) => m.id)).toEqual(['data']);
+    expect(manifest.modules[0].contractVersion).toBeUndefined();
+    expect(manifest.rejected).toEqual([]);
+  });
+
+  it('un manifiesto de esquema de versión MAYOR se rechaza entero con un mensaje claro (no con un «Invalid input»)', async () => {
+    const attempt = loadManifest(URL_REMOTA, respond(manifiesto({ schema: 'iark.manifest/2' })));
+    await expect(attempt).rejects.toBeInstanceOf(ManifestError);
+    await expect(attempt).rejects.toThrow(/versión más nueva del formato \(iark\.manifest\/2\).*Actualiza IArk/);
+    await expect(attempt).rejects.not.toThrow(/Invalid input/);
+  });
+
+  it('un protocolo de versión MAYOR distinta se rechaza entero; uno de menor distinta se acepta', async () => {
+    await expect(loadManifest(URL_REMOTA, respond(manifiesto({ protocol: '2.0' })))).rejects.toThrow(/habla el protocolo embebido 2\.0 y esta suite el 1\.0/);
+    await expect(loadManifest(URL_REMOTA, respond(manifiesto({ protocol: '1.9' })))).resolves.toMatchObject({ protocol: '1.9' });
+  });
+
+  it('un módulo que exige un contractVersion mayor se aparta con el motivo y los demás siguen disponibles', async () => {
+    const manifest = await loadManifest(URL_REMOTA, respond(manifiesto({}, [modulo('data'), modulo('futuro', { contractVersion: 2 }), modulo('security', { contractVersion: 1 })])));
+    expect(manifest.modules.map((m) => m.id)).toEqual(['data', 'security']);
+    expect(manifest.rejected).toEqual([{ id: 'futuro', name: 'futuro', reason: expect.stringMatching(/«futuro» exige la versión 2 del contrato de módulos y esta suite entiende hasta la 1/) }]);
+  });
+
+  it('un contractVersion de otro tipo invalida el manifiesto (el esquema lo pide entero)', async () => {
+    await expect(loadManifest(URL_REMOTA, respond(manifiesto({}, [modulo('data', { contractVersion: '2' })])))).rejects.toBeInstanceOf(ManifestError);
   });
 });

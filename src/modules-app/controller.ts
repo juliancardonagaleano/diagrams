@@ -1,6 +1,7 @@
 import {
   analyzeText,
   analyzeValue,
+  EMBED_PROTOCOL_VERSION,
   exportDocument,
   importFiles as importSourceFiles,
   importText,
@@ -536,7 +537,7 @@ export class WorkbenchController {
     const wanted = ids ?? this.moduleIds;
     const modules = await Promise.all(wanted.map((id) => this.loadModule(id)));
     return {
-      protocol: this.options.protocol ?? '1.0',
+      protocol: this.options.protocol ?? EMBED_PROTOCOL_VERSION,
       suite: this.options.suite ?? 'IArk - DIAgrams',
       available: this.moduleIds,
       modules: modules.map(moduleCapabilities),

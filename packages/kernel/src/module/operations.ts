@@ -1,4 +1,6 @@
 import { extractJson } from '../util/extractJson';
+import { contractVersionOf } from './contract';
+import { migrateValue, type MigrationResult } from './migrate';
 import type { CommandOption, CommandSpec, DomainModule, EntityRef, ExportContext, ImportContext, Importer, ModuleIssue, SourceFile, ViewRef } from './types';
 
 /**
@@ -15,13 +17,20 @@ export interface FieldIssue {
   message: string;
 }
 
+/** De qué versión a qué versión se llevó un documento antiguo al abrirlo (ver `migrateDocument`). */
+export interface DocumentMigrated {
+  from: string;
+  to: string;
+}
+
 export type Analysis =
   | { status: 'empty' }
   | { status: 'syntax'; error: string }
   | { status: 'schema'; issues: FieldIssue[] }
-  | { status: 'ok'; document: unknown; issues: ModuleIssue[] };
+  /** `migrated` solo está si el documento venía de una versión anterior y se migró antes de validarlo; `document` ya es el migrado. */
+  | { status: 'ok'; document: unknown; issues: ModuleIssue[]; migrated?: DocumentMigrated };
 
-/** Interpreta el texto del editor: JSON → esquema del módulo → reglas semánticas del dominio. */
+/** Interpreta el texto del editor: JSON → migración → esquema del módulo → reglas semánticas del dominio. */
 export function analyzeText(module: AnyModule, text: string): Analysis {
   if (!text.trim()) return { status: 'empty' };
   let json: unknown;
@@ -33,15 +42,46 @@ export function analyzeText(module: AnyModule, text: string): Analysis {
   return analyzeValue(module, json);
 }
 
-export function analyzeValue(module: AnyModule, value: unknown): Analysis {
-  const parsed = module.schema.safeParse(value);
+/**
+ * Lleva un documento guardado con una versión anterior del formato a la actual del módulo (`DomainModule.migrations`), sin
+ * validarlo ni mutar `value`. Sin `version` se asume la actual; una versión más nueva que la del módulo, o anterior y sin
+ * cadena de migraciones, se devuelve como `unsupported` con un mensaje claro. Es la primera etapa de `analyzeValue`.
+ */
+export function migrateDocument(module: AnyModule, value: unknown): MigrationResult {
+  return migrateValue(module, value);
+}
+
+/** Lo que devuelve `parseModuleDocument`: el documento migrado y validado con el esquema, o los problemas. */
+export type ParsedDocument = { ok: true; document: unknown; migrated?: DocumentMigrated } | { ok: false; issues: FieldIssue[] };
+
+/**
+ * Migra `value` a la versión actual del módulo y lo valida con su esquema (sin las reglas semánticas de `validate`): la lectura
+ * de un documento para los comandos y las superficies que no necesitan analizarlo entero. `analyzeValue` se apoya en ella.
+ */
+export function parseModuleDocument(module: AnyModule, value: unknown): ParsedDocument {
+  const migration = migrateDocument(module, value);
+  if (migration.status === 'unsupported') return { ok: false, issues: [{ path: 'version', message: migration.message }] };
+  const parsed = module.schema.safeParse(migration.document);
   if (!parsed.success) {
-    return { status: 'schema', issues: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.') || '(raíz)', message: i.message })) };
+    return { ok: false, issues: parsed.error.issues.map((i) => ({ path: i.path.map(String).join('.') || '(raíz)', message: i.message })) };
   }
+  return { ok: true, document: parsed.data, ...(migration.status === 'migrated' ? { migrated: { from: migration.from, to: migration.to } } : {}) };
+}
+
+/** La nota que se antepone a los problemas de un documento que se migró al abrirlo. */
+export function migrationNotice(migrated: DocumentMigrated): ModuleIssue {
+  return { severity: 'info', message: `Documento migrado de la versión ${migrated.from} a ${migrated.to}; al guardarlo se escribe en la nueva.` };
+}
+
+export function analyzeValue(module: AnyModule, value: unknown): Analysis {
+  const parsed = parseModuleDocument(module, value);
+  if (!parsed.ok) return { status: 'schema', issues: parsed.issues };
+  const notice = parsed.migrated ? [migrationNotice(parsed.migrated)] : [];
+  const migrated = parsed.migrated ? { migrated: parsed.migrated } : {};
   try {
-    return { status: 'ok', document: parsed.data, issues: module.validate(parsed.data) };
+    return { status: 'ok', document: parsed.document, issues: [...notice, ...module.validate(parsed.document)], ...migrated };
   } catch (error) {
-    return { status: 'ok', document: parsed.data, issues: [{ severity: 'error', message: `No se pudo analizar el documento: ${(error as Error).message}` }] };
+    return { status: 'ok', document: parsed.document, issues: [...notice, { severity: 'error', message: `No se pudo analizar el documento: ${(error as Error).message}` }], ...migrated };
   }
 }
 
@@ -350,6 +390,8 @@ export interface ModuleCapabilities {
   name: string;
   version: string;
   description?: string;
+  /** Versión del contrato `DomainModule` contra la que se escribió el módulo (siempre presente: el omitido se publica como 1). */
+  contractVersion: number;
   documentVersion: string;
   /** El banco de trabajo dibuja las vistas del módulo (tiene exportador `svg`). */
   render: boolean;
@@ -366,6 +408,7 @@ export function moduleCapabilities(module: AnyModule): ModuleCapabilities {
     name: module.name,
     version: module.version,
     ...(module.description ? { description: module.description } : {}),
+    contractVersion: contractVersionOf(module),
     documentVersion: module.documentVersion,
     render: canRender(module),
     importFormats: module.importers.map((i) => ({ id: i.id, label: i.label, extensions: i.extensions })),

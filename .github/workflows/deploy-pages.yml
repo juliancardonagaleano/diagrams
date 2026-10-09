@@ -11,6 +11,10 @@ name: Deploy to GitHub Pages
 #            `publish`. Se pasará a obligatorio cuando haya varias ejecuciones verdes seguidas en master (así un test
 #            inestable no bloquea publicaciones mientras se comprueba su fiabilidad): bastará con añadir `e2e` al
 #            `needs` de `publish`.
+#  - packages Los paquetes publicables (`@iark/kernel` y `@iark/domain-*`): `npm run packages:check` los empaqueta con `npm pack`, los
+#            instala en una carpeta limpia y comprueba que se importan y que el módulo de terceros de ejemplo carga con `iark --config`
+#            usando SOLO los tarballs. Informativo, igual que `e2e`: NO está en el `needs` de `publish`. Publicar en npm es otro
+#            workflow, manual (release-packages.yml).
 #  - publish Solo desde master (push o ejecución manual), nunca en pull request: publica con scripts/deploy-gh-pages.sh
 #            y comprueba con scripts/verify-pages.sh que el sitio sirve la compilación nueva y responde 200.
 #
@@ -139,6 +143,24 @@ jobs:
             test-results
           retention-days: 7
           if-no-files-found: ignore
+
+  packages:
+    # Informativo por ahora: NO forma parte del `needs` de `publish` (ver la cabecera del archivo).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # Compila los siete paquetes (JS + tipos), los empaqueta, los instala en una carpeta temporal y prueba import, tipos, el plugin
+      # de ejemplo con `iark --config` y `iark serve --config`. Necesita red (npm install de las dependencias de los tarballs).
+      - name: Empaquetar, instalar y probar los paquetes publicables
+        run: npm run packages:check
 
   publish:
     # Solo desde master: un pull request nunca publica.

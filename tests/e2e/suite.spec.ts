@@ -135,6 +135,49 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
     await expect(page.getByRole('status')).toContainText('sin conexión');
   });
 
+  test('un módulo remoto que exige un contractVersion mayor se aparta con un aviso y los demás siguen disponibles', async ({ page }) => {
+    await page.route('**/futuro/.well-known/iark.json', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          schema: 'iark.manifest/1',
+          name: 'Instancia del futuro',
+          version: '9.0.0',
+          protocol: '1.7', // una diferencia de menor se acepta
+          modules: [
+            { id: 'data', name: 'Datos', version: '1.0.0', contractVersion: 1, documentVersion: '1.0', importFormats: [], exportFormats: [], endpoints: { embed: '../../modulos.html?module=data' } },
+            { id: 'security', name: 'Seguridad nueva', version: '2.0.0', contractVersion: 99, documentVersion: '2.0', importFormats: [], exportFormats: [], endpoints: { embed: '../../modulos.html?module=security' } },
+          ],
+        }),
+      }),
+    );
+    await page.goto('/suite.html?manifest=' + encodeURIComponent('/futuro/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('status')).toContainText('Instancia del futuro v9.0.0 · 1 módulos (1 no compatible)');
+    await expect(page.getByRole('alert')).toContainText('«security» exige la versión 99 del contrato de módulos');
+    await expect(page.getByRole('navigation', { name: 'Módulos' }).getByRole('button')).toHaveCount(1);
+    await expect.poll(() => page.frames().some((f) => f.url().includes('module=data') && f.url().includes('embed=1'))).toBe(true);
+    expect(page.frames().some((f) => f.url().includes('module=security'))).toBe(false);
+  });
+
+  test('un manifiesto de un esquema o de un protocolo de versión mayor se rechaza entero con un mensaje claro', async ({ page }) => {
+    const base: Record<string, unknown> = { schema: 'iark.manifest/1', name: 'Instancia nueva', version: '2.0.0', modules: [] };
+    for (const [carpeta, cambio, mensaje] of [
+      ['esquema2', { schema: 'iark.manifest/2' }, 'versión más nueva del formato'],
+      ['protocolo2', { protocol: '2.0' }, 'habla el protocolo embebido 2.0'],
+    ] as Array<[string, Record<string, unknown>, string]>) {
+      await page.route(`**/${carpeta}/.well-known/iark.json`, (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ ...base, ...cambio }),
+        }),
+      );
+      await page.goto('/suite.html?manifest=' + encodeURIComponent(`/${carpeta}/.well-known/iark.json`), { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('alert')).toContainText(mensaje);
+      await expect(page.getByRole('status')).toContainText('sin conexión');
+      await expect(page.locator('iframe')).toHaveCount(0);
+    }
+  });
+
   test('el sitio publica el manifiesto y los JSON Schema anunciados', async ({ request }) => {
     const manifest = await (await request.get('/.well-known/iark.json')).json();
     expect(manifest.schema).toBe('iark.manifest/1');

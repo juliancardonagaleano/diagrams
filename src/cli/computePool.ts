@@ -1,7 +1,8 @@
 import { availableParallelism } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import type { ComputeExecutor, ComputeJob, ComputeOutcome, ComputeReply, ComputeRequest, ComputeRunOptions } from './compute';
+import type { ComputeExecutor, ComputeJob, ComputeOutcome, ComputeReply, ComputeRequest, ComputeRunOptions, ComputeWorkerInit } from './compute';
+import type { ResolvedPlugin } from './plugins/resolve';
 
 /**
  * Pool de hilos de trabajo (`worker_threads`) para las operaciones de cálculo de `iark serve` (ver `compute.ts`). Tres garantías
@@ -17,8 +18,9 @@ import type { ComputeExecutor, ComputeJob, ComputeOutcome, ComputeReply, Compute
  * Un hilo que se cae (error no capturado, memoria agotada) se sustituye igual: la operación que llevaba responde un error y el
  * servicio sigue. El pool no cierra nada por su cuenta: quien lo crea llama a `close()` al parar el servicio.
  *
- * Cada hilo construye su propio registro de módulos (`createDefaultRegistry`, ver `computeWorker.ts`): el pool sirve a un servidor
- * con los módulos por omisión de la suite.
+ * Cada hilo construye su propio registro de módulos (`createRegistry`, ver `computeWorker.ts`): los incorporados más los módulos de
+ * terceros que se le pasen en `plugins` (los mismos, ya resueltos, que cargó el hilo principal). Sin ellos, un módulo de terceros
+ * funcionaría en el CLI y fallaría en `iark serve`, que es donde corre el cálculo.
  */
 
 export const DEFAULT_COMPUTE_TIMEOUT_MS = 30_000;
@@ -43,11 +45,11 @@ export function defaultWorkerFile(): URL {
  * hilo principal (y el soporte de TypeScript de Node no resuelve los imports sin extensión del código), así que el hilo arranca con un
  * pequeño guion que registra tsx y luego importa el archivo. Empaquetado (`.js`) no hay nada de eso: es un hilo de Node sin más.
  */
-function newWorker(file: string | URL): Worker {
+function newWorker(file: string | URL, workerData: ComputeWorkerInit): Worker {
   const href = typeof file === 'string' ? pathToFileURL(file).href : file.href;
-  if (!/\.[cm]?ts$/.test(new URL(href).pathname)) return new Worker(file);
+  if (!/\.[cm]?ts$/.test(new URL(href).pathname)) return new Worker(file, { workerData });
   const tsx = import.meta.resolve('tsx/esm/api');
-  return new Worker(`import(${JSON.stringify(tsx)}).then(({ register }) => { register(); return import(${JSON.stringify(href)}); })`, { eval: true });
+  return new Worker(`import(${JSON.stringify(tsx)}).then(({ register }) => { register(); return import(${JSON.stringify(href)}); })`, { eval: true, workerData });
 }
 
 export interface ComputePoolOptions {
@@ -61,6 +63,8 @@ export interface ComputePoolOptions {
   retryAfterSeconds?: number;
   /** El archivo del hilo (ver `defaultWorkerFile`); las pruebas lo cambian por uno que se cuelga a propósito. */
   workerFile?: string | URL;
+  /** Los módulos de terceros (ya resueltos) que cada hilo carga además de los incorporados, para tener el mismo registro que el hilo principal. */
+  plugins?: ResolvedPlugin[];
 }
 
 interface Task {
@@ -86,6 +90,7 @@ export class ComputePool implements ComputeExecutor {
   readonly maxQueue: number;
   private readonly retryAfterSeconds: number;
   private readonly workerFile: string | URL;
+  private readonly plugins: ResolvedPlugin[];
   private readonly slots = new Set<Slot>();
   private readonly idle: Slot[] = [];
   private readonly queue: Task[] = [];
@@ -100,6 +105,7 @@ export class ComputePool implements ComputeExecutor {
     this.maxQueue = Math.max(0, Math.floor(finite(options.maxQueue, DEFAULT_COMPUTE_QUEUE)));
     this.retryAfterSeconds = Math.max(1, Math.ceil(finite(options.retryAfterSeconds, DEFAULT_RETRY_AFTER_SECONDS)));
     this.workerFile = options.workerFile ?? defaultWorkerFile();
+    this.plugins = options.plugins ?? [];
   }
 
   /** Hilos creados ahora mismo (ocupados o libres). */
@@ -172,7 +178,7 @@ export class ComputePool implements ComputeExecutor {
   /** Un hilo nuevo, si cabe en `size`. */
   private spawn(): Slot | undefined {
     if (this.closed || this.slots.size >= this.size) return undefined;
-    const worker = newWorker(this.workerFile);
+    const worker = newWorker(this.workerFile, { plugins: this.plugins });
     // Un hilo ocioso no mantiene vivo el proceso; el servidor y el temporizador de cada operación en curso sí.
     worker.unref();
     const slot: Slot = { worker, retired: false };
