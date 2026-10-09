@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from 'react';
+import { projectErrorText } from '../i18n/errores';
+import { t } from '../i18n';
+import { useT } from '../i18n/react';
 import type { PendingView } from './offlineSync';
 import type { ConflictChoice, ProjectSession } from './session';
 import './projects.css';
@@ -13,9 +16,9 @@ export interface OfflineActionsProps {
 }
 
 const PROBLEM_TEXT: Record<NonNullable<PendingView['problem']>, (entry: PendingView) => string> = {
-  changed: () => 'Mientras tanto, otra persona u otro equipo cambió este diagrama en el servidor. Tu versión está guardada en este navegador y no se ha pisado nada.',
-  gone: () => 'Este diagrama ya no existe en el servidor (alguien lo borró). Tu versión sigue guardada en este navegador.',
-  rejected: (entry) => `El servidor no aceptó tu versión${entry.reason ? `: ${entry.reason}` : '.'} Sigue guardada en este navegador.`,
+  changed: () => t('offline.problem.changed'),
+  gone: () => t('offline.problem.gone'),
+  rejected: (entry) => (entry.reason ? t('offline.problem.rejectedWhy', { reason: entry.reason }) : t('offline.problem.rejected')),
 };
 
 type Pending = { key: string; choice: ConflictChoice };
@@ -26,6 +29,7 @@ type Pending = { key: string; choice: ConflictChoice };
  * `role="status"`); con un almacén en este navegador, o sin nada que decir, no dibuja nada.
  */
 export function OfflineActions({ session, resolve }: OfflineActionsProps) {
+  const { t } = useT();
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const offline = state.offline;
   const [open, setOpen] = useState(false);
@@ -46,12 +50,12 @@ export function OfflineActions({ session, resolve }: OfflineActionsProps) {
       <span className="pj-offline-actions" data-testid="offline-actions">
         {waiting && conflicts.length === 0 && (
           <button type="button" onClick={() => void session.retryNow()} disabled={offline.retrying} data-testid="retry-now">
-            {offline.retrying ? 'Reintentando…' : 'Reintentar ahora'}
+            {offline.retrying ? t('offline.retrying') : t('offline.retryNow')}
           </button>
         )}
         {conflicts.length > 0 && (
           <button ref={opener} type="button" className="pj-primary" onClick={() => setOpen(true)} aria-haspopup="dialog" data-testid="resolve-conflict">
-            Resolver el conflicto…
+            {t('offline.resolve')}
           </button>
         )}
         {offline.full && (
@@ -66,6 +70,7 @@ export function OfflineActions({ session, resolve }: OfflineActionsProps) {
 }
 
 function ConflictDialog({ entries, resolve, onClose, opener }: { entries: PendingView[]; resolve: OfflineActionsProps['resolve']; onClose(): void; opener: RefObject<HTMLButtonElement | null> }) {
+  const { t, tp } = useT();
   const dialog = useRef<HTMLDivElement>(null);
   const [confirming, setConfirming] = useState<Pending | undefined>();
   const [copying, setCopying] = useState<{ key: string; name: string } | undefined>();
@@ -102,7 +107,7 @@ function ConflictDialog({ entries, resolve, onClose, opener }: { entries: Pendin
         setCopying(undefined);
       }
     } catch (e) {
-      if (alive.current) setError((e as Error).message);
+      if (alive.current) setError(projectErrorText(e));
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -136,13 +141,13 @@ function ConflictDialog({ entries, resolve, onClose, opener }: { entries: Pendin
     <div className="pj-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="pj-dialog pj-conflict" role="dialog" aria-modal="true" aria-labelledby="pj-conflict-title" ref={dialog} tabIndex={-1} onKeyDown={onKeyDown} data-testid="conflict-dialog">
         <header className="pj-head">
-          <h2 id="pj-conflict-title">{entries.length === 1 ? 'Hay un conflicto que resolver' : `Hay ${entries.length} conflictos que resolver`}</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar">
+          <h2 id="pj-conflict-title">{tp('offline.conflicts', entries.length)}</h2>
+          <button type="button" onClick={onClose} aria-label={t('common.close')}>
             ✕
           </button>
         </header>
         <div className="pj-conflict-body">
-          <p>Tu versión de cada diagrama no se ha enviado ni se ha pisado la del servidor: se conserva en este navegador hasta que elijas.</p>
+          <p>{t('offline.intro')}</p>
           {error && (
             <p className="pj-error" role="alert" data-testid="conflict-error">
               {error}
@@ -155,33 +160,33 @@ function ConflictDialog({ entries, resolve, onClose, opener }: { entries: Pendin
               const copy = copying?.key === entry.key ? copying : undefined;
               return (
                 <li key={entry.key} className="pj-conflict-item" data-testid="conflict-item" data-diagram={entry.diagramId} data-problem={entry.problem}>
-                  <strong>«{entry.name}»</strong>
+                  <strong>{t('common.quoted', { text: entry.name })}</strong>
                   <small>{PROBLEM_TEXT[entry.problem ?? 'changed'](entry)}</small>
-                  <div className="pj-conflict-choices" role="group" aria-label={`Qué hacer con «${entry.name}»`}>
+                  <div className="pj-conflict-choices" role="group" aria-label={t('offline.choices', { name: entry.name })}>
                     <button type="button" onClick={() => setConfirming({ key: entry.key, choice: 'reload' })} disabled={busy} data-choice="server">
-                      {gone ? 'Descartar la mía' : 'Quedarme con la del servidor'}
+                      {gone ? t('offline.discardMine') : t('offline.useServer')}
                     </button>
                     {!gone && (
                       <button type="button" onClick={() => setConfirming({ key: entry.key, choice: 'overwrite' })} disabled={busy} data-choice="mine">
-                        Quedarme con la mía
+                        {t('offline.useMine')}
                       </button>
                     )}
-                    <button type="button" onClick={() => setCopying({ key: entry.key, name: `${entry.name} (mi versión)` })} disabled={busy} data-choice="copy">
-                      Guardar la mía como diagrama nuevo
+                    <button type="button" onClick={() => setCopying({ key: entry.key, name: t('offline.copyName', { name: entry.name }) })} disabled={busy} data-choice="copy">
+                      {t('offline.saveAsNew')}
                     </button>
                   </div>
                   {mine && (
                     <p className="pj-confirm" role="alert" data-confirm={mine.choice} data-testid="conflict-confirm">
                       {mine.choice === 'reload'
                         ? gone
-                          ? `Se descartará tu versión de «${entry.name}». No se puede deshacer.`
-                          : `Se descartará tu versión de «${entry.name}» y te quedarás con la que hay en el servidor. No se puede deshacer.`
-                        : `Tu versión de «${entry.name}» sustituirá a la que hay ahora en el servidor: lo que cambió la otra persona se perderá.`}
+                          ? t('offline.confirm.discardGone', { name: entry.name })
+                          : t('offline.confirm.discard', { name: entry.name })
+                        : t('offline.confirm.overwrite', { name: entry.name })}
                       <button type="button" className="pj-danger" onClick={() => void run(mine.choice, entry.key)} disabled={busy}>
-                        {mine.choice === 'reload' ? (gone ? 'Sí, descartarla' : 'Sí, quedarme con la del servidor') : 'Sí, quedarme con la mía'}
+                        {mine.choice === 'reload' ? (gone ? t('offline.yesDiscard') : t('offline.yesServer')) : t('offline.yesMine')}
                       </button>
                       <button type="button" onClick={() => setConfirming(undefined)} disabled={busy}>
-                        Cancelar
+                        {t('common.cancel')}
                       </button>
                     </p>
                   )}
@@ -195,14 +200,14 @@ function ConflictDialog({ entries, resolve, onClose, opener }: { entries: Pendin
                       }}
                     >
                       <label>
-                        Nombre del diagrama nuevo
+                        {t('offline.copyLabel')}
                         <input type="text" value={copy.name} maxLength={120} onChange={(e) => setCopying({ key: entry.key, name: e.target.value })} />
                       </label>
                       <button type="submit" className="pj-primary" disabled={busy || !copy.name.trim()}>
-                        Guardar la copia
+                        {t('offline.copySave')}
                       </button>
                       <button type="button" onClick={() => setCopying(undefined)} disabled={busy}>
-                        Cancelar
+                        {t('common.cancel')}
                       </button>
                     </form>
                   )}

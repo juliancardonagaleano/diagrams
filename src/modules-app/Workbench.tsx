@@ -15,6 +15,7 @@ import { ProjectBar } from './ProjectBar';
 import { getLoginNotice, setLoginNotice } from '../projects/login';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
 import { tabIndexDePestana, teclasDePestanas } from './a11y/pestanas';
+import { LanguageSelect, useT } from '../i18n/react';
 
 type PanelId = 'canvas' | 'attachments' | 'diagram' | 'issues' | 'reports' | 'compare' | 'export' | 'import';
 
@@ -32,6 +33,7 @@ export interface WorkbenchProps {
 const LINE_HEIGHT = 18;
 
 export function Workbench({ controller, embed = false, ui = 'full', dialog, onDismissDialog, onSave, onExit }: WorkbenchProps) {
+  const { t } = useT();
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const [panel, setPanel] = useState<PanelId | undefined>();
   const history = useMemo(() => new EditHistory(), [state.moduleId]);
@@ -227,17 +229,17 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
           mainRef.current?.focus();
         }}
       >
-        Saltar al contenido
+        {t('wb.skip')}
       </a>
       <header className="wb-header">
           {ui === 'full' ? (
             <>
               <h1 className="wb-title">
-                <a className="wb-brand" href="./" title="Abrir el editor C4">
-                  IArk - DIAgrams <small>Módulos</small>
+                <a className="wb-brand" href="./" title={t('wb.openEditor')}>
+                  IArk - DIAgrams <small>{t('wb.brandSub')}</small>
                 </a>
               </h1>
-              <div className="wb-modules" role="tablist" aria-label="Módulos" onKeyDown={teclasDePestanas}>
+              <div className="wb-modules" role="tablist" aria-label={t('wb.modules')} onKeyDown={teclasDePestanas}>
                 {controller.sources.map((s, i) => (
                   <button
                     key={s.id}
@@ -252,29 +254,30 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
                 ))}
               </div>
               {!embed && (
-                <a className="wb-link" href="trazabilidad.html" title="Enlaces entre los documentos de varios módulos">
-                  Trazabilidad
+                <a className="wb-link" href="trazabilidad.html" title={t('wb.traceTitle')}>
+                  {t('wb.traceLink')}
                 </a>
               )}
             </>
           ) : (
-            <h1 className="wb-visually-hidden">{module ? `${module.name}: banco de trabajo` : 'Banco de trabajo de IArk - DIAgrams'}</h1>
+            <h1 className="wb-visually-hidden">{module ? t('wb.title', { name: module.name }) : t('wb.titleNone')}</h1>
           )}
           <div className="wb-actions">
+            {!embed && <LanguageSelect className="iark-lang wb-lang" />}
             <button type="button" disabled={!state.moduleId} onClick={() => void controller.loadExample()}>
-              Cargar ejemplo
+              {t('wb.example')}
             </button>
-            <FilePicker label="Abrir archivo…" accept={openAccept} disabled={!state.moduleId} onFile={(file) => void openFile(file)} />
+            <FilePicker label={t('wb.openFile')} accept={openAccept} disabled={!state.moduleId} onFile={(file) => void openFile(file)} />
             {embed && (
               <>
                 <button type="button" onClick={() => onSave?.(false)}>
-                  Guardar
+                  {t('common.save')}
                 </button>
                 <button type="button" className="primary" onClick={() => onSave?.(true)}>
-                  Guardar y salir
+                  {t('ed.f.saveExit')}
                 </button>
                 <button type="button" onClick={() => onExit?.()}>
-                  Salir
+                  {t('ed.exit')}
                 </button>
               </>
             )}
@@ -284,13 +287,13 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
       {projects && !embed && ui === 'full' && <ProjectBar controller={controller} state={state} onManage={(panel) => setShowProjects(panel ?? 'list')} notify={notify} />}
 
       {trail.length > 0 && (
-        <div className="wb-trail" role="navigation" aria-label="Diagramas recorridos" data-testid="trail">
+        <div className="wb-trail" role="navigation" aria-label={t('wb.trail')} data-testid="trail">
           {trail.map((stop, i) => (
             <span key={i}>{stop.label} ›</span>
           ))}
           <strong>{module ? suiteLinks.label(module.id) : ''}</strong>
           <button type="button" onClick={() => void goBack()} title="Alt+↑" data-testid="trail-back">
-            ← Volver
+            {t('wb.back')}
           </button>
         </div>
       )}

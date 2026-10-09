@@ -42,3 +42,10 @@ if (typeof HTMLCanvasElement !== 'undefined') {
     stroke: () => {},
   })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 }
+
+// El idioma de la interfaz sale de `?lang=`, de lo guardado y del navegador (ver `src/i18n`). jsdom se presenta como `en-US`, y las pruebas escriben
+// los textos en español (el idioma por omisión de IArk): se fija el navegador de las pruebas en español. Las pruebas de i18n lo cambian a propósito.
+if (typeof navigator !== 'undefined') {
+  Object.defineProperty(navigator, 'language', { value: 'es-ES', configurable: true });
+  Object.defineProperty(navigator, 'languages', { value: ['es-ES', 'es'], configurable: true });
+}

@@ -1,4 +1,5 @@
 import { bundleToText, createBundle, HttpProjectStore, importBundle, parseBundle, snapshotProject, type ImportedProject, type ProjectStore } from '@iark/kernel';
+import { t } from '../i18n';
 import { loadBackend, type BackendConfig } from './backend';
 import { IndexedDbProjectStore } from './indexedDbStore';
 import type { SessionBackend } from './session';
@@ -35,8 +36,8 @@ export function copyTargetFor(active: SessionBackend, options: { config?: Backen
   if (active.kind === 'remote') {
     return {
       kind: 'local',
-      where: 'en este navegador',
-      label: 'Copiar a este navegador',
+      where: t('copy.where.local'),
+      label: t('copy.label.local'),
       ready: true,
       open: () => {
         const store = new IndexedDbProjectStore();
@@ -49,19 +50,19 @@ export function copyTargetFor(active: SessionBackend, options: { config?: Backen
   if (!server) {
     return {
       kind: 'remote',
-      where: 'en un servidor',
-      label: 'Copiar a un servidor…',
+      where: t('copy.where.unknown'),
+      label: t('copy.label.connect'),
       ready: false,
       open: () => {
-        throw new Error('Conecta primero con un servidor.');
+        throw new Error(t('copy.connectFirst'));
       },
     };
   }
   const host = new URL(server.url).host;
   return {
     kind: 'remote',
-    where: `en el servidor ${host}`,
-    label: `Copiar al servidor (${host})`,
+    where: t('copy.where.server', { host }),
+    label: t('copy.label.server', { host }),
     ready: true,
     open: () => ({ store: new HttpProjectStore({ baseUrl: server.url, token: server.token, fetch: options.fetch }), close: noop }),
   };

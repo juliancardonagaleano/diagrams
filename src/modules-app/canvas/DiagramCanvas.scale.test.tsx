@@ -20,6 +20,17 @@ afterAll(() => vi.unstubAllGlobals());
 
 const spec = fakeEditor as unknown as EditorSpec<unknown>;
 
+/**
+ * Tamaño del «diagrama grande» de estas pruebas: `BIG_ZONES` zonas de 25 servicios, 20 × 26 = 520 nodos, más de tres veces el umbral del recorte
+ * (`CULL_FROM_NODES`). Con mil nodos (40 zonas) cada prueba tardaba más de 20 s solo en montar y encuadrar bajo jsdom, que no tiene el
+ * motor de dibujo del navegador, y fallaba por tiempo en un CI cargado sin que nada estuviera roto. Lo que se comprueba aquí es estructural y
+ * no depende de pasar de mil; el coste con mil nodos en un navegador real lo mide `npm run perf` (docs/rendimiento.md).
+ */
+const BIG_ZONES = 20;
+const BIG_PER_ZONE = 25;
+/** Un servicio del final de la lista: cae fuera de la pantalla inicial. */
+const FAR_INDEX = BIG_ZONES * BIG_PER_ZONE - 10;
+
 /** `zones` zonas con `perZone` servicios cada una, unidos en cadena: `zones * (perZone + 1)` nodos y `zones * perZone` aristas. */
 function bigDoc(zones: number, perZone: number): FakeDoc {
   const nodes: FakeDoc['nodes'] = [];
@@ -103,10 +114,10 @@ const settled = async (): Promise<void> => {
 };
 
 describe('con muchos nodos solo se montan los que caen en pantalla', () => {
-  it('con 1000 servicios el DOM no lleva los 1000: React Flow monta solo los visibles', async () => {
+  it('con 500 servicios el DOM no lleva los 500: React Flow monta solo los visibles', async () => {
     setElkRunner(instantLayout);
-    const doc = bigDoc(40, 25);
-    expect(doc.nodes).toHaveLength(1040);
+    const doc = bigDoc(BIG_ZONES, BIG_PER_ZONE);
+    expect(doc.nodes).toHaveLength(BIG_ZONES * (BIG_PER_ZONE + 1));
     mount(doc);
     await settled();
     expect(screen.getByTestId('module-canvas')).toHaveAttribute('data-culling', 'on');
@@ -236,8 +247,8 @@ describe('el cálculo de la colocación se pide fuera del lienzo y se puede cort
 });
 
 describe('la selección, la comparación y los enlaces siguen con nodos fuera de pantalla', () => {
-  const doc = bigDoc(40, 25);
-  const far = 'n990';
+  const doc = bigDoc(BIG_ZONES, BIG_PER_ZONE);
+  const far = `n${FAR_INDEX}`;
 
   it('un elemento lejano se selecciona por su id (foco) aunque no estuviera montado', async () => {
     setElkRunner(instantLayout);
@@ -245,7 +256,7 @@ describe('la selección, la comparación y los enlaces siguen con nodos fuera de
     await settled();
     expect(document.querySelector(`[data-testid="node-${far}"]`)).toBeNull();
     view.rerender({ focusId: far });
-    await waitFor(() => expect(screen.getByLabelText('Nombre')).toHaveValue('Servicio 990'));
+    await waitFor(() => expect(screen.getByLabelText('Nombre')).toHaveValue(`Servicio ${FAR_INDEX}`));
     await waitFor(() => expect(screen.getByTestId(`node-${far}`)).toBeInTheDocument());
   });
 
@@ -270,7 +281,7 @@ describe('la selección, la comparación y los enlaces siguen con nodos fuera de
     };
     const view = mount(doc, { spec: linked, focusId: far });
     await settled();
-    await waitFor(() => expect(screen.getByLabelText('Nombre')).toHaveValue('Servicio 990'));
+    await waitFor(() => expect(screen.getByLabelText('Nombre')).toHaveValue(`Servicio ${FAR_INDEX}`));
     pressKey('ArrowDown', { altKey: true });
     expect(view.follow).toHaveBeenCalledWith('urn:iark:otro:destino');
   });

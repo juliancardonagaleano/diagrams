@@ -1,4 +1,8 @@
 import type { AccountUsage, PersonalQuota, QuotaLimits, QuotaUsage } from '@iark/kernel';
+import { formatBytes } from '../i18n/format';
+import { formatList, t } from '../i18n';
+
+export { formatBytes };
 
 /**
  * Cuotas de uso en la interfaz: cómo se escribe un tamaño, cuándo se avisa y qué líneas se muestran. Los números los pone el servidor
@@ -11,21 +15,6 @@ export const NEAR_LIMIT = 0.8;
 export type QuotaKind = 'bytes' | 'projects' | 'diagrams';
 /** `unlimited`: sin tope; `ok`: de sobra; `near`: desde el 80 %; `full`: se alcanzó (ya no se admite crecer en eso). */
 export type QuotaLevel = 'unlimited' | 'ok' | 'near' | 'full';
-
-const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
-
-/** `1,5 KB`, `256 MB`: de 1024 en 1024, con coma decimal y sin decimales de más (como el servicio en `--max-bytes`). */
-export function formatBytes(bytes: number): string {
-  let value = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
-  let unit = 0;
-  while (value >= 1024 && unit < UNITS.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  const rounded = value >= 100 || Number.isInteger(value) ? Math.round(value) : Math.round(value * 10) / 10;
-  const text = String(rounded).replace('.', ',');
-  return `${text} ${UNITS[unit]}`;
-}
 
 /** En qué punto está `used` respecto a `limit` (0 = sin tope). */
 export function levelOf(used: number, limit: number): QuotaLevel {
@@ -53,7 +42,7 @@ export interface QuotaLine {
 /** Una línea de lo que se usa, con su tope si lo hay. */
 function line(kind: QuotaKind, label: string, used: number, limit: number): QuotaLine {
   const format = kind === 'bytes' ? formatBytes : String;
-  return { kind, label, used, limit, level: levelOf(used, limit), text: limit > 0 ? `${format(used)} de ${format(limit)}` : `${format(used)} (sin tope)` };
+  return { kind, label, used, limit, level: levelOf(used, limit), text: limit > 0 ? t('quota.of', { used: format(used), limit: format(limit) }) : t('quota.unlimitedUse', { used: format(used) }) };
 }
 
 /**
@@ -61,8 +50,8 @@ function line(kind: QuotaKind, label: string, used: number, limit: number): Quot
  * (el tope de diagramas es por proyecto, no por persona).
  */
 export function quotaLines(usage: AccountUsage, project?: { id: string; name: string; diagrams: number }): QuotaLine[] {
-  const lines = [line('bytes', 'Espacio', usage.usage.bytes, usage.limits.bytes), line('projects', 'Proyectos', usage.usage.projects, usage.limits.projects)];
-  if (project) lines.push(line('diagrams', `Diagramas de «${project.name}»`, project.diagrams, usage.limits.diagramsPerProject));
+  const lines = [line('bytes', t('quota.space'), usage.usage.bytes, usage.limits.bytes), line('projects', t('quota.projects'), usage.usage.projects, usage.limits.projects)];
+  if (project) lines.push(line('diagrams', t('quota.diagramsOf', { name: project.name }), project.diagrams, usage.limits.diagramsPerProject));
   return lines;
 }
 
@@ -71,14 +60,10 @@ export function quotaWarning(lines: readonly QuotaLine[]): { level: 'near' | 'fu
   const bad = lines.filter((l) => l.level === 'near' || l.level === 'full');
   if (bad.length === 0) return undefined;
   const full = bad.filter((l) => l.level === 'full');
-  const describe = (l: QuotaLine): string => (l.kind === 'bytes' ? `del espacio (${l.text})` : l.kind === 'projects' ? `de los proyectos (${l.text})` : `de los diagramas (${l.text})`);
-  if (full.length > 0) {
-    return {
-      level: 'full',
-      text: `Se alcanzó el tope ${full.map(describe).join(' y ')}: no se podrá añadir más en eso. Borrar diagramas o versiones del historial libera espacio; un administrador puede subir el tope.`,
-    };
-  }
-  return { level: 'near', text: `Te acercas al tope ${bad.map(describe).join(' y ')}. Borra lo que ya no uses o pide a un administrador que lo suba.` };
+  const describe = (l: QuotaLine): string =>
+    l.kind === 'bytes' ? t('quota.what.bytes', { text: l.text }) : l.kind === 'projects' ? t('quota.what.projects', { text: l.text }) : t('quota.what.diagrams', { text: l.text });
+  if (full.length > 0) return { level: 'full', text: t('quota.full', { what: formatList(full.map(describe)) }) };
+  return { level: 'near', text: t('quota.near', { what: formatList(bad.map(describe)) }) };
 }
 
 /** Cuántos bytes hay en `megabytes` MB; el campo de la pantalla de administración escribe los topes de espacio en MB. */
@@ -109,7 +94,7 @@ export function draftOf(quota: PersonalQuota | undefined, limits: QuotaLimits | 
  * tope»), o el motivo por el que no se puede (un número que no vale). Siempre se mandan los tres campos: así lo que se ve es lo que queda.
  */
 export function quotaChangeOf(draft: QuotaDraft): { change: Record<keyof QuotaLimits, number | null> } | { error: string; field: keyof QuotaLimits } {
-  const names: Record<keyof QuotaLimits, string> = { bytes: 'el espacio', projects: 'los proyectos', diagramsPerProject: 'los diagramas por proyecto' };
+  const names: Record<keyof QuotaLimits, string> = { bytes: t('quota.field.bytes'), projects: t('quota.field.projects'), diagramsPerProject: t('quota.field.diagramsPerProject') };
   const change = {} as Record<keyof QuotaLimits, number | null>;
   for (const key of ['bytes', 'projects', 'diagramsPerProject'] as const) {
     const { mode, amount } = draft[key];
@@ -119,7 +104,7 @@ export function quotaChangeOf(draft: QuotaDraft): { change: Record<keyof QuotaLi
       const parsed = Number(amount.replace(',', '.'));
       const value = key === 'bytes' ? bytesFromMb(parsed) : parsed;
       if (!amount.trim() || !Number.isFinite(parsed) || parsed <= 0 || (key !== 'bytes' && !Number.isInteger(parsed)) || !Number.isSafeInteger(value) || value <= 0) {
-        return { error: `Escribe un número mayor que cero para ${names[key]}${key === 'bytes' ? ' (en MB)' : ''}, o elige «Sin tope».`, field: key };
+        return { error: key === 'bytes' ? t('quota.invalidMb', { name: names[key] }) : t('quota.invalid', { name: names[key] }), field: key };
       }
       change[key] = value;
     }

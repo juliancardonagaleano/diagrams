@@ -1,38 +1,77 @@
 import type { ProjectRole, SiteRole } from '@iark/kernel';
+import { t } from '../i18n';
 
 /**
  * Cómo se le cuenta a la persona quién es cada quién en un servidor con cuentas: el rol que tiene en un proyecto, el que tiene en la
  * instancia y la foto (que solo se muestra si viene por https: es una dirección que pone el servidor y la carga el navegador de quien mira).
  */
 
-export const PROJECT_ROLE_LABEL: Record<ProjectRole, string> = { viewer: 'Lector', editor: 'Editor', admin: 'Administrador' };
+export const PROJECT_ROLE_LABEL: Record<ProjectRole, string> = {
+  get viewer() {
+    return t('role.viewer');
+  },
+  get editor() {
+    return t('role.editor');
+  },
+  get admin() {
+    return t('role.admin');
+  },
+};
 
 /** Lo que puede hacer cada rol en un proyecto, en una frase (para la ayuda de los selectores). */
 export const PROJECT_ROLE_HELP: Record<ProjectRole, string> = {
-  viewer: 'puede ver los diagramas, no cambiarlos',
-  editor: 'puede ver y editar los diagramas',
-  admin: 'además comparte el proyecto con otras personas y lo borra',
+  get viewer() {
+    return t('role.help.viewer');
+  },
+  get editor() {
+    return t('role.help.editor');
+  },
+  get admin() {
+    return t('role.help.admin');
+  },
 };
 
 export const PROJECT_ROLES: readonly ProjectRole[] = ['viewer', 'editor', 'admin'];
 
 export const SITE_ROLE_LABEL: Record<SiteRole, string> = {
-  admin: 'administrador de la instancia',
-  member: 'miembro',
-  guest: 'invitado (solo entra a los proyectos que le compartan)',
+  get admin() {
+    return t('siteRole.label.admin');
+  },
+  get member() {
+    return t('siteRole.label.member');
+  },
+  get guest() {
+    return t('siteRole.label.guest');
+  },
 };
 
 /** Los roles de la instancia, del que más puede al que menos (el orden en que se ofrecen y en que se listan). */
 export const SITE_ROLES: readonly SiteRole[] = ['admin', 'member', 'guest'];
 
 /** El rol en la instancia como título de una columna o de una opción. (`SITE_ROLE_LABEL` es para frases: «Rol en la instancia: …»). */
-export const SITE_ROLE_TITLE: Record<SiteRole, string> = { admin: 'Administrador', member: 'Miembro', guest: 'Invitado' };
+export const SITE_ROLE_TITLE: Record<SiteRole, string> = {
+  get admin() {
+    return t('siteRole.title.admin');
+  },
+  get member() {
+    return t('siteRole.title.member');
+  },
+  get guest() {
+    return t('siteRole.title.guest');
+  },
+};
 
 /** Lo que puede hacer cada rol de la instancia, en una frase (para la ayuda de los selectores de la pantalla de administración). */
 export const SITE_ROLE_HELP: Record<SiteRole, string> = {
-  admin: 've y cambia las cuentas y todos los proyectos de la instancia',
-  member: 'crea, importa y comparte sus propios proyectos',
-  guest: 'solo entra a los proyectos que le comparten; no crea proyectos propios',
+  get admin() {
+    return t('siteRole.help.admin');
+  },
+  get member() {
+    return t('siteRole.help.member');
+  },
+  get guest() {
+    return t('siteRole.help.guest');
+  },
 };
 
 /** La foto de una persona si es una dirección https; si no, `undefined` (no se carga nada de direcciones http ni de otros esquemas). */

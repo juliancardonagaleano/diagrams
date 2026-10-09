@@ -31,6 +31,9 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1440, height: 900 },
+    // La interfaz sigue el idioma del navegador (`src/i18n`) y Playwright se presenta por omisión como `en-US`: las pruebas buscan los textos en español.
+    // Las que prueban el inglés lo piden con `?lang=en` o con `test.use({ locale: 'en-US' })`.
+    locale: 'es-ES',
     acceptDownloads: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',

@@ -11,7 +11,7 @@ import { createIarkModuleEmbed, type IarkModuleEmbed, type ModuleEvent, type Sui
  * Con `manifest` descubre el editor del módulo en la instancia (federación); con `src` se indica directamente la URL del
  * banco de trabajo (`modulos.html`). El documento se pasa por la propiedad `document` (objeto o JSON) y los cambios
  * salen como eventos DOM (`iark-change`, `iark-load`, `iark-view-change`, `iark-save`, `iark-exit`, `iark-error`,
- * `iark-init`). Los métodos (`export`, `run`, `validate`, `capabilities`, `setView`, `save`) esperan a que el widget esté listo.
+ * `iark-init`). El atributo `lang="en"` fija el idioma de la interfaz del widget (cambiarlo vuelve a abrir el iframe). Los métodos (`export`, `run`, `validate`, `capabilities`, `setView`, `save`) esperan a que el widget esté listo.
  */
 const EVENT_NAMES = {
   init: 'iark-init',
@@ -24,7 +24,7 @@ const EVENT_NAMES = {
   result: 'iark-result',
 } as const;
 
-const OBSERVED = ['src', 'manifest', 'module', 'theme', 'ui', 'readonly', 'autosave', 'view'] as const;
+const OBSERVED = ['src', 'manifest', 'module', 'theme', 'ui', 'lang', 'readonly', 'autosave', 'view'] as const;
 
 const STYLE = `
   :host { display: block; min-height: 360px; }
@@ -62,7 +62,7 @@ export class IarkModuleElement extends HTMLElement {
     } else if (name === 'view') {
       if (value) this.#whenReady((embed) => embed.setView(value));
     } else {
-      this.#mount(); // src, manifest, module, readonly, autosave: cambia la instancia o su modo
+      this.#mount(); // src, manifest, module, lang, readonly, autosave: cambia la instancia o su modo (el idioma viaja en la dirección: hay que volver a abrir el iframe)
     }
   }
 
@@ -162,6 +162,7 @@ export class IarkModuleElement extends HTMLElement {
         readOnly: this.hasAttribute('readonly'),
         theme: this.#theme(),
         ui: this.#ui(),
+        lang: this.getAttribute('lang') ?? undefined,
         viewId: this.getAttribute('view') ?? undefined,
         title: this.getAttribute('title') ?? undefined,
         onEvent: (event: ModuleEvent) => {

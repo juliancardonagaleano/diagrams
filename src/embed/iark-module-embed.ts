@@ -37,6 +37,8 @@ export interface IarkModuleEmbedOptions<TDoc = unknown> {
   autosave?: boolean;
   readOnly?: boolean;
   theme?: 'light' | 'dark';
+  /** Idioma de la interfaz del banco embebido (`es` o `en`; también `en-US`…). Manda el anfitrión: el iframe no recuerda otra elección. Si se omite, decide el navegador. */
+  lang?: string;
   ui?: 'full' | 'min';
   viewId?: string;
   /** Origen esperado del iframe (targetOrigin). Por defecto se deduce de `url`. */
@@ -100,6 +102,7 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
   if (options.module) url.searchParams.set('module', options.module);
   if (options.ui) url.searchParams.set('ui', options.ui);
   if (options.theme) url.searchParams.set('theme', options.theme);
+  if (options.lang) url.searchParams.set('lang', options.lang);
   const targetOrigin = options.origin ?? url.origin;
 
   const iframe = document.createElement('iframe');

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { normalizeBaseUrl, ProjectError, type AuthProviders, type PublicUser, type RemoteSession } from '@iark/kernel';
+import { projectErrorText } from '../i18n/errores';
+import { useT } from '../i18n/react';
 import { browserAreas, chooseLocalBackend, forgetBackend, hostOf, loadBackend, saveBackend, type StorageAreas } from './backend';
 import { currentPage, loadProviders, mixedContentWarning, testConnection, type ConnectionResult, type PageInfo } from './connection';
 import { detectManagedServer, getLoginNotice, isSessionToken, setLoginNotice, startGithubLogin, subscribeLoginNotice, type ManagedServer } from './login';
-import { safeAvatarUrl, SITE_ROLE_LABEL } from './people';
+import { PROJECT_ROLE_LABEL, safeAvatarUrl, SITE_ROLE_LABEL } from './people';
 import type { ProjectSession } from './session';
 
 export interface StoragePanelProps {
@@ -38,7 +40,6 @@ export interface StoragePanelProps {
 }
 
 type Status = 'connecting' | 'connected' | 'offline' | 'rejected';
-const STATUS_TEXT: Record<Status, string> = { connecting: 'Comprobando…', connected: 'Conectado', offline: 'Sin conexión', rejected: 'Token rechazado' };
 
 /**
  * «Dónde se guardan»: este navegador o un servidor propio. Muestra el almacén activo y su estado y deja conectar a un
@@ -51,6 +52,8 @@ const STATUS_TEXT: Record<Status, string> = { connecting: 'Comprobando…', conn
  * Con un servidor que no ofrece GitHub (autoalojado con `--tokens`) todo es como siempre.
  */
 export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChange, notify, reload, fetch: fetchImpl, areas: areasProp, page: pageProp, startLogin, detect, onAdminister }: StoragePanelProps) {
+  const { t, tp, tr } = useT();
+  const statusText: Record<Status, string> = { connecting: t('sp.status.connecting'), connected: t('sp.status.connected'), offline: t('sp.status.offline'), rejected: t('sp.status.rejected') };
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const areas = useMemo(() => areasProp ?? browserAreas(), [areasProp]);
   const page = useMemo(() => pageProp ?? currentPage(), [pageProp]);
@@ -195,7 +198,7 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
     try {
       await work();
     } catch (error) {
-      setProblem((error as Error).message);
+      setProblem(projectErrorText(error));
     } finally {
       setWorking(undefined);
     }
@@ -226,7 +229,7 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
         setWho(await session.whoami().catch(() => undefined)); // otro token, otra persona (u otro rol)
         setToken('');
         changed();
-        const text = saved.saved ? 'Token actualizado: se retoma el guardado.' : `Token actualizado solo hasta que recargues la página. ${saved.problem ?? ''}`;
+        const text = saved.saved ? t('sp.tokenUpdated') : t('sp.tokenUpdatedTemp', { problem: saved.problem ?? '' }).trim();
         setMessage(text);
         notify?.(text);
         return;
@@ -244,7 +247,7 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
     run('connect', async () => {
       if (!(await settle('local', confirmed))) return;
       if (!chooseLocalBackend(areas)) {
-        setProblem('El navegador no deja guardar la configuración (¿datos del sitio bloqueados?): al recargar seguiría el servidor.');
+        setProblem(t('sp.noConfig'));
         return;
       }
       doReload();
@@ -270,7 +273,7 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
    */
   const login = (confirmed = false): Promise<void> =>
     run('connect', async () => {
-      if (!typedUrl) throw new ProjectError('invalid', 'Escribe la dirección del servidor.');
+      if (!typedUrl) throw new ProjectError('invalid', t('sp.needAddress'));
       if (!(await settle('login', confirmed))) return;
       setLoginNotice(undefined);
       await (startLogin ?? startGithubLogin)({ server: typedUrl, remember: keepSession, label });
@@ -290,7 +293,7 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
       } catch (error) {
         // 401: la sesión ya no valía (caducó o se cerró en otro sitio): no hay nada que cerrar en el servidor.
         if (!(error instanceof ProjectError && error.code === 'unauthorized') && !forced) {
-          setLogoutIssue((error as Error).message);
+          setLogoutIssue(projectErrorText(error));
           return;
         }
       }
@@ -323,8 +326,8 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
   };
 
   const host = active?.host;
-  const identity = who?.name ? ` (${who.name}${who.role ? `, ${who.role}` : ''})` : who && !who.auth ? ' (sin autenticación)' : '';
-  const summary = remote ? `Servidor: ${host}${active?.label ? ` «${active.label}»` : ''}${identity}` : 'Este navegador';
+  const identity = who?.name ? ` (${who.name}${who.role ? `, ${who.role}` : ''})` : who && !who.auth ? ` (${t('sp.noAuth')})` : '';
+  const summary = remote ? t('sp.serverSummary', { host: host ?? '', label: active?.label ? ` ${t('common.quoted', { text: active.label })}` : '', identity }) : t('sp.thisBrowser');
   const warning = mixedContentWarning(typedUrl ?? url, page);
   const sameActive = remote && active !== undefined && typedUrl === active.url;
   const needsUrl = !url.trim();
@@ -336,14 +339,14 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
  // El token y su casilla: los de siempre. Con GitHub ofrecido van dentro del plegable «Usar un token»; si no, a la vista como antes.
   const tokenField = (
     <label className="pj-grow">
-      Token de acceso
+      {t('sp.token')}
       <input
         ref={tokenInput}
         type="password"
         autoComplete="off"
         spellCheck={false}
         value={token}
-        placeholder={known?.token && (typedUrl === known.url || !url.trim()) ? 'Ya hay uno guardado; en blanco lo conserva' : 'Opcional si el servidor es abierto'}
+        placeholder={known?.token && (typedUrl === known.url || !url.trim()) ? t('sp.tokenKept') : t('sp.tokenOptional')}
         onChange={(e) => {
           setToken(e.target.value);
           setTest(undefined);
@@ -355,33 +358,33 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
     <>
       <label className="pj-check">
         <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} aria-describedby="pj-remember-note" />
-        Recordar en este equipo
+        {t('sp.remember')}
       </label>
       <small id="pj-remember-note" className="pj-hint">
-        Sin marcar, el token solo vive en esta pestaña y se olvida al cerrarla. Marcada, se guarda en este navegador hasta que lo borres: cualquier script que se ejecute en este sitio podría leerlo; márcala solo en un equipo tuyo.
+        {t('sp.rememberNote')}
       </small>
     </>
   );
 
   return (
-    <section className="pj-storage" aria-label="Dónde se guardan" data-testid="storage-panel" data-backend={remote ? 'remote' : 'local'}>
+    <section className="pj-storage" aria-label={t('sp.where')} data-testid="storage-panel" data-backend={remote ? 'remote' : 'local'}>
       <div className="pj-storage-head">
         <span className="pj-storage-where">
-          <strong>Dónde se guardan:</strong> <span data-testid="storage-summary">{summary}</span>
+          <strong>{t('sp.whereColon')}</strong> <span data-testid="storage-summary">{summary}</span>
           {remote && (
             <span className="pj-status" data-status={status} data-testid="storage-status" role="status">
-              {status === 'rejected' && expired ? 'Sesión caducada' : STATUS_TEXT[status]}
+              {status === 'rejected' && expired ? t('sp.status.expired') : statusText[status]}
             </span>
           )}
         </span>
         <span className="pj-actions">
           {user?.siteRole === 'admin' && onAdminister && session.canAdminister && (
             <button type="button" onClick={() => onAdminister(user)} aria-haspopup="dialog" data-testid="admin-open">
-              Administrar cuentas…
+              {t('sp.adminOpen')}
             </button>
           )}
           <button type="button" onClick={() => onToggle(!open)} aria-expanded={open} aria-controls="pj-storage-body">
-            {open ? 'Ocultar' : remote ? 'Cambiar…' : 'Conectar a un servidor…'}
+            {open ? t('sp.hide') : remote ? t('sp.change') : t('sp.connectServer')}
           </button>
         </span>
       </div>
@@ -392,40 +395,37 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
             <p className="pj-error" role="alert" data-testid="storage-login-notice" data-reason={loginNotice.reason}>
               {loginNotice.message}{' '}
               <button type="button" onClick={() => setLoginNotice(undefined)}>
-                Descartar aviso
+                {t('sp.dismissNotice')}
               </button>
             </p>
           )}
           {remote && rejected && expired && (
             <p className="pj-error" role="alert" data-testid="storage-expired">
-              Tu sesión caducó (o se cerró desde otro sitio). {github ? 'Pulsa «Iniciar sesión con GitHub» para seguir guardando en este servidor.' : 'Vuelve a iniciar sesión para seguir guardando en este servidor.'}
-              {session.dirty
-                ? ' Lo que escribiste desde entonces no se ha guardado: al iniciar sesión la página se recarga y se perdería (copia el texto del documento antes si lo necesitas).'
-                : session.unsentCount > 0 && ' Lo que escribiste desde entonces está guardado en este navegador y se enviará solo cuando vuelvas a entrar con esta misma cuenta.'}
+              {t('sp.expired')} {github ? t('sp.expiredGithub') : t('sp.expiredSignIn')}
+              {session.dirty ? ` ${t('sp.expiredDirty')}` : session.unsentCount > 0 && ` ${t('sp.expiredQueued')}`}
             </p>
           )}
           {remote && rejected && !expired && (
             <p className="pj-error" role="alert" data-testid="storage-rejected">
-              El servidor no aceptó el token. Escribe el correcto y pulsa «Usar este token»: lo pendiente de guardar no se pierde.
+              {t('sp.rejected')}
             </p>
           )}
           {remote && forbidden && session.credential === 'session' && (
             <p className="pj-error" role="alert" data-testid="storage-forbidden">
-              No tienes permiso para guardar en este proyecto{projectRole ? ` (tu rol es «${projectRole === 'viewer' ? 'lector' : projectRole}»)` : ''}. Pide a quien administra el proyecto que te dé el rol de editor.
+              {t('sp.forbiddenSession', { role: projectRole ? ` ${t('sp.yourRoleIs', { role: PROJECT_ROLE_LABEL[projectRole].toLowerCase() })}` : '' })}
             </p>
           )}
           {remote && forbidden && session.credential !== 'session' && (
             <p className="pj-error" role="alert" data-testid="storage-forbidden">
-              El servidor reconoce el token, pero su rol no permite guardar aquí{who?.role ? ` (es «${who.role}»)` : ''}. Escribe un token con rol editor y pulsa «Usar este token»: lo pendiente de guardar no se pierde.
+              {t('sp.forbiddenToken', { role: who?.role ? ` ${t('sp.tokenRoleIs', { role: who.role })}` : '' })}
             </p>
           )}
 
           {remote && (state.offline?.foreign ?? 0) > 0 && (
             <p className="pj-warn" role="status" data-testid="storage-foreign">
-              Hay {state.offline!.foreign === 1 ? '1 cambio' : `${state.offline!.foreign} cambios`} sin enviar de otra cuenta guardados en este navegador. No se envían con la tuya: se conservan aparte
-              y se borran solos al mes.{' '}
+              {tp('sp.foreign', state.offline!.foreign)}{' '}
               <button type="button" onClick={() => void session.discardOthersQueued()} disabled={busy}>
-                Descartarlos ahora
+                {t('sp.discardNow')}
               </button>
             </p>
           )}
@@ -438,41 +438,41 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
                   <strong data-testid="storage-account-login">@{user.login}</strong>
                   {user.name && user.name !== user.login ? ` · ${user.name}` : ''}
                 </span>
-                <small>Rol en la instancia: {SITE_ROLE_LABEL[user.siteRole]}</small>
+                <small>{t('sp.siteRole', { role: SITE_ROLE_LABEL[user.siteRole] })}</small>
               </div>
               <button type="button" onClick={() => void signOut()} disabled={busy} data-testid="storage-logout">
-                Cerrar sesión
+                {t('sp.logout')}
               </button>
             </div>
           )}
           {logoutIssue && (
             <p className="pj-warn" role="alert" data-testid="storage-logout-issue">
-              No se pudo cerrar la sesión en el servidor ({logoutIssue}). Si sigues, se olvida aquí pero seguirá abierta en el servidor hasta que caduque.{' '}
+              {t('sp.logoutIssue', { detail: logoutIssue })}{' '}
               <button type="button" className="pj-danger" onClick={() => void signOut(true, true)} disabled={busy}>
-                Cerrar aquí de todos modos
+                {t('sp.logoutAnyway')}
               </button>
               <button type="button" onClick={() => setLogoutIssue(undefined)}>
-                Cancelar
+                {t('common.cancel')}
               </button>
             </p>
           )}
 
-          <form className="pj-connect" onSubmit={submit} aria-label="Conectar a un servidor">
+          <form className="pj-connect" onSubmit={submit} aria-label={t('sp.form')}>
             {copyFor && !remote && (
               <p className="pj-hint">
-                Para copiar «{copyFor.name}» hace falta un servidor. Estos proyectos siguen en este navegador: la copia no cambia dónde se guardan.
+                {t('sp.copyNeeds', { name: copyFor.name })}
               </p>
             )}
             <div className="pj-row">
               <label className="pj-grow">
-                Dirección del servidor
+                {t('sp.address')}
                 <input
                   ref={urlInput}
                   type="text"
                   inputMode="url"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="https://iark.ejemplo.org"
+                  placeholder={t('sp.addressPlaceholder')}
                   value={url}
                   onChange={(e) => {
                     setUrl(e.target.value);
@@ -482,38 +482,38 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
               </label>
               {!github && tokenField}
               <label className="pj-grow">
-                Nombre (opcional)
-                <input type="text" autoComplete="off" maxLength={60} placeholder="Oficina" value={label} onChange={(e) => setLabel(e.target.value)} />
+                {t('sp.nameOptional')}
+                <input type="text" autoComplete="off" maxLength={60} placeholder={t('sp.namePlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
               </label>
             </div>
             {managed && typedUrl === managed.url && (
               <small className="pj-hint" data-testid="storage-managed">
-                Esta página la sirve la instancia {hostOf(managed.url)}: su dirección ya está escrita.
+                {t('sp.managed', { host: hostOf(managed.url) })}
               </small>
             )}
             {!github && rememberFields}
             {showLogin && (
               <div className="pj-login" data-testid="storage-login">
                 <button type="button" className="pj-primary pj-github" onClick={() => void login()} disabled={busy || needsUrl}>
-                  Iniciar sesión con GitHub
+                  {t('sp.signInGithub')}
                 </button>
                 <label className="pj-check">
                   <input type="checkbox" checked={keepSession} onChange={(e) => setKeepSession(e.target.checked)} aria-describedby="pj-keep-note" />
-                  Mantener la sesión en este equipo
+                  {t('sp.keepSession')}
                 </label>
                 <small id="pj-keep-note" className="pj-hint">
-                  La sesión se guarda en este navegador (no tu contraseña ni nada de GitHub) y caduca sola; puedes cerrarla cuando quieras. Sin marcar, solo vale en esta pestaña y se olvida al cerrarla. Marcada, cualquier script que se ejecute en este sitio podría leerla: márcala solo en un equipo tuyo.
+                  {t('sp.keepNote')}
                 </small>
                 {offer?.signup === 'invite' && (
                   <small className="pj-hint" data-testid="storage-invite-only">
-                    Este servidor es solo por invitación: entra quien lo administra y las personas a las que invite con su usuario de GitHub.
+                    {t('sp.inviteOnly')}
                   </small>
                 )}
               </div>
             )}
             {github && (
               <details className="pj-token" open={tokenOpen || (rejected && !expired && remote)} onToggle={(e) => setTokenOpen((e.currentTarget as HTMLDetailsElement).open)}>
-                <summary>Usar un token</summary>
+                <summary>{t('sp.useToken')}</summary>
                 <div className="pj-token-body">
                   <div className="pj-row">{tokenField}</div>
                   {rememberFields}
@@ -521,7 +521,7 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
               </details>
             )}
             <small className="pj-hint">
-              El servidor tiene que aceptar a esta página: <code>--cors {page.origin}</code> (no hace falta si lo abriste desde ese mismo servidor).
+              {tr('sp.cors', { origin: page.origin })}
             </small>
             {warning && (
               <p className="pj-warn" role="note" data-testid="storage-mixed">
@@ -531,24 +531,24 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
 
             <div className="pj-actions pj-connect-actions">
               <button type="button" onClick={() => void run('test', async () => void (await check()))} disabled={busy || needsUrl}>
-                {working === 'test' ? 'Probando…' : 'Probar conexión'}
+                {working === 'test' ? t('sp.testing') : t('sp.test')}
               </button>
               {copyFor && !remote && (
                 <button type="button" className="pj-primary" onClick={() => void copy()} disabled={busy || needsUrl}>
-                  Copiar «{copyFor.name}» al servidor
+                  {t('sp.copyTo', { name: copyFor.name })}
                 </button>
               )}
               <button type="submit" className={(copyFor && !remote) || showLogin ? undefined : 'pj-primary'} disabled={busy || needsUrl}>
-                {sameActive ? 'Usar este token' : copyFor && !remote ? 'Conectar y usar este servidor' : showLogin ? 'Conectar con un token' : 'Conectar'}
+                {sameActive ? t('sp.useThisToken') : copyFor && !remote ? t('sp.connectUse') : showLogin ? t('sp.connectToken') : t('sp.connect')}
               </button>
               {remote && (
                 <button type="button" onClick={() => void back()} disabled={busy}>
-                  Volver a este navegador
+                  {t('sp.backToBrowser')}
                 </button>
               )}
               {!remote && known && (
                 <button type="button" onClick={forget} disabled={busy}>
-                  Olvidar este servidor
+                  {t('sp.forget')}
                 </button>
               )}
             </div>
@@ -557,19 +557,21 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
           <div className="pj-results" ref={results}>
             {test?.ok && (
               <p className="pj-ok" role="status" data-testid="storage-test">
-                Conexión correcta con {test.url}.{' '}
+                {t('sp.connectedOk', { url: test.url })}{' '}
                 {test.user
-                  ? `Eres «${test.name ?? test.user.login}» (@${test.user.login}, rol en la instancia: ${SITE_ROLE_LABEL[test.user.siteRole]}).`
+                  ? t('sp.youAreUser', { name: test.name ?? test.user.login, login: test.user.login, role: SITE_ROLE_LABEL[test.user.siteRole] })
                   : test.auth
-                    ? `Eres «${test.name ?? 'sin nombre'}»${test.role ? ` (rol ${test.role})` : ''}.`
-                    : 'El servidor no pide autenticación.'}{' '}
-                Tiene {test.projects === 1 ? '1 proyecto' : `${test.projects} proyectos`}.
+                    ? test.role
+                      ? t('sp.youAreRole', { name: test.name ?? t('sp.noName'), role: test.role })
+                      : t('sp.youAre', { name: test.name ?? t('sp.noName') })
+                    : t('sp.noAuthNeeded')}{' '}
+                {tp('sp.hasProjects', test.projects)}
               </p>
             )}
             {test && !test.ok && (
               <p className="pj-error" role="alert" data-testid="storage-test" data-problem={test.problem}>
-                {test.problem === 'unauthorized' && github && !tokenToUse ? 'Este servidor pide iniciar sesión: pulsa «Iniciar sesión con GitHub» (o escribe un token, si tienes uno).' : test.message}
-                {test.detail && test.detail !== test.message && !(test.problem === 'unauthorized' && github && !tokenToUse) && <small> Respuesta: {test.detail}</small>}
+                {test.problem === 'unauthorized' && github && !tokenToUse ? t('sp.loginPrompt') : test.message}
+                {test.detail && test.detail !== test.message && !(test.problem === 'unauthorized' && github && !tokenToUse) && <small> {t('sp.response', { detail: test.detail })}</small>}
               </p>
             )}
             {message && (
@@ -585,13 +587,13 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
             {loss && (
               <p className="pj-warn" role="alert" data-testid="storage-loss">
                 {loss === 'logout' && session.unsentCount > 0 && !session.dirty
-                  ? `Tienes ${session.unsentCount === 1 ? '1 cambio' : `${session.unsentCount} cambios`} sin enviar guardados en este navegador. Si cierras la sesión se descartan: no se enviarían con otra cuenta.`
-                  : 'Hay cambios sin guardar que no pudieron enviarse al almacén actual; si sigues, se perderán.'}{' '}
+                  ? tp('sp.lossLogout', session.unsentCount)
+                  : t('sp.lossGeneric')}{' '}
                 <button type="button" className="pj-danger" onClick={() => void (loss === 'connect' ? connect(true) : loss === 'login' ? login(true) : loss === 'logout' ? signOut(true) : back(true))} disabled={busy}>
-                  Seguir y descartarlos
+                  {t('sp.continueDiscard')}
                 </button>
                 <button type="button" onClick={() => setLoss(undefined)}>
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
               </p>
             )}

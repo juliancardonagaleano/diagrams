@@ -195,10 +195,10 @@ export function normalizeBaseUrl(value: string): string {
   try {
     url = new URL(value.trim());
   } catch {
-    throw new ProjectError('invalid', `«${value.trim().slice(0, 100)}» no es una dirección válida (por ejemplo https://iark.ejemplo.org).`);
+    throw new ProjectError('invalid', `«${value.trim().slice(0, 100)}» no es una dirección válida (por ejemplo https://iark.ejemplo.org).`, { reason: 'address-invalid', params: { value: value.trim().slice(0, 100) } });
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ProjectError('invalid', 'La dirección del servidor debe empezar por http:// o https://.');
-  if (url.username || url.password) throw new ProjectError('invalid', 'La dirección del servidor no debe llevar usuario ni contraseña: el token se indica aparte.');
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new ProjectError('invalid', 'La dirección del servidor debe empezar por http:// o https://.', { reason: 'address-scheme' });
+  if (url.username || url.password) throw new ProjectError('invalid', 'La dirección del servidor no debe llevar usuario ni contraseña: el token se indica aparte.', { reason: 'address-credentials' });
   const path = url.pathname.replace(/\/+$/, '').replace(/\/api\/projects$/, '').replace(/\/api$/, '');
   return `${url.origin}${path}`;
 }
@@ -209,28 +209,46 @@ interface Payload {
   [key: string]: unknown;
 }
 
-/** El error que corresponde a una respuesta que no es 2xx. */
+/** De qué tope habla un `limit` del servidor (`quota`): el motivo que la interfaz traduce, con lo usado y el tope si el servidor los dio. */
+function limitReason(payload: Payload): Pick<ProjectErrorInfo, 'reason' | 'params'> {
+  const reason = payload.quota === 'projects' ? 'limit-projects' : payload.quota === 'diagrams' ? 'limit-diagrams' : payload.quota === 'bytes' ? 'limit-bytes' : 'limit';
+  const params: Record<string, number> = {};
+  if (typeof payload.used === 'number' && Number.isFinite(payload.used)) params.used = payload.used;
+  if (typeof payload.limit === 'number' && Number.isFinite(payload.limit)) params.limit = payload.limit;
+  // Sin las cifras no se puede escribir la frase de cada tope: se queda con la general.
+  return reason !== 'limit' && params.used !== undefined && params.limit !== undefined ? { reason, params } : { reason: 'limit' };
+}
+
+/**
+ * El error que corresponde a una respuesta que no es 2xx. El `message` es el del servidor si lo mandó (en su idioma) o uno en español del cliente; la interfaz traduce por
+ * `info.reason` (el código estable) y no por ese texto.
+ */
 function errorFromResponse(status: number, payload: Payload, retryAfter: string | null): ProjectError {
   const message = typeof payload.error === 'string' && payload.error ? payload.error : '';
   const code = typeof payload.code === 'string' ? payload.code : undefined;
-  const info: ProjectErrorInfo = { status };
-  if (code && LOCAL_CODES.has(code)) return new ProjectError(code as ProjectErrorCode, message || `Error ${status}.`, info);
+  const info: ProjectErrorInfo = message ? { status, serverMessage: message } : { status };
+  if (code && LOCAL_CODES.has(code)) return new ProjectError(code as ProjectErrorCode, message || `Error ${status}.`, message ? info : { ...info, reason: 'http-error', params: { status } });
   // Antes que el estado: un `limit` llega como 403 al crear proyectos y no es un problema de rol.
-  if (code === 'last-admin') return new ProjectError('conflict', message || 'No se puede quitar ni degradar al último administrador del proyecto.', { ...info, serverCode: code });
-  if (code === 'self' || code === 'listed-admin') return new ProjectError('conflict', message || 'La cuenta no admite ese cambio.', { ...info, serverCode: code });
-  if (code === 'limit') return new ProjectError('invalid', message || 'Se alcanzó el máximo que permite este servidor.', { ...info, serverCode: code });
-  if (code === 'invalid-grant') return new ProjectError('invalid', message || 'El código de inicio de sesión no es válido o caducó: vuelve a iniciar sesión.', { ...info, serverCode: code });
-  if (status === 401 || code === 'unauthorized') return new ProjectError('unauthorized', message || 'El servidor pide un token de acceso válido.', info);
-  if (status === 403 || code === 'forbidden') return new ProjectError('forbidden', message || 'Este token no tiene permiso para esa operación.', info);
+  if (code === 'last-admin') return new ProjectError('conflict', message || 'No se puede quitar ni degradar al último administrador del proyecto.', { ...info, serverCode: code, reason: 'last-admin' });
+  if (code === 'self' || code === 'listed-admin') return new ProjectError('conflict', message || 'La cuenta no admite ese cambio.', { ...info, serverCode: code, reason: 'account-locked' });
+  if (code === 'limit') return new ProjectError('invalid', message || 'Se alcanzó el máximo que permite este servidor.', { ...info, serverCode: code, ...limitReason(payload) });
+  if (code === 'invalid-grant') return new ProjectError('invalid', message || 'El código de inicio de sesión no es válido o caducó: vuelve a iniciar sesión.', { ...info, serverCode: code, reason: 'invalid-grant' });
+  if (status === 401 || code === 'unauthorized') return new ProjectError('unauthorized', message || 'El servidor pide un token de acceso válido.', { ...info, reason: 'token-required' });
+  if (status === 403 || code === 'forbidden') return new ProjectError('forbidden', message || 'Este token no tiene permiso para esa operación.', { ...info, reason: 'token-forbidden' });
   if (status === 429 || code === 'rate-limited') {
     const wait = Number(retryAfter);
     const waits = Number.isFinite(wait) && wait > 0;
-    return new ProjectError('unavailable', message || `Demasiados intentos fallidos${waits ? `: espera ${Math.ceil(wait)} s` : ''}.`, waits ? { ...info, retryAfterSec: Math.ceil(wait) } : info);
+    const seconds = Math.ceil(wait);
+    return new ProjectError(
+      'unavailable',
+      message || `Demasiados intentos fallidos${waits ? `: espera ${seconds} s` : ''}.`,
+      waits ? { ...info, retryAfterSec: seconds, reason: 'rate-limited-wait', params: { seconds } } : { ...info, reason: 'rate-limited' },
+    );
   }
-  if (status === 413) return new ProjectError('invalid', message || 'El documento es demasiado grande para el servidor.', info);
-  if (status === 400) return new ProjectError('invalid', message || 'El servidor rechazó la petición.', info);
-  if (status === 404) return new ProjectError('unavailable', message || 'Ese servidor no ofrece proyectos (¿arrancó sin --workspace, o la dirección no es la de IArk?).', info);
-  return new ProjectError('unavailable', `El servidor respondió ${status}${message ? `: ${message}` : ''}.`, info);
+  if (status === 413) return new ProjectError('invalid', message || 'El documento es demasiado grande para el servidor.', { ...info, reason: 'too-large' });
+  if (status === 400) return new ProjectError('invalid', message || 'El servidor rechazó la petición.', { ...info, reason: 'bad-request' });
+  if (status === 404) return new ProjectError('unavailable', message || 'Ese servidor no ofrece proyectos (¿arrancó sin --workspace, o la dirección no es la de IArk?).', { ...info, reason: 'no-projects-api' });
+  return new ProjectError('unavailable', `El servidor respondió ${status}${message ? `: ${message}` : ''}.`, message ? { ...info, reason: 'server-status-detail', params: { status, message } } : { ...info, reason: 'server-status', params: { status } });
 }
 
 /** La persona de una respuesta (`user`), o `undefined` si no tiene lo mínimo. Un rol desconocido se lee como el de menos permisos. */
@@ -343,7 +361,7 @@ function parseVersion(value: unknown): VersionMeta | undefined {
 /** Un nombre de usuario de GitHub como se escribe a mano (`@octocat`, con espacios) → `octocat`. Lanza `invalid` si queda vacío. */
 function cleanLogin(value: string): string {
   const login = value.trim().replace(/^@/, '');
-  if (!login) throw new ProjectError('invalid', 'Falta el nombre de usuario de GitHub.');
+  if (!login) throw new ProjectError('invalid', 'Falta el nombre de usuario de GitHub.', { reason: 'login-missing' });
   return login;
 }
 
@@ -450,7 +468,7 @@ export class HttpProjectStore implements VersionedProjectStore {
   async exchangeLoginCode(input: { code: string; verifier: string }): Promise<LoginGrant> {
     const found = (await this.request('POST', '/api/auth/exchange', { code: input.code, verifier: input.verifier }, { anonymous: true })) as Payload;
     const user = parseUser(found.user);
-    if (typeof found.token !== 'string' || !found.token || !user) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de IArk con inicio de sesión (falta la sesión en la respuesta).`);
+    if (typeof found.token !== 'string' || !found.token || !user) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de IArk con inicio de sesión (falta la sesión en la respuesta).`, { reason: 'server-no-session', params: { url: this.baseUrl } });
     return { token: found.token, expiresAt: typeof found.expiresAt === 'string' ? found.expiresAt : '', user };
   }
 
@@ -478,7 +496,7 @@ export class HttpProjectStore implements VersionedProjectStore {
   async setMember(projectId: string, login: string, role: ProjectRole): Promise<ProjectMember> {
     const name = cleanLogin(login);
     const member = parseMember(await this.request('PUT', `${API}/${encodeURIComponent(projectId)}/members/${encodeURIComponent(name)}`, { role }));
-    if (!member) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es un miembro del proyecto.`);
+    if (!member) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es un miembro del proyecto.`, { reason: 'server-no-member', params: { url: this.baseUrl } });
     return member;
   }
 
@@ -516,7 +534,7 @@ export class HttpProjectStore implements VersionedProjectStore {
     };
     const { status, payload } = await this.exchange('PUT', `${ADMIN_USERS}/${encodeURIComponent(name)}`, body);
     const account = parseAccount(payload);
-    if (!account) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una cuenta.`);
+    if (!account) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una cuenta.`, { reason: 'server-no-account', params: { url: this.baseUrl } });
     return { account, created: status === 201 };
   }
 
@@ -581,8 +599,8 @@ export class HttpProjectStore implements VersionedProjectStore {
     // Un diagrama no cambia de módulo: el servidor lo ignora al actualizar, así que se comprueba aquí (solo si alguien lo pide).
     if (input.module !== undefined) {
       const current = await this.getDiagram(projectId, input.id);
-      if (!current) throw new ProjectError('not-found', `No existe el diagrama «${input.id}» en el proyecto «${projectId}».`);
-      if (current.module !== input.module) throw new ProjectError('invalid', `Un diagrama no cambia de módulo (es «${current.module}», no «${input.module}»).`);
+      if (!current) throw new ProjectError('not-found', `No existe el diagrama «${input.id}» en el proyecto «${projectId}».`, { reason: 'diagram-missing-in', params: { diagram: input.id, project: projectId } });
+      if (current.module !== input.module) throw new ProjectError('invalid', `Un diagrama no cambia de módulo (es «${current.module}», no «${input.module}»).`, { reason: 'diagram-module-fixed', params: { module: current.module } });
     }
     return (await this.request('PUT', `${project}/${encodeURIComponent(input.id)}`, { text: input.text, ifUpdatedAt: input.ifUpdatedAt })) as DiagramMeta;
   }
@@ -607,7 +625,7 @@ export class HttpProjectStore implements VersionedProjectStore {
       return await this.request(method, path, body);
     } catch (error) {
       if (error instanceof ProjectError && error.code === 'unavailable' && error.info.status === 404 && !error.info.network) {
-        throw new ProjectError('unsupported', 'Este servidor no guarda historial de versiones (¿es de una versión anterior de IArk?).', error.info);
+        throw new ProjectError('unsupported', 'Este servidor no guarda historial de versiones (¿es de una versión anterior de IArk?).', { ...error.info, reason: 'server-versions-unsupported' });
       }
       throw error;
     }
@@ -633,13 +651,13 @@ export class HttpProjectStore implements VersionedProjectStore {
     // `by` no se envía: quién restaura lo decide el servidor con la identidad de la petición, no el cliente.
     const found = (await this.versionsRequest('POST', this.versionsPath(projectId, diagramId, `/${requireVersionId(versionId)}/restore`), { ifUpdatedAt: options.ifUpdatedAt })) as Record<string, unknown>;
     const version = parseVersion(found.version);
-    if (!version || !found.diagram || typeof found.diagram !== 'object') throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una restauración.`);
+    if (!version || !found.diagram || typeof found.diagram !== 'object') throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una restauración.`, { reason: 'server-no-restore', params: { url: this.baseUrl } });
     return { diagram: found.diagram as DiagramMeta, version, unchanged: found.unchanged === true };
   }
 
   async labelVersion(projectId: string, diagramId: string, versionId: number, label: string): Promise<VersionMeta> {
     const version = parseVersion(await this.versionsRequest('PATCH', this.versionsPath(projectId, diagramId, `/${requireVersionId(versionId)}`), { label }));
-    if (!version) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una versión.`);
+    if (!version) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una versión.`, { reason: 'server-no-version', params: { url: this.baseUrl } });
     return version;
   }
 
@@ -685,7 +703,13 @@ export class HttpProjectStore implements VersionedProjectStore {
     } catch (error) {
       const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
       const reason = timedOut ? `no respondió en ${Math.round(this.timeoutMs / 1000)} s` : error instanceof Error ? error.message : String(error);
-      throw new ProjectError('unavailable', `No se pudo conectar con ${this.baseUrl}: ${reason}.`, { network: true });
+      throw new ProjectError(
+        'unavailable',
+        `No se pudo conectar con ${this.baseUrl}: ${reason}.`,
+        timedOut
+          ? { network: true, reason: 'server-timeout', params: { url: this.baseUrl, seconds: Math.round(this.timeoutMs / 1000) } }
+          : { network: true, reason: 'server-unreachable', params: { url: this.baseUrl, detail: reason } },
+      );
     }
     const raw = await response.text().catch(() => '');
     let payload: unknown = {};
@@ -694,7 +718,7 @@ export class HttpProjectStore implements VersionedProjectStore {
         payload = JSON.parse(raw);
       } catch {
         // una respuesta que no es JSON (una página de error de un proxy, por ejemplo) no se puede interpretar
-        if (response.ok) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de IArk (la respuesta no es JSON).`, { status: response.status });
+        if (response.ok) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de IArk (la respuesta no es JSON).`, { status: response.status, reason: 'server-not-json', params: { url: this.baseUrl } });
       }
     }
     if (!response.ok) throw errorFromResponse(response.status, payload && typeof payload === 'object' ? (payload as Payload) : {}, response.headers.get('Retry-After'));

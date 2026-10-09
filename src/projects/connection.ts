@@ -1,4 +1,6 @@
 import { HttpProjectStore, normalizeBaseUrl, ProjectError, type AuthProviders, type PublicUser } from '@iark/kernel';
+import { t } from '../i18n';
+import { projectErrorText } from '../i18n/errores';
 import { hostOf } from './backend';
 
 /**
@@ -60,7 +62,7 @@ export function isMixedContent(url: string, page: PageInfo = currentPage()): boo
 /** Aviso para mostrar mientras se escribe la dirección (no es un error: todavía no se ha probado nada). */
 export function mixedContentWarning(url: string, page: PageInfo = currentPage()): string | undefined {
   if (!isMixedContent(url, page)) return undefined;
-  return 'Esta página se abrió por https y esa dirección es http: el navegador bloqueará las peticiones (contenido mixto). Pon el servidor detrás de un proxy con https, o abre IArk por http.';
+  return t('conn.mixed');
 }
 
 /** La orden con la que arrancar el servidor para que acepte a esta página. */
@@ -76,26 +78,26 @@ async function respondsWithoutCors(base: string, doFetch: typeof fetch, timeoutM
 }
 
 async function explain(error: unknown, base: string, options: Required<Pick<ConnectionOptions, 'timeoutMs'>> & ConnectionOptions, page: PageInfo): Promise<ConnectionResult> {
-  if (!(error instanceof ProjectError)) return { ok: false, problem: 'server', message: 'Falló algo inesperado al hablar con el servidor.', detail: (error as Error)?.message };
+  if (!(error instanceof ProjectError)) return { ok: false, problem: 'server', message: t('conn.unexpected'), detail: (error as Error)?.message };
   const host = hostOf(base);
   const status = error.info.status;
-  if (error.code === 'invalid' && status === undefined) return { ok: false, problem: 'invalid-url', message: error.message };
-  if (error.code === 'forbidden') return { ok: false, problem: 'forbidden', message: 'El servidor reconoce el token, pero no te da permiso para esto.', detail: error.message };
-  if (error.code === 'unauthorized') return { ok: false, problem: 'unauthorized', message: 'El servidor no aceptó el token: falta o no es válido.', detail: error.message };
+  if (error.code === 'invalid' && status === undefined) return { ok: false, problem: 'invalid-url', message: projectErrorText(error) };
+  if (error.code === 'forbidden') return { ok: false, problem: 'forbidden', message: t('conn.forbidden'), detail: projectErrorText(error) };
+  if (error.code === 'unauthorized') return { ok: false, problem: 'unauthorized', message: t('conn.unauthorized'), detail: projectErrorText(error) };
   if (error.info.network) {
     const crossOrigin = new URL(base).origin !== page.origin;
     if (crossOrigin && (await respondsWithoutCors(base, options.fetch ?? ((...args) => fetch(...args)), options.timeoutMs))) {
       return {
         ok: false,
         problem: 'cors',
-        message: `El servidor responde, pero el navegador no deja leer su respuesta porque no autoriza a esta página (${page.origin}). Arráncalo con --cors ${page.origin}.`,
+        message: t('conn.cors', { origin: page.origin }),
       };
     }
-    return { ok: false, problem: 'unreachable', message: `No se llega a ${host}: comprueba que el servidor está en marcha, que la dirección y el puerto son los correctos y que hay conexión.`, detail: error.message };
+    return { ok: false, problem: 'unreachable', message: t('conn.unreachable', { host }), detail: projectErrorText(error) };
   }
-  if (status === 429) return { ok: false, problem: 'rate-limited', message: 'Demasiados intentos fallidos: espera un momento y vuelve a probar.', detail: error.message };
-  if (status === 404) return { ok: false, problem: 'no-projects', message: 'Ese servidor no ofrece proyectos: arráncalo con --workspace <carpeta> (o comprueba que la dirección es la de IArk).', detail: error.message };
-  return { ok: false, problem: 'server', message: 'El servidor respondió con un error.', detail: error.message };
+  if (status === 429) return { ok: false, problem: 'rate-limited', message: t('conn.rateLimited'), detail: projectErrorText(error) };
+  if (status === 404) return { ok: false, problem: 'no-projects', message: t('conn.noProjects'), detail: projectErrorText(error) };
+  return { ok: false, problem: 'server', message: t('conn.serverError'), detail: projectErrorText(error) };
 }
 
 /** Comprueba la dirección y el token: quién es el token (`whoami`) y que el servidor ofrece proyectos. Nunca lanza. */
@@ -106,7 +108,7 @@ export async function testConnection(input: { url: string; token?: string }, opt
   try {
     base = normalizeBaseUrl(input.url);
   } catch (error) {
-    return { ok: false, problem: 'invalid-url', message: (error as Error).message };
+    return { ok: false, problem: 'invalid-url', message: projectErrorText(error) };
   }
   if (isMixedContent(base, page)) {
     return { ok: false, problem: 'mixed-content', message: mixedContentWarning(base, page)! };
