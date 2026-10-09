@@ -10,7 +10,7 @@ import { DslImportError } from '@core/import/structurizr/fromStructurizrDsl';
 import { MermaidImportError } from '@core/import/mermaid/fromMermaid';
 import { toMermaid, MermaidExportError, type MermaidFormat } from '@core/export/mermaid/toMermaid';
 import { documentJsonSchema, DocumentValidationError, formatIssues, validateDocument } from '@core/model/schema';
-import type { LayoutDensity, LayoutDirectionOption, LayoutDistribution } from '@core/model/types';
+import type { C4Document, LayoutDensity, LayoutDirectionOption, LayoutDistribution } from '@core/model/types';
 import { generationJsonSchema } from '@core/ai/generationSchema';
 import { standalonePrompt } from '@core/ai/prompt';
 import { DEFAULT_AI_MODEL, generateDocument, GenerationError } from '@core/ai/generate';
@@ -125,7 +125,7 @@ async function readBaseDocument(registry: ModuleRegistry, file: string, moduleId
  * Diagrama de `explain` y `review`: un JSON del módulo o cualquier fuente que ese módulo importe, de un archivo o de la entrada
  * estándar. A diferencia de `readBaseDocument` también lee de stdin.
  */
-async function readDiagram(registry: ModuleRegistry, moduleId: string, file: string | undefined, useStdin: boolean): Promise<any> {
+async function readDiagram(registry: ModuleRegistry, moduleId: string, file: string | undefined, useStdin: boolean): Promise<unknown> {
   const raw = readInput(file, useStdin);
   const fromFile = !useStdin && file !== undefined && file !== '-';
   const text = raw.trimStart();
@@ -137,8 +137,8 @@ async function readDiagram(registry: ModuleRegistry, moduleId: string, file: str
 }
 
 /** El prompt autocontenido del módulo (sin llamar a ningún modelo). */
-function promptText(registry: ModuleRegistry, moduleId: string, instruction: string, base: any): string {
-  return moduleId !== DEFAULT_MODULE ? genericPromptText(registry.require(moduleId), instruction, base) : standalonePrompt(instruction, base);
+function promptText(registry: ModuleRegistry, moduleId: string, instruction: string, base: unknown): string {
+  return moduleId !== DEFAULT_MODULE ? genericPromptText(registry.require(moduleId), instruction, base) : standalonePrompt(instruction, base as C4Document | undefined);
 }
 
 /** Imprime el prompt autocontenido del módulo (sin llamar a ningún modelo): `prompt` y `generate --from-repo --dry-run`. */
@@ -148,7 +148,7 @@ async function emitPrompt(registry: ModuleRegistry, moduleId: string, instructio
 }
 
 /** Por stderr: cuánto pesa el prompt (estimado, sin tokenizador) frente al máximo de entrada, para decidir antes de enviar. */
-function reportPromptSize(registry: ModuleRegistry, moduleId: string, instruction: string, base: any, maxInputTokens?: number): void {
+function reportPromptSize(registry: ModuleRegistry, moduleId: string, instruction: string, base: unknown, maxInputTokens?: number): void {
   const estimated = estimateTokens(promptText(registry, moduleId, instruction, base));
   const max = resolveTokenLimits({ maxInputTokens }).maxInputTokens;
   info(`Tamaño estimado del prompt: ~${formatTokens(estimated)} tokens de entrada (máximo ${formatTokens(max)}, --max-input-tokens).${estimated > max ? ' SUPERA el máximo: `generate` lo rechazaría antes de llamar al modelo; recorta con --repo-budget, --repo-include o --repo-exclude.' : ''}`);

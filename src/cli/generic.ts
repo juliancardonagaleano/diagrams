@@ -50,7 +50,7 @@ export function readModuleDocument(module: DomainModule<any>, file: string | und
 }
 
 /** Interpreta un texto ya leído como documento del módulo: lo migra si hace falta y lo valida con su esquema, igual que `readModuleDocument`. */
-export function parseModuleDocumentText(module: DomainModule<any>, raw: string): unknown {
+export function parseModuleDocumentText(module: DomainModule<unknown>, raw: string): unknown {
   const { document, migrated } = parseDocumentJson(module, parseJsonText(raw));
   noteMigration(migrated);
   return document;
@@ -103,7 +103,7 @@ export function genericSchema(module: DomainModule<any>, generation: boolean): v
 }
 
 /** El prompt autocontenido del módulo (el que imprime `prompt`), para escribirlo o para estimar su tamaño. */
-export function genericPromptText(module: DomainModule<any>, instruction: string, base: unknown): string {
+export function genericPromptText(module: DomainModule<unknown>, instruction: string, base: unknown): string {
   if (!module.ai) throw new CliError(`El módulo «${module.id}» no genera con IA.`, 2);
   return moduleStandalonePrompt(module.ai, instruction, base);
 }
