@@ -123,6 +123,8 @@ export interface Application {
   endOfLife?: string;
   /** Referencia a un elemento de otro módulo (`urn:iark:c4:tienda`). */
   ref?: string;
+  /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
+  refType?: string;
   tags?: string[];
 }
 
@@ -139,6 +141,8 @@ export interface Technology {
   /** Fin de soporte del fabricante (`2027-06` o `2027-06-30`). */
   endOfLife?: string;
   ref?: string;
+  /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
+  refType?: string;
   tags?: string[];
 }
 

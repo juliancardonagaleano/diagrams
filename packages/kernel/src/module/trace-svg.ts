@@ -1,9 +1,11 @@
 import { layoutGraph, renderGraphSvg } from '../graph';
+import { DEFAULT_LINK_TYPE } from './link-types';
 import type { Reached, TraceGraph } from './trace';
 
 /**
  * Dibujo del grafo de trazabilidad: un recuadro por módulo, un nodo por elemento y una flecha discontinua por cada enlace
- * (`ref`), de quien se apoya hacia aquello en lo que se apoya. Con `reached` (lo que alcanza un elemento) se dibuja solo
+ * (`ref`), de quien se apoya hacia aquello en lo que se apoya. La flecha lleva como etiqueta el tipo del enlace (`refType`), salvo
+ * el de por omisión (`depends-on`), que no se rotula. Con `reached` (lo que alcanza un elemento) se dibuja solo
  * ese subgrafo y se distingue el punto de partida, lo que se apoya en él y aquello de lo que se apoya.
  */
 
@@ -51,7 +53,7 @@ export async function traceSvg(graph: TraceGraph, options: TraceSvgOptions = {})
   const byId = new Map(nodes.map((n) => [ids.get(n.urn)!, n]));
   const layout = await layoutGraph(
     nodes.map((n) => ({ id: ids.get(n.urn)!, width: NODE_WIDTH, height: NODE_HEIGHT, groupId: `g:${n.module}` })),
-    links.map((l, i) => ({ id: `e${i}`, source: ids.get(l.from)!, target: ids.get(l.to)! })),
+    links.map((l, i) => ({ id: `e${i}`, source: ids.get(l.from)!, target: ids.get(l.to)!, ...(l.type !== DEFAULT_LINK_TYPE ? { label: l.type } : {}) })),
     modules.map((m) => ({ id: `g:${m}` })),
     { direction: 'RIGHT' },
   );
@@ -73,8 +75,9 @@ export async function traceSvg(graph: TraceGraph, options: TraceSvgOptions = {})
         shape: 'rect',
       };
     },
-    edge() {
-      return { stroke: '#64748b', dashed: true };
+    edge(id) {
+      const type = links[Number(id.slice(1))]?.type;
+      return { stroke: '#64748b', dashed: true, ...(type && type !== DEFAULT_LINK_TYPE ? { label: type } : {}) };
     },
     group(id) {
       const module = id.slice(2);

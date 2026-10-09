@@ -29,7 +29,7 @@ import type { TokenStore } from './tokens';
  *   POST /api/<módulo>/import?importer=&name=   cuerpo: texto (Mermaid…) → { document, warnings, importer }
  *   POST /api/<módulo>/run/<comando>            cuerpo: { input?, args?, options? } → { output, warnings, kind }
  *   POST /api/<módulo>/diff                     cuerpo: { before, after } (dos documentos del módulo) → DocumentDiff: qué se añadió, quitó y modificó
- *   POST /api/trace                             cuerpo: { documents: [{ module, document }], from?, direction?, depth? } → { graph, from?, reached?, report, mermaid, svg }
+ *   POST /api/trace                             cuerpo: { documents: [{ module, document }], from?, direction?, depth?, types?, orphans?, matrix?, coverage? } → { graph, types?, from?, reached?, orphans?, matrix?, coverage?, report, mermaid, svg }
  *
  * Con un espacio de trabajo (`--workspace <carpeta>`), además, los proyectos guardados en esa carpeta (ver `serveProjects.ts`;
  * sin él, estas rutas responden 404). Los que modifican exigen `Content-Type: application/json` y rechazan los orígenes ajenos:

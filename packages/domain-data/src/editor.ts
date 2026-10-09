@@ -1,4 +1,4 @@
-import { uniqueId, type EdgeNotation, type EditResult, type EditorGraph, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
+import { REF_TYPE_FIELD, uniqueId, type EdgeNotation, type EditResult, type EditorGraph, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
 import { DATA_ACTIONS } from './actions';
 import { CATALOG_EDGE_KINDS, CATALOG_NODE_KINDS, addCatalogEdge, addCatalogNode, catalogConnection, catalogFields, projectCatalog, readCatalog, removeCatalog, updateCatalog } from './catalog-editor';
 import { contractAttachments } from './contract-editor';
@@ -100,6 +100,7 @@ const assetFields = (doc: DataDocument, kind: string): FieldSpec[] => [
     : []),
   { key: 'contractId', label: 'Contrato de datos', type: 'select', options: (doc.contracts ?? []).map((c) => ({ value: c.id, label: `${c.name}${c.version ? ` ${c.version}` : ''}` })), allowEmpty: true, opensAttachment: true },
   { key: 'ref', label: 'Referencia (URN)', type: 'text', hint: 'urn:iark:<módulo>:<id>' },
+  REF_TYPE_FIELD,
   { key: 'tags', label: 'Etiquetas', type: 'list' },
 ];
 
@@ -412,7 +413,7 @@ export const dataEditor: EditorSpec<DataDocument> = {
         id,
         document: {
           ...doc,
-          assets: doc.assets.map((a) => (a.id === id ? patchObject(a, withColumns, ['name', 'description', 'technology', 'engine', 'owner', 'steward', 'domainId', 'classification', 'pii', 'retention', 'external', 'ref', 'tags', 'columns', 'parentId', 'contractId']) : a)),
+          assets: doc.assets.map((a) => (a.id === id ? patchObject(a, withColumns, ['name', 'description', 'technology', 'engine', 'owner', 'steward', 'domainId', 'classification', 'pii', 'retention', 'external', 'ref', 'refType', 'tags', 'columns', 'parentId', 'contractId']) : a)),
         },
       };
     }

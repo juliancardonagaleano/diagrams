@@ -119,7 +119,7 @@ export function catalogFields(target: EditorTarget, doc: DataDocument, base: () 
       ...pick('name', 'description', 'technology', 'owner', 'steward', 'domainId', 'classification', 'pii', 'retention'),
       { key: 'freshness', label: 'Frescura', type: 'text', hint: '24 h · 15 min · tiempo real' },
       { key: 'sla', label: 'SLA', type: 'longtext', hint: '99,5 % de disponibilidad, soporte L-V' },
-      ...pick('contractId', 'ref', 'tags'),
+      ...pick('contractId', 'ref', 'refType', 'tags'),
     ];
   }
   if (target.kind === 'data-api') {
@@ -127,10 +127,10 @@ export function catalogFields(target: EditorTarget, doc: DataDocument, base: () 
       ...pick('name', 'description', 'technology', 'owner', 'steward', 'domainId', 'classification', 'pii'),
       { key: 'protocol', label: 'Protocolo', type: 'select', options: options(API_PROTOCOLS, API_PROTOCOL_LABELS), allowEmpty: true },
       { key: 'endpoint', label: 'Dirección', type: 'text', hint: 'https://api.acme.com/ventas/v1' },
-      ...pick('contractId', 'ref', 'tags'),
+      ...pick('contractId', 'ref', 'refType', 'tags'),
     ];
   }
-  return pick('name', 'description', 'owner', 'steward', 'domainId', 'ref', 'tags');
+  return pick('name', 'description', 'owner', 'steward', 'domainId', 'ref', 'refType', 'tags');
 }
 
 // ───────────── proyección al lienzo ─────────────
@@ -289,7 +289,7 @@ export function addCatalogEdge(doc: DataDocument, kind: string, sourceId: string
 
 // ───────────── edición ─────────────
 
-const ASSET_FIELDS = ['name', 'description', 'technology', 'owner', 'steward', 'domainId', 'classification', 'pii', 'retention', 'ref', 'tags', 'contractId', 'freshness', 'sla', 'protocol', 'endpoint'];
+const ASSET_FIELDS = ['name', 'description', 'technology', 'owner', 'steward', 'domainId', 'classification', 'pii', 'retention', 'ref', 'refType', 'tags', 'contractId', 'freshness', 'sla', 'protocol', 'endpoint'];
 
 /** Edita un término, un enlace de un término (su columna) o un activo del catálogo; `undefined` si `id` es otro elemento. */
 export function updateCatalog(doc: DataDocument, id: string, patch: Record<string, unknown>): EditResult<DataDocument> | undefined {
