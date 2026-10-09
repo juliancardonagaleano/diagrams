@@ -91,10 +91,18 @@ test.describe('C4 en el lienzo común', () => {
     await page.getByTestId('action-detail').click();
     await canvasReady(page, 'componentes-api');
     await expect(page.getByTestId('action-detail')).toBeDisabled();
+    // La miga C1 › C2 › C3 muestra el camino y cada tramo abre su vista.
+    await expect(page.getByTestId('canvas-breadcrumb').getByRole('button')).toHaveText(['C1 Contexto del sistema · Sistema de banca en línea', 'C2 Contenedores · Sistema de banca en línea', 'C3 Componentes · Aplicación API']);
+    await page.getByTestId('crumb-contenedores').click();
+    await canvasReady(page, 'contenedores');
+    await page.getByTestId('node-api').click();
+    await page.getByTestId('action-detail').click();
+    await canvasReady(page, 'componentes-api');
     await page.keyboard.press('Alt+ArrowUp');
     await canvasReady(page, 'contenedores');
     await page.keyboard.press('Alt+ArrowUp');
     await canvasReady(page, 'contexto');
+    await expect(page.getByTestId('canvas-breadcrumb')).toHaveCount(0);
     // Navegar no es editar: no hay nada que deshacer ni el documento ha cambiado.
     await expect(page.getByRole('button', { name: 'Deshacer' })).toBeDisabled();
     expect((await readDoc(page)).views).toEqual(banca().views);

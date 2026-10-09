@@ -455,6 +455,8 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     );
   }
 
+  const crumbs = spec.breadcrumb?.(document, viewId) ?? [];
+
   return (
     <div className="cv-root" ref={wrapper} data-testid="module-canvas" data-view={viewId ?? ''} data-layout={settled ? 'ready' : 'pending'}>
       <div className="cv-toolbar" role="toolbar" aria-label="Herramientas del lienzo">
@@ -548,6 +550,22 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
           ⌨
         </button>
       </div>
+
+      {crumbs.length > 1 && (
+        <nav className="cv-crumbs" aria-label="Niveles del diagrama" data-testid="canvas-breadcrumb">
+          {crumbs.map((c, i) => {
+            const current = i === crumbs.length - 1;
+            return (
+              <span key={c.id} className="cv-crumb-item">
+                {i > 0 && <span className="cv-crumb-sep" aria-hidden="true">›</span>}
+                <button type="button" className={current ? 'cv-crumb is-current' : 'cv-crumb'} aria-current={current ? 'page' : undefined} disabled={current} onClick={() => onView(c.id)} data-testid={`crumb-${c.id}`}>
+                  {c.label}
+                </button>
+              </span>
+            );
+          })}
+        </nav>
+      )}
 
       {failedFor === layoutKey && (
         <div className="cv-notice" role="status" data-testid="canvas-layout-error">

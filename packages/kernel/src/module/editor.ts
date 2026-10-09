@@ -294,6 +294,12 @@ export interface EditorSpec<TDoc> {
    */
   layout?(document: TDoc, viewId?: string, options?: { fresh?: boolean }): GraphLayout | undefined | Promise<GraphLayout | undefined>;
   /**
+   * Camino de vistas que lleva hasta `viewId`, de la más general a la abierta (C4: «C1 Contexto › C2 Contenedores › C3
+   * Componentes»). Si tiene más de una, el lienzo la muestra sobre el diagrama y cada tramo abre su vista. Sin él, o con una
+   * sola, no se muestra nada.
+   */
+  breadcrumb?(document: TDoc, viewId?: string): Array<{ id: string; label: string }>;
+  /**
    * Doble clic sobre el nodo `id`: operación propia del módulo (p. ej. marcar o desmarcar una celda de una matriz). `undefined`
    * si no significa nada: entonces el doble clic sigue el enlace del elemento, si lo tiene.
    */

@@ -325,6 +325,17 @@ describe('niveles, enlaces y vistas', () => {
     ]);
   });
 
+  it('la miga lleva de C1 a la vista abierta con el rótulo del editor principal, y es vacía sin vista o con una vista que no existe', () => {
+    expect(c4Editor.breadcrumb!(doc, 'componentes-api')).toEqual([
+      { id: 'contexto', label: 'C1 Contexto del sistema · Sistema de banca en línea' },
+      { id: 'contenedores', label: 'C2 Contenedores · Sistema de banca en línea' },
+      { id: 'componentes-api', label: 'C3 Componentes · Aplicación API' },
+    ]);
+    expect(c4Editor.breadcrumb!(doc, 'contexto').map((c) => c.id)).toEqual(['contexto']);
+    expect(c4Editor.breadcrumb!(doc)).toEqual([]);
+    expect(c4Editor.breadcrumb!(doc, 'nope')).toEqual([]);
+  });
+
   it('quitar de la vista deja el elemento en el modelo, y el alcance no se puede quitar', () => {
     const remove = action('remove-from-view');
     const next = applied(remove.run(doc, ['email', 'mainframe'], undefined, 'contenedores')).document;

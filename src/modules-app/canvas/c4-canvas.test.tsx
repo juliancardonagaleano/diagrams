@@ -118,6 +118,22 @@ describe('lienzo común con C4', () => {
     await ready('banca', 'contexto');
   });
 
+  it('la miga C1 › C2 › C3 aparece al bajar de nivel y cada tramo abre su vista', async () => {
+    const harness = mount();
+    await ready('banca', 'contexto');
+    expect(screen.queryByTestId('canvas-breadcrumb')).toBeNull();
+    fireEvent.doubleClick(screen.getByTestId('node-banca').closest('.react-flow__node') as HTMLElement);
+    await ready('db', 'contenedores');
+    const crumbs = screen.getByTestId('canvas-breadcrumb');
+    expect(within(crumbs).getAllByRole('button').map((b) => b.textContent)).toEqual(['C1 Contexto del sistema · Sistema de banca en línea', 'C2 Contenedores · Sistema de banca en línea']);
+    expect(screen.getByTestId('crumb-contenedores')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('crumb-contexto'));
+    await ready('banca', 'contexto');
+    expect(harness.onView).toHaveBeenLastCalledWith('contexto');
+    expect(harness.history.canUndo).toBe(false);
+    expect(screen.queryByTestId('canvas-breadcrumb')).toBeNull();
+  });
+
   it('con un enlace a otro módulo, Alt+↓ y el doble clic lo siguen en lugar de bajar de nivel, y Alt+↑ vuelve por la miga si la hay', async () => {
     const follow = vi.fn();
     const onBack = vi.fn();

@@ -29,6 +29,8 @@ import {
   relationshipCreationBlocked,
   suggestViewElements,
   typeChangeBlockedReason,
+  viewBreadcrumb,
+  viewLevel,
 } from './model/factories';
 import { analyzeDocument } from './model/issues';
 import {
@@ -37,6 +39,7 @@ import {
   DEFAULT_SIZES,
   ELEMENT_TYPE_LABELS,
   PARENT_TYPE,
+  VIEW_TYPE_LABELS,
   type C4Document,
   type C4Element,
   type C4Relationship,
@@ -678,6 +681,15 @@ function missingFrom(doc: C4Document, view: C4View): string[] {
   return suggestViewElements(doc, view.type, view.scopeId).filter((id) => !shown.has(id) && (view.type === 'systemContext' || id !== view.scopeId));
 }
 
+/** Camino C1 › C2 › C3 hasta la vista abierta, con el mismo rótulo que el editor principal («C2 Contenedores · Sistema»). */
+function breadcrumb(doc: C4Document, viewId?: string): Array<{ id: string; label: string }> {
+  if (!viewId) return [];
+  return viewBreadcrumb(doc, viewId).map((v) => {
+    const scope = v.scopeId ? doc.model.elements.find((e) => e.id === v.scopeId)?.name : undefined;
+    return { id: v.id, label: `${viewLevel(v)} ${VIEW_TYPE_LABELS[v.type]}${scope ? ` · ${scope}` : ''}` };
+  });
+}
+
 // ───────────── el descriptor ─────────────
 
 export const c4Editor: EditorSpec<C4Document> = {
@@ -744,6 +756,7 @@ export const c4Editor: EditorSpec<C4Document> = {
     return undefined;
   },
   layout,
+  breadcrumb,
   activate: (doc, id) => activate(doc, id),
   drop: (doc, id, targetId) => drop(doc, id, targetId),
   actions: ACTIONS,
