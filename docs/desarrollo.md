@@ -14,6 +14,7 @@ npm test           # pruebas unitarias y de componente (vitest + Testing Library
 npm run test:coverage  # igual, con informe de cobertura (informativo, sin umbral que bloquee)
 npm run e2e        # pruebas de extremo a extremo con @playwright/test (requiere build:app previo)
 npm run verify     # typecheck + test + build + e2e, de punta a punta
+npm run perf       # mide el autolayout, el lienzo y el tamaño de los trozos con diagramas grandes (a mano: no forma parte de npm test ni del CI; ver rendimiento.md)
 npm run typecheck  # tsc de la app, de los paquetes y de las pruebas y specs de Playwright (tsconfig.test.json)
 npm run schema     # regenera schema/*.schema.json a partir de los esquemas zod de los módulos (y el de iark.config.json)
 npm run manifest   # regenera public/.well-known/iark.json (manifiesto de federación) a partir de los módulos registrados
@@ -83,6 +84,7 @@ Los siete paquetes de `packages/` se pueden publicar en npm (comparten la versi�
   `/opt/pw-browsers/chromium`) sin descargar un navegador propio, y guarda captura + traza solo si una prueba
   falla (`npx playwright show-trace test-results/.../trace.zip`). Las particularidades (puerto, esperas, iframes) están en
   [Trampas conocidas](#trampas-conocidas).
+- **Rendimiento** (ver [rendimiento.md](rendimiento.md)): `npm test` y el CI **no** fallan por tiempo (el reloj de un CI varía demasiado). Fijan lo estructural: cuántos nodos se montan de verdad con 1000 en el DOM (`DiagramCanvas.scale.test.tsx`), que el cálculo se pide al hilo de trabajo y cae al hilo actual si no hay (`packages/kernel/src/graph/elk.test.ts`), el tamaño por trozo y por página de `dist/app` (`tests/e2e/tamano-trozos.spec.ts`, topes en `scripts/perf/limites.ts`) y un e2e con un diagrama grande (`tests/e2e/rendimiento-lienzo.spec.ts`). Los tiempos se miden a mano con `npm run perf` y se anotan en `docs/rendimiento.md`.
 - **Módulos de terceros** (`tests/plugins-cli.test.ts`): el CLI empaquetado de verdad contra `examples/plugin-riesgos` con un `@iark/kernel` compilado como se publica (`tests/helpers/pluginProject.ts`): cargar, descubrir la configuración, los fallos con código 2, que no se cargue de `--from-repo` ni de `--workspace`, y `iark serve --config` con su hilo de cálculo. Las unidades están en `src/cli/plugins/*.test.ts` y `src/cli/registry.test.ts`; `tests/paquetes.test.ts` vigila la declaración de los paquetes publicables.
 - **Imagen Docker** (`npm run docker:smoke`, `scripts/docker-smoke-cuentas.ts`): construye la imagen (o usa una con `--image`), la ejecuta de verdad
   y recorre el servicio gestionado contra un GitHub de mentira (`tests/helpers/fakeGithub.ts`): inicio de sesión, un proyecto en el volumen, reiniciar y

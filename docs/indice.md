@@ -47,6 +47,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | Documento | Qué cuenta |
 |---|---|
 | [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, paquetes publicables (`packages:build`, `packages:check`, publicar en npm), decisiones de diseño y trampas conocidas. |
+| [rendimiento.md](rendimiento.md) | Diagramas grandes: cuánto tardan el autolayout y el lienzo (antes y después), qué se hizo (ELK en un hilo de trabajo, recorte de nodos fuera de pantalla, trozos de la compilación), cómo medirlo (`npm run perf`) y qué fijan las pruebas. |
 | [versionado-documentos.md](versionado-documentos.md) | Cómo evoluciona un esquema sin romper lo guardado: `documentVersion` y migraciones por módulo (`iark migrate`), `contractVersion` del contrato `DomainModule` (el que cumple un [módulo de terceros](plugins.md)) y negociación de la versión del protocolo embebido y del manifiesto. |
 | [roadmap.md](roadmap.md) | Visión, estado actual, pendientes reales, límites conocidos y el plan de robustecimiento en cuatro fases. |
 | [historial.md](historial.md) | Lo ya hecho, por fases y por tandas, y el plan original de la suite. |
