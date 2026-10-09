@@ -34,6 +34,9 @@ import { setupAccounts } from './accounts/setup';
 import { formatBytes } from './accounts/usage';
 import { TokenError, TokenStore } from './tokens';
 import { FolderProjectStore } from './workspace';
+import { releaseDatabase } from './postgres/shared';
+import { registerWorkspace } from './workspaceImport';
+import { openPostgresProjects, resolveWorkspaceStore } from './workspaceStore';
 import { addBudgetOptions, EFFORTS, parseEffort, parseProvider, reportGeneration, tokenLimitOptions, withAiErrors } from './ai';
 import { registerCommentary } from './commentary';
 import { genericExport, genericGenerate, genericMigrate, genericPrompt, genericPromptText, genericSchema, genericValidate, parseModuleDocumentText, readModuleDocument } from './generic';
@@ -579,6 +582,12 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       process.env.IARK_WORKSPACE || undefined,
     )
     .option(
+      '--workspace-store <almacén>',
+      '«folder» (por omisión): los proyectos en la carpeta de --workspace; «postgres»: en una base Postgres (Supabase y otros), para alojar el servicio sin disco persistente (o IARK_WORKSPACE_STORE). ' +
+        'Con postgres no se indica carpeta y la conexión sale solo del entorno (IARK_DATABASE_URL, nunca de la línea de comandos; ver docs/postgres.md). Una carpeta existente se pasa con `iark workspace import`',
+      process.env.IARK_WORKSPACE_STORE || undefined,
+    )
+    .option(
       '-t, --tokens <archivo>',
       'exige un token (`Authorization: Bearer <token>`, con rol viewer, editor o admin) en la API de proyectos, en /api/whoami y en las rutas de cálculo (validar, vistas, exportar, importar, comparar, informes y /api/trace; ver --public-compute); el archivo se administra con `iark auth` y se relee cuando cambia (o la variable IARK_TOKENS). ' +
         'Hace falta para escuchar fuera de loopback con --workspace',
@@ -615,13 +624,14 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         throw new CliError((error as Error).message, 2);
       }
       const cors = typeof opts.cors === 'string' ? opts.cors.split(',').map((o: string) => o.trim()).filter(Boolean) : [];
-      const projects = opts.workspace ? new FolderProjectStore(opts.workspace) : undefined;
-      const accounts = setupAccounts(opts, { workspace: !!projects, cors });
+      const workspaceStore = resolveWorkspaceStore(opts.workspaceStore, opts.workspace);
+      const hasWorkspace = workspaceStore === 'postgres' || !!opts.workspace;
+      const accounts = setupAccounts(opts, { workspace: hasWorkspace, cors });
       const loopback = isLoopbackHost(opts.host);
       // Fuera de loopback el servicio habla HTTP: con `--trust-proxy` quien lo opera dice que hay un proxy delante, y el aviso pasa a ser un recordatorio.
       const tlsNote = (why: string): string =>
         opts.trustProxy ? `  detrás de un proxy de confianza (--trust-proxy): el HTTPS lo pone el proxy, compruebe que la dirección pública es https; ${why}` : `aviso: este servicio no habla TLS: ponga delante un proxy con HTTPS (Caddy, nginx…); ${why}`;
-      if (projects && !opts.tokens && !accounts && !loopback) {
+      if (hasWorkspace && !opts.tokens && !accounts && !loopback) {
         throw new CliError(
           `Con un espacio de trabajo, escuchar en ${opts.host} sin autenticación dejaría los proyectos al alcance de quien llegue a ese puerto: el servicio no arranca así. ` +
             'Elija una de las salidas: exija un token con --tokens <archivo> (o IARK_TOKENS; se crea con `iark auth create <nombre> --role admin --tokens <archivo>`), active el inicio de sesión con GitHub (--accounts, ver docs/cuentas-github.md) o escuche solo en loopback con --host 127.0.0.1.',
@@ -639,11 +649,18 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       // El cálculo (ELK, análisis de documentos grandes) corre en hilos aparte, con tiempo límite y cola acotada: ver `computePool.ts`.
       // Cada hilo construye su propio registro: con los mismos módulos de terceros que el principal, o un plugin funcionaría en el CLI y fallaría aquí.
       const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue, plugins: settings.plugins }) : undefined;
+      // Los proyectos en Postgres se abren al final de las comprobaciones: el pool de la base (compartido por el proceso) se cierra al parar.
+      const projects = workspaceStore === 'postgres' ? await openPostgresProjects() : opts.workspace ? new FolderProjectStore(opts.workspace) : undefined;
       const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute, observability: observed.observability, metricsToken: observed.metricsToken, events: streams === 0 ? false : { maxPerPerson: streams } });
-      await new Promise<void>((resolveListening, rejectListening) => {
-        server.once('error', rejectListening);
-        server.listen(opts.port, opts.host, resolveListening);
-      });
+      try {
+        await new Promise<void>((resolveListening, rejectListening) => {
+          server.once('error', rejectListening);
+          server.listen(opts.port, opts.host, resolveListening);
+        });
+      } catch (error) {
+        if (projects?.kind === 'postgres') await releaseDatabase(); // el puerto está ocupado o no se puede escuchar: que no quede el pool abierto
+        throw error;
+      }
       const address = server.address();
       const port = typeof address === 'object' && address ? address.port : opts.port;
       info(`IArk - DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port}${opts.static ? ` (sitio: ${opts.static})` : ' (solo API)'}`);
@@ -657,7 +674,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         info(compute.publicCompute ? 'aviso: --public-compute: las rutas de cálculo (validar, exportar, importar, informes, trazas) están abiertas a quien llegue al puerto, aunque haya autenticación.' : '  las rutas de cálculo (validar, exportar, importar, informes, trazas) exigen credencial; /api/modules, capabilities y schema siguen públicos');
       }
       if (projects) {
-        info(`  espacio de trabajo: ${projects.root} · proyectos: /api/projects`);
+        info(`  espacio de trabajo: ${projects instanceof FolderProjectStore ? projects.root : projects.description} · proyectos: /api/projects`);
         info(streams === 0 ? '  cambios en tiempo real: desactivados (--max-streams 0); los clientes sondean cada 30 s' : `  cambios en tiempo real: /api/events (hasta ${streams ?? 8} canal(es) por persona)`);
         if (accounts) {
           info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}, almacén ${accounts.store.kind}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
@@ -682,8 +699,9 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
                 .then(() => observed.observability.close())
                 .then(() => {
                   accounts?.store.close(); // cierra la base de cuentas (SQLite) con limpieza: vuelca el diario WAL al archivo
-                  resolveClosed();
-                }),
+                  return projects?.kind === 'postgres' ? releaseDatabase() : undefined; // cierra el pool de Postgres cuando ya no hay peticiones en curso
+                })
+                .then(() => resolveClosed()),
           );
         process.once('SIGINT', stop);
         process.once('SIGTERM', stop);
@@ -693,6 +711,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
   registerTrace(program, registry);
   registerDiff(program, registry, importSource, defaultModule);
   registerProject(program, registry);
+  registerWorkspace(program);
   registerAuth(program);
   registerAccounts(program);
   registerModuleCommands(program, registry);
