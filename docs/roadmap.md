@@ -83,7 +83,7 @@ Que cada módulo sea útil con los archivos reales de quien lo usa.
 - **Accesibilidad**: auditoría y arreglos del editor y del banco de trabajo (teclado, lectores de pantalla, contraste).
 - **Rendimiento**: diagramas grandes en el lienzo y en el autolayout, y el tamaño de los trozos de la compilación (hoy `chunkSizeWarningLimit: 2000`).
 
-**Puerta**: cada módulo importa formatos reales. **Cumplida** (acción 13): los seis módulos importan al menos un formato real además de Mermaid, probado con archivos de ejemplo escritos para el proyecto, con la CLI empaquetada de verdad y con el servicio. La fase sigue en curso por el resto de sus tareas (C4 en el lienzo común, accesibilidad, rendimiento y la prueba real de la IA con claves).
+**Puerta**: cada módulo importa formatos reales. **Cumplida** (acción 13): los seis módulos importan al menos un formato real además de Mermaid, probado con archivos de ejemplo escritos para el proyecto, con la CLI empaquetada de verdad y con el servicio. La fase sigue en curso por el resto de sus tareas (retirar el editor C4 clásico, ahora que C4 ya está en el lienzo común del banco de trabajo; accesibilidad, rendimiento y la prueba real de la IA con claves).
 
 ### Fase 4 «Escalar»
 
