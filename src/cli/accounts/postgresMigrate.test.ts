@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { INVITE, OPEN, realJson } from '../../../tests/helpers/realAccounts';
 import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../tests/helpers/postgres';
 import { PostgresDatabase } from '../postgres/pool';
@@ -200,6 +200,19 @@ describe.skipIf(!postgresAvailable())('importar cuentas a Postgres', () => {
     const reports = await Promise.all([importAccounts(first.store, file, { backup: false }), importAccounts(second.store, file, { backup: false })]);
     expect(reports.map((r) => r.status).sort()).toEqual(['already-imported', 'imported']);
     expect(await first.store.snapshot()).toEqual(snapshot);
+  });
+
+  it('si la base se llena entre la comprobación y la transacción (otro servicio con otras cuentas), la transacción lo ve y no mezcla', async () => {
+    const dir = tmp();
+    const { file } = realJson(dir);
+    const { store } = await openPostgres();
+    await store.signIn({ id: 1, login: 'zoe' }, OPEN);
+    const before = await store.snapshot();
+    // la comprobación previa vio «vacía y sin importar» (como la de quien llegó un instante antes de que zoe entrara)
+    vi.spyOn(store, 'meta').mockResolvedValueOnce(undefined);
+    vi.spyOn(store, 'isEmpty').mockResolvedValueOnce(true);
+    expect((await importAccounts(store, file, { backup: false })).status).toBe('target-not-empty');
+    expect(await store.snapshot()).toEqual(before);
   });
 
   it('importar un lote grande es una sola transacción con pocas sentencias (no un viaje por fila)', async () => {
