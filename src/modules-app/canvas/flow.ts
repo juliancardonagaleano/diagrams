@@ -35,6 +35,8 @@ export interface FlowNode {
   style: { width: number; height: number };
   zIndex: number;
   selected?: boolean;
+  /** Nombre accesible del nodo (tipo, nombre y relaciones): lo calcula el lienzo, no `buildFlow`, porque depende también de la comparación de versiones. */
+  ariaLabel?: string;
   /** Los fantasmas de lo quitado al comparar versiones no se arrastran, ni se seleccionan ni se conectan. */
   draggable?: boolean;
   selectable?: boolean;
@@ -70,6 +72,8 @@ export interface FlowEdge {
   markerStart?: { type: 'arrowclosed'; color: string };
   data: FlowEdgeData;
   selected?: boolean;
+  /** Nombre accesible de la relación (de dónde a dónde va). */
+  ariaLabel?: string;
 }
 
 const ORIGIN = { x: 0, y: 0 };
