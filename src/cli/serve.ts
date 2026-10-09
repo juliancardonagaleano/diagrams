@@ -1,14 +1,18 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize, resolve, sep } from 'node:path';
+import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { commandInfos, moduleCapabilities, type AnyModule, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
 import { createAdminApi } from './accounts/admin';
 import { createAuthApi } from './accounts/routes';
 import type { Accounts } from './accounts/service';
 import { COMPUTE_ACTIONS, inlineExecutor, unwrapOutcome, type ComputeExecutor, type ComputeJob } from './compute';
 import { HttpError } from './httpError';
-import { createAuthenticator, type FailureLimiterOptions } from './serveAuth';
+import { directoryWritable, fileReadable, Readiness, type Check } from './observability/health';
+import { Observability } from './observability';
+import type { MetricFamily } from './observability/metrics';
+import { createMetricsEndpoint } from './observability/metricsEndpoint';
+import { createAuthenticator, type Authenticator, type FailureLimiterOptions } from './serveAuth';
 import { createProjectsApi } from './serveProjects';
 import { applySecurityHeaders } from './securityHeaders';
 import { suiteManifest } from './suiteManifest';
@@ -30,6 +34,9 @@ import type { TokenStore } from './tokens';
  *   POST /api/<módulo>/run/<comando>            cuerpo: { input?, args?, options? } → { output, warnings, kind }
  *   POST /api/<módulo>/diff                     cuerpo: { before, after } (dos documentos del módulo) → DocumentDiff: qué se añadió, quitó y modificó
  *   POST /api/trace                             cuerpo: { documents: [{ module, document }], from?, direction?, depth? } → { graph, from?, reached?, report, mermaid, svg }
+ *   GET  /healthz                               vivo: 200 { status: "ok" } sin autenticación ni detalles (lo consulta el HEALTHCHECK de la imagen)
+ *   GET  /readyz                                listo: 200 o 503 con el estado (ok/fail) de cada comprobación: carpeta de trabajo, tokens, cuentas, cálculo
+ *   GET  /metrics                               métricas de Prometheus; solo con `--metrics` (ver `observability/`): con token o solo desde loopback
  *
  * Con un espacio de trabajo (`--workspace <carpeta>`), además, los proyectos guardados en esa carpeta (ver `serveProjects.ts`;
  * sin él, estas rutas responden 404). Los que modifican exigen `Content-Type: application/json` y rechazan los orígenes ajenos:
@@ -90,6 +97,15 @@ export interface ServeOptions {
   publicCompute?: boolean;
   /** Orígenes que pueden incrustar las cargas embebidas (`?embed=1`) por iframe (`--frame-ancestors`). Por omisión `*`; ver `securityHeaders.ts`. */
   frameAncestors?: string[];
+  /**
+   * Registro de accesos, auditoría y métricas (ver `observability/`). Sin él, el servidor solo pone `X-Request-Id` y atiende `/healthz` y
+   * `/readyz`. Es de quien lo crea (`iark serve` lo cierra al parar); un `Observability` sirve a un solo servidor.
+   */
+  observability?: Observability;
+  /** El token Bearer de `GET /metrics` (`--metrics-token`). Sin él, las métricas (si están activadas) solo se sirven a conexiones de loopback. */
+  metricsToken?: string;
+  /** Cuánto tiempo (ms) se reutiliza el resultado de `/readyz`. Por omisión 5000; 0 = siempre se comprueba (pruebas). */
+  readyCacheMs?: number;
 }
 
 const API = '/api';
@@ -146,17 +162,81 @@ export function createSuiteServer(options: ServeOptions): Server {
   const maxBody = options.maxBodyBytes ?? 5 * 1024 * 1024;
   const staticRoot = options.staticDir ? resolve(options.staticDir) : undefined;
   const cors = options.cors ?? [];
-  const auth = options.tokens || options.accounts ? createAuthenticator({ tokens: options.tokens, accounts: options.accounts, trustProxy: options.trustProxy, limits: options.authLimits }) : undefined;
+  const ownObservability = !options.observability;
+  const obs = options.observability ?? new Observability({ version: options.version });
+  const rawAuth = options.tokens || options.accounts ? createAuthenticator({ tokens: options.tokens, accounts: options.accounts, trustProxy: options.trustProxy, limits: options.authLimits }) : undefined;
+  /** Quién identifica a quien llama; anota en el contexto de la petición quién es (o por qué no pudo ser nadie) para el registro de accesos y la auditoría. */
+  const auth: Authenticator | undefined = rawAuth && {
+    identify(req) {
+      const context = obs.contextOf(req);
+      try {
+        const identity = rawAuth.identify(req);
+        context?.identified(identity);
+        return identity;
+      } catch (error) {
+        context?.authFailed(error, req.headers.authorization !== undefined);
+        throw error;
+      }
+    },
+  };
   /** Con autenticación y sin `publicCompute`, las rutas de cálculo piden una credencial válida (de cualquier rol). */
   const computeAuth = options.publicCompute ? undefined : auth;
   const executor = options.compute ?? inlineExecutor(options.registry);
 
   const send = (res: ServerResponse, status: number, body: string | Buffer, headers: Record<string, string> = {}): void => {
+    obs.contextOf(res)?.sent(typeof body === 'string' ? Buffer.byteLength(body) : body.length, headers);
     res.writeHead(status, { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', ...headers });
     res.end(body);
   };
   const sendJson = (res: ServerResponse, status: number, value: unknown, headers: Record<string, string> = {}): void =>
     send(res, status, `${JSON.stringify(value, null, 2)}\n`, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
+
+  // Salud (`/healthz`, `/readyz`) y métricas (`/metrics`): ver `observability/`. Las comprobaciones de `/readyz` son las que tiene este servidor.
+  const checks: Record<string, Check> = {};
+  const workspaceRoot = (options.projects as { root?: unknown } | undefined)?.root;
+  if (typeof workspaceRoot === 'string') checks.workspace = () => directoryWritable(workspaceRoot);
+  if (options.tokens) {
+    const tokens = options.tokens;
+    checks.tokens = () => tokens.lookup(undefined).status !== 'unavailable';
+  }
+  if (options.accounts) {
+    const accountsFile = options.accounts.store.path;
+    checks.accounts = async () => (await fileReadable(accountsFile)) && (await directoryWritable(dirname(accountsFile)));
+  }
+  if (executor.healthy) checks.compute = () => executor.healthy!();
+  const readiness = new Readiness(checks, { cacheMs: options.readyCacheMs, warn: obs.warn });
+  const metricsEndpoint = obs.metrics ? createMetricsEndpoint({ metrics: obs.metrics, token: options.metricsToken, trustProxy: options.trustProxy }) : undefined;
+  obs.metrics?.addCollector((): MetricFamily[] => {
+    const families: MetricFamily[] = [];
+    const compute = executor.stats?.();
+    if (compute) {
+      families.push(
+        { name: 'iark_compute_workers', help: 'Hilos de cálculo creados ahora mismo.', type: 'gauge', samples: [{ value: compute.workers }] },
+        { name: 'iark_compute_workers_max', help: 'Hilos de cálculo como máximo a la vez.', type: 'gauge', samples: [{ value: compute.size }] },
+        { name: 'iark_compute_active', help: 'Operaciones de cálculo en curso.', type: 'gauge', samples: [{ value: compute.active }] },
+        { name: 'iark_compute_queued', help: 'Operaciones de cálculo esperando un hilo libre.', type: 'gauge', samples: [{ value: compute.queued }] },
+        { name: 'iark_compute_completed_total', help: 'Operaciones de cálculo terminadas.', type: 'counter', samples: [{ value: compute.completed }] },
+        { name: 'iark_compute_timeouts_total', help: 'Operaciones de cálculo canceladas por pasar del tiempo límite.', type: 'counter', samples: [{ value: compute.timeouts }] },
+        { name: 'iark_compute_rejected_total', help: 'Operaciones de cálculo rechazadas por tener la cola llena.', type: 'counter', samples: [{ value: compute.rejected }] },
+        { name: 'iark_compute_worker_crashes_total', help: 'Hilos de cálculo que se cayeron.', type: 'counter', samples: [{ value: compute.crashes }] },
+      );
+    }
+    if (options.accounts) {
+      const stats = options.accounts.store.stats();
+      families.push(
+        { name: 'iark_accounts', help: 'Cuentas de la instancia, por estado (solo recuentos).', type: 'gauge', samples: [{ labels: { state: 'active' }, value: stats.active }, { labels: { state: 'disabled' }, value: stats.disabled }, { labels: { state: 'pending' }, value: stats.pending }] },
+        { name: 'iark_sessions_active', help: 'Sesiones de GitHub vigentes (solo el recuento).', type: 'gauge', samples: [{ value: stats.sessions }] },
+      );
+    }
+    if (options.tokens) {
+      const available = options.tokens.lookup(undefined).status !== 'unavailable';
+      families.push(
+        { name: 'iark_tokens', help: 'Tokens de acceso del archivo de tokens (solo el recuento).', type: 'gauge', samples: [{ value: available ? options.tokens.size : 0 }] },
+        { name: 'iark_tokens_file_ok', help: '1 si el archivo de tokens se puede leer y es válido; 0 si el servicio está denegando todo por no poder usarlo.', type: 'gauge', samples: [{ value: available ? 1 : 0 }] },
+      );
+    }
+    return families;
+  });
 
   function applyCors(req: IncomingMessage, res: ServerResponse, pathname: string): void {
     const origin = req.headers.origin;
@@ -200,9 +280,26 @@ export function createSuiteServer(options: ServeOptions): Server {
     });
   }
 
-  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, readBody, send, sendJson });
-  const adminApi = createAdminApi({ accounts: options.accounts, auth, readBody, sendJson });
-  const authApi = createAuthApi({ accounts: options.accounts, auth, tokens: !!options.tokens, trustProxy: options.trustProxy ?? false, readBody, send, sendJson });
+  /** Lo mismo, avisando al contexto de la petición del cuerpo leído (solo guarda el de miembros y cuentas, para la auditoría; ver `RequestContext.readBody`). */
+  const observedBody = async (req: IncomingMessage): Promise<string> => {
+    const text = await readBody(req);
+    obs.contextOf(req)?.readBody(text);
+    return text;
+  };
+
+  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, readBody: observedBody, send, sendJson });
+  const adminApi = createAdminApi({ accounts: options.accounts, auth, readBody: observedBody, sendJson });
+  const authApi = createAuthApi({
+    accounts: options.accounts,
+    auth,
+    tokens: !!options.tokens,
+    trustProxy: options.trustProxy ?? false,
+    readBody: observedBody,
+    send,
+    sendJson,
+    onLogin: (req, user) => obs.contextOf(req)?.loggedIn(user),
+    onLoginFailed: (req, failure) => obs.contextOf(req)?.loginFailed(failure),
+  });
 
   const requireMethod = (req: IncomingMessage, allowed: 'GET' | 'POST'): void => {
     if (req.method !== allowed) throw new HttpError(405, `Este endpoint solo admite ${allowed}.`, { allow: allowed });
@@ -307,10 +404,27 @@ export function createSuiteServer(options: ServeOptions): Server {
     send(res, 200, req.method === 'HEAD' ? '' : body, { 'Content-Type': type, 'Cache-Control': pathname.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache' });
   }
 
-  return createServer((req, res) => {
+  /** `/healthz`, `/readyz` y `/metrics` solo se leen. */
+  const requireRead = (req: IncomingMessage): void => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Este endpoint solo admite GET.', { allow: 'GET, HEAD' });
+  };
+
+  const server = createServer((req, res) => {
+    const context = obs.begin(req, res, { trustProxy: options.trustProxy });
     applySecurityHeaders(req, res, { trustProxy: options.trustProxy, frameAncestors: options.frameAncestors });
     const handle = async (): Promise<void> => {
       const url = new URL(req.url ?? '/', 'http://localhost');
+      // Los puntos de control de las máquinas (balanceador, Docker, Prometheus) van antes del CORS y de la autenticación de personas.
+      if (url.pathname === '/healthz') {
+        requireRead(req);
+        return sendJson(res, 200, { status: 'ok' });
+      }
+      if (url.pathname === '/readyz') {
+        requireRead(req);
+        const report = await readiness.status();
+        return sendJson(res, report.ok ? 200 : 503, { status: report.ok ? 'ok' : 'fail', checks: report.checks });
+      }
+      if (url.pathname === '/metrics' && metricsEndpoint) return metricsEndpoint(req, res, send);
       applyCors(req, res, url.pathname);
       if (req.method === 'OPTIONS') return send(res, 204, '');
       if (url.pathname === MANIFEST_PATH) {
@@ -323,7 +437,10 @@ export function createSuiteServer(options: ServeOptions): Server {
     };
     handle().catch((error: unknown) => {
       if (res.headersSent) return void res.end();
+      // El cliente colgó antes de recibir respuesta: no hay a quién responder ni es un fallo del servicio (queda como 499 en el registro de accesos).
+      if (res.socket?.destroyed) return;
       if (error instanceof HttpError) {
+        context.failed(error.extra.code);
         const headers: Record<string, string> = { ...error.headers };
         if (error.status === 405) headers.Allow = String(error.extra.allow);
         if (error.status === 413) {
@@ -333,8 +450,12 @@ export function createSuiteServer(options: ServeOptions): Server {
         }
         return sendJson(res, error.status, { error: error.message, ...error.extra }, headers);
       }
-      process.stderr.write(`error interno: ${(error as Error).stack ?? String(error)}\n`);
+      context.failed('internal');
+      process.stderr.write(`error interno: ${(error as Error).stack ?? String(error)}\n  petición: ${context.id}\n`);
       sendJson(res, 500, { error: 'Error interno del servicio.' });
     });
   });
+  // Un `Observability` que creó este servidor (no se le pasó uno) se cierra con él.
+  if (ownObservability) server.once('close', () => void obs.close());
+  return server;
 }
