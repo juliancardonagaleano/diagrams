@@ -46,6 +46,32 @@ describe('panel «Dónde se guardan»', () => {
   });
   afterEach(() => cleanup());
 
+  describe('con un servidor propuesto en la compilación (VITE_IARK_SERVER)', () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it('rellena la dirección sin conectar ni cambiar dónde se guarda', () => {
+      vi.stubEnv('VITE_IARK_SERVER', 'https://iark-api.onrender.com');
+      const server = fakeServer();
+      renderPanel(localSession(), server, { page: { protocol: 'https:', origin: 'https://usuario.github.io' } });
+      expect(field('Dirección del servidor').value).toBe('https://iark-api.onrender.com');
+      expect(screen.getByTestId('storage-summary')).toHaveTextContent('Este navegador'); // sigue guardando aquí hasta que se conecte
+      expect(localStorage.getItem(BACKEND_KEY)).toBeNull();
+    });
+
+    it('lo guardado de antes manda sobre lo propuesto, y una propuesta inválida se ignora', () => {
+      vi.stubEnv('VITE_IARK_SERVER', 'https://iark-api.onrender.com');
+      saveBackend({ url: URL_, token: undefined }, { remember: true, active: false }, { local: localStorage, session: sessionStorage });
+      const server = fakeServer();
+      renderPanel(localSession(), server);
+      expect(field('Dirección del servidor').value).toBe(URL_);
+      cleanup();
+      localStorage.clear();
+      vi.stubEnv('VITE_IARK_SERVER', 'http://iark.example.com');
+      renderPanel(localSession(), server);
+      expect(field('Dirección del servidor').value).toBe('');
+    });
+  });
+
   describe('con los proyectos en este navegador', () => {
     it('muestra «Este navegador» y, plegado, solo ofrece conectar a un servidor', () => {
       const server = fakeServer();
