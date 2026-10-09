@@ -49,6 +49,9 @@ test.describe('C4 en el lienzo común', () => {
     await expect(page.getByRole('tab', { name: 'Lienzo' })).toHaveAttribute('aria-selected', 'true');
     // Un sistema es una caja en el contexto; en la vista de contenedores es el límite que rodea a los suyos.
     await expect(page.getByTestId('node-banca')).not.toHaveClass(/cv-group/);
+    // El sistema tiene vista de contenedores: lo dice la marca ⤵ (la persona no la lleva).
+    await expect(page.getByTestId('node-banca')).toContainText('⤵ Detalle');
+    await expect(page.getByTestId('node-cliente')).not.toContainText('⤵');
     await expect(page.getByTestId('node-cliente')).toHaveAttribute('data-shape', 'actor');
     await expect(page.getByTestId('node-mainframe')).toBeVisible();
     await expect(page.getByTestId('canvas-view').locator('option')).toHaveCount(3);

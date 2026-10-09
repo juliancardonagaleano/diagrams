@@ -76,11 +76,23 @@ describe('proyección C4', () => {
     expect(g.nodes.find((n) => n.id === 'db')?.badges).toEqual(['⚠ Sin padre']);
     expect(g.nodes.find((n) => n.id === 'spa')?.badges).toEqual(['⚠ Padre incorrecto']);
     // Los que tienen error son exactamente los que el módulo marca con severidad de error.
-    const marcados = g.nodes.filter((n) => n.badges?.length).map((n) => n.id).sort();
+    const marcados = g.nodes.filter((n) => n.badges?.some((b) => b.startsWith('⚠'))).map((n) => n.id).sort();
     const delModulo = c4Module.validate(roto).filter((i) => i.severity === 'error' && i.elementId).map((i) => i.elementId!).sort();
     expect(marcados).toEqual([...new Set(delModulo)].filter((id) => g.nodes.some((n) => n.id === id)));
     // Un documento correcto no marca nada.
-    expect(c4Editor.project(doc, 'contenedores').nodes.some((n) => n.badges)).toBe(false);
+    expect(c4Editor.project(doc, 'contenedores').nodes.some((n) => n.badges?.some((b) => b.startsWith('⚠')))).toBe(false);
+  });
+
+  it('marca con «⤵ Detalle» el elemento que tiene vista de nivel inferior, salvo que esté enlazado a otro módulo (entonces el doble clic sigue el enlace)', () => {
+    const badges = (d: C4Document, view: string, id: string) => c4Editor.project(d, view).nodes.find((n) => n.id === id)?.badges;
+    expect(badges(doc, 'contexto', 'banca')).toEqual(['⤵ Detalle']);
+    expect(badges(doc, 'contenedores', 'api')).toEqual(['⤵ Detalle']);
+    // Sin vista de detalle (la base de datos), una persona o el límite que rodea a los suyos: nada.
+    expect(badges(doc, 'contenedores', 'db')).toBeUndefined();
+    expect(badges(doc, 'contexto', 'cliente')).toBeUndefined();
+    expect(badges(doc, 'contenedores', 'banca')).toBeUndefined();
+    const enlazado: C4Document = { ...doc, model: { ...doc.model, elements: doc.model.elements.map((e) => (e.id === 'banca' ? { ...e, ref: 'urn:iark:integration:pedidos' } : e)) } };
+    expect(badges(enlazado, 'contexto', 'banca')).toBeUndefined();
   });
 });
 

@@ -132,11 +132,14 @@ function errorBadges(doc: C4Document): Map<string, string[]> {
   return badges;
 }
 
-function toNode(el: C4Element, boundaryId: string | undefined, badges: ReadonlyMap<string, string[]>): EditorNode {
+/** Marca de un elemento que tiene una vista de nivel inferior (como el ⤵ del editor principal). */
+const DRILL_BADGE = '⤵ Detalle';
+
+function toNode(el: C4Element, boundaryId: string | undefined, badges: ReadonlyMap<string, string[]>, drill = false): EditorNode {
   const technology = el.technology?.trim();
   const shape = el.type !== 'person' && el.shape && el.shape !== 'default' ? SHAPE_OF[el.shape] : undefined;
   const fill = el.color ?? (el.external ? C4_EXTERNAL_COLOR : undefined);
-  const marks = badges.get(el.id);
+  const marks = drill ? [...(badges.get(el.id) ?? []), DRILL_BADGE] : badges.get(el.id);
   return {
     id: el.id,
     kind: el.type,
@@ -163,7 +166,11 @@ function project(doc: C4Document, viewId?: string): EditorGraph {
   if (!view) return { nodes: [], edges: [] };
   const derived = deriveView(doc, view.id);
   const badges = errorBadges(doc);
-  const nodes = [...derived.boundaries.map((b) => toNode(b.element, b.boundaryId, badges)), ...derived.nodes.map((n) => toNode(n.element, n.boundaryId, badges))];
+  // El doble clic baja de nivel si el elemento tiene vista de detalle y no está enlazado a otro módulo (entonces sigue el enlace).
+  const nodes = [
+    ...derived.boundaries.map((b) => toNode(b.element, b.boundaryId, badges)),
+    ...derived.nodes.map((n) => toNode(n.element, n.boundaryId, badges, !n.element.ref && findChildView(doc, n.element.id) !== undefined)),
+  ];
   const edges = derived.edges.map((e): EditorEdge => {
     const label = relationshipLabel(e.relationship);
     return { id: e.id, kind: e.implied ? 'implied' : 'relationship', source: e.sourceId, target: e.targetId, ...(label ? { label } : {}) };
