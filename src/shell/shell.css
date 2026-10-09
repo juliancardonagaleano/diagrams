@@ -1,5 +1,6 @@
 .sh {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   height: 100vh;
 }
@@ -29,7 +30,7 @@
 }
 @media (max-width: 1000px) {
   .sh-body {
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: 180px minmax(0, 1fr);
   }
   .sh-body aside.sh-side {
     display: none;
@@ -99,9 +100,25 @@
   white-space: pre-wrap;
 }
 .sh-link {
-  color: var(--wb-primary);
+  color: var(--wb-primary-ink);
   text-decoration: none;
 }
 .sh-link:hover {
   text-decoration: underline;
+}
+
+/* Reflujo (WCAG 1.4.10): con 400 % de zoom sobre una ventana de 1280 px quedan 320 px; la lista de módulos pasa arriba, en una fila que se desplaza. */
+@media (max-width: 600px) {
+  .sh-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .sh-nav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .sh-header form {
+    min-width: 0;
+    flex-basis: 100%;
+  }
 }

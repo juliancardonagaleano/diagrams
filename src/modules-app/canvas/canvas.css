@@ -15,7 +15,8 @@
 .cv-tool:disabled { opacity: 0.45; cursor: default; }
 .cv-tool-shape { position: relative; display: inline-block; width: 28px; height: 18px; }
 .cv-edge-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--wb-text-2); }
-.cv-edge-kind select { font: inherit; font-size: 12px; }
+.cv-edge-kind { max-width: 100%; }
+.cv-edge-kind select { font: inherit; font-size: 12px; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 .cv-keys { position: absolute; top: 44px; right: 12px; z-index: 20; margin: 0; padding: 10px 14px; max-width: 420px; background: var(--wb-surface); border: 1px solid var(--wb-border); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); font-size: 12px; }
 .cv-keys div { display: flex; gap: 12px; padding: 2px 0; }
 .cv-keys dt { flex: 0 0 auto; min-width: 150px; font-weight: 600; }
@@ -24,11 +25,11 @@
 .cv-flow { flex: 1; min-width: 0; background: var(--wb-canvas); }
 .cv-inspector { flex: 0 0 260px; overflow: auto; padding: 10px 12px; border-left: 1px solid var(--wb-border); background: var(--wb-surface); font-size: 12px; }
 .cv-inspector.cv-empty { padding: 16px 12px; text-align: left; }
-.cv-inspector h3 { margin: 0 0 8px; font-size: 13px; }
-.cv-inspector h3 small { color: var(--wb-text-2); font-weight: 400; margin-left: 6px; }
+.cv-inspector h2 { margin: 0 0 8px; font-size: 13px; }
+.cv-inspector h2 small { color: var(--wb-text-2); font-weight: 400; margin-left: 6px; }
 .cv-field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .cv-field label { color: var(--wb-text-2); }
-.cv-field input[type='text'], .cv-field input[type='number'], .cv-field select, .cv-field textarea { font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--wb-border); border-radius: 4px; background: var(--wb-surface); color: var(--wb-text); }
+.cv-field input[type='text'], .cv-field input[type='number'], .cv-field select, .cv-field textarea { font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--wb-control-border); border-radius: 4px; background: var(--wb-surface); color: var(--wb-text); }
 .cv-check { flex-direction: row; align-items: center; gap: 6px; }
 .cv-danger { margin-top: 6px; padding: 4px 10px; border: 1px solid var(--wb-error); border-radius: 6px; background: var(--wb-error-bg); color: var(--wb-error); cursor: pointer; }
 .cv-node { position: relative; font-size: 12px; }
@@ -55,7 +56,7 @@
 .cv-badges span { padding: 0 6px; border-radius: 8px; background: #0f172a; color: #fff; font-size: 9px; white-space: nowrap; }
 .cv-group { position: relative; border: 2px dashed; border-radius: 10px; background: color-mix(in srgb, currentColor 4%, transparent); }
 .cv-group[data-selected] { box-shadow: 0 0 0 2px var(--wb-primary); }
-.cv-group-title { position: absolute; top: 8px; left: 12px; font-size: 12px; font-weight: 700; }
+.cv-group-title { position: absolute; top: 8px; left: 12px; font-size: 12px; font-weight: 700; background: #f4f5f7; padding: 0 4px; border-radius: 4px; }
 @media (max-width: 860px) { .cv-body { flex-direction: column; } .cv-inspector { flex: 0 0 auto; max-height: 40%; border-left: 0; border-top: 1px solid var(--wb-border); } }
 .cv-card-text { align-items: stretch; justify-content: flex-start; text-align: left; padding: 6px 10px; }
 .cv-card-text strong { padding-bottom: 4px; border-bottom: 1px solid currentColor; }
@@ -87,7 +88,7 @@
 .cv-selection small { flex: 0 0 auto; color: var(--wb-text-2); }
 .cv-prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--wb-border); background: var(--wb-info-bg); font-size: 12px; }
 .cv-prompt label { display: inline-flex; align-items: center; gap: 6px; color: var(--wb-info); font-weight: 600; }
-.cv-prompt input[type='text'] { min-width: 240px; font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--wb-border); border-radius: 4px; background: var(--wb-surface); color: var(--wb-text); }
+.cv-prompt input[type='text'] { min-width: 240px; font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--wb-control-border); border-radius: 4px; background: var(--wb-surface); color: var(--wb-text); }
 .cv-edge-halo { stroke: var(--wb-primary); stroke-opacity: 0.3; stroke-linecap: round; pointer-events: none; }
 .cv-edge-label { position: absolute; display: inline-flex; align-items: center; gap: 4px; padding: 2px 5px; border-radius: 6px; background: rgba(255, 255, 255, 0.94); color: #334155; font-size: 11px; line-height: 16px; white-space: nowrap; pointer-events: all; cursor: pointer; }
 .cv-edge-label[data-selected] { box-shadow: 0 0 0 2px var(--wb-primary); }
@@ -109,7 +110,7 @@
 .cv-legend-swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgb(15 23 42 / 0.35); }
 
 /* Comparar versiones: lo nuevo y lo modificado se marcan con el color y una insignia discretos (el lienzo es siempre claro, en los dos temas); lo quitado, como fantasma discontinuo bajo el dibujo. */
-.cv-flow { --cv-diff-added: #1a7f43; --cv-diff-modified: #b86e00; --cv-diff-removed: #b42318; }
+.cv-flow { --cv-diff-added: #166a38; --cv-diff-modified: #8a5200; --cv-diff-removed: #b42318; }
 .cv-node[data-diff='added'] { filter: drop-shadow(0 0 0 2px var(--cv-diff-added)) drop-shadow(0 0 4px var(--cv-diff-added)); }
 .cv-node[data-diff='modified'] { filter: drop-shadow(0 0 0 2px var(--cv-diff-modified)) drop-shadow(0 0 4px var(--cv-diff-modified)); }
 .cv-node[data-diff][data-selected] { filter: drop-shadow(0 0 0 2px var(--wb-primary)) drop-shadow(0 0 4px var(--wb-primary)); }
@@ -126,3 +127,26 @@
 .cv-edge-halo[data-diff='modified'] { stroke: var(--cv-diff-modified); stroke-opacity: 0.4; }
 .cv-edge-label[data-diff='added'] { box-shadow: 0 0 0 2px var(--cv-diff-added); }
 .cv-edge-label[data-diff='modified'] { box-shadow: 0 0 0 2px var(--cv-diff-modified); }
+
+/* ───────────── Accesibilidad ───────────── */
+/* El lienzo es siempre claro (en los dos temas), así que su anillo de foco es oscuro: el de la interfaz (`--wb-focus`) es claro en el tema oscuro y no se vería sobre él. */
+.cv-flow { --cv-focus: #0a4f6b; }
+/* React Flow quita el contorno de los nodos enfocados (`outline: none`): sin esto el teclado no sabría dónde está. */
+.react-flow__node:focus-visible { outline: none; }
+.react-flow__node:focus-visible > .cv-node,
+.react-flow__node:focus-visible > .cv-group { outline: 3px solid var(--cv-focus); outline-offset: 3px; border-radius: 4px; box-shadow: 0 0 0 6px #fff; }
+.react-flow__controls-button:focus-visible, .react-flow__minimap:focus-visible { outline: 3px solid var(--cv-focus); outline-offset: -3px; }
+.cv-edge-label:focus-visible { outline: 3px solid var(--cv-focus); outline-offset: 1px; }
+.cv-field-label { color: var(--wb-text-2); }
+.cv-connect { margin: 8px 0 0; padding: 8px; border: 1px solid var(--wb-border); border-radius: 6px; }
+.cv-connect legend { padding: 0 4px; color: var(--wb-text-2); }
+.cv-list { max-height: 45%; overflow: auto; padding: 8px 12px; border-bottom: 1px solid var(--wb-border); background: var(--wb-surface); font-size: 12px; }
+.cv-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cv-list-head h2 { margin: 0; font-size: 13px; }
+.cv-list ul { margin: 4px 0 8px; padding: 0; list-style: none; display: grid; gap: 2px; }
+.cv-list-item { width: 100%; padding: 3px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--wb-text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.cv-list-item:hover { border-color: var(--wb-primary-ink); background: var(--wb-info-bg); }
+.cv-list-item[aria-pressed='true'] { border-color: var(--wb-primary-ink); background: var(--wb-info-bg); font-weight: 600; }
+.cv-list-kind { color: var(--wb-text-2); font-weight: 400; }
+/* Objetivos táctiles de 24 × 24 px como mínimo (WCAG 2.5.8) en la barra del lienzo y las listas. */
+.cv-tool, .cv-crumb, .cv-list-item { min-height: 24px; }

@@ -6,6 +6,7 @@ import {
   MiniMap,
   ReactFlow,
   applyNodeChanges,
+  useReactFlow,
   useStore as useFlowStore,
   type Connection,
   type Edge,
@@ -17,15 +18,21 @@ import { Toast } from '@douyinfe/semi-ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { deriveView, resolveDropReparent, type DerivedView } from '@core/model/viewDerivation';
 import { findChildView } from '@core/model/factories';
+import { ELEMENT_TYPE_LABELS } from '@core/model/types';
 import type { Point, Rect } from '@core/layout/edgeAnchors';
 import { estimateLabelSize } from '@core/layout/labelMetrics';
 import { routeMatchesNodes } from '@core/layout/quality';
 import { routeEdges } from '@core/layout/router';
 import { pauseHistory, useDocumentStore } from '../../store/documentStore';
+import { enumerar } from '../../../modules-app/a11y/etiquetas';
+import { direccionDe, ETIQUETAS_LIENZO, desplazar, vecinoEnDireccion, type Caja, type Direccion } from '../../../modules-app/a11y/teclado';
 import { BoundaryNode, type BoundaryNodeType } from './BoundaryNode';
 import { holdCamera, useCameraPending, useFitCamera } from './camera';
 import { ElementNode, elementColor, type ElementNodeType } from './ElementNode';
 import { RelationshipEdge, type RelationshipEdgeType } from './RelationshipEdge';
+
+/** Cuánto se mueve un elemento con Mayús más una flecha: una celda de la cuadrícula. */
+const PASO_TECLADO = 12;
 
 const nodeTypes = { element: ElementNode, boundary: BoundaryNode };
 const edgeTypes = { relationship: RelationshipEdge };
@@ -44,6 +51,8 @@ export function Canvas() {
   const layoutBusy = useDocumentStore((s) => s.layoutBusy);
   const { moveElements, addRelationship, select, runAutoLayout, drillDown } = useDocumentStore.getState();
   const { fit, fitAfter } = useFitCamera();
+  const flow = useReactFlow();
+  const wrapper = useRef<HTMLDivElement>(null);
 
   const derived = useMemo(() => (activeViewId && doc.views.some((v) => v.id === activeViewId) ? deriveView(doc, activeViewId) : null), [doc, activeViewId]);
 
@@ -73,6 +82,33 @@ export function Canvas() {
     }
   }, [derived, layoutBusy, runAutoLayout, fitAfter]);
 
+  // Nombres accesibles (WCAG 4.1.2): lo que un lector de pantalla dice al llegar a un elemento o a una relación del dibujo.
+  const nombres = useMemo(() => new Map(doc.model.elements.map((e) => [e.id, e.name])), [doc.model.elements]);
+  const conexiones = useMemo(() => {
+    const salen = new Map<string, string[]>();
+    const entran = new Map<string, string[]>();
+    for (const e of derived?.edges ?? []) {
+      salen.set(e.sourceId, [...(salen.get(e.sourceId) ?? []), nombres.get(e.targetId) ?? e.targetId]);
+      entran.set(e.targetId, [...(entran.get(e.targetId) ?? []), nombres.get(e.sourceId) ?? e.sourceId]);
+    }
+    return { salen, entran };
+  }, [derived, nombres]);
+  const etiquetaElemento = useCallback(
+    (id: string): string => {
+      const el = doc.model.elements.find((e) => e.id === id);
+      if (!el) return id;
+      const salen = conexiones.salen.get(id) ?? [];
+      const entran = conexiones.entran.get(id) ?? [];
+      const partes = [`${ELEMENT_TYPE_LABELS[el.type]}${el.external ? ' externo' : ''}: ${el.name}${el.technology ? `, ${el.technology}` : ''}`];
+      if (el.description) partes.push(el.description);
+      if (salen.length > 0) partes.push(`Sale hacia ${salen.length}: ${enumerar(salen)}`);
+      if (entran.length > 0) partes.push(`Recibe de ${entran.length}: ${enumerar(entran)}`);
+      if (findChildView(doc, id)) partes.push('Tiene un nivel inferior (Alt más flecha abajo para entrar)');
+      return `${partes.join('. ')}.`;
+    },
+    [doc, conexiones],
+  );
+
   const derivedNodes = useMemo<CanvasNode[]>(() => {
     if (!derived) return [];
     const boundaries: BoundaryNodeType[] = derived.boundaries
@@ -85,6 +121,7 @@ export function Canvas() {
         height: b.height,
         data: { element: b.element },
         selected: selection.kind === 'element' && selection.id === b.id,
+        ariaLabel: etiquetaElemento(b.id),
         draggable: !readOnly,
         selectable: true,
         zIndex: -1,
@@ -100,11 +137,12 @@ export function Canvas() {
         height: n.height,
         data: { element: n.element, readOnly, nodeStyle, childViewId: findChildView(doc, n.id)?.id },
         selected: selection.kind === 'element' && selection.id === n.id,
+        ariaLabel: etiquetaElemento(n.id),
         draggable: !readOnly,
         connectable: !readOnly,
       }));
     return [...boundaries, ...nodes];
-  }, [derived, selection, readOnly, nodeStyle, doc]);
+  }, [derived, selection, readOnly, nodeStyle, doc, etiquetaElemento]);
 
   // Doble clic: bajar al nivel inferior (sistema → contenedores, contenedor → componentes).
   const onNodeDoubleClick = useCallback(
@@ -193,10 +231,11 @@ export function Canvas() {
         target: e.targetId,
         data: { relationship: e.relationship, implied: e.implied, route: valid.get(e.id) },
         selected: isSelected,
+        ariaLabel: `Relación${e.implied ? ' implícita' : ''}${e.relationship.description ? ` «${e.relationship.description}»` : ''}: de ${nombres.get(e.sourceId) ?? e.sourceId} a ${nombres.get(e.targetId) ?? e.targetId}.`,
         markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: isSelected ? '#175e7a' : '#808080' },
       };
     });
-  }, [derived, selection, nodes]);
+  }, [derived, selection, nodes, nombres]);
 
   const dragStart = useRef<Map<string, { x: number; y: number }>>(new Map());
 
@@ -269,6 +308,80 @@ export function Canvas() {
     [select],
   );
 
+  /**
+   * Teclado sobre un elemento enfocado del lienzo (WCAG 2.1.1): flechas para ir al vecino más cercano en esa dirección, Mayús más
+   * flechas para moverlo (en pasos de la cuadrícula), Intro o F2 para abrir su ficha en el panel lateral y Escape para soltar la
+   * selección. Se atiende en la fase de captura para que React Flow no mueva el nodo con las flechas sin más.
+   */
+  const focusNode = (id: string): void => {
+    const find = (): HTMLElement | undefined => [...(wrapper.current?.querySelectorAll<HTMLElement>('.react-flow__node') ?? [])].find((el) => el.dataset.id === id);
+    const now = find();
+    if (now) return now.focus();
+    const target = nodes.find((n) => n.id === id);
+    if (target) void flow.setCenter(target.position.x + (target.width ?? 0) / 2, target.position.y + (target.height ?? 0) / 2, { duration: 0 });
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const el = find();
+      if (el || ++tries > 20) {
+        window.clearInterval(timer);
+        el?.focus();
+      }
+    }, 50);
+  };
+
+  const moveFromKeyboard = (id: string, direction: Direccion): void => {
+    if (!derived || readOnly) return;
+    const boundary = derived.boundaries.find((b) => b.id === id);
+    const boundaryIds = new Set(derived.boundaries.map((b) => b.id));
+    const descendantsOf = (boundaryId: string): string[] => {
+      const b = derived.boundaries.find((x) => x.id === boundaryId);
+      return b ? b.children.flatMap((c) => (boundaryIds.has(c) ? descendantsOf(c) : [c])) : [];
+    };
+    const ids = boundary ? descendantsOf(id) : [id];
+    const moves = ids.flatMap((moving) => {
+      const node = derived.nodes.find((n) => n.id === moving);
+      if (!node?.positioned) return [];
+      const to = desplazar({ x: node.x!, y: node.y! }, direction, PASO_TECLADO);
+      return [{ id: moving, ...to }];
+    });
+    if (moves.length > 0) moveElements(derived.view.id, moves);
+  };
+
+  const onFlowKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const holder = (e.target as HTMLElement).closest<HTMLElement>('.react-flow__node');
+    if (!holder || holder !== e.target || e.ctrlKey || e.metaKey || e.altKey) return;
+    const id = holder.dataset.id;
+    if (!id) return;
+    const handled = (): void => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const direction = direccionDe(e.key);
+    if (direction) {
+      handled();
+      if (e.shiftKey) moveFromKeyboard(id, direction);
+      else {
+        const cajas: Caja[] = nodes
+          .filter((n) => n.type === 'element')
+          .map((n) => ({
+            id: n.id,
+            x: n.position.x,
+            y: n.position.y,
+            width: n.width ?? 240,
+            height: n.height ?? 130,
+          }));
+        const next = vecinoEnDireccion(cajas, id, direction);
+        if (next) focusNode(next);
+      }
+    } else if (!e.shiftKey && (e.key === 'Enter' || e.key === 'F2')) {
+      handled();
+      select({ kind: 'element', id });
+      window.setTimeout(() => document.querySelector<HTMLElement>(`[data-element-id="${CSS.escape(id)}"] .c4-card-main`)?.focus(), 0);
+    } else if (e.key === 'Escape') {
+      select({ kind: 'none' });
+    }
+  };
+
   if (!derived) {
     return (
       <div className="c4-canvas flex h-full w-full items-center justify-center text-color-2" data-testid="c4-canvas" data-view="" data-layout="ready">
@@ -282,10 +395,15 @@ export function Canvas() {
 
   return (
     <ReactFlow
+      ref={wrapper}
+      onKeyDownCapture={onFlowKeyDown}
       className="c4-canvas"
       data-testid="c4-canvas"
       data-view={derived.view.id}
       data-layout={settled ? 'ready' : 'pending'}
+      aria-label={`Diagrama ${derived.view.title}: ${derived.nodes.length} elementos y ${derived.edges.length} relaciones. Tabulador para recorrer los elementos, flechas para ir al vecino, Intro para abrir su ficha, Mayús más flechas para moverlo.`}
+      ariaLabelConfig={ETIQUETAS_LIENZO}
+      edgesFocusable={false}
       colorMode={theme}
       nodes={nodes}
       edges={derivedEdges}

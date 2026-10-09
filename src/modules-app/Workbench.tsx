@@ -14,6 +14,7 @@ import { ComparePanel, type CompareState } from './ComparePanel';
 import { ProjectBar } from './ProjectBar';
 import { getLoginNotice, setLoginNotice } from '../projects/login';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
+import { tabIndexDePestana, teclasDePestanas } from './a11y/pestanas';
 
 type PanelId = 'canvas' | 'attachments' | 'diagram' | 'issues' | 'reports' | 'compare' | 'export' | 'import';
 
@@ -63,6 +64,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
   const [toast, setToast] = useState<string | undefined>();
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const jsonEditor = useRef<HTMLTextAreaElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   useBulkInsert(jsonEditor, (value) => controller.setText(value));
 
   const notify = useCallback((message: string) => {
@@ -216,15 +218,35 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
 
   return (
     <div className="wb" data-ui={ui}>
+      {/* WCAG 2.4.1: quien navega con teclado salta la cabecera y las pestañas y va directo al contenido. */}
+      <a
+        className="wb-skip"
+        href="#wb-contenido"
+        onClick={(e) => {
+          e.preventDefault();
+          mainRef.current?.focus();
+        }}
+      >
+        Saltar al contenido
+      </a>
       <header className="wb-header">
-          {ui === 'full' && (
+          {ui === 'full' ? (
             <>
-              <a className="wb-brand" href="./" title="Abrir el editor C4">
-                IArk - DIAgrams <small>Módulos</small>
-              </a>
-              <div className="wb-modules" role="tablist" aria-label="Módulos">
-                {controller.sources.map((s) => (
-                  <button key={s.id} type="button" role="tab" aria-selected={s.id === state.moduleId} onClick={() => void controller.selectModule(s.id)}>
+              <h1 className="wb-title">
+                <a className="wb-brand" href="./" title="Abrir el editor C4">
+                  IArk - DIAgrams <small>Módulos</small>
+                </a>
+              </h1>
+              <div className="wb-modules" role="tablist" aria-label="Módulos" onKeyDown={teclasDePestanas}>
+                {controller.sources.map((s, i) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={s.id === state.moduleId}
+                    tabIndex={tabIndexDePestana(s.id === state.moduleId, !controller.sources.some((o) => o.id === state.moduleId), i === 0)}
+                    onClick={() => void controller.selectModule(s.id)}
+                  >
                     {s.label}
                   </button>
                 ))}
@@ -235,6 +257,8 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
                 </a>
               )}
             </>
+          ) : (
+            <h1 className="wb-visually-hidden">{module ? `${module.name}: banco de trabajo` : 'Banco de trabajo de IArk - DIAgrams'}</h1>
           )}
           <div className="wb-actions">
             <button type="button" disabled={!state.moduleId} onClick={() => void controller.loadExample()}>
@@ -270,7 +294,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
           </button>
         </div>
       )}
-      <main className="wb-main" data-mode={canvasMode || active === 'attachments' ? 'canvas' : undefined}>
+      <main className="wb-main" id="wb-contenido" ref={mainRef} tabIndex={-1} data-mode={canvasMode || active === 'attachments' ? 'canvas' : undefined}>
         <section className="wb-editor" aria-label="Documento">
           <div className="wb-bar">
             <strong>{module ? `${module.name} · v${module.version}` : state.loading ? 'Cargando módulo…' : 'Elige un módulo'}</strong>
@@ -304,9 +328,9 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
         </section>
 
         <section className="wb-side">
-          <div className="wb-tabs" role="tablist" aria-label="Paneles">
+          <div className="wb-tabs" role="tablist" aria-label="Paneles" onKeyDown={teclasDePestanas}>
             {tabs.map(([id, label]) => (
-              <button key={id} type="button" role="tab" aria-selected={active === id} onClick={() => setPanel(id)}>
+              <button key={id} type="button" role="tab" aria-selected={active === id} tabIndex={active === id ? 0 : -1} onClick={() => setPanel(id)}>
                 {label}
               </button>
             ))}
@@ -397,7 +421,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
         />
       )}
       {toast && (
-        <div className="wb-toast" role="status">
+        <div className="wb-toast" role="status" aria-live="polite">
           {toast}
         </div>
       )}

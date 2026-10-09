@@ -17,7 +17,7 @@
   gap: 12px;
 }
 .tr-links a {
-  color: var(--wb-primary);
+  color: var(--wb-primary-ink);
   text-decoration: none;
 }
 .tr-links a:hover {
@@ -182,7 +182,7 @@
 .tr-pair {
   margin: 0 0 16px;
 }
-.tr-pair h3 {
+.tr-pair h2 {
   margin: 0 0 6px;
   font-size: 14px;
 }
@@ -350,8 +350,8 @@
 .tr-orphan-group {
   margin: 0 0 14px;
 }
-.tr-orphan-group h3,
-.tr-coverage-detail h3 {
+.tr-orphan-group h2,
+.tr-coverage-detail h2 {
   margin: 0 0 4px;
   font-size: 14px;
 }

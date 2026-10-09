@@ -23,7 +23,7 @@ import {
   type SourceFile,
   type ViewChoices,
 } from '@iark/kernel';
-import type { ProjectSession, RestoreResult } from '../projects/session';
+import type { ConflictChoice, ProjectSession, RestoreResult } from '../projects/session';
 
 /** Un módulo que el banco de trabajo sabe cargar (bajo demanda: cada especialidad es un trozo aparte del paquete). */
 export interface ModuleSource {
@@ -358,11 +358,14 @@ export class WorkbenchController {
     await projects.createDiagram({ module: current.module, name: name ?? current.name, text: current.text });
   }
 
-  /** Resuelve un conflicto de guardado: quedarse con esta versión o cargar la que guardó otra pestaña. */
-  async resolveConflict(choice: 'overwrite' | 'reload'): Promise<void> {
+  /**
+   * Resuelve un conflicto de guardado: quedarse con esta versión, cargar la que guardó otra pestaña (u otra persona) o guardar la propia como
+   * diagrama nuevo. Con `key` se resuelve el de otro diagrama guardado en el navegador (no el abierto).
+   */
+  async resolveConflict(choice: ConflictChoice, options: { key?: string; name?: string } = {}): Promise<void> {
     const projects = this.options.projects;
     if (!projects) return;
-    const diagram = await projects.resolveConflict(choice);
+    const diagram = await projects.resolveConflict(choice, options);
     const module = diagram && this.state.module;
     if (diagram && module) this.apply(module, diagram.text, { modified: false });
   }

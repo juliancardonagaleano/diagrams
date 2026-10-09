@@ -47,6 +47,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | Documento | Qué cuenta |
 |---|---|
 | [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, paquetes publicables (`packages:build`, `packages:check`, publicar en npm), decisiones de diseño y trampas conocidas. |
+| [accesibilidad.md](accesibilidad.md) | Accesibilidad (WCAG 2.2 AA): qué se midió con axe y qué se arregló, atajos de teclado del lienzo, exclusiones nominales, lo que no se ha podido comprobar sin lector de pantalla y la lista de comprobación manual. |
 | [versionado-documentos.md](versionado-documentos.md) | Cómo evoluciona un esquema sin romper lo guardado: `documentVersion` y migraciones por módulo (`iark migrate`), `contractVersion` del contrato `DomainModule` (el que cumple un [módulo de terceros](plugins.md)) y negociación de la versión del protocolo embebido y del manifiesto. |
 | [roadmap.md](roadmap.md) | Visión, estado actual, pendientes reales, límites conocidos y el plan de robustecimiento en cuatro fases. |
 | [historial.md](historial.md) | Lo ya hecho, por fases y por tandas, y el plan original de la suite. |

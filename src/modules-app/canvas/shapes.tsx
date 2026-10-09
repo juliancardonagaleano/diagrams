@@ -1,6 +1,8 @@
-import { readableTextColor, shapeParts, type ShapeKind } from '@iark/kernel';
+import { shapeParts, type ShapeKind } from '@iark/kernel';
+import { tintaLegible } from '../a11y/contraste';
 
-export const textColorFor = readableTextColor;
+/** Tinta del texto sobre el relleno de un nodo: la de mayor contraste (el umbral de brillo del núcleo dejaba tonos medios por debajo de 4,5:1). */
+export const textColorFor = (fill: string): string => tintaLegible(fill);
 
 export function darken(hex: string, amount = 34): string {
   const m = /^#([0-9a-f]{6})$/i.exec(hex);

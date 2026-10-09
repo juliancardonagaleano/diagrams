@@ -159,7 +159,7 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
   const expired = remote && rejected && (session.credential === 'session' || lastUser.current !== undefined || isSessionToken(known?.token));
   const forbidden = !rejected && state.saveErrorCode === 'forbidden';
   const user = remote && !rejected ? who?.user : undefined;
-  const status: Status = !state.ready ? 'connecting' : rejected ? 'rejected' : !state.available || state.syncError || state.saveErrorCode === 'unavailable' ? 'offline' : 'connected';
+  const status: Status = !state.ready ? 'connecting' : rejected ? 'rejected' : !state.available || state.syncError || state.saveErrorCode === 'unavailable' || state.save === 'offline' ? 'offline' : 'connected';
 
   // Al abrir el formulario el foco va a la dirección o, si el servidor rechazó el token, directamente al token.
   useEffect(() => {
@@ -206,7 +206,9 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
   /** Guarda lo pendiente antes de cambiar de almacén; si no pudo guardarse, pide confirmar porque la recarga lo perdería. */
   const settle = async (action: 'connect' | 'local' | 'login' | 'logout', confirmed: boolean): Promise<boolean> => {
     await session.flush();
-    if (session.dirty && !confirmed) {
+    // Lo que quedó guardado en este navegador (trabajo sin conexión) sobrevive a recargar y a cambiar de servidor, y se envía al volver con la misma
+    // cuenta; al cerrar la sesión, en cambio, se descarta (no se enviaría con otra cuenta ni conviene dejarlo en un equipo compartido): se pide confirmar.
+    if ((session.dirty || (action === 'logout' && session.unsentCount > 0)) && !confirmed) {
       setLoss(action);
       return false;
     }
@@ -292,6 +294,8 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
           return;
         }
       }
+      // Al cerrar la sesión se descarta lo que quedaba sin enviar de esta persona (ya confirmado): no se enviaría con otra cuenta.
+      await session.discardQueued();
       // token vacío: quita el de esta dirección (de la pestaña y del equipo) y `active: false` deja los proyectos en este navegador
       const saved = saveBackend({ url: active.url, token: '', ...(active.label ? { label: active.label } : {}) }, { active: false }, areas);
       if (!saved.saved) {
@@ -395,7 +399,9 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
           {remote && rejected && expired && (
             <p className="pj-error" role="alert" data-testid="storage-expired">
               Tu sesión caducó (o se cerró desde otro sitio). {github ? 'Pulsa «Iniciar sesión con GitHub» para seguir guardando en este servidor.' : 'Vuelve a iniciar sesión para seguir guardando en este servidor.'}
-              {session.dirty && ' Lo que escribiste desde entonces no se ha guardado: al iniciar sesión la página se recarga y se perdería (copia el texto del documento antes si lo necesitas).'}
+              {session.dirty
+                ? ' Lo que escribiste desde entonces no se ha guardado: al iniciar sesión la página se recarga y se perdería (copia el texto del documento antes si lo necesitas).'
+                : session.unsentCount > 0 && ' Lo que escribiste desde entonces está guardado en este navegador y se enviará solo cuando vuelvas a entrar con esta misma cuenta.'}
             </p>
           )}
           {remote && rejected && !expired && (
@@ -411,6 +417,16 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
           {remote && forbidden && session.credential !== 'session' && (
             <p className="pj-error" role="alert" data-testid="storage-forbidden">
               El servidor reconoce el token, pero su rol no permite guardar aquí{who?.role ? ` (es «${who.role}»)` : ''}. Escribe un token con rol editor y pulsa «Usar este token»: lo pendiente de guardar no se pierde.
+            </p>
+          )}
+
+          {remote && (state.offline?.foreign ?? 0) > 0 && (
+            <p className="pj-warn" role="status" data-testid="storage-foreign">
+              Hay {state.offline!.foreign === 1 ? '1 cambio' : `${state.offline!.foreign} cambios`} sin enviar de otra cuenta guardados en este navegador. No se envían con la tuya: se conservan aparte
+              y se borran solos al mes.{' '}
+              <button type="button" onClick={() => void session.discardOthersQueued()} disabled={busy}>
+                Descartarlos ahora
+              </button>
             </p>
           )}
 
@@ -568,7 +584,9 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
             )}
             {loss && (
               <p className="pj-warn" role="alert" data-testid="storage-loss">
-                Hay cambios sin guardar que no pudieron enviarse al almacén actual; si sigues, se perderán.{' '}
+                {loss === 'logout' && session.unsentCount > 0 && !session.dirty
+                  ? `Tienes ${session.unsentCount === 1 ? '1 cambio' : `${session.unsentCount} cambios`} sin enviar guardados en este navegador. Si cierras la sesión se descartan: no se enviarían con otra cuenta.`
+                  : 'Hay cambios sin guardar que no pudieron enviarse al almacén actual; si sigues, se perderán.'}{' '}
                 <button type="button" className="pj-danger" onClick={() => void (loss === 'connect' ? connect(true) : loss === 'login' ? login(true) : loss === 'logout' ? signOut(true) : back(true))} disabled={busy}>
                   Seguir y descartarlos
                 </button>

@@ -3,7 +3,7 @@ import type { DiagramMeta } from '@iark/kernel';
 import { formatIssues, validateDocument } from '@core/model/schema';
 import type { C4Document } from '@core/model/types';
 import { getProjectSession as sharedProjectSession, resetProjectSession as resetSharedProjectSession } from '../../projects/factory';
-import type { ProjectSession, ProjectsState, RestoreResult } from '../../projects/session';
+import type { ConflictChoice, ProjectSession, ProjectsState, RestoreResult } from '../../projects/session';
 import { isEmbedMode, useDocumentStore } from '../store/documentStore';
 import { extractJson } from '../utils/files';
 
@@ -33,8 +33,11 @@ export interface ProjectBinding {
   open(projectId: string, diagram: DiagramMeta): Promise<void>;
   /** El documento del editor, para guardarlo en un proyecto. */
   current(): { module: string; text: string; name: string };
-  /** Resuelve un conflicto de guardado (otra pestaña guardó el mismo diagrama): conservar esta versión o cargar la guardada. */
-  resolveConflict(choice: 'overwrite' | 'reload'): Promise<void>;
+  /**
+   * Resuelve un conflicto de guardado (otra pestaña, otra persona u otro equipo guardó el mismo diagrama): conservar esta versión, cargar la guardada o
+   * guardar la propia como diagrama nuevo. Con `key` se resuelve el de otro diagrama que quedó pendiente en el navegador.
+   */
+  resolveConflict(choice: ConflictChoice, options?: { key?: string; name?: string }): Promise<void>;
   /**
    * Restaura una versión del diagrama abierto (queda guardada como una versión nueva) y la carga en el editor. Rechaza con el motivo si no se
    * pudo restaurar o si el resultado no es un documento C4 válido (el historial queda como está).
@@ -151,9 +154,9 @@ export function useProjectBinding(): ProjectBinding {
   }, [session]);
 
   const resolveConflict = useCallback(
-    async (choice: 'overwrite' | 'reload'): Promise<void> => {
+    async (choice: ConflictChoice, options: { key?: string; name?: string } = {}): Promise<void> => {
       if (!session) return;
-      const diagram = await session.resolveConflict(choice);
+      const diagram = await session.resolveConflict(choice, options);
       if (diagram) load(diagram.text, diagram.name);
     },
     [session, load],

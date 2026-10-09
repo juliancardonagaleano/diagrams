@@ -9,3 +9,4 @@ dist
 /examples/*.generated.*
 .env
 .env.*
+/a11y-informe*

@@ -1,6 +1,9 @@
 :root {
   --c4-primary: #175e7a;
   --c4-primary-hover: #1b6f90;
+  /* Texto secundario (el `--semi-color-text-3` de Semi, #b0b1b2, da 2,1:1 sobre blanco) y anillo de foco: ver docs/accesibilidad.md. */
+  --c4-text-muted: #5b5f66;
+  --c4-focus: #175e7a;
   --c4-relationship: #808080;
   --c4-grid-dot: rgb(99, 152, 191);
   --c4-canvas-bg: #ffffff;
@@ -20,13 +23,37 @@ body {
 }
 
 body[theme-mode='dark'] {
+  --c4-text-muted: #c6c8ce;
+  --c4-focus: #6cc0e2;
   --c4-canvas-bg: #16161a;
   --c4-node-bg: #27272a;
   --c4-node-text: #e4e4e7;
   --c4-node-border: #3f3f46;
   --c4-boundary-border: #71717a;
   --c4-boundary-bg: rgba(255, 255, 255, 0.03);
-  --semi-color-primary: #2c8ab0;
-  --semi-color-primary-hover: #3aa0c8;
-  --semi-color-primary-active: #237a9c;
+  /* El primario del tema oscuro es un relleno con texto blanco (5,4:1); el texto primario sobre superficies oscuras usa `--c4-primary-text`. */
+  --semi-color-primary: #1d7295;
+  --semi-color-primary-hover: #195f7d;
+  --semi-color-primary-active: #154f68;
+}
+
+/*
+ * Botones de tema «light» y «borderless» de Semi: el texto es el color del relleno saturado (primario o peligro), pensado para
+ * un fondo claro. Sobre superficies oscuras no llega a 4,5:1 (WCAG 1.4.3), así que en ese tema usan tintas más claras.
+ */
+:root {
+  --c4-danger-text: #b3261e;
+  --c4-primary-text: #175e7a;
+}
+body[theme-mode='dark'] {
+  --c4-danger-text: #ffb4a8;
+  --c4-primary-text: #8fd0ea;
+}
+.semi-button.semi-button-danger.semi-button-light,
+.semi-button.semi-button-danger.semi-button-borderless {
+  color: var(--c4-danger-text);
+}
+.semi-button.semi-button-primary.semi-button-light,
+.semi-button.semi-button-primary.semi-button-borderless {
+  color: var(--c4-primary-text);
 }

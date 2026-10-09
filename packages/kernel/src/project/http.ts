@@ -171,7 +171,8 @@ function errorFromResponse(status: number, payload: Payload, retryAfter: string 
   if (status === 403 || code === 'forbidden') return new ProjectError('forbidden', message || 'Este token no tiene permiso para esa operación.', info);
   if (status === 429 || code === 'rate-limited') {
     const wait = Number(retryAfter);
-    return new ProjectError('unavailable', message || `Demasiados intentos fallidos${Number.isFinite(wait) && wait > 0 ? `: espera ${Math.ceil(wait)} s` : ''}.`, info);
+    const waits = Number.isFinite(wait) && wait > 0;
+    return new ProjectError('unavailable', message || `Demasiados intentos fallidos${waits ? `: espera ${Math.ceil(wait)} s` : ''}.`, waits ? { ...info, retryAfterSec: Math.ceil(wait) } : info);
   }
   if (status === 413) return new ProjectError('invalid', message || 'El documento es demasiado grande para el servidor.', info);
   if (status === 400) return new ProjectError('invalid', message || 'El servidor rechazó la petición.', info);

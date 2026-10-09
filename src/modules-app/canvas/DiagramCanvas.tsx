@@ -15,9 +15,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { layoutGraph, pretty, type EditResult, type EditorSpec, type GraphLayout } from '@iark/kernel';
 import './canvas.css';
 import { ActionPrompt } from './ActionPrompt';
+import { anunciarSeleccion, describirNodo, describirRelacion, indexarRelaciones } from '../a11y/etiquetas';
+import { duracion } from '../a11y/movimiento';
+import { desplazar, direccionDe, ETIQUETAS_LIENZO, vecinoEnDireccion, type Caja, type Direccion } from '../a11y/teclado';
 import type { CanvasCompare } from '../compare';
 import { absolutePositions, buildFlow, dropTarget, ghostNodes, layoutLabelText, movedByDrag, removedNodes, structureKey, type FlowEdge, type FlowNode } from './flow';
 import type { EditHistory } from './history';
+import { ConnectForm } from './ConnectForm';
+import { ElementList } from './ElementList';
 import { Inspector, type LinkTools } from './Inspector';
 import { NotationEdge } from './NotationEdge';
 import { NotationNode } from './NotationNode';
@@ -74,8 +79,22 @@ const writePositions = (key: string, positions: Map<string, { x: number; y: numb
   }
 };
 
+/** Paso, en píxeles del lienzo, de Mayús + flecha al mover un elemento con el teclado. */
+const PASO_TECLADO = 10;
+
+/** Cajas absolutas de los nodos, para la navegación con flechas. */
+function boxesOf(nodes: readonly FlowNode[]): Caja[] {
+  const absolute = absolutePositions(nodes);
+  return nodes.flatMap((n) => {
+    const at = absolute.get(n.id);
+    return at ? [{ id: n.id, x: at.x, y: at.y, width: n.width, height: n.height }] : [];
+  });
+}
+
 function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, readOnly, history, onText, notify, focusId, links, onBack, onSelect, onOpenAttachment, compare }: DiagramCanvasProps) {
-  const flow = useReactFlow();
+  const reactFlow = useReactFlow();
+  // Con «reducir movimiento» (WCAG 2.3.3) los encuadres de la cámara no se animan.
+  const flow = useMemo(() => ({ ...reactFlow, fitView: (options?: Parameters<typeof reactFlow.fitView>[0]) => reactFlow.fitView(options ? { ...options, duration: duracion(options.duration ?? 0) } : options) }), [reactFlow]);
   const key = positionsKey(moduleId, viewId);
   const [moved, setMoved] = useState(() => readPositions(key));
   const [layout, setLayout] = useState<GraphLayout | undefined>();
@@ -85,6 +104,9 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const addableEdges = useMemo(() => spec.edgeKinds.filter((k) => k.addable !== false), [spec]);
   const [edgeKind, setEdgeKind] = useState(spec.defaultEdgeKind ?? addableEdges[0]?.kind ?? spec.edgeKinds[0]?.kind ?? '');
   const [showKeys, setShowKeys] = useState(false);
+  const [showList, setShowList] = useState(false);
+  /** Texto de la región `aria-live`: qué quedó seleccionado, qué se movió. */
+  const [announcement, setAnnouncement] = useState('');
   const wrapper = useRef<HTMLDivElement>(null);
   const boxSelecting = useRef(false);
 
@@ -197,16 +219,25 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   // Al comparar versiones, las marcas van en los datos de cada nodo y arista, y lo quitado se añade como fantasmas bajo el dibujo.
   const marks = compare?.marks;
   const ghosts = useMemo(() => (compare && graph && compare.removed.size > 0 ? removedNodes(spec, compare.base, viewId, compare.removed, graph) : []), [compare, graph, spec, viewId]);
+  // Nombres accesibles (WCAG 4.1.2): tipo, nombre y relaciones de cada nodo; de dónde a dónde va cada relación.
+  const relations = useMemo(() => (graph ? indexarRelaciones(graph) : undefined), [graph]);
   const nodes = useMemo(() => {
     const placed = built.nodes.map((n) => {
       const diff = marks?.get(n.id);
-      return { ...n, selected: selection.has(n.id), ...(diff ? { data: { ...n.data, diff } } : {}) };
+      return { ...n, selected: selection.has(n.id), ...(relations ? { ariaLabel: describirNodo(n.data.node, n.data.notation, relations, diff) } : {}), ...(diff ? { data: { ...n.data, diff } } : {}) };
     });
-    return ghosts.length > 0 ? [...placed, ...ghostNodes(spec, ghosts, built.nodes)] : placed;
-  }, [built.nodes, selection, marks, ghosts, spec]);
+    if (ghosts.length === 0) return placed;
+    return [...placed, ...ghostNodes(spec, ghosts, built.nodes).map((g) => ({ ...g, ...(relations ? { ariaLabel: describirNodo(g.data.node, g.data.notation, relations, 'removed') } : {}) }))];
+  }, [built.nodes, selection, marks, ghosts, spec, relations]);
   const edges = useMemo(
-    () => built.edges.map((e) => ({ ...e, selected: selection.has(e.id), data: { ...e.data, onPick: pick, ...(marks?.get(e.id) ? { diff: marks.get(e.id) } : {}) } })),
-    [built.edges, selection, pick, marks],
+    () =>
+      built.edges.map((e) => ({
+        ...e,
+        selected: selection.has(e.id),
+        ...(relations ? { ariaLabel: describirRelacion(e.data.edge, e.data.notation, relations, marks?.get(e.id) as 'added' | 'modified' | undefined) } : {}),
+        data: { ...e.data, onPick: pick, ...(marks?.get(e.id) ? { diff: marks.get(e.id) } : {}) },
+      })),
+    [built.edges, selection, pick, marks, relations],
   );
 
   // La cámara cuenta como asentada al acabar la animación o, si React Flow la interrumpe sin avisar, poco después. Ese plazo de
@@ -325,6 +356,50 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     if (id) setSelection(new Set([id]));
   };
 
+  /**
+   * Pasa el foco del teclado a un elemento (nodo o relación). Si el lienzo no lo dibuja porque está fuera de la pantalla, primero lleva la
+   * vista hasta él y espera a que se dibuje: el foco debe poder llegar a todos los elementos, también a los que no se ven.
+   */
+  const focusElement = useCallback(
+    (id: string): void => {
+      const find = (): HTMLElement | undefined => [...(wrapper.current?.querySelectorAll<HTMLElement>('.react-flow__node, .react-flow__edge') ?? [])].find((el) => el.dataset.id === id);
+      const now = find();
+      if (now) return now.focus();
+      const current = graphRef.current;
+      const targets = current ? focusNodes(current, id) : [];
+      if (targets.length > 0) void flow.fitView({ nodes: targets.map((t) => ({ id: t })), padding: 1.2, duration: 0, maxZoom: 1 });
+      let tries = 0;
+      const timer = window.setInterval(() => {
+        const el = find();
+        if (el || ++tries > 20 || !mounted.current) {
+          window.clearInterval(timer);
+          settleTimers.current.delete(timer);
+          el?.focus();
+        }
+      }, 50);
+      settleTimers.current.add(timer);
+    },
+    [flow],
+  );
+
+  // Dónde se queda el foco cuando el elemento enfocado desaparece (WCAG 2.4.3): en un vecino que siga ahí, o en la barra de herramientas.
+  const refocusAfter = useCallback(
+    (removed: readonly string[]): void => {
+      const boxes = boxesOf(builtRef.current.nodes).filter((b) => !removed.includes(b.id));
+      const from = boxesOf(builtRef.current.nodes).find((b) => removed.includes(b.id));
+      let next: string | undefined;
+      if (from) for (const d of ['right', 'left', 'down', 'up'] as const) next ??= vecinoEnDireccion([from, ...boxes], from.id, d);
+      next ??= boxes[0]?.id;
+      window.setTimeout(() => {
+        if (!mounted.current) return;
+        const active = window.document.activeElement;
+        if (active && active !== window.document.body && wrapper.current?.contains(active) && !(active as HTMLButtonElement).disabled) return;
+        if (next) focusElement(next);
+        else wrapper.current?.querySelector<HTMLElement>('.cv-toolbar button:not(:disabled), .cv-toolbar select')?.focus();
+      }, 80);
+    },
+    [focusElement],
+  );
   const remove = useCallback(
     (ids: readonly string[]): void => {
       if (readOnly || document === undefined || ids.length === 0) return;
@@ -332,8 +407,10 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
       if (!result.ok) return notify(result.reason);
       commit(result);
       setSelection(NO_SELECTION);
+      setAnnouncement(ids.length === 1 ? 'Elemento borrado.' : `${ids.length} elementos borrados.`);
+      refocusAfter(ids);
     },
-    [commit, document, notify, readOnly, spec],
+    [commit, document, notify, readOnly, refocusAfter, spec],
   );
 
   const patch = (id: string, values: Record<string, unknown>): void => {
@@ -385,6 +462,12 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     const onKey = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+      // Escape en el panel de propiedades devuelve el foco al elemento que se estaba editando (sin soltar la selección).
+      if (e.key === 'Escape' && single && target instanceof Element && target.closest('.cv-inspector')) {
+        e.preventDefault();
+        focusElement(single);
+        return;
+      }
       const action = matchShortcut(e, typing);
       if (!action) return;
       e.preventDefault();
@@ -404,7 +487,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [autoLayout, flow, follow, graph, onBack, redo, remove, selectedIds, single, undo]);
+  }, [autoLayout, flow, focusElement, follow, graph, onBack, redo, remove, selectedIds, single, undo]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setSelection((current) => applySelectionChanges(current, changes));
@@ -415,6 +498,70 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const onEdgesChange = useCallback((changes: EdgeChange[]) => {
     if (!boxSelecting.current) setSelection((current) => applySelectionChanges(current, changes));
   }, []);
+
+  // Cada cambio de la selección se anuncia (región aria-live): quien no ve el dibujo no sabe, si no, qué quedó seleccionado.
+  const announcedFor = useRef('');
+  useEffect(() => {
+    if (!graph || announcedFor.current === selectionKey) return;
+    const first = announcedFor.current === '';
+    announcedFor.current = selectionKey;
+    if (first && selectedIds.length === 0) return;
+    setAnnouncement(anunciarSeleccion(describeSelection(spec, graph, selectedIds).map((s) => `${s.kind} ${s.title}`)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionKey]);
+
+  const focusInspector = (): void => {
+    const field = wrapper.current?.querySelector<HTMLElement>('.cv-inspector input:not([disabled]), .cv-inspector select:not([disabled]), .cv-inspector textarea:not([disabled]), .cv-inspector button:not([disabled])');
+    (field ?? wrapper.current?.querySelector<HTMLElement>('.cv-inspector'))?.focus();
+  };
+
+  const moveFromKeyboard = (id: string, direction: Direccion): void => {
+    if (readOnly) return setAnnouncement('Este diagrama es de solo lectura: no se pueden mover los elementos.');
+    const ids = selection.has(id) ? [...selection].filter((s) => builtRef.current.nodes.some((n) => n.id === s)) : [id];
+    const changes = ids.flatMap((moving) => {
+      const node = builtRef.current.nodes.find((n) => n.id === moving);
+      return node ? [{ id: moving, position: desplazar(node.position, direction, PASO_TECLADO) }] : [];
+    });
+    if (changes.length === 0) return;
+    const next = movedByDrag(builtRef.current.nodes, moved, changes);
+    setMoved(next);
+    writePositions(key, next);
+    const names = ids.map((moving) => graph?.nodes.find((n) => n.id === moving)?.label ?? moving);
+    setAnnouncement(`${names.length === 1 ? names[0] : `${names.length} elementos`} movido ${{ left: 'a la izquierda', right: 'a la derecha', up: 'arriba', down: 'abajo' }[direction]}.`);
+  };
+
+  /**
+   * Teclado sobre un nodo o una relación enfocados (WCAG 2.1.1): flechas para ir al vecino, Mayús + flechas para moverlo, Intro o F2 para
+   * abrir sus propiedades y Supr para borrarlo aunque no esté seleccionado. Se atiende en la fase de captura para que React Flow no
+   * mueva el nodo con las flechas sin más, y solo cuando el foco está en el propio elemento (no en un campo de su interior).
+   */
+  const onFlowKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const holder = (e.target as HTMLElement).closest<HTMLElement>('.react-flow__node, .react-flow__edge');
+    if (!holder || holder !== e.target || e.ctrlKey || e.metaKey || e.altKey) return;
+    const id = holder.dataset.id;
+    if (!id || id.startsWith('ghost:')) return;
+    const handled = (): void => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const isNode = holder.classList.contains('react-flow__node');
+    const direction = direccionDe(e.key);
+    if (direction && isNode) {
+      handled();
+      if (e.shiftKey) moveFromKeyboard(id, direction);
+      else {
+        const next = vecinoEnDireccion(boxesOf(builtRef.current.nodes), id, direction);
+        if (next) focusElement(next);
+      }
+    } else if (!e.shiftKey && (e.key === 'Enter' || e.key === 'F2')) {
+      handled();
+      setSelection(new Set([id]));
+      window.setTimeout(focusInspector, 0);
+    } else if (!e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace') && !selection.has(id)) {
+      handled();
+      remove([id]);
+    }
+  };
 
   const startBox = (): void => {
     boxSelecting.current = true;
@@ -490,7 +637,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
             <span className="cv-sep" />
           </>
         )}
-        <div className="cv-group-tools" aria-label="Añadir">
+        <div className="cv-group-tools" role="group" aria-label="Añadir">
           {spec.nodeKinds
             .filter((k) => k.addable !== false)
             .map((k) => (
@@ -546,10 +693,35 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
             <span className="cv-sep" />
           </>
         )}
+        <button type="button" className="cv-tool" onClick={() => setShowList((v) => !v)} aria-expanded={showList} aria-controls="cv-element-list" title="Lista de los elementos y relaciones del diagrama, para recorrerlos con teclado o lector de pantalla" data-testid="toggle-list">
+          Lista
+        </button>
         <button type="button" className="cv-tool" onClick={() => setShowKeys((s) => !s)} aria-pressed={showKeys} title="Atajos de teclado" aria-label="Atajos de teclado">
           ⌨
         </button>
       </div>
+
+      <div className="wb-visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-testid="canvas-live">
+        {announcement}
+      </div>
+
+      {showList && graph && (
+        <div id="cv-element-list">
+          <ElementList
+            spec={spec}
+            graph={graph}
+            selected={selection}
+            onGo={(id) => {
+              setSelection(new Set([id]));
+              focusElement(id);
+            }}
+            onClose={() => {
+              setShowList(false);
+              window.setTimeout(() => wrapper.current?.querySelector<HTMLElement>('[data-testid="toggle-list"]')?.focus(), 0);
+            }}
+          />
+        </div>
+      )}
 
       {crumbs.length > 1 && (
         <nav className="cv-crumbs" aria-label="Niveles del diagrama" data-testid="canvas-breadcrumb">
@@ -587,8 +759,12 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
       )}
 
       <div className="cv-body">
-        <div className="cv-flow">
+        <div className="cv-flow" onKeyDownCapture={onFlowKeyDown}>
           <ReactFlow
+            aria-label={`Lienzo del diagrama: ${graph?.nodes.length ?? 0} elementos y ${graph?.edges.length ?? 0} relaciones. Tabulador para recorrer los elementos, flechas para ir al vecino, Intro para abrir las propiedades. Hay una lista de todos los elementos en el botón «Lista».`}
+            ariaLabelConfig={ETIQUETAS_LIENZO}
+            // Las relaciones no son paradas del tabulador (había que pasar por todas antes de llegar a los elementos): se eligen en la lista o con el ratón.
+            edgesFocusable={false}
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
@@ -650,7 +826,11 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
           onPick={(id) => setSelection(new Set([id]))}
           onCommit={commit}
           onOpenAttachment={onOpenAttachment}
-        />
+        >
+          {!readOnly && single && graph && graph.nodes.some((n) => n.id === single) && addableEdges.length > 0 && (
+            <ConnectForm spec={spec} graph={graph} source={single} kinds={addableEdges} kind={edgeKind} onKind={setEdgeKind} onConnect={(source, target) => onConnect({ source, target, sourceHandle: null, targetHandle: null })} />
+          )}
+        </Inspector>
       </div>
     </div>
   );

@@ -30,7 +30,7 @@ export function JsonView() {
         </Button>
         <span className="text-xs text-color-3 self-center">Formato convertible 1‑a‑1 a .drawio</span>
       </div>
-      <pre className="flex-1 overflow-auto text-xs font-mono card-theme rounded-md p-2 whitespace-pre">{text}</pre>
+      <pre tabIndex={0} role="region" aria-label="Documento en JSON" className="flex-1 overflow-auto text-xs font-mono card-theme rounded-md p-2 whitespace-pre">{text}</pre>
     </div>
   );
 }

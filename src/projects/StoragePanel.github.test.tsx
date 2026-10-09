@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { IDBFactory } from 'fake-indexeddb';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -37,6 +38,8 @@ const findGithubButton = (): Promise<HTMLElement> => screen.findByRole('button',
 
 describe('panel «Dónde se guardan» con inicio de sesión de GitHub', () => {
   beforeEach(() => {
+    // una base de IndexedDB nueva por prueba: la cola de cambios sin conexión es persistente y no debe pasar de una a otra
+    globalThis.indexedDB = new IDBFactory();
     localStorage.clear();
     sessionStorage.clear();
     setLoginNotice(undefined);
@@ -269,7 +272,7 @@ describe('panel «Dónde se guardan» con inicio de sesión de GitHub', () => {
       expect(loadBackend().kind).toBe('local');
     });
 
-    it('antes de cerrar guarda lo pendiente y, si no pudo, pide confirmar porque la recarga lo perdería', async () => {
+    it('antes de cerrar guarda lo pendiente; si quedó sin enviar en este navegador, pide confirmar porque se descartaría (no se enviaría con otra cuenta)', async () => {
       const { server, session } = await signedIn();
       const project = await session.createProject('Tienda');
       expect(project.name).toBe('Tienda');
@@ -278,14 +281,37 @@ describe('panel «Dónde se guardan» con inicio de sesión de GitHub', () => {
       await screen.findByTestId('storage-account');
       server.down = true; // el guardado pendiente no puede salir
       session.queueSave('a1');
+      await waitFor(() => expect(session.getState().save).toBe('offline'));
+      await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+      expect(await screen.findByTestId('storage-loss')).toHaveTextContent('1 cambio sin enviar guardados en este navegador. Si cierras la sesión se descartan');
+      expect(reload).not.toHaveBeenCalled();
+      expect(session.unsentCount).toBe(1);
+      await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+      expect(session.unsentCount).toBe(1); // cancelar no descarta nada
+      server.down = false;
+      await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Seguir y descartarlos' }));
+      await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+      expect(server.sessions.size).toBe(0);
+      expect(session.unsentCount).toBe(0); // descartado: nadie más podrá enviarlo
+    });
+
+    it('sin trabajo sin conexión, lo que no pudo guardarse se pierde al cerrar y se pide confirmar', async () => {
+      const server = fakeServer({ accounts: true });
+      const token = server.openSession(ANA);
+      saveBackend({ url: URL_, token }, { remember: true });
+      const session = createProjectSession({ config: { kind: 'remote', url: URL_, token }, fetch: server.fetch, session: { broadcast: false, pollMs: 0, debounceMs: 10, offline: false } });
+      await session.init();
+      await session.createProject('Tienda');
+      await session.createDiagram({ module: 'c4', name: 'A', text: 'a0' });
+      const { reload } = renderPanel(session, server);
+      await screen.findByTestId('storage-account');
+      server.down = true;
+      session.queueSave('a1');
       await waitFor(() => expect(session.getState().save).toBe('error'));
       await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
       expect(await screen.findByTestId('storage-loss')).toHaveTextContent('se perderán');
       expect(reload).not.toHaveBeenCalled();
-      server.down = false;
-      await userEvent.click(screen.getByRole('button', { name: 'Seguir y descartarlos' }));
-      await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
-      expect(server.sessions.size).toBe(0);
     });
   });
 
@@ -308,11 +334,31 @@ describe('panel «Dónde se guardan» con inicio de sesión de GitHub', () => {
       expect(screen.getByTestId('storage-expired')).toHaveTextContent('Pulsa «Iniciar sesión con GitHub»');
     });
 
-    it('con lo pendiente sin guardar, avisa de que salir a GitHub lo perdería y pide confirmarlo; sin nada pendiente va directo', async () => {
+    it('con una sesión caducada, lo escrito queda en este navegador: se dice y volver a entrar no pide confirmar (se envía con la misma cuenta)', async () => {
       const server = fakeServer({ accounts: true });
       const token = server.openSession(ANA);
       saveBackend({ url: URL_, token }, { remember: true });
       const session = await remoteSession(server, token);
+      await session.createProject('Tienda');
+      await session.createDiagram({ module: 'c4', name: 'A', text: 'a0' });
+      const { startLogin } = renderPanel(session, server);
+      await screen.findByTestId('storage-account');
+      server.sessions.delete(token);
+      session.queueSave('lo que escribí después de caducar');
+      await waitFor(() => expect(session.getState().saveErrorCode).toBe('unauthorized'));
+      expect(await screen.findByTestId('storage-expired')).toHaveTextContent('está guardado en este navegador y se enviará solo cuando vuelvas a entrar con esta misma cuenta');
+      await userEvent.click(await findGithubButton());
+      await waitFor(() => expect(startLogin).toHaveBeenCalledTimes(1));
+      expect(screen.queryByTestId('storage-loss')).toBeNull();
+      expect(session.unsentCount).toBe(1); // sigue ahí para cuando vuelva
+    });
+
+    it('sin trabajo sin conexión, con lo pendiente sin guardar avisa de que salir a GitHub lo perdería y pide confirmarlo', async () => {
+      const server = fakeServer({ accounts: true });
+      const token = server.openSession(ANA);
+      saveBackend({ url: URL_, token }, { remember: true });
+      const session = createProjectSession({ config: { kind: 'remote', url: URL_, token }, fetch: server.fetch, session: { broadcast: false, pollMs: 0, debounceMs: 10, offline: false } });
+      await session.init();
       await session.createProject('Tienda');
       await session.createDiagram({ module: 'c4', name: 'A', text: 'a0' });
       const { startLogin } = renderPanel(session, server);

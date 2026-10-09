@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { memo } from 'react';
 import { C4_COLORS, C4_EXTERNAL_COLOR, ELEMENT_TYPE_LABELS, type C4Element } from '@core/model/types';
+import { tintaLegible } from '../../../modules-app/a11y/contraste';
 import { C4Shape, shapeGeometry, shapeOf } from './C4Shape';
 
 export type ElementNodeData = {
@@ -18,16 +19,9 @@ export function elementColor(el: C4Element): string {
   return el.external ? C4_EXTERNAL_COLOR : C4_COLORS[el.type];
 }
 
-/** Color de texto legible sobre el relleno (blanco salvo rellenos claros como el de componente). */
+/** Color de texto legible sobre el relleno: el de mayor contraste, siempre al menos 4,5:1 (WCAG 1.4.3). */
 export function textColorFor(fill: string): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(fill);
-  if (!m) return '#ffffff';
-  const n = parseInt(m[1], 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.62 ? '#0b1f33' : '#ffffff';
+  return tintaLegible(fill);
 }
 
 function shapeIcon(el: C4Element): string | null {

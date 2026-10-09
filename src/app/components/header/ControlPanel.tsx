@@ -1,16 +1,18 @@
 import { Button, Dropdown, Input, Modal, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { IconDownload, IconEdit, IconExit, IconSave } from '@douyinfe/semi-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useActions } from '../../hooks/useActions';
 import { isEmbedMode, useDocumentStore, useTemporalStore } from '../../store/documentStore';
 import { relativeTime } from '../../utils/files';
 import { AboutModal, ShortcutsModal } from './HelpModals';
 import { MermaidPreviewModal } from './MermaidPreviewModal';
+import { OfflineActions } from '../../../projects/OfflineActions';
+import { offlineIndicator } from '../../../projects/offlineText';
 import { C4_MODULE, type ProjectBinding } from '../../projects/useProjectBinding';
 import { DIRECTIONS, DISTRIBUTIONS } from './FloatingToolbar';
 
 const Logo = () => (
-  <div className="flex items-center gap-2 select-none">
+  <div className="flex items-center gap-2 select-none" aria-hidden="true">
     <div className="h-8 w-8 rounded-md flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: 'var(--c4-primary)' }}>
       IA
     </div>
@@ -24,6 +26,7 @@ interface MenuProps {
 
 function Menu({ label, items }: MenuProps) {
   const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
     <Dropdown
       trigger="click"
@@ -39,6 +42,9 @@ function Menu({ label, items }: MenuProps) {
               <Dropdown.Item
                 key={it.key}
                 onClick={() => {
+                  // El foco vuelve al botón del menú antes de actuar (WCAG 2.4.3): si la opción abre un diálogo, al cerrarlo el foco regresa
+                  // aquí y no a una opción del menú que ya no se ve.
+                  trigger.current?.focus();
                   it.onClick?.();
                   // Las opciones que abren un diálogo cierran el menú: si no, quedaría por encima del diálogo.
                   if (it.closeMenu) setOpen(false);
@@ -58,7 +64,9 @@ function Menu({ label, items }: MenuProps) {
         </Dropdown.Menu>
       }
     >
-      <div className="c4-menu-item hover-2">{label}</div>
+      <button type="button" ref={trigger} className="c4-menu-item hover-2" aria-haspopup="menu" aria-expanded={open}>
+        {label}
+      </button>
     </Dropdown>
   );
 }
@@ -71,7 +79,7 @@ export interface ControlPanelProps {
   projects?: { binding: ProjectBinding; onManage: (panel?: 'storage') => void; onHistory?: () => void };
 }
 
-const SAVE_LABEL = { idle: 'Guardado', pending: 'Guardando…', saving: 'Guardando…', saved: 'Guardado', error: 'No se pudo guardar', conflict: 'Conflicto de guardado' } as const;
+const SAVE_LABEL = { idle: 'Guardado', pending: 'Guardando…', saving: 'Guardando…', saved: 'Guardado', error: 'No se pudo guardar', conflict: 'Conflicto de guardado', offline: 'Sin conexión' } as const;
 
 export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPanelProps) {
   const name = useDocumentStore((s) => s.doc.workspace.name);
@@ -89,6 +97,13 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
   const futureStates = useTemporalStore((t) => t.futureStates.length);
   const actions = useActions();
   const [editingTitle, setEditingTitle] = useState(false);
+  // Al terminar de renombrar, el foco vuelve al botón del título (WCAG 2.4.3).
+  const titleButton = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  useEffect(() => {
+    if (wasEditing.current && !editingTitle) titleButton.current?.focus();
+    wasEditing.current = editingTitle;
+  }, [editingTitle]);
   const [showAbout, setShowAbout] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showMermaid, setShowMermaid] = useState(false);
@@ -246,8 +261,12 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
   // Con una sesión de persona (inicio de sesión de GitHub) no se «rechaza un token»: la sesión caducó, y un 403 es el rol en el proyecto, no un token que cambiar.
   const withSession = projectSession?.credential === 'session';
   const rejectedText = withSession ? 'Tu sesión caducó' : 'El servidor no aceptó el token';
-  const projectStatus =
-    remote && projectState && !projectState.available
+  // Con un servidor, el trabajo sin conexión y los conflictos tienen su propio texto y su propia resolución (tres salidas, con confirmación).
+  const indicator = projectState ? offlineIndicator(projectState) : undefined;
+  const queuedConflict = (projectState?.offline?.conflicts ?? 0) > 0;
+  const projectStatus = indicator
+    ? indicator.text
+    : remote && projectState && !projectState.available
       ? projectState.errorCode === 'unauthorized'
         ? rejectedText
         : 'Servidor no disponible'
@@ -262,6 +281,16 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
 
   return (
     <header className="flex justify-between items-center border-b border-color px-3 py-1.5 gap-3 theme">
+      <a
+        className="c4-skip"
+        href="#c4-lienzo"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById('c4-lienzo')?.focus();
+        }}
+      >
+        Saltar al lienzo
+      </a>
       <div className="flex items-center gap-3 min-w-0">
         <Logo />
         <div className="min-w-0">
@@ -271,6 +300,7 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
               <Input
                 autoFocus
                 size="small"
+                aria-label="Nombre del diagrama"
                 defaultValue={name}
                 className="w-64"
                 onBlur={(e) => {
@@ -283,9 +313,11 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
                 }}
               />
             ) : (
-              <div className="text-xl font-medium truncate cursor-text hover-1 rounded px-1 -mx-1" onClick={() => !readOnly && setEditingTitle(true)} title="Renombrar diagrama">
-                {name}
-              </div>
+              <h1 className="m-0 min-w-0 text-xl font-medium truncate">
+                <button type="button" ref={titleButton} className="c4-title-button cursor-text hover-1 rounded px-1 -mx-1" onClick={() => !readOnly && setEditingTitle(true)} title={readOnly ? undefined : 'Renombrar diagrama'} aria-disabled={readOnly || undefined}>
+                  {name}
+                </button>
+              </h1>
             )}
             <Tag size="small" color="grey">
               C4 JSON v1.0
@@ -332,7 +364,8 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
             Reintentar
           </Button>
         )}
-        {attached && projectState?.save === 'conflict' && (
+        {remote && projectSession && <OfflineActions session={projectSession} resolve={(choice, key, name) => projects!.binding.resolveConflict(choice, { key, name })} />}
+        {attached && projectState?.save === 'conflict' && !queuedConflict && (
           <span className="flex items-center gap-2 text-sm" role="alert" data-testid="save-conflict">
             {remote ? 'Otra persona u otro equipo guardó' : 'Otra pestaña guardó'} «{attached.name}» mientras lo editabas.
             <Button size="small" onClick={() => resolveConflict('overwrite')}>
@@ -343,7 +376,12 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
             </Button>
           </span>
         )}
-        <span className="text-sm text-color-2 hidden md:inline" role="status" data-testid="save-status" data-save={attached ? projectState?.save : undefined}>
+        <span
+          className={indicator ? 'c4-save-note text-sm' : 'text-sm text-color-2 hidden md:inline'}
+          role="status"
+          data-testid="save-status"
+          data-save={indicator ? indicator.kind : attached ? projectState?.save : undefined}
+        >
           {status}
         </span>
         {isEmbedMode ? (
