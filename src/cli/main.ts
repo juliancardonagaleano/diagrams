@@ -15,8 +15,10 @@ import { generationJsonSchema } from '@core/ai/generationSchema';
 import { standalonePrompt } from '@core/ai/prompt';
 import { DEFAULT_AI_MODEL, generateDocument, GenerationError } from '@core/ai/generate';
 import { analyzeDocument } from '@core/model/issues';
-import { buildManifest, estimateTokens, formatTokens, joinSourceFiles, ModuleError, ProjectError, resolveTokenLimits, type ModuleRegistry, UnknownModuleError } from '@iark/kernel';
-import { createDefaultRegistry, DEFAULT_MODULE } from './registry';
+import { buildManifest, contractVersionOf, estimateTokens, formatTokens, joinSourceFiles, ModuleError, ProjectError, resolveTokenLimits, type ModuleRegistry, UnknownModuleError } from '@iark/kernel';
+import { createDefaultRegistry, createRegistry, DEFAULT_MODULE, resolveConfigPlugins } from './registry';
+import { CONFIG_FILE_NAME, ConfigError, readConfig, scanGlobalFlags, selectConfig, type LoadedConfig } from './plugins/config';
+import { PluginError, type ResolvedPlugin } from './plugins/resolve';
 import { ComputePool } from './computePool';
 import { addComputeOptions, resolveComputeSettings } from './computeConfig';
 import { createSuiteServer } from './serve';
@@ -31,7 +33,7 @@ import { TokenError, TokenStore } from './tokens';
 import { FolderProjectStore } from './workspace';
 import { addBudgetOptions, EFFORTS, parseEffort, parseProvider, reportGeneration, tokenLimitOptions, withAiErrors } from './ai';
 import { registerCommentary } from './commentary';
-import { genericExport, genericGenerate, genericPrompt, genericPromptText, genericSchema, genericValidate, parseModuleDocumentText, readModuleDocument } from './generic';
+import { genericExport, genericGenerate, genericMigrate, genericPrompt, genericPromptText, genericSchema, genericValidate, parseModuleDocumentText, readModuleDocument } from './generic';
 import { CliError, dslIncludeOptions, extractJson, fallbackDocumentName, info, readDocument, readInput, writeOutput } from './io';
 import { readMultiInput, type MultiInput } from './multiFile';
 import { assertRepoFlags, collectRepoExclude, collectRepoInclude, DEFAULT_BUDGET_BYTES, DRY_RUN_HELP, FROM_REPO_HELP, FROM_REPO_PROMPT_HELP, parseRepoBudget, parseRepoRef, prepareRepo, REPO_BUDGET_HELP, REPO_EXCLUDE_HELP, REPO_INCLUDE_HELP, REPO_PRIVACY_HELP, REPO_PROMPT_HELP, REPO_REF_HELP, reportRepoFiles, reportRepoSummary } from './repo';
@@ -208,13 +210,26 @@ function jsonOut(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export function buildProgram(registry: ModuleRegistry = createDefaultRegistry()): Command {
+/** Lo que `run` descubre antes de construir el árbol de comandos y que algunos comandos necesitan. */
+export interface ProgramSettings {
+  /** Módulo que usan por omisión los comandos con `--module` (`defaultModule` de `iark.config.json`); por omisión, c4. */
+  defaultModule?: string;
+  /** Los módulos de terceros ya resueltos: `iark serve` se los pasa a los hilos de cálculo, que construyen su propio registro. */
+  plugins?: ResolvedPlugin[];
+}
+
+export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(), settings: ProgramSettings = {}): Command {
+  const defaultModule = settings.defaultModule ?? DEFAULT_MODULE;
   const program = new Command();
   program
     .name('iark')
     .description('IArk - DIAgrams: genera modelos con IA, aplica autolayout y exporta a .drawio, sin navegador.')
     .version(CLI_VERSION)
-    .configureOutput({ writeErr: (s) => process.stderr.write(s) });
+    .configureOutput({ writeErr: (s) => process.stderr.write(s) })
+    // La configuración se decide en `run`, antes de construir los comandos (los de un módulo de terceros salen de ella); estas dos
+    // opciones solo existen aquí para que commander las acepte (antes o después del comando) y las muestre en la ayuda.
+    .option('--config <archivo>', `carga los módulos de terceros de este ${CONFIG_FILE_NAME} (o la variable IARK_CONFIG); por omisión, el ${CONFIG_FILE_NAME} del directorio actual si existe. Cargar un módulo ejecuta su código con los permisos de este proceso`)
+    .option('--no-config', `no carga ninguna configuración, ni la del directorio actual ni IARK_CONFIG (o IARK_NO_CONFIG=1)`);
 
   const generate = program
     .command('generate')
@@ -235,7 +250,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     .option('--density <auto|compact|spacious>', 'densidad del autolayout', parseDensity)
     .option('--distribution <auto|centered|elk>', 'distribución del autolayout', parseDistribution)
     .option('--notation <c4|card>', 'notación de las figuras en el .drawio', parseNotation, 'c4')
-    .option('--module <id>', 'módulo de la suite (ver `iark modules`); con otro que no sea c4, --out exporta según la extensión (.svg, .mmd, .drawio…)', DEFAULT_MODULE)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`); con otro que no sea c4, --out exporta según la extensión (.svg, .mmd, .drawio…)', defaultModule)
     .option('--from-repo <carpeta|url>', FROM_REPO_HELP)
     .option('--repo-ref <rama|etiqueta>', REPO_REF_HELP, parseRepoRef)
     .option('--repo-include <glob>', REPO_INCLUDE_HELP, collectRepoInclude)
@@ -372,7 +387,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     .option('--no-waypoints', 'no incluir los quiebres de ruta del autolayout')
     .option('--view <id...>', 'solo estas vistas')
     .option('--to <formato>', 'formato de salida: drawio|mermaid (c4); con otro módulo, cualquiera de sus exportadores (ver `iark modules`)')
-    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', DEFAULT_MODULE)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', defaultModule)
     .option('--mermaid-format <formato>', 'con --to mermaid: c4|flowchart (módulo c4) o auto|flowchart|sequence (integración)')
     .action(async (file: string | undefined, opts) => {
       if (opts.module !== DEFAULT_MODULE) {
@@ -406,7 +421,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     .argument('[archivos...]', 'archivo de entrada: .drawio, .dsl, .mmd o el de un formato del módulo (o "-" para stdin). Para Terraform, también una carpeta o varios archivos .tf: se leen juntos, en orden alfabético, y los avisos y errores dicen de qué archivo vienen (los módulos locales no se resuelven)')
     .option('--stdin', 'leer el archivo de la entrada estándar')
     .option('--format <formato>', 'formato de entrada: auto o el id de un importador del módulo (en C4: drawio, dsl, mermaid; los demás, en `iark modules`). auto lo deduce de la extensión o del contenido (en una carpeta o con varios archivos, del formato que se reparte en varios: terraform)', 'auto')
-    .option('--module <id>', 'módulo de la suite que importa el documento (ver `iark modules`)', DEFAULT_MODULE)
+    .option('--module <id>', 'módulo de la suite que importa el documento (ver `iark modules`)', defaultModule)
     .option('-o, --out <archivo.json>', 'archivo de salida (por defecto stdout)')
     .option('--name <nombre>', 'nombre del diagrama (por defecto, el del workspace del DSL, el nombre del archivo o el de la carpeta)')
     .option('--layout', 'aplica autolayout (ELK) a las vistas sin coordenadas (un DSL o Mermaid no las tienen)', false)
@@ -452,7 +467,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     .argument('[archivo.json]', 'documento de entrada (o "-" para stdin)')
     .option('--stdin', 'leer el documento de la entrada estándar')
     .option('--strict', 'fallar también con avisos (warnings)', false)
-    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', DEFAULT_MODULE)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', defaultModule)
     .action((file: string | undefined, opts) => {
       if (opts.module !== DEFAULT_MODULE) return genericValidate(registry.require(opts.module), file, opts);
       const raw = readInput(file, opts.stdin);
@@ -466,6 +481,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       if (!result.ok) {
         throw new CliError(`Documento inválido:\n${formatIssues(result.issues)}`, 2);
       }
+      if (result.migrated) process.stdout.write(`info     Documento migrado de la versión ${result.migrated.from} a ${result.migrated.to}; \`iark migrate\` lo reescribe en la nueva.\n`);
       const issues = analyzeDocument(result.document);
       const errors = issues.filter((i) => i.severity === 'error');
       const warnings = issues.filter((i) => i.severity === 'warning');
@@ -479,10 +495,20 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     });
 
   program
+    .command('migrate')
+    .description('Lleva un documento guardado con una versión anterior del formato del módulo a la versión actual y lo escribe; con --check no escribe nada y sale con código 1 si necesita migración')
+    .argument('[archivo.json]', 'documento de entrada (o "-" para stdin)')
+    .option('--stdin', 'leer el documento de la entrada estándar')
+    .option('-o, --out <archivo.json>', 'archivo de salida (por defecto stdout)')
+    .option('--check', 'no escribe nada: sale con código 1 si el documento necesita migración y con 0 si ya está en la versión actual (para la integración continua)', false)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', defaultModule)
+    .action((file: string | undefined, opts) => genericMigrate(registry.require(opts.module), file, opts));
+
+  program
     .command('schema')
     .description('Imprime el JSON Schema del documento (o del formato de generación de IA con --generation)')
     .option('--generation', 'esquema del modelo sin coordenadas que produce la IA', false)
-    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', DEFAULT_MODULE)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', defaultModule)
     .action((opts) => {
       if (opts.module !== DEFAULT_MODULE) return genericSchema(registry.require(opts.module), opts.generation);
       process.stdout.write(jsonOut(opts.generation ? generationJsonSchema() : documentJsonSchema()));
@@ -493,7 +519,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     .description('Imprime un prompt autocontenido para generar el modelo con cualquier IA/agente (sin clave de API)')
     .argument('<instrucción>', 'descripción del sistema o instrucción de refinamiento')
     .option('-f, --from <archivo>', 'documento existente a refinar: JSON, .drawio, .dsl (Structurizr) o .mmd (Mermaid)')
-    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', DEFAULT_MODULE)
+    .option('--module <id>', 'módulo de la suite (ver `iark modules`)', defaultModule)
     .option('--from-repo <carpeta|url>', FROM_REPO_PROMPT_HELP)
     .option('--repo-ref <rama|etiqueta>', REPO_REF_HELP, parseRepoRef)
     .option('--repo-include <glob>', REPO_INCLUDE_HELP, collectRepoInclude)
@@ -520,7 +546,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
 
   program
     .command('modules')
-    .description('Lista los módulos (especialidades) de la suite instalados; con --json, su manifiesto de federación')
+    .description('Lista los módulos (especialidades) de la suite instalados, con su origen (incorporado o el plugin que los aporta) y sus versiones de contrato y de documento; con --json, su manifiesto de federación')
     .option('--json', 'imprime el manifiesto (`iark.manifest/1`) en JSON', false)
     .action((opts) => {
       if (opts.json) {
@@ -530,13 +556,14 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       for (const m of registry.list()) {
         process.stdout.write(`${m.id}  ${m.name}  v${m.version}\n`);
         process.stdout.write(`    importa: ${m.importers.map((i) => i.id).join(', ') || '-'}  ·  exporta: ${m.exporters.map((e) => e.id).join(', ') || '-'}\n`);
+        process.stdout.write(`    origen: ${registry.originOf(m.id) ?? 'incorporado'}  ·  contrato: ${contractVersionOf(m)}  ·  documento: ${m.documentVersion}\n`);
       }
     });
 
   const serve = program
     .command('serve')
     .description(
-      'Servicio HTTP de la suite: API por módulo (validar, vistas, exportar, importar, informes), manifiesto de federación /.well-known/iark.json y, con --static, el sitio y, con --workspace, la API de proyectos (/api/projects)',
+      'Servicio HTTP de la suite: API por módulo (validar, vistas, exportar, importar, informes), manifiesto de federación /.well-known/iark.json y, con --static, el sitio y, con --workspace, la API de proyectos (/api/projects). Con --config (o IARK_CONFIG) sirve también los módulos de terceros de esa configuración',
     )
     .option('-p, --port <n>', 'puerto (0 elige uno libre)', parsePort, 8787)
     .option('--host <host>', 'dirección en la que escucha (en un contenedor, 0.0.0.0)', '127.0.0.1')
@@ -597,7 +624,8 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       // Protege la API de proyectos y, también sin espacio de trabajo, las rutas de cálculo.
       const tokens = opts.tokens ? TokenStore.open(opts.tokens) : undefined;
       // El cálculo (ELK, análisis de documentos grandes) corre en hilos aparte, con tiempo límite y cola acotada: ver `computePool.ts`.
-      const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue }) : undefined;
+      // Cada hilo construye su propio registro: con los mismos módulos de terceros que el principal, o un plugin funcionaría en el CLI y fallaría aquí.
+      const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue, plugins: settings.plugins }) : undefined;
       const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute });
       await new Promise<void>((resolveListening, rejectListening) => {
         server.once('error', rejectListening);
@@ -607,6 +635,8 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
       const port = typeof address === 'object' && address ? address.port : opts.port;
       info(`IArk - DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port}${opts.static ? ` (sitio: ${opts.static})` : ' (solo API)'}`);
       info(`  manifiesto: /.well-known/iark.json · módulos: /api/modules`);
+      const thirdParty = registry.ids().filter((id) => registry.originOf(id) !== undefined);
+      if (thirdParty.length > 0) info(`  módulos de terceros (se operan por la API y salen en el manifiesto; el sitio web no los trae): ${thirdParty.join(', ')}`);
       if (pool) info(`  cálculo: hasta ${pool.size} hilo(s) de trabajo · tiempo límite ${pool.timeoutMs / 1000} s por operación · cola de ${pool.maxQueue}`);
       else info('aviso: --workers 0: el cálculo corre en el hilo principal, sin tiempo límite ni cola; una exportación grande bloquea el servicio entero.');
       if (tokens || accounts) {
@@ -632,7 +662,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry())
     });
 
   registerTrace(program, registry);
-  registerDiff(program, registry, importSource);
+  registerDiff(program, registry, importSource, defaultModule);
   registerProject(program, registry);
   registerAuth(program);
   registerModuleCommands(program, registry);
@@ -667,15 +697,52 @@ function registerModuleCommands(program: Command, registry: ModuleRegistry): voi
   }
 }
 
-/** Ejecuta el CLI con `argv`; `registry` (módulos propios o de terceros) solo lo usan las pruebas: por omisión, los de la suite. */
+/** Lo que `run` decide antes de construir los comandos: la configuración elegida, los módulos de terceros resueltos y el registro. */
+export interface Startup {
+  registry: ModuleRegistry;
+  settings: ProgramSettings;
+  config?: LoadedConfig;
+}
+
+/**
+ * Decide qué configuración se carga (`--config`, `IARK_CONFIG` o el `iark.config.json` del directorio actual; ver `plugins/config.ts`),
+ * carga sus módulos de terceros y construye el registro. Es asíncrono y va ANTES de construir el árbol de comandos, porque los
+ * comandos de un módulo (`iark <módulo> …`) salen del registro. Sin configuración es exactamente el registro de siempre.
+ */
+export async function prepareStartup(argv: readonly string[] = process.argv, options: { env?: NodeJS.ProcessEnv; cwd?: string } = {}): Promise<Startup> {
+  const selection = selectConfig(scanGlobalFlags(argv.slice(2)), options);
+  if (selection.kind === 'none') {
+    if (selection.note) info(selection.note);
+    return { registry: createDefaultRegistry(), settings: {} };
+  }
+  const config = readConfig(selection.path);
+  const plugins = resolveConfigPlugins(config);
+  const registry = await createRegistry({ plugins });
+  if (config.defaultModule && !registry.has(config.defaultModule)) {
+    throw new ConfigError(`«defaultModule» de ${config.path} es «${config.defaultModule}», que no es un módulo incorporado ni uno de los cargados (${registry.ids().join(', ')}).`);
+  }
+  return { registry, config, settings: { plugins, ...(config.defaultModule ? { defaultModule: config.defaultModule } : {}) } };
+}
+
+/**
+ * Ejecuta el CLI con `argv`. `registry` (módulos propios o de terceros) solo lo usan las pruebas: con él no se lee ninguna
+ * configuración y se usa tal cual; por omisión, los módulos de la suite más los de la configuración (`prepareStartup`).
+ */
 export async function run(argv = process.argv, registry?: ModuleRegistry): Promise<void> {
-  const program = buildProgram(registry);
   try {
+    const startup: Startup = registry ? { registry, settings: {} } : await prepareStartup(argv);
+    const program = buildProgram(startup.registry, startup.settings);
     await program.parseAsync(argv);
   } catch (error) {
     if (error instanceof CliError) {
       process.stderr.write(`${error.message}\n`);
       process.exitCode = error.exitCode;
+      return;
+    }
+    if (error instanceof ConfigError || error instanceof PluginError) {
+      // Una configuración o un módulo de terceros que no carga es un error de uso: se dice cuál y no se sigue sin él (código 2).
+      process.stderr.write(`${error.message}\n`);
+      process.exitCode = 2;
       return;
     }
     if (error instanceof ModuleError) {

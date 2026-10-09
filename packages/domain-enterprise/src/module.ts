@@ -1,5 +1,5 @@
 import type { DomainModule, EntityRef, Exporter, Importer, ModuleIssue, ViewRef } from '@iark/kernel';
-import { looksLikeMermaid } from '@iark/kernel';
+import { CONTRACT_VERSION, looksLikeMermaid } from '@iark/kernel';
 import { enterpriseAiSpec } from './ai/generation';
 import { enterpriseCommands } from './commands';
 import { enterpriseEditor } from './editor';
@@ -66,6 +66,7 @@ export const enterpriseModule: DomainModule<EnterpriseDocument> = {
   name: 'Arquitectura empresarial',
   version: '0.1.0',
   description: 'Mapa de capacidades, aplicaciones y tecnología con ciclo de vida, impacto y obsolescencia; exporta a Mermaid, SVG y draw.io.',
+  contractVersion: CONTRACT_VERSION,
   documentVersion: ENTERPRISE_DOCUMENT_VERSION,
   schema: enterpriseDocumentSchema as unknown as DomainModule<EnterpriseDocument>['schema'],
   jsonSchema: enterpriseJsonSchema,

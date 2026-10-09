@@ -405,6 +405,40 @@ describe('iark project: archivo único, comprobación y trazabilidad', () => {
     await fails(ark('project', 'trace', 'nada'), 2, /No existe el proyecto/);
   });
 
+  it('trace: acepta las banderas de iark trace (--type, --orphans, --matrix, --coverage, --min-coverage y --strict)', async () => {
+    const { ark } = workspace();
+    await suite(ark);
+    const typed = JSON.parse((await ok(ark('project', 'trace', 'tienda', '--type', 'protects', '--format', 'json'))).out);
+    expect(typed.types).toEqual(['protects']);
+    expect(typed.graph.links).toHaveLength(5);
+    expect(typed.graph.links.every((l: { type: string }) => l.type === 'protects')).toBe(true);
+    expect(typed.project).toMatchObject({ id: 'tienda' });
+
+    const sections = (await ok(ark('project', 'trace', 'tienda', '--orphans', 'security:zone', '--matrix', 'kind', '--coverage', 'security:asset -> platform'))).out;
+    expect(sections).toContain('Huérfanos en security:zone: 4 de 4');
+    expect(sections).toContain('Matriz de trazabilidad por tipo de elemento: 15 enlaces.');
+    expect(sections).toContain('| `security:asset -> platform` | 5 | 11 | 45,5 % |');
+
+    // la cobertura mínima hace fallar con código 3 y --strict la fija en 100 %
+    const below = await ark('project', 'trace', 'tienda', '--coverage', 'security:asset -> platform', '--min-coverage', '50');
+    expect(below.code).toBe(3);
+    expect(below.err).toMatch(/Cobertura de «security:asset -> platform»: 45,5 %, por debajo del mínimo \(50 %\)/);
+    expect((await ark('project', 'trace', 'tienda', '--coverage', 'security:asset -> platform', '--strict')).code).toBe(3);
+    expect((await ark('project', 'trace', 'tienda', '--strict')).code).toBe(0);
+    await fails(ark('project', 'trace', 'tienda', '--orphans', 'nada'), 2, /no existe el módulo «nada»/);
+    await fails(ark('project', 'trace', 'tienda', '--min-coverage', '80'), 2, /necesita al menos una regla/);
+  });
+
+  it('trace --strict-unresolved cuenta las referencias a un módulo sin diagrama en el proyecto; --strict no', async () => {
+    const { ark } = workspace();
+    await ok(ark('project', 'create', 'Solo plataforma'));
+    await ok(ark('project', 'add', 'solo plataforma', 'examples/plataforma-ejemplo.json'));
+    expect((await ark('project', 'trace', 'solo plataforma', '--strict')).code).toBe(0);
+    const strict = await ark('project', 'trace', 'solo plataforma', '--strict-unresolved');
+    expect(strict.code).toBe(3);
+    expect(strict.err).toMatch(/referencia\(s\) sin resolver/);
+  });
+
   it('trace: deja fuera con un aviso los diagramas que no se pueden leer, y un proyecto vacío es un error de uso', async () => {
     const { ark } = workspace();
     await ok(ark('project', 'create', 'P'));

@@ -67,6 +67,7 @@
 .cv-hint { color: var(--wb-text-2); font-size: 10px; word-break: break-all; }
 .cv-backlinks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .cv-backlinks .cv-tool { width: 100%; justify-content: space-between; }
+.cv-link-type { padding: 0 6px; border: 1px solid var(--wb-border); border-radius: 8px; color: var(--wb-text-2); font-size: 10px; white-space: nowrap; }
 .wb-trail { display: flex; align-items: center; gap: 8px; padding: 4px 12px; border-bottom: 1px solid var(--wb-border); background: var(--wb-info-bg); color: var(--wb-info); font-size: 12px; }
 .wb-trail button { font: inherit; font-size: 12px; padding: 2px 8px; border: 1px solid var(--wb-border); border-radius: 6px; background: var(--wb-surface); color: var(--wb-text); cursor: pointer; }
 .cv-link-inline { position: static; margin-left: 6px; }

@@ -76,6 +76,8 @@ export interface Asset {
   /** Canales: el tráfico va cifrado por el canal. Si no se indica, no se sabe. */
   encrypted?: boolean;
   ref?: string;
+  /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
+  refType?: string;
   tags?: string[];
 }
 

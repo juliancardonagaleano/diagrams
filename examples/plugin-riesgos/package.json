@@ -1,0 +1,26 @@
+{
+  "name": "@acme/iark-module-riesgos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Módulo de terceros de ejemplo para IArk - DIAgrams: un registro de riesgos (módulo `risk`)",
+  "type": "module",
+  "license": "MIT",
+  "main": "./index.mjs",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "riesgos.json",
+    "riesgos.csv",
+    "README.md"
+  ],
+  "keywords": [
+    "iark",
+    "iark-module"
+  ],
+  "peerDependencies": {
+    "@iark/kernel": "^0.1.0",
+    "zod": "^4.3.3"
+  }
+}

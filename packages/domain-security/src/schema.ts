@@ -1,4 +1,4 @@
-import { parseUrn } from '@iark/kernel';
+import { parseUrn, refTypeSchema } from '@iark/kernel';
 import { z } from 'zod';
 import {
   ASSET_KINDS,
@@ -44,6 +44,7 @@ export const assetSchema = z.object({
   rotation: z.boolean().optional(),
   encrypted: z.boolean().optional(),
   ref: z.string().optional(),
+  refType: refTypeSchema.optional(),
   tags: z.array(z.string()).optional(),
 });
 

@@ -1,8 +1,8 @@
 import { extname } from 'node:path';
-import { generateStructured, moduleStandalonePrompt, type DomainModule, type ModuleRegistry } from '@iark/kernel';
+import { generateStructured, migrateDocument, moduleStandalonePrompt, parseModuleDocument, type DocumentMigrated, type DomainModule, type ModuleRegistry } from '@iark/kernel';
 import { DEFAULT_AI_MODEL } from '@core/ai/generate';
 import { reportGeneration, tokenLimitOptions, withAiErrors, type RepoHint } from './ai';
-import { CliError, extractJson, info, readInput, writeOutput } from './io';
+import { CliError, extractJson, info, noteMigration, readInput, writeOutput } from './io';
 
 /**
  * Comandos que funcionan con cualquier módulo de la suite a través de su contrato (`DomainModule`): validar, esquema,
@@ -11,35 +11,88 @@ import { CliError, extractJson, info, readInput, writeOutput } from './io';
 
 const jsonOut = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 
-/** Interpreta un texto ya leído (JSON, también envuelto en un bloque ```json) como documento del módulo y lo valida con su esquema. */
-export function parseModuleDocumentText(module: DomainModule<any>, raw: string): unknown {
-  let json: unknown;
+/** Interpreta un texto (JSON, también envuelto en un bloque ```json). */
+function parseJsonText(raw: string): unknown {
   try {
-    json = JSON.parse(extractJson(raw));
+    return JSON.parse(extractJson(raw));
   } catch (error) {
     throw new CliError(`La entrada no es JSON válido: ${(error as Error).message}`);
   }
-  const parsed = module.schema.safeParse(json);
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `- ${i.path.join('.') ? `${i.path.join('.')}: ` : ''}${i.message}`).join('\n');
-    throw new CliError(`Documento inválido para el módulo «${module.id}»:\n${issues}`, 2);
-  }
-  return parsed.data;
 }
 
-/** Lee y valida un documento del módulo con su esquema. */
+function readJson(file: string | undefined, useStdin: boolean): unknown {
+  return parseJsonText(readInput(file, useStdin));
+}
+
+/** El documento ya parseado (con los problemas de esquema como `CliError` de código 2) y, si venía de una versión anterior, de dónde. */
+function parseDocumentJson(module: DomainModule<any>, json: unknown): { document: unknown; migrated?: DocumentMigrated } {
+  const parsed = parseModuleDocument(module, json);
+  if (!parsed.ok) {
+    const issues = parsed.issues.map((i) => `- ${i.path !== '(raíz)' ? `${i.path}: ` : ''}${i.message}`).join('\n');
+    throw new CliError(`Documento inválido para el módulo «${module.id}»:\n${issues}`, 2);
+  }
+  return { document: parsed.document, migrated: parsed.migrated };
+}
+
+/**
+ * Lee un documento del módulo, lo lleva a la versión actual si venía de una anterior (`DomainModule.migrations`) y lo valida con
+ * su esquema. `migrated` dice de qué versión venía, si hubo que migrarlo.
+ */
+export function readModuleDocumentInfo(module: DomainModule<any>, file: string | undefined, useStdin: boolean): { document: unknown; migrated?: DocumentMigrated } {
+  return parseDocumentJson(module, readJson(file, useStdin));
+}
+
+/** Como `readModuleDocumentInfo`, avisando por stderr si hubo que migrar el documento. */
 export function readModuleDocument(module: DomainModule<any>, file: string | undefined, useStdin: boolean): unknown {
-  return parseModuleDocumentText(module, readInput(file, useStdin));
+  const { document, migrated } = readModuleDocumentInfo(module, file, useStdin);
+  noteMigration(migrated);
+  return document;
+}
+
+/** Interpreta un texto ya leído como documento del módulo: lo migra si hace falta y lo valida con su esquema, igual que `readModuleDocument`. */
+export function parseModuleDocumentText(module: DomainModule<any>, raw: string): unknown {
+  const { document, migrated } = parseDocumentJson(module, parseJsonText(raw));
+  noteMigration(migrated);
+  return document;
 }
 
 export function genericValidate(module: DomainModule<any>, file: string | undefined, opts: { stdin?: boolean; strict?: boolean }): void {
-  const document = readModuleDocument(module, file, opts.stdin ?? false);
+  const { document, migrated } = readModuleDocumentInfo(module, file, opts.stdin ?? false);
+  // En la salida estándar, con el resto del informe: es parte de lo que `validate` cuenta del documento.
+  if (migrated) process.stdout.write(`info     Documento migrado de la versión ${migrated.from} a ${migrated.to}; \`iark migrate\` lo reescribe en la nueva.\n`);
   const issues = module.validate(document);
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
   for (const i of issues) process.stdout.write(`${i.severity === 'error' ? 'error   ' : i.severity === 'warning' ? 'aviso   ' : 'info    '} ${i.message}\n`);
   process.stdout.write(`Documento válido (módulo ${module.id}). ${errors.length} error(es), ${warnings.length} aviso(s), ${issues.length - errors.length - warnings.length} nota(s).\n`);
   if (errors.length > 0 || (opts.strict && warnings.length > 0)) process.exitCode = 3;
+}
+
+/**
+ * `iark migrate`: lleva un documento guardado con una versión anterior del formato del módulo a la actual y lo escribe (en
+ * `--out` o por la salida estándar). Con `--check` no escribe nada y termina con código 1 si el documento necesita migración
+ * (para la integración continua). Un documento de una versión más nueva, o anterior sin migración, termina con código 2.
+ */
+export function genericMigrate(module: DomainModule<any>, file: string | undefined, opts: { stdin?: boolean; out?: string; check?: boolean }): void {
+  const json = readJson(file, opts.stdin ?? false);
+  const migration = migrateDocument(module, json);
+  if (migration.status === 'unsupported') throw new CliError(migration.message, 2);
+  // Se valida siempre (también con --check): un documento migrado que el esquema rechaza es un problema que el comando debe decir.
+  const { document } = parseDocumentJson(module, json);
+  if (migration.status !== 'migrated') {
+    info(`El documento ya está en la versión ${module.documentVersion} del módulo «${module.id}»: no necesita migración.`);
+    if (!opts.check) writeOutput(opts.out, jsonOut(document));
+    return;
+  }
+  info(`Documento del módulo «${module.id}»: versión ${migration.from} → ${migration.to}.`);
+  for (const step of migration.steps) info(`  ${step.from} → ${step.to}${step.description ? `: ${step.description}` : ''}`);
+  if (opts.check) {
+    info('Necesita migración: ejecuta `iark migrate` para reescribirlo en la versión actual.');
+    process.exitCode = 1;
+    return;
+  }
+  writeOutput(opts.out, jsonOut(document));
+  if (opts.out) info(`Documento migrado escrito en ${opts.out}`);
 }
 
 export function genericSchema(module: DomainModule<any>, generation: boolean): void {

@@ -1,0 +1,4 @@
+id,title,probability,impact,status,owner,mitigation,ref
+robo-de-claves,"Robo de claves de firma, en el repositorio",3,5,open,ana,Mover las claves a un gestor de secretos,urn:iark:c4:api
+dependencia-sin-mantener,Dependencia de cifrado sin mantenimiento,2,4,mitigating,luis,,
+fila-mala,Probabilidad fuera de rango,9,2,open,,,

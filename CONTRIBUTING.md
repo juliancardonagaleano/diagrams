@@ -73,6 +73,7 @@ Si tu rama todavía no los trae (se añaden en otra PR del mismo plan de robuste
 - **Mantén `master` verde.** No fusiones con pruebas rojas ni borres una prueba para que pase: corrige la causa.
 - **No reintroduzcas dependencias sin declarar.** El paquete publicado y la imagen Docker solo instalan `dependencies`, y cada paquete de `packages/*` debe declarar lo que importa su código con la misma versión que la raíz. Lo comprueban [`tests/dependencias-paquetes.test.ts`](tests/dependencias-paquetes.test.ts) y [`tests/runtime-deps.test.ts`](tests/runtime-deps.test.ts); si fallan tras añadir un import, declara la librería donde corresponda en lugar de silenciar la prueba.
 - **Dependencias nuevas, justificadas.** Antes de añadir una, revisa que su licencia sea compatible con MIT (MIT, ISC, BSD o Apache-2.0 no dan problemas; si es copyleft, consúltalo antes en un issue) y que de verdad hace falta: varias piezas se escribieron sin dependencias a propósito (el servidor `iark serve` usa solo `node:http`; los analizadores de HCL y de SQL son propios).
+- **Si cambia un esquema, añade migración.** Antes de abrir la PR comprueba: ¿un documento guardado con la versión anterior sigue abriéndose? `tests/documentos-antiguos.test.ts` lo vigila con documentos congelados de cada módulo; si falla, la solución es una migración, no editar la foto. Lo mismo para el contrato `DomainModule` (`contractVersion`, que sube solo si un cambio obliga a tocar los módulos existentes) y para el protocolo embebido (`EMBED_PROTOCOL_VERSION`, versión mayor si un cambio rompe a quien no lo conoce). Todo en [docs/versionado-documentos.md](docs/versionado-documentos.md).
 - **Salidas generadas al día.** Si cambias módulos, esquemas o el manifiesto, regenera con `npm run schema` y `npm run manifest` y sube el resultado (`schema/`, `public/.well-known/iark.json`); `tests/manifest.test.ts` falla si el manifiesto está desactualizado.
 
 ## Convenciones de código
@@ -80,7 +81,7 @@ Si tu rama todavía no los trae (se añaden en otra PR del mismo plan de robuste
 - **TypeScript en modo `strict`** (con `noUnusedLocals`, `noUnusedParameters` y `noFallthroughCasesInSwitch`; ver `tsconfig.base.json`). **Sin `any` nuevos**: usa tipos concretos, `unknown` con comprobación o los esquemas de `zod`. Los que existen son deuda, no un precedente.
 - **Español** en comentarios, documentación, mensajes al usuario y mensajes de error. Los identificadores del código van en inglés, como hoy. Los comentarios explican el porqué (una restricción, una decisión, un caso que ya falló), no lo que el código ya dice.
 - **Núcleo sin DOM.** Ni el kernel ni los módulos de dominio (`packages/*`) usan el DOM, y el kernel tampoco toca el sistema de archivos; lo que dependa del navegador o del disco vive en `src/app`, `src/modules-app` o `src/cli`.
-- **Compatibilidad de los documentos.** Los cambios en el formato de un módulo son aditivos y opcionales: los documentos ya guardados (versión 1.0) tienen que seguir cargando sin cambios.
+- **Compatibilidad de los documentos.** Los cambios en el formato de un módulo son aditivos y opcionales siempre que se pueda: los documentos ya guardados (versión 1.0) tienen que seguir cargando. Si un cambio de esquema no es compatible, **sube `documentVersion`, añade la migración** en `DomainModule.migrations` y conserva la foto del documento antiguo en `tests/fixtures/documentos/` (que no se edita ni se regenera). Ver [Versionado de documentos](docs/versionado-documentos.md).
 - **Formato**: no hay formateador automático. El `.editorconfig` fija UTF-8, LF, 2 espacios y línea final; sigue el estilo del archivo que editas.
 - **Pruebas**: Vitest (`*.test.ts` junto al código o en `tests/`), Testing Library con `// @vitest-environment jsdom` donde haga falta DOM, y Playwright en `tests/e2e/`. En e2e no uses esperas fijas ni `networkidle`: espera una señal observable (ver `tests/e2e/canvas-helpers.ts`).
 - **Iconos y marcas.** Los iconos de nubes (AWS, Azure) son glifos propios, no los logotipos oficiales, que son marcas propietarias. No contribuyas logotipos o iconos de terceros salvo que su licencia permita redistribuirlos bajo MIT, y dilo en la PR.
@@ -89,13 +90,15 @@ Si tu rama todavía no los trae (se añaden en otra PR del mismo plan de robuste
 
 Cada especialidad es un paquete `@iark/domain-*` que implementa `DomainModule`. El contrato completo, con comentarios, está en [`packages/kernel/src/module/types.ts`](packages/kernel/src/module/types.ts) (y el del editor interactivo en `packages/kernel/src/module/editor.ts`). En resumen:
 
-1. Crea `packages/domain-<nombre>/` con su `package.json` (copia el de un módulo existente, p. ej. `packages/domain-security/`: `@iark/kernel` y `zod` como dependencias, y cualquier otra librería que importe, con la misma versión que la raíz).
+1. Crea `packages/domain-<nombre>/` con su `package.json` (copia el de un módulo existente, p. ej. `packages/domain-security/`: `@iark/kernel` y `zod` como dependencias, y cualquier otra librería que importe, con la misma versión que la raíz). Copia también sus campos de publicación (`license`, `repository`, `files`, `exports` hacia `src/*.ts` y `publishConfig.exports` hacia `dist`, el script `prepack`): `tests/paquetes.test.ts` y `npm run packages:build` los exigen a todo paquete de `packages/*`.
 2. Define el esquema (zod), las reglas de validación, las vistas, los importadores y exportadores, la especificación de IA y, si tiene lienzo, la de editor; exporta el módulo desde `src/index.ts`.
 3. Regístralo donde ya están los demás. Hoy: el alias en `tsconfig.base.json`, `src/cli/registry.ts` (`createDefaultRegistry`), `src/modules-app/modules.ts` (el banco de trabajo), `scripts/generate-schema.ts` y un ejemplo en `examples/`. Busca con `grep -rn domain-security` dónde aparece un módulo existente y repite el patrón.
 4. Regenera `npm run schema` y `npm run manifest`.
 5. Escribe las pruebas del módulo junto a su código y comprueba que `tests/dependencias-paquetes.test.ts` y `tests/manifest.test.ts` siguen pasando.
 
 No hay una guía paso a paso más detallada que esta: ante la duda, mira cómo está hecho el módulo existente más parecido y pregunta en el issue o la PR.
+
+**¿Una especialidad que no tiene por qué vivir en este repositorio?** Escríbela como un [módulo de terceros](docs/plugins.md): un paquete aparte que implementa el mismo contrato y se carga con `iark.config.json`, sin tocar nada de lo anterior. [`examples/plugin-riesgos/`](examples/plugin-riesgos/) es un ejemplo completo. Si cambias el contrato (`packages/kernel/src/module/types.ts`) o la comprobación de la forma (`plugin.ts`), revisa que el ejemplo y `tests/plugins-cli.test.ts` sigan pasando.
 
 ## Seguridad
 

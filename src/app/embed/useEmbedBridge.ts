@@ -1,5 +1,6 @@
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useEffect, useRef } from 'react';
+import { INCOMPATIBLE_PROTOCOL_CODE, negotiateProtocol } from '@iark/kernel/protocol';
 import { toDrawio } from '@core/export/drawio/toDrawio';
 import { toSvg } from '@core/export/svg/toSvg';
 import { svgToPngDataUrl } from './rasterize';
@@ -133,7 +134,19 @@ export function useEmbedBridge(): { save: (exit: boolean) => Promise<void>; exit
       post({ event: 'load', document: store.getState().doc, viewId: store.getState().activeViewId ?? undefined });
     };
 
+    // Mensaje del último apretón de manos rechazado: mientras dure, ninguna orden se aplica (el anfitrión habla un protocolo que no entendemos).
+    let incompatible: string | undefined;
+
     const handle = async (action: HostAction) => {
+      if (action.action === 'load') {
+        // El `load` del anfitrión lleva la versión de su protocolo (sin ella, 1.0): una diferencia de mayor se avisa en vez de funcionar a medias.
+        const negotiation = negotiateProtocol(PROTOCOL_VERSION, action.version);
+        incompatible = negotiation.ok ? undefined : negotiation.message;
+      }
+      if (incompatible && action.action !== 'exit') {
+        post({ event: 'error', code: INCOMPATIBLE_PROTOCOL_CODE, message: incompatible, ...('requestId' in action && action.requestId ? { requestId: action.requestId } : {}) });
+        return;
+      }
       const s = store.getState();
       switch (action.action) {
         case 'load':
