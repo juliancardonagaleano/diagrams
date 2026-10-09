@@ -73,13 +73,18 @@ const layoutCaseFile = fileURLToPath(new URL('./perf/layoutCase.ts', import.meta
 /** Un caso de layout en un proceso aparte, que se mata si pasa del tope. */
 function runLayoutCase(module: PerfModuleId, size: number, runs: number, mode: string, timeoutS: number): Promise<LayoutCaseResult | { timeout: true }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [tsxBin, layoutCaseFile, module, String(size), String(runs), mode], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [tsxBin, layoutCaseFile, module, String(size), String(runs), mode], { stdio: ['ignore', 'pipe', 'pipe'], detached: true });
     let out = '';
     let err = '';
     child.stdout.on('data', (d: Buffer) => (out += d.toString()));
     child.stderr.on('data', (d: Buffer) => (err += d.toString()));
     const timer = setTimeout(() => {
-      child.kill('SIGKILL');
+      // tsx lanza otro proceso de Node para ejecutar el caso: se mata el grupo entero, no solo el padre (si no, el hijo queda calculando).
+      try {
+        process.kill(-child.pid!, 'SIGKILL');
+      } catch {
+        child.kill('SIGKILL');
+      }
       resolve({ timeout: true });
     }, timeoutS * 1000);
     child.on('close', (code, signal) => {

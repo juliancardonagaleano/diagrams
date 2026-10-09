@@ -115,6 +115,8 @@ export async function measureCanvas(browser: Browser, baseUrl: string, spec: Can
       },
       stored,
     );
+    // tsx compila con `keepNames` y envuelve las funciones con un ayudante `__name` que no existe en la página: se le da uno vacío.
+    await context.addInitScript('window.__name = window.__name || ((target) => target);');
     await context.addInitScript(installProbes);
     const page = await context.newPage();
     const errors: string[] = [];
@@ -143,6 +145,7 @@ export async function measureCanvas(browser: Browser, baseUrl: string, spec: Can
       };
     });
     const cdp = await context.newCDPSession(page);
+    await cdp.send('Performance.enable');
     await cdp.send('HeapProfiler.collectGarbage');
     const metrics = (await cdp.send('Performance.getMetrics')) as { metrics: Array<{ name: string; value: number }> };
     const heap = metrics.metrics.find((m) => m.name === 'JSHeapUsedSize')?.value ?? 0;
