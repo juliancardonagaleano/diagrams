@@ -9,7 +9,7 @@
  *   npm run perf -- chunks             # solo el tamaño de los trozos de dist/app (necesita npm run build:app)
  *
  * Opciones: --modules a,b  --sizes 100,500  --runs 3 (repeticiones por caso)  --timeout 180 (segundos por caso)
- *           --modes smart,fast (modos de layout; por omisión todos los del módulo)  --port 4185  --json salida.json
+ *           --modes smart,fast (modos de layout: C4 smart/fast/interactive; el resto default —el esfuerzo que elige el lienzo según el tamaño— y, si se piden, normal/fast; por omisión: smart, fast, interactive y default)  --port 4185  --json salida.json  --elk thread (lienzo: ELK en el hilo principal)
  *
  * Mide de uno en uno y en serie. Cierra otros procesos pesados antes de medir y repite: anota la dispersión, no un solo número.
  */
@@ -33,6 +33,8 @@ interface Options {
   modes?: string[];
   port: number;
   json?: string;
+  /** `--elk thread`: en el lienzo, ELK en el hilo principal (`?elk=thread`), para comparar con el hilo de trabajo con la misma compilación. */
+  elk?: 'thread';
 }
 
 function parseArgs(argv: string[]): Options {
@@ -52,6 +54,7 @@ function parseArgs(argv: string[]): Options {
     modes: flags.get('modes')?.split(','),
     port: Number(flags.get('port') ?? process.env.E2E_PORT ?? 4185),
     json: flags.get('json'),
+    elk: flags.get('elk') === 'thread' ? 'thread' : undefined,
   };
 }
 
@@ -96,25 +99,28 @@ function runLayoutCase(module: PerfModuleId, size: number, runs: number, mode: s
   });
 }
 
-const MODES: Record<PerfModuleId, string[]> = { c4: ['smart', 'fast', 'interactive'], integration: ['default'], data: ['default'], enterprise: ['default'], platform: ['default'], security: ['default'] };
+const MODES: Record<PerfModuleId, string[]> = { c4: ['smart', 'fast', 'interactive'], integration: ['default', 'normal', 'fast'], data: ['default', 'normal', 'fast'], enterprise: ['default'], platform: ['default', 'normal', 'fast'], security: ['default', 'normal', 'fast'] };
+
+/** Los modos que se miden si no se pide otra cosa: C4 con sus tres estrategias y el resto con el esfuerzo que elige el lienzo. */
+const DEFAULT_MODES: Record<PerfModuleId, string[]> = { c4: ['smart', 'fast', 'interactive'], integration: ['default'], data: ['default'], enterprise: ['default'], platform: ['default'], security: ['default'] };
 
 async function layoutReport(options: Options): Promise<unknown[]> {
   console.log(`\n## Autolayout (ELK en Node, ${options.runs} repeticiones por caso; entre paréntesis, mínimo–máximo)\n`);
-  console.log('| Módulo | Modo | Tamaño | Nodos | Aristas | Validar | Proyectar | Layout (ELK) | Construir flujo |');
-  console.log('|---|---|---:|---:|---:|---:|---:|---:|---:|');
+  console.log('| Módulo | Modo | Tamaño | Nodos | Aristas | Validar | Proyectar | Layout (ELK) | Construir flujo | Extensión del dibujo |');
+  console.log('|---|---|---:|---:|---:|---:|---:|---:|---:|---:|');
   const all: unknown[] = [];
   for (const module of options.modules) {
-    for (const mode of (options.modes ?? MODES[module]).filter((m) => MODES[module].includes(m))) {
+    for (const mode of (options.modes ?? DEFAULT_MODES[module]).filter((m) => MODES[module].includes(m))) {
       let timedOut = false;
       for (const size of options.sizes) {
         if (timedOut) {
-          console.log(`| ${module} | ${mode} | ${size} | - | - | - | - | omitido: el tamaño anterior ya pasó del tope | - |`);
+          console.log(`| ${module} | ${mode} | ${size} | - | - | - | - | omitido: el tamaño anterior ya pasó del tope | - | - |`);
           continue;
         }
         const result = await runLayoutCase(module, size, options.runs, mode, options.timeoutS);
         if ('timeout' in result) {
           timedOut = true;
-          console.log(`| ${module} | ${mode} | ${size} | - | - | - | - | **más de ${options.timeoutS} s (cortado)** | - |`);
+          console.log(`| ${module} | ${mode} | ${size} | - | - | - | - | **más de ${options.timeoutS} s (cortado)** | - | - |`);
           all.push({ module, mode, size, timeout: options.timeoutS });
           continue;
         }
@@ -122,7 +128,7 @@ async function layoutReport(options: Options): Promise<unknown[]> {
           const values = result.runs.flatMap((r) => (r[key] === undefined ? [] : [r[key] as number]));
           return values.length === 0 ? '-' : spread(values);
         };
-        console.log(`| ${module} | ${mode} | ${size} | ${result.nodes} | ${result.edges} | ${col('parse')} | ${col('project')} | ${col('layout')} | ${col('build')} |`);
+        console.log(`| ${module} | ${mode} | ${size} | ${result.nodes} | ${result.edges} | ${col('parse')} | ${col('project')} | ${col('layout')} | ${col('build')} | ${result.extent ? `${Math.round(result.extent.width)} × ${Math.round(result.extent.height)} px` : '-'} |`);
         all.push(result);
       }
     }
@@ -148,7 +154,7 @@ async function startPreview(port: number): Promise<ChildProcess> {
 }
 
 async function canvasReport(options: Options): Promise<unknown[]> {
-  console.log(`\n## Lienzo en Chromium (${options.runs} repeticiones por caso; mediana y mínimo–máximo)\n`);
+  console.log(`\n## Lienzo en Chromium${options.elk ? ' con ELK en el hilo principal (?elk=thread)' : ''} (${options.runs} repeticiones por caso; mediana y mínimo–máximo)\n`);
   console.log('| Módulo | Nodos | Aristas | Primer nodo | Asentado | Layout (página) | Tarea más larga | Bloqueado (>50 ms) | Mayor hueco del pulso | Nodos en el DOM | Montón JS | RSS del navegador | Estado «calculando» |');
   console.log('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|');
   const server = await startPreview(options.port);
@@ -165,7 +171,7 @@ async function canvasReport(options: Options): Promise<unknown[]> {
         }
         const results: CanvasResult[] = [];
         for (let i = 0; i < options.runs; i++) {
-          results.push(await measureCanvas(browser, `http://localhost:${options.port}`, { module, size }, options.timeoutS * 1000));
+          results.push(await measureCanvas(browser, `http://localhost:${options.port}`, { module, size, elk: options.elk }, options.timeoutS * 1000));
           if (!results[i].ready) break;
         }
         all.push(...results);

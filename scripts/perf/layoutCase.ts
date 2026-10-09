@@ -42,6 +42,8 @@ export interface LayoutCaseResult {
   nodes: number;
   edges: number;
   groups: number;
+  /** Tamaño del dibujo que dejó el autolayout (solo en los módulos con lienzo común). */
+  extent?: { width: number; height: number };
   runs: LayoutRun[];
 }
 
@@ -86,17 +88,21 @@ async function runGraph(moduleId: PerfModuleId, size: number, runs: number, mode
   let nodes = 0;
   let edges = 0;
   let groups = 0;
+  let extent: { width: number; height: number } | undefined;
+  // `normal` / `fast` fuerzan el esfuerzo de ELK; `default` es el que elige el lienzo según el tamaño.
+  const effort = mode === 'normal' || mode === 'fast' ? mode : undefined;
   for (let i = 0; i < runs; i++) {
     const [doc, parse] = await time(() => module.schema.parse(generated.document));
     const [graph, project] = await time(() => spec.project(doc, generated.viewId));
-    const [layout, ms] = await time(() => autolayoutGraph(spec, doc, graph, generated.viewId));
+    const [layout, ms] = await time(() => autolayoutGraph(spec, doc, graph, generated.viewId, { effort }));
     const [, build] = await time(() => buildFlow(spec, graph, layout, new Map()));
     nodes = graph.nodes.length;
     edges = graph.edges.length;
     groups = layout.groups.length;
+    extent = { width: layout.width, height: layout.height };
     results.push({ parse, project, layout: ms, build });
   }
-  return { module: moduleId, size, mode, nodes, edges, groups, runs: results };
+  return { module: moduleId, size, mode, nodes, edges, groups, extent, runs: results };
 }
 
 export async function runLayoutCase(moduleId: PerfModuleId, size: number, runs: number, mode: string): Promise<LayoutCaseResult> {

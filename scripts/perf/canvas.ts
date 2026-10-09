@@ -18,6 +18,8 @@ import { generateDocument, type PerfModuleId } from '../../tests/perf/generators
 export interface CanvasCase {
   module: PerfModuleId;
   size: number;
+  /** `thread` abre la página con `?elk=thread`: el cálculo corre en el hilo principal, como antes del hilo de trabajo (misma compilación, para comparar). */
+  elk?: 'thread';
 }
 
 export interface CanvasResult extends CanvasCase {
@@ -60,7 +62,9 @@ function installProbes(): void {
     if (perf.firstNode === undefined && document.querySelector('.react-flow__node')) perf.firstNode = performance.now();
     if (document.querySelector('[data-testid="calculating"], [data-testid="canvas-busy"]')) perf.busy = true;
     const canvas = document.querySelector('[data-testid="module-canvas"], [data-testid="c4-canvas"]');
-    if (perf.ready === undefined && canvas?.getAttribute('data-layout') === 'ready' && document.querySelector('.react-flow__node')) perf.ready = performance.now();
+    // Asentado = autolayout aplicado y cámara encuadrada. Con el recorte de nodos fuera de pantalla el encuadre puede caer en una zona
+    // vacía (zoom mínimo en diagramas enormes): no se exige ningún nodo montado.
+    if (perf.ready === undefined && canvas?.getAttribute('data-layout') === 'ready') perf.ready = performance.now();
   };
   new MutationObserver(look).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-layout'] });
 }
@@ -121,7 +125,8 @@ export async function measureCanvas(browser: Browser, baseUrl: string, spec: Can
     const page = await context.newPage();
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(c4 ? `${baseUrl}/` : `${baseUrl}/modulos.html?module=${spec.module}`, { waitUntil: 'commit' });
+    const forced = spec.elk === 'thread' ? 'elk=thread' : '';
+    await page.goto(c4 ? `${baseUrl}/${forced ? `?${forced}` : ''}` : `${baseUrl}/modulos.html?module=${spec.module}${forced ? `&${forced}` : ''}`, { waitUntil: 'commit' });
     const ready = await page
       .waitForFunction(() => (window as unknown as { __perf?: { ready?: number } }).__perf?.ready !== undefined, undefined, { timeout: readyTimeoutMs, polling: 250 })
       .then(
