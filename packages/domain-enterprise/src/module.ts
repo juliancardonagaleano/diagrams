@@ -7,6 +7,7 @@ import { toDrawio } from './export/drawio';
 import { toMermaid } from './export/mermaid';
 import { toSvg } from './export/render';
 import { fromArchimate, looksLikeArchimate } from './import/fromArchimate';
+import { fromBpmn, looksLikeBpmn } from './import/fromBpmn';
 import { fromMermaid, looksLikeMatrixBlock } from './import/fromMermaid';
 import { analyzeEnterprise } from './issues';
 import { enterpriseDocumentSchema, enterpriseJsonSchema } from './schema';
@@ -29,6 +30,15 @@ const archimateImporter: Importer<EnterpriseDocument> = {
   extensions: ['.xml', '.archimate'],
   detect: looksLikeArchimate,
   import: (text, ctx) => fromArchimate(text, { name: ctx.name, fallbackName: ctx.fallbackName, lang: typeof ctx.extra?.lang === 'string' ? ctx.extra.lang : undefined }),
+};
+
+/** Modelo de BPMN 2.0 (XML): pools, carriles, tareas, flujos de secuencia y de mensaje. Comparte `.xml` con ArchiMate: decide `detect`. */
+const bpmnImporter: Importer<EnterpriseDocument> = {
+  id: 'bpmn',
+  label: 'BPMN 2.0',
+  extensions: ['.bpmn', '.xml'],
+  detect: looksLikeBpmn,
+  import: (text, ctx) => fromBpmn(text, { name: ctx.name, fallbackName: ctx.fallbackName }),
 };
 
 const mermaidExporter: Exporter<EnterpriseDocument> = {
@@ -70,7 +80,7 @@ export const enterpriseModule: DomainModule<EnterpriseDocument> = {
   schema: enterpriseDocumentSchema as unknown as DomainModule<EnterpriseDocument>['schema'],
   jsonSchema: enterpriseJsonSchema,
   validate: (doc): ModuleIssue[] => analyzeEnterprise(doc),
-  importers: [mermaidImporter, archimateImporter],
+  importers: [mermaidImporter, archimateImporter, bpmnImporter],
   exporters: [mermaidExporter, svgExporter, drawioExporter],
   ai: enterpriseAiSpec,
   entities: (doc): EntityRef[] => [

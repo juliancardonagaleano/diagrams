@@ -40,7 +40,6 @@ import {
   type ControlKind,
   type Flow,
   type Impact,
-  type SecurityDocument,
   type Stride,
   type Threat,
   type ThreatStatus,

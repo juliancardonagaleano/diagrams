@@ -26,7 +26,7 @@ import { pickId, Warnings } from '@iark/kernel';
 import { formatIntegrationIssues, validateIntegrationDocument } from '../schema';
 import { INTEGRATION_DOCUMENT_VERSION, type Contract, type IntegrationNode, type Interaction } from '../types';
 import { IntegrationImportError, type IntegrationImportOptions, type IntegrationImportResult } from './fromMermaid';
-import { arr, brief, cleanUrl, fillVariables, readSpec, rec, RefResolver, refName, refWarnings, shortList, slug, specKind, str, type Json } from './spec';
+import { arr, brief, cleanUrl, fillVariables, readSpec, rec, RefResolver, refName, refWarnings, slug, specKind, str, type Json } from './spec';
 
 /** Nombre legible de los protocolos más comunes; los demás se muestran tal cual, en mayúsculas. */
 const PROTOCOLS: Record<string, string> = {

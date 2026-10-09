@@ -399,7 +399,7 @@ export function fromOpenLineage(source: string, options: DataImportOptions = {})
     let c = containers.get(d.namespace);
     if (!c) {
       if (!platform) unknownPlatforms.push(key);
-      const kind: AssetKind = platform?.placement === 'stream' || !platform ? 'source' : (platform.placement as AssetKind);
+      const kind: AssetKind = platform ? platform.placement : 'source';
       c = {
         id: pickId(slugify(d.namespace) || 'fuente', ids),
         kind,
