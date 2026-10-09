@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { C4_COLORS, C4_EXTERNAL_COLOR, ELEMENT_TYPE_LABELS, PARENT_TYPE, type C4Element, type ElementShape, type ElementType } from '@core/model/types';
 import { isValidParentType, typeChangeBlockedReason } from '@core/model/factories';
 import { useDocumentStore } from '../../store/documentStore';
+import { useCampos } from './campos';
 
 const SHAPES: Array<{ value: ElementShape; label: string }> = [
   { value: 'default', label: 'Rectángulo' },
@@ -19,6 +20,7 @@ export function ElementCard({ element, inActiveView, selected }: { element: C4El
   const readOnly = useDocumentStore((s) => s.readOnly);
   const { updateElement, removeElement, addElementToView, removeElementFromView, select } = useDocumentStore.getState();
   const [open, setOpen] = useState(selected);
+  const campo = useCampos();
   const expanded = open || selected;
   const color = element.color ?? (element.external ? C4_EXTERNAL_COLOR : C4_COLORS[element.type]);
   const parentType = PARENT_TYPE[element.type];
@@ -35,19 +37,25 @@ export function ElementCard({ element, inActiveView, selected }: { element: C4El
   // Motivo (si lo hay) por el que algún otro tipo no se puede elegir: tiene hijos o es alcance de una vista.
   const typeBlockedReason = (Object.keys(ELEMENT_TYPE_LABELS) as ElementType[]).map((t) => typeChangeBlockedReason(doc, element.id, t)).find(Boolean) ?? null;
 
+  const toggleCard = (): void => {
+    setOpen(!expanded);
+    select({ kind: 'element', id: element.id });
+  };
+
   return (
     <div className={`c4-card ${selected ? 'is-selected' : ''}`} data-element-id={element.id}>
       <div
         className="c4-card-header"
-        onClick={() => {
-          setOpen(!expanded);
-          select({ kind: 'element', id: element.id });
+        onClick={(e) => {
+          if (e.target === e.currentTarget) toggleCard();
         }}
       >
-        {expanded ? <IconTreeTriangleDown size="small" /> : <IconTreeTriangleRight size="small" />}
-        <span className="h-3 w-3 rounded-sm flex-none" style={{ backgroundColor: color }} />
-        <span className="font-medium truncate flex-1">{element.name}</span>
-        <span className="text-xs text-color-3 font-mono flex-none">{ELEMENT_TYPE_LABELS[element.type]}</span>
+        <button type="button" className="c4-card-main" aria-expanded={expanded} onClick={toggleCard}>
+          {expanded ? <IconTreeTriangleDown size="small" /> : <IconTreeTriangleRight size="small" />}
+          <span className="h-3 w-3 rounded-sm flex-none" style={{ backgroundColor: color }} aria-hidden="true" />
+          <span className="font-medium truncate flex-1">{element.name}</span>
+          <span className="text-xs text-color-3 font-mono flex-none">{ELEMENT_TYPE_LABELS[element.type]}</span>
+        </button>
         {activeView && (
           <Tooltip content={isScope ? 'Es el alcance de la vista' : inActiveView ? 'Quitar de la vista activa' : 'Añadir a la vista activa'}>
             <Button
@@ -55,6 +63,7 @@ export function ElementCard({ element, inActiveView, selected }: { element: C4El
               theme="borderless"
               type="tertiary"
               disabled={readOnly || isScope}
+              aria-label={isScope ? 'Es el alcance de la vista' : inActiveView ? `Quitar ${element.name} de la vista activa` : `Añadir ${element.name} a la vista activa`}
               icon={inActiveView || isScope ? <IconEyeOpened /> : <IconEyeClosed className="opacity-50" />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -68,8 +77,9 @@ export function ElementCard({ element, inActiveView, selected }: { element: C4El
       {expanded && (
         <div className="c4-card-body">
           <div className="c4-field">
-            <label>Nombre</label>
+            <label {...campo('nombre').etiqueta}>Nombre</label>
             <Input
+              id={campo('nombre').id}
               size="small"
               value={nameDraft}
               disabled={readOnly}
@@ -81,8 +91,9 @@ export function ElementCard({ element, inActiveView, selected }: { element: C4El
             />
           </div>
           <div className="c4-field">
-            <label>Tipo</label>
+            <label {...campo('tipo').etiqueta}>Tipo</label>
             <Select
+              {...campo('tipo').select}
               size="small"
               className="w-full"
               value={element.type}
@@ -101,8 +112,9 @@ export function ElementCard({ element, inActiveView, selected }: { element: C4El
           )}
           {parentType && (
             <div className="c4-field">
-              <label>Pertenece a</label>
+              <label {...campo('padre').etiqueta}>Pertenece a</label>
               <Select
+                {...campo('padre').select}
                 size="small"
                 className="w-full"
                 placeholder={`Elige ${ELEMENT_TYPE_LABELS[parentType].toLowerCase()}`}
@@ -116,21 +128,24 @@ export function ElementCard({ element, inActiveView, selected }: { element: C4El
           )}
           {(element.type === 'container' || element.type === 'component') && (
             <div className="c4-field">
-              <label>Tecnología</label>
-              <Input size="small" value={element.technology ?? ''} placeholder="p. ej. Node.js, PostgreSQL" disabled={readOnly} onChange={(v) => updateElement(element.id, { technology: v })} />
+              <label {...campo('tecnologia').etiqueta}>Tecnología</label>
+              <Input id={campo('tecnologia').id} size="small" value={element.technology ?? ''} placeholder="p. ej. Node.js, PostgreSQL" disabled={readOnly} onChange={(v) => updateElement(element.id, { technology: v })} />
             </div>
           )}
           {element.type !== 'person' && (
             <div className="c4-field">
-              <label>Forma</label>
-              <Select size="small" className="w-full" value={element.shape ?? 'default'} disabled={readOnly} optionList={SHAPES} onChange={(v) => updateElement(element.id, { shape: v === 'default' ? undefined : (v as ElementShape) })} />
+              <label {...campo('forma').etiqueta}>Forma</label>
+              <Select {...campo('forma').select} size="small" className="w-full" value={element.shape ?? 'default'} disabled={readOnly} optionList={SHAPES} onChange={(v) => updateElement(element.id, { shape: v === 'default' ? undefined : (v as ElementShape) })} />
             </div>
           )}
           <div className="c4-field">
-            <label>Externo</label>
-            <Switch size="small" checked={!!element.external} disabled={readOnly} onChange={(v) => updateElement(element.id, { external: v || undefined })} />
-            <label className="!w-auto ml-2">Color</label>
+            <label {...campo('externo').etiqueta}>Externo</label>
+            <Switch id={campo('externo').id} size="small" checked={!!element.external} disabled={readOnly} onChange={(v) => updateElement(element.id, { external: v || undefined })} />
+            <label {...campo('color').etiqueta} className="!w-auto ml-2">
+              Color
+            </label>
             <input
+              id={campo('color').id}
               type="color"
               className="h-6 w-8 cursor-pointer rounded border border-color bg-transparent"
               value={color}
@@ -145,8 +160,10 @@ export function ElementCard({ element, inActiveView, selected }: { element: C4El
             )}
           </div>
           <div className="c4-field items-start">
-            <label className="pt-1">Descripción</label>
-            <TextArea autosize rows={2} value={element.description ?? ''} disabled={readOnly} onChange={(v) => updateElement(element.id, { description: v })} />
+            <label {...campo('descripcion').etiqueta} className="pt-1">
+              Descripción
+            </label>
+            <TextArea id={campo('descripcion').id} autosize rows={2} value={element.description ?? ''} disabled={readOnly} onChange={(v) => updateElement(element.id, { description: v })} />
           </div>
           <div className="flex justify-between items-center">
             <span className="text-xs text-color-3 font-mono">id: {element.id}</span>

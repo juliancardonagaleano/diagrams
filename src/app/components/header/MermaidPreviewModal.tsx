@@ -53,7 +53,7 @@ export function MermaidPreviewModal({ visible, onClose }: { visible: boolean; on
             <MermaidPreview text={source.text} label={`Vista previa de Mermaid (${format === 'c4' ? 'C4 nativo' : 'diagrama de flujo'})`} />
             <details>
               <summary className="cursor-pointer">Texto de Mermaid</summary>
-              <pre className="mt-2 p-2 overflow-auto border border-color rounded text-xs" data-testid="mermaid-source">
+              <pre tabIndex={0} role="region" aria-label="Texto de Mermaid" className="mt-2 p-2 overflow-auto border border-color rounded text-xs" data-testid="mermaid-source">
                 {source.text}
               </pre>
             </details>

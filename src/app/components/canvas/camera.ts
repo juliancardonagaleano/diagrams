@@ -1,6 +1,7 @@
 import { useReactFlow, type FitViewOptions } from '@xyflow/react';
 import { useCallback } from 'react';
 import { create } from 'zustand';
+import { duracion } from '../../../modules-app/a11y/movimiento';
 
 /**
  * Encuadres de cámara que el editor ha pedido y aún no han terminado (programados o animándose). Mientras haya alguno
@@ -38,10 +39,12 @@ export function useFitCamera() {
 
   const fit = useCallback(
     (options: FitViewOptions, delay = 0, release: () => void = holdCamera()): void => {
+      // Con «reducir movimiento» activo en el sistema, la cámara salta sin animar (WCAG 2.3.3).
+      const effective = options.duration === undefined ? options : { ...options, duration: duracion(options.duration) };
       const run = (): void => {
         // La promesa de fitView no se resuelve si la animación se interrumpe: se acota con la duración prevista.
-        const animation = new Promise((resolve) => resolve(fitView(options)));
-        const limit = new Promise((resolve) => window.setTimeout(resolve, (options.duration ?? 0) + 300));
+        const animation = new Promise((resolve) => resolve(fitView(effective)));
+        const limit = new Promise((resolve) => window.setTimeout(resolve, (effective.duration ?? 0) + 300));
         void Promise.race([animation, limit]).then(release, release);
       };
       // Sin retardo se encuadra al instante, como antes de anotarlo: el aplazamiento solo existe donde ya lo había.

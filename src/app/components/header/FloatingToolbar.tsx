@@ -6,6 +6,7 @@ import { isEmbedMode, useDocumentStore, useTemporalStore } from '../../store/doc
 import { ELEMENT_TYPE_LABELS, type ElementType, type LayoutDirection, type LayoutDirectionOption, type LayoutDistribution } from '@core/model/types';
 import { formatQuality } from '@core/layout/quality';
 import { useFitCamera } from '../canvas/camera';
+import { duracion } from '../../../modules-app/a11y/movimiento';
 
 const ADD_BUTTONS: Array<{ type: ElementType; glyph: string }> = [
   { type: 'person', glyph: '👤' },
@@ -73,7 +74,7 @@ export function FloatingToolbar({ onEmbedSave }: { onEmbedSave?: (exit: boolean)
             <Dropdown.Item onClick={() => fit({ padding: 0.15, duration: 300 })}>Ajustar a la ventana</Dropdown.Item>
             <Dropdown.Divider />
             {zoomLevels.map((z) => (
-              <Dropdown.Item key={z} onClick={() => zoomTo(z, { duration: 200 })}>
+              <Dropdown.Item key={z} onClick={() => zoomTo(z, { duration: duracion(200) })}>
                 {Math.round(z * 100)}%
               </Dropdown.Item>
             ))}
@@ -86,10 +87,10 @@ export function FloatingToolbar({ onEmbedSave }: { onEmbedSave?: (exit: boolean)
         </div>
       </Dropdown>
       <Tooltip content="Acercar (Ctrl + rueda)">
-        <Button icon={<IconPlus />} theme="borderless" type="tertiary" aria-label="Acercar" onClick={() => zoomIn({ duration: 150 })} />
+        <Button icon={<IconPlus />} theme="borderless" type="tertiary" aria-label="Acercar" onClick={() => zoomIn({ duration: duracion(150) })} />
       </Tooltip>
       <Tooltip content="Alejar">
-        <Button icon={<IconMinus />} theme="borderless" type="tertiary" aria-label="Alejar" onClick={() => zoomOut({ duration: 150 })} />
+        <Button icon={<IconMinus />} theme="borderless" type="tertiary" aria-label="Alejar" onClick={() => zoomOut({ duration: duracion(150) })} />
       </Tooltip>
       <Tooltip content="Ajustar a la ventana">
         <Button icon={<IconExpand />} theme="borderless" type="tertiary" aria-label="Ajustar a la ventana" onClick={() => fit({ padding: 0.15, duration: 300 })} />
