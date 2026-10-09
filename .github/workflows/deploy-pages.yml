@@ -109,6 +109,10 @@ jobs:
       - name: Comprobar tipos
         run: npm run typecheck
       - name: Pruebas (vitest)
+        # Las pruebas de Postgres arrancan un clúster temporal con los binarios del runner (ver tests/helpers/postgres.ts); con
+        # IARK_REQUIRE_POSTGRES fallan si no los hay, en lugar de omitirse sin probar nada.
+        env:
+          IARK_REQUIRE_POSTGRES: '1'
         run: npx vitest run --reporter=dot
 
   e2e:

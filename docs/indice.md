@@ -39,6 +39,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | Documento | Qué cuenta |
 |---|---|
 | [despliegue-pages.md](despliegue-pages.md) | El sitio estático en GitHub Pages (workflow, rama `gh-pages`, URL). |
+| [postgres.md](postgres.md) | Guardar cuentas y proyectos en Postgres (Supabase y otros): variables de conexión, TLS, esquema propio con seguridad por filas, migraciones y cómo se prueba. |
 | [despliegue-nube.md](despliegue-nube.md) | Guía paso a paso del servicio con servidor: OAuth App de GitHub, DNS, primer arranque, copias de seguridad y actualización. |
 | [`deploy/`](../deploy/README.md) | Los archivos de esa guía: `docker-compose.yml` con Caddy (registros a la salida estándar y `HEALTHCHECK` en `/healthz`), `Caddyfile` y `.env.example`. |
 
