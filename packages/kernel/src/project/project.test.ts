@@ -80,7 +80,7 @@ describe('archivo único del proyecto', () => {
 
   it('exporta los documentos como JSON y deja como texto los que no lo son', async () => {
     const { snapshot } = await build();
-    const bundle = createBundle(snapshot, { now: new Date('2026-10-03T00:00:00Z'), generator: 'IArk - DIAgrams' });
+    const bundle = createBundle(snapshot, { now: new Date('2026-10-03T00:00:00Z'), generator: 'DIAgrams' });
     expect(bundle).toMatchObject({ format: 'iark.project', version: 1, exportedAt: '2026-10-03T00:00:00.000Z', project: { name: 'Tienda', description: 'Pedidos y pagos' } });
     expect(bundle.diagrams.find((d) => d.name === 'Contexto')).toMatchObject({ module: 'c4', document: { workspace: { name: 'Tienda' } } });
     const draft = bundle.diagrams.find((d) => d.name === 'Borrador')!;
@@ -154,7 +154,7 @@ describe('archivo único del proyecto', () => {
   it('rechaza archivos que no son un proyecto, con el motivo', () => {
     const base = { format: 'iark.project', version: 1, project: { name: 'P' }, diagrams: [] };
     expect(() => parseBundle('no es json')).toThrow(/JSON válido/);
-    expect(() => parseBundle(JSON.stringify({ workspace: { name: 'x' } }))).toThrow(/No es un proyecto de IArk/);
+    expect(() => parseBundle(JSON.stringify({ workspace: { name: 'x' } }))).toThrow(/No es un proyecto de DIAgrams/);
     expect(() => parseBundle(JSON.stringify({ ...base, version: 2 }))).toThrow(/versión más nueva/);
     expect(() => parseBundle(JSON.stringify({ ...base, project: {} }))).toThrow(/project\.name/);
     expect(() => parseBundle(JSON.stringify({ ...base, diagrams: [{ id: 'a', module: 'Mal Módulo', name: 'x', document: {} }] }))).toThrow(/módulo inválido/);

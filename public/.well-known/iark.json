@@ -1,6 +1,6 @@
 {
   "schema": "iark.manifest/1",
-  "name": "IArk - DIAgrams",
+  "name": "DIAgrams",
   "version": "0.1.0",
   "protocol": "1.0",
   "modules": [

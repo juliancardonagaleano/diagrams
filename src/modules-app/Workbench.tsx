@@ -236,7 +236,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
             <>
               <h1 className="wb-title">
                 <a className="wb-brand" href="./" title={t('wb.openEditor')}>
-                  IArk - DIAgrams <small>{t('wb.brandSub')}</small>
+                  DIAgrams <small>{t('wb.brandSub')}</small>
                 </a>
               </h1>
               <div className="wb-modules" role="tablist" aria-label={t('wb.modules')} onKeyDown={teclasDePestanas}>

@@ -1,4 +1,4 @@
-# Historial de IArk - DIAgrams
+# Historial de DIAgrams
 
 [← Índice de la documentación](indice.md)
 

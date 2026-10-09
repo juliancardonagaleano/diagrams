@@ -33,7 +33,7 @@ URL de git (--from-repo <url> [--repo-ref <rama|etiqueta>]):
     directorio temporal que se borra siempre al terminar, también si falla o lo interrumpes. Tiempo máximo: 120 s. Después no se
     ejecuta nada del clon: se lee como una carpeta más. Los submódulos no se siguen.
   - Los repositorios privados usan la red y las credenciales que ya tengas en git (gestor de credenciales) y en ssh (claves,
-    ssh-agent, ~/.ssh/config). IArk no las lee, no las guarda ni las muestra, y git no pregunta contraseñas (falla en su lugar).
+    ssh-agent, ~/.ssh/config). DIAgrams no las lee, no las guarda ni las muestra, y git no pregunta contraseñas (falla en su lugar).
   - ${destino}`;
 }
 

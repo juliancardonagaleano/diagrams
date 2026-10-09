@@ -6,7 +6,7 @@ Lo que la gente guarda (archivos `.json` en git, borradores y proyectos en el na
 
 | Versión | Dónde se declara | Forma | Qué pasa si no coincide |
 |---|---|---|---|
-| **Del documento** | `DomainModule.documentVersion` y el campo `version` del documento | `mayor.menor` (`1.0`) | Más antigua: se migra. Más nueva: se rechaza con «actualiza IArk». |
+| **Del documento** | `DomainModule.documentVersion` y el campo `version` del documento | `mayor.menor` (`1.0`) | Más antigua: se migra. Más nueva: se rechaza con «actualiza DIAgrams». |
 | **Del contrato de módulos** | `DomainModule.contractVersion` | entero (`1`) | Mayor que la del anfitrión: el módulo no se carga. |
 | **Del protocolo embebido** | `EMBED_PROTOCOL_VERSION` (`init`, `load` y manifiesto) | `mayor.menor` (`1.0`) | Mayor distinta: error `incompatible-protocol`. Menor distinta: se acepta. |
 
@@ -36,7 +36,7 @@ export const dataModule: DomainModule<DataDocument> = {
 | está en la versión actual | no cambia nada |
 | es de una versión anterior con cadena | los pasos en orden, hasta la actual |
 | es de una versión anterior sin cadena | «La versión X del documento no está soportada por el módulo «id» (versión actual: Y). Hay migraciones desde: …» |
-| es de una versión **más nueva** | «Este documento se creó con una versión más nueva (X) del formato; el módulo «id» entiende hasta la Y. Actualiza IArk para abrirlo.» |
+| es de una versión **más nueva** | «Este documento se creó con una versión más nueva (X) del formato; el módulo «id» entiende hasta la Y. Actualiza DIAgrams para abrirlo.» |
 
 `analyzeValue` y `analyzeText` migran **antes** de validar con el esquema, así que todo lo que pasa por ellos hereda la migración: el banco de trabajo, el servicio HTTP (`POST /api/<módulo>/validate`…), `iark project check`, los borradores del navegador, los proyectos, «Versiones» y las exportaciones. El análisis de un documento migrado trae `migrated: { from, to }` y una incidencia informativa («Documento migrado de la versión X a Y; al guardarlo se escribe en la nueva»). El archivo o el borrador **no se reescriben solos**: se escribe la versión nueva cuando la persona guarda, o con `iark migrate`.
 
@@ -71,7 +71,7 @@ El editor C4 guarda su estado en `localStorage` (`iark-diagrams`) con el `persis
 
 `DomainModule` es un contrato: lo implementan los seis módulos y, en la fase 2 del [plan](roadmap.md), lo implementarán módulos de terceros. `contractVersion` es un **entero** que declara contra qué versión de ese contrato se escribió el módulo (`CONTRACT_VERSION` en `@iark/kernel`, hoy `1`). Omitirlo equivale a `1`; los seis módulos lo declaran con `CONTRACT_VERSION`.
 
-- Un módulo con `contractVersion` **mayor** que el del anfitrión se rechaza al registrarlo (`ModuleRegistry.register`): fue escrito para un contrato que este IArk no conoce y cargarlo a medias sería peor que no cargarlo. El mensaje dice las dos versiones.
+- Un módulo con `contractVersion` **mayor** que el del anfitrión se rechaza al registrarlo (`ModuleRegistry.register`): fue escrito para un contrato que este DIAgrams no conoce y cargarlo a medias sería peor que no cargarlo. El mensaje dice las dos versiones.
 - Uno **menor o igual** se acepta: el contrato crece de forma compatible hacia atrás (campos opcionales nuevos). Si algún día cambia de forma incompatible, `CONTRACT_VERSION` sube y los módulos antiguos dejan de cargar o necesitan un adaptador, pero con un error explícito.
 - Las capacidades (`iark modules --json`, `GET /api/modules`, `init` del protocolo de módulos) y el manifiesto publican el `contractVersion` de cada módulo.
 
@@ -98,4 +98,4 @@ Regenera el manifiesto del sitio con `npm run manifest` (una prueba comprueba qu
 
 ## Qué pasa con una versión más nueva
 
-Tanto un documento como un módulo, un manifiesto o un protocolo **más nuevos** que lo que entiende esta instalación se rechazan con un mensaje que pide actualizar IArk; nunca se leen a medias ni se pierde el original (los archivos no se tocan y lo guardado en el navegador se conserva). La diferencia con lo **más antiguo**: eso sí se intenta llevar a la versión actual, con las migraciones del módulo.
+Tanto un documento como un módulo, un manifiesto o un protocolo **más nuevos** que lo que entiende esta instalación se rechazan con un mensaje que pide actualizar DIAgrams; nunca se leen a medias ni se pierde el original (los archivos no se tocan y lo guardado en el navegador se conserva). La diferencia con lo **más antiguo**: eso sí se intenta llevar a la versión actual, con las migraciones del módulo.

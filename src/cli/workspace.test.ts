@@ -647,7 +647,7 @@ describe('FolderProjectStore: historial de versiones en disco', () => {
     await store.saveDiagram(p.id, { id: d.id, text: 'dos' });
     await store.deleteDiagram(p.id, d.id);
     expect(existsSync(historyOf(root, p.id, d.id))).toBe(false);
-    // restos de un historial anterior (un borrado a mano del diagrama, sin pasar por IArk)
+    // restos de un historial anterior (un borrado a mano del diagrama, sin pasar por DIAgrams)
     mkdirSync(historyOf(root, p.id, 'd'), { recursive: true });
     writeFileSync(join(historyOf(root, p.id, 'd'), '000007.json'), 'resto');
     const again = await store.saveDiagram(p.id, { module: 'c4', name: 'D', text: 'nuevo' });

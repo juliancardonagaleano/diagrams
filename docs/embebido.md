@@ -58,7 +58,7 @@ Los documentos que llegan por `load` y `merge` pasan por las migraciones del mó
 ```html
 <div id="editor" style="height: 100vh"></div>
 <script type="module">
-  import { createIarkEmbed } from 'iark-diagrams/embed'; // o dist/embed/iark-embed.global.js → window.IArkEmbed
+  import { createIarkEmbed } from 'diagrams/embed'; // o dist/embed/iark-embed.global.js → window.IArkEmbed
   const embed = createIarkEmbed({
     container: '#editor',
     url: 'https://mi-servidor/diagramador/',
@@ -89,7 +89,7 @@ Es el protocolo del editor C4 con dos añadidos: el `init` lleva el `capabilitie
 - **`ui=min`** oculta la marca y las pestañas de módulos pero conserva las acciones.
 
 ```js
-import { createIarkModuleEmbed } from 'iark-diagrams/embed'; // o dist/embed/iark-embed.global.js → window.IArkEmbed.createIarkModuleEmbed
+import { createIarkModuleEmbed } from 'diagrams/embed'; // o dist/embed/iark-embed.global.js → window.IArkEmbed.createIarkModuleEmbed
 const embed = createIarkModuleEmbed({
   container: '#panel',
   url: 'https://mi-servidor/diagramador/modulos.html', // o el `endpoints.embed` del manifiesto
@@ -114,7 +114,7 @@ Las acciones que esperan respuesta (`load`, `export`, `validate`, `run`, `capabi
 <script>document.querySelector('iark-module').document = miDocumento;</script>
 ```
 
-Atributos: `manifest` (descubre el editor del módulo en la instancia) o `src` (URL directa de `modulos.html`), `module`, `theme`, `lang`, `ui`, `readonly`, `autosave`, `view`. El documento va por la propiedad `document` (objeto o JSON). Eventos DOM: `iark-init`, `iark-load`, `iark-change`, `iark-view-change`, `iark-save`, `iark-exit`, `iark-error`, `iark-result`. Métodos: `export`, `run`, `validate`, `capabilities`, `setView`, `save`; esperan a que el widget esté listo. Demo: [`examples/web-component-host.html`](../examples/web-component-host.html). Se empaqueta como `dist/embed/iark-module-element.{js,global.js}` y como el subpath `iark-diagrams/element`.
+Atributos: `manifest` (descubre el editor del módulo en la instancia) o `src` (URL directa de `modulos.html`), `module`, `theme`, `lang`, `ui`, `readonly`, `autosave`, `view`. El documento va por la propiedad `document` (objeto o JSON). Eventos DOM: `iark-init`, `iark-load`, `iark-change`, `iark-view-change`, `iark-save`, `iark-exit`, `iark-error`, `iark-result`. Métodos: `export`, `run`, `validate`, `capabilities`, `setView`, `save`; esperan a que el widget esté listo. Demo: [`examples/web-component-host.html`](../examples/web-component-host.html). Se empaqueta como `dist/embed/iark-module-element.{js,global.js}` y como el subpath `diagrams/element`.
 
 ## Idioma
 

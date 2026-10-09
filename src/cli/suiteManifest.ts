@@ -1,6 +1,6 @@
 import { buildManifest, type ModuleManifest, type ModuleRegistry, type ProjectsAuth, type SuiteManifest } from '@iark/kernel';
 
-export const SUITE_NAME = 'IArk - DIAgrams';
+export const SUITE_NAME = 'DIAgrams';
 
 /** Módulos cuyo editor propio es la aplicación principal (`index.html`); el resto los abre el banco de trabajo (`modulos.html`). */
 const OWN_EDITOR = new Set(['c4']);

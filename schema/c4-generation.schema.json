@@ -1,5 +1,5 @@
 {
-  "$id": "https://github.com/juliancardonagaleano/iark-diagrams/schema/c4-generation.schema.json",
+  "$id": "https://github.com/juliancardonagaleano/DIAgrams/schema/c4-generation.schema.json",
   "title": "Modelo C4 sin coordenadas (salida de IA)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",

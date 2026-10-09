@@ -122,7 +122,7 @@ export function migrateValue(source: MigrationSource, value: unknown): Migration
   if (order > 0) {
     return {
       status: 'unsupported',
-      message: `Este documento se creó con una versión más nueva (${declared}) del formato; el módulo «${source.id}» entiende hasta la ${source.documentVersion}. Actualiza IArk para abrirlo.`,
+      message: `Este documento se creó con una versión más nueva (${declared}) del formato; el módulo «${source.id}» entiende hasta la ${source.documentVersion}. Actualiza DIAgrams para abrirlo.`,
     };
   }
 

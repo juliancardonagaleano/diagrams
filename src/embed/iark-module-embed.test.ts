@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createIarkModuleEmbed } from './iark-module-embed';
 import { MODULE_PROTOCOL_VERSION, parseModuleAction, type SuiteCapabilitiesInfo } from './moduleProtocol';
 
-const capabilities: SuiteCapabilitiesInfo = { protocol: MODULE_PROTOCOL_VERSION, suite: 'IArk - DIAgrams', available: ['data', 'security'], modules: [] };
+const capabilities: SuiteCapabilitiesInfo = { protocol: MODULE_PROTOCOL_VERSION, suite: 'DIAgrams', available: ['data', 'security'], modules: [] };
 
 function fromIframe(iframe: HTMLIFrameElement, data: unknown, origin = 'http://localhost') {
   window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data), source: iframe.contentWindow, origin }));

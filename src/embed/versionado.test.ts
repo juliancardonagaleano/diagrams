@@ -15,7 +15,7 @@ import { parseHostAction, PROTOCOL_VERSION } from './protocol';
  * lado la compara con la suya (`negotiateProtocol`). Una diferencia de MAYOR se avisa con un `error` de código
  * `incompatible-protocol` en vez de funcionar a medias; una de menor se acepta; un lado sin versión habla 1.0.
  */
-const capabilities: SuiteCapabilitiesInfo = { protocol: MODULE_PROTOCOL_VERSION, suite: 'IArk - DIAgrams', available: ['data'], modules: [] };
+const capabilities: SuiteCapabilitiesInfo = { protocol: MODULE_PROTOCOL_VERSION, suite: 'DIAgrams', available: ['data'], modules: [] };
 
 function fromIframe(iframe: HTMLIFrameElement, data: unknown, origin = 'http://localhost') {
   window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data), source: iframe.contentWindow, origin }));
