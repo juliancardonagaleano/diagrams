@@ -90,13 +90,15 @@ Si tu rama todavía no los trae (se añaden en otra PR del mismo plan de robuste
 
 Cada especialidad es un paquete `@iark/domain-*` que implementa `DomainModule`. El contrato completo, con comentarios, está en [`packages/kernel/src/module/types.ts`](packages/kernel/src/module/types.ts) (y el del editor interactivo en `packages/kernel/src/module/editor.ts`). En resumen:
 
-1. Crea `packages/domain-<nombre>/` con su `package.json` (copia el de un módulo existente, p. ej. `packages/domain-security/`: `@iark/kernel` y `zod` como dependencias, y cualquier otra librería que importe, con la misma versión que la raíz).
+1. Crea `packages/domain-<nombre>/` con su `package.json` (copia el de un módulo existente, p. ej. `packages/domain-security/`: `@iark/kernel` y `zod` como dependencias, y cualquier otra librería que importe, con la misma versión que la raíz). Copia también sus campos de publicación (`license`, `repository`, `files`, `exports` hacia `src/*.ts` y `publishConfig.exports` hacia `dist`, el script `prepack`): `tests/paquetes.test.ts` y `npm run packages:build` los exigen a todo paquete de `packages/*`.
 2. Define el esquema (zod), las reglas de validación, las vistas, los importadores y exportadores, la especificación de IA y, si tiene lienzo, la de editor; exporta el módulo desde `src/index.ts`.
 3. Regístralo donde ya están los demás. Hoy: el alias en `tsconfig.base.json`, `src/cli/registry.ts` (`createDefaultRegistry`), `src/modules-app/modules.ts` (el banco de trabajo), `scripts/generate-schema.ts` y un ejemplo en `examples/`. Busca con `grep -rn domain-security` dónde aparece un módulo existente y repite el patrón.
 4. Regenera `npm run schema` y `npm run manifest`.
 5. Escribe las pruebas del módulo junto a su código y comprueba que `tests/dependencias-paquetes.test.ts` y `tests/manifest.test.ts` siguen pasando.
 
 No hay una guía paso a paso más detallada que esta: ante la duda, mira cómo está hecho el módulo existente más parecido y pregunta en el issue o la PR.
+
+**¿Una especialidad que no tiene por qué vivir en este repositorio?** Escríbela como un [módulo de terceros](docs/plugins.md): un paquete aparte que implementa el mismo contrato y se carga con `iark.config.json`, sin tocar nada de lo anterior. [`examples/plugin-riesgos/`](examples/plugin-riesgos/) es un ejemplo completo. Si cambias el contrato (`packages/kernel/src/module/types.ts`) o la comprobación de la forma (`plugin.ts`), revisa que el ejemplo y `tests/plugins-cli.test.ts` sigan pasando.
 
 ## Seguridad
 

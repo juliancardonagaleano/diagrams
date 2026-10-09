@@ -19,11 +19,21 @@ iark auth     create|list|revoke   # tokens de acceso de `iark serve --tokens` (
 iark trace    <módulo=archivo>... [--from <módulo:id>] [--direction refs|referrers|both] [--depth n] [--format markdown|mermaid|svg|json] [--strict] [--out archivo]   # trazabilidad entre módulos (ver trazabilidad.md)
 iark serve    [--static dist/app] [--port 8787] [--host 127.0.0.1] [--cors <orígenes>] [--workspace <carpeta>] [--tokens <archivo> | --accounts <archivo> …]   # servicio HTTP (ver servicio.md)
 iark <módulo> <comando>   # comandos propios de cada módulo (p. ej. `iark integration catalog`)
+
+# Opciones globales (valen antes o después del comando)
+iark --config <archivo> …   # carga los módulos de terceros de ese iark.config.json (o la variable IARK_CONFIG)
+iark --no-config …          # no carga ninguno (o IARK_NO_CONFIG=1); por omisión se carga el iark.config.json del directorio actual, si existe
 ```
 
-`generate`, `import`, `convert`, `validate`, `migrate`, `schema`, `prompt` y `diff` aceptan `--module <id>` para trabajar con cualquier módulo de la suite (por defecto `c4`); `iark modules` lista los instalados y sus formatos de importación y exportación. Además de Mermaid, cada módulo puede importar formatos propios (`--format <id>`, o `auto` para deducirlo de la extensión y del contenido): Terraform y Kubernetes en plataforma, DDL de SQL y dbt en datos y ArchiMate en empresarial (ver [Importar y exportar](importadores.md)). Es `--format`, no `--from`: `--from` solo existe en `generate` y `prompt`.
+`generate`, `import`, `convert`, `validate`, `migrate`, `schema`, `prompt` y `diff` aceptan `--module <id>` para trabajar con cualquier módulo de la suite (por defecto `c4`); `iark modules` lista los instalados, de dónde vienen (`incorporado` o el módulo de terceros que los aporta), sus versiones de contrato y de documento y sus formatos de importación y exportación. Además de Mermaid, cada módulo puede importar formatos propios (`--format <id>`, o `auto` para deducirlo de la extensión y del contenido): Terraform y Kubernetes en plataforma, DDL de SQL y dbt en datos y ArchiMate en empresarial (ver [Importar y exportar](importadores.md)). Es `--format`, no `--from`: `--from` solo existe en `generate` y `prompt`.
 
 En desarrollo: `npm run cli -- <comando>`; tras `npm run build`: `node dist/cli/index.js` o `npx iark` si el paquete está instalado. La generación con IA (`generate`, `prompt`, `--from-repo`) tiene su propia página: [IA](ia.md); la trazabilidad, [Trazabilidad entre módulos](trazabilidad.md).
+
+## Módulos de terceros (`--config` y `iark.config.json`)
+
+Además de los seis módulos incorporados, el CLI carga los que nombre un `iark.config.json` (solo JSON: `{ "modules": ["./index.mjs", "@acme/iark-module-riesgos"], "defaultModule": "risk" }`). Un módulo de terceros se usa como cualquier otro: `--module risk`, `iark import`, `iark trace`, `iark modules` y los comandos que aporte (`iark risk top`). La configuración se elige así: `--no-config` o `IARK_NO_CONFIG=1` (ninguna); `--config <archivo>` o `IARK_CONFIG`; el `iark.config.json` del directorio actual (no se busca en las carpetas padre); si no, ninguna. Cada módulo cargado se anota en la salida de errores (`Módulo de terceros cargado: risk ← ./index.mjs (contrato 1, documento 1.0)`) y cualquier fallo al cargarlo termina con código 2 nombrando el especificador.
+
+Cargar un módulo ejecuta su código con los permisos del proceso, así que **nunca** se carga la configuración de un proyecto clonado (`--from-repo`) ni de un espacio de trabajo (`--workspace`). Guía completa, ejemplo y seguridad: [Módulos de terceros](plugins.md).
 
 ## Documentos de una versión anterior del formato (`iark migrate`)
 

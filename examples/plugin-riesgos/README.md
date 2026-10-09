@@ -9,6 +9,7 @@ iark validate --module risk riesgos.json
 iark convert --module risk riesgos.json --to md
 iark import --module risk riesgos.csv
 iark risk top riesgos.json -n 3
+iark trace c4=../banca.json risk=riesgos.json
 ```
 
-Hace falta que `@iark/kernel` y `zod` se puedan resolver desde esta carpeta (`npm install @iark/kernel zod`). Guía completa, paso a paso: [docs/plugins.md](../../docs/plugins.md).
+Dentro del repositorio, `npm install` en la raíz basta y el CLI de desarrollo hace de `iark`: `npx tsx ../../src/cli/index.ts modules`. Con el CLI instalado, `@iark/kernel` y `zod` tienen que poder resolverse desde esta carpeta (`npm install @iark/kernel zod`; mientras `@iark/kernel` no esté publicado en npm, desde el tarball de `npm run packages:build`, ver la guía). Guía completa, paso a paso: [docs/plugins.md](../../docs/plugins.md).
