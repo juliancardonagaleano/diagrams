@@ -19,7 +19,7 @@ curl -X POST 'localhost:8787/api/security/export?format=svg&view=dfd' -d @exampl
 | `GET /.well-known/iark.json` · `GET /api/modules` | Manifiesto de la instancia y capacidades de los módulos |
 | `GET /api/<módulo>/capabilities` · `/schema[?kind=generation]` | Formatos, informes, vistas de traza; JSON Schema del documento o de la salida de IA |
 | `POST /api/<módulo>/validate` · `/views` · `/export?format=&view=` | Cuerpo: el documento JSON |
-| `POST /api/<módulo>/import?importer=&name=` | Cuerpo: texto (Mermaid, Terraform, Kubernetes, DDL, dbt, ArchiMate según el módulo) → documento y avisos |
+| `POST /api/<módulo>/import?importer=&name=` | Cuerpo: texto (Mermaid, OpenAPI, AsyncAPI, Threat Dragon, Terraform, Kubernetes, CloudFormation, Helm, DDL, dbt, OpenLineage, ArchiMate, BPMN según el módulo) → documento y avisos |
 | `POST /api/<módulo>/diff` | Cuerpo `{ before, after }` (dos documentos del módulo) → lo añadido, quitado, modificado y reordenado |
 | `POST /api/<módulo>/run/<comando>` | Cuerpo `{ input?, args?, options? }` → informe o conversión |
 | `POST /api/trace` | Cuerpo `{ documents: [{ module, document }], from?, direction?, depth?, types?, orphans?, matrix?, coverage? }` → grafo de trazabilidad (con el tipo de cada enlace); `types` (`["implements"]`) mira solo esos enlaces, y `orphans` (`true`, `"módulo"` o `"módulo:tipo"`), `matrix` (`"module"` o `"kind"`) y `coverage` (`["security:asset -> platform"]`) añaden huérfanos, matriz y cobertura (ver [Trazabilidad](trazabilidad.md)) |

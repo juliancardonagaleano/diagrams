@@ -72,3 +72,37 @@ iark convert   datos.json --module data --out glosario.svg  --view glossary
 ```
 
 En Mermaid un producto, una API y un término llevan su clase (`:::dataProduct`, `:::dataApi`, `:::term`; el glosario es un `subgraph` titulado «Glosario: …»), y las flechas se etiquetan «entrada», «salida», «expuesto en» y «define · columna». `iark import` los reconoce (también con los nombres en español) y los devuelve como productos, APIs, términos, puertos, exposiciones y enlaces, no como pipelines. La salida estructurada de `iark generate` incluye los tres tipos y los `terms`; el contrato de un producto o una API se escribe en `contracts` y se enlaza con `contractId`, como el de cualquier activo.
+
+## Importar OpenLineage
+
+`--format openlineage|auto` (también en la pestaña «Importar» y con «Abrir archivo…»). [OpenLineage](https://openlineage.io) es el estándar abierto de linaje que emiten Airflow, Spark, Flink, dbt y otros: es lo que ocurrió de verdad en tu plataforma, en vez de lo que alguien dibujó. Se acepta un evento (JSON), una lista de eventos (JSON) o un evento por línea (NDJSON o `.jsonl`, como los guardan Marquez y los transportes a archivo); `auto` lo reconoce por el contenido (un evento con `eventTime` y `producer`).
+
+| OpenLineage | Documento de datos |
+|---|---|
+| `job` (`namespace` + `name`) | un pipeline por job (todas sus ejecuciones se unen); `jobType` y `processing_engine` dan su tipo (streaming, ELT, por lotes) y su herramienta |
+| `inputs` y `outputs` de sus eventos | entradas y salidas del pipeline |
+| `namespace` de un dataset (`postgres://…`, `snowflake://…`, `s3://…`, `kafka://…`) | su contenedor: base de datos, almacén, lago o fuente según la plataforma; un topic de Kafka o similar es un `stream` suelto |
+| `name` de un dataset | tabla (o archivo, en un lago) con ese nombre, dentro de su contenedor |
+| facet `schema` | columnas con nombre, tipo y descripción |
+| facet `columnLineage` | mapeos de columna a columna del pipeline (la transformación va en `transform`) |
+| facets `documentation`, `ownership` y `storage` | descripción, responsable y tecnología del activo o del pipeline |
+
+Lo que el importador decide y avisa: los eventos `FAIL` y `ABORT` no cuentan (una ejecución fallida no da linaje fiable) y un job que solo falló no se importa; un job sin entradas o sin salidas no puede ser un pipeline (el módulo exige al menos una de cada), así que no se importa aunque sus datasets sí; un dataset que el job lee y escribe se quita de sus entradas (un pipeline no puede leer y escribir el mismo activo); los mapeos de columna cuyo origen no es una entrada del job se descartan; y los facets sin correspondencia (consultas SQL, estadísticas, calidad, tiempos de ejecución…) se cuentan en un solo aviso. **No se deduce nada de gobierno** (clasificación, datos personales, retención): solo el responsable que declare el facet `ownership`. El motor de base de datos tampoco se deduce del namespace, porque los tipos de columna de OpenLineage mezclan el vocabulario del motor y el de Spark: se lee como tecnología.
+
+```console
+$ iark import eventos-tienda.json --module data --format openlineage --out datos.json
+aviso: 1 evento(s) FAIL o ABORT no cuentan para el linaje: una ejecución fallida no da linaje fiable.
+aviso: 1 job(s) solo tienen ejecuciones fallidas o abortadas y no se importan: «etl_diario.limpiar_temporales».
+aviso: 1 evento(s) de dataset (DatasetEvent, sin «job») no se importan: solo aportan datasets cuando un job los lee o escribe.
+aviso: 1 job(s) no se importan como pipeline porque necesitan al menos una entrada y una salida: auditar.revisar_pedidos (no escribe ningún dataset). Sus datasets sí se importan como activos.
+aviso: 1 job(s) leen y escriben el mismo dataset («compactar_pedidos»): se quita de sus entradas, porque un pipeline no puede leer y escribir el mismo activo.
+aviso: 1 mapeo(s) de columna se descartan porque su origen no es una entrada del job o su destino no es una de sus salidas (p. ej. linaje indirecto de otro namespace).
+aviso: Facets sin correspondencia en el modelo, que no se importan: nominalTime (ejecución) ×2, sql (job) ×2.
+Importado "eventos-tienda" en el módulo data: 14 elementos, 7 aviso(s).
+Documento del módulo data escrito en datos.json
+$ iark validate datos.json --module data
+…
+Documento válido (módulo data). 0 error(es), 1 aviso(s), 13 nota(s).
+```
+
+Los archivos de ejemplo, [`eventos-tienda.json`](../../tests/fixtures/importar/openlineage/eventos-tienda.json) (una lista de eventos de Airflow y Spark) y [`pagos-flink.ndjson`](../../tests/fixtures/importar/openlineage/pagos-flink.ndjson) (dos eventos de Flink, uno por línea), están escritos para las pruebas. El linaje de lo importado se consulta como el de cualquier documento: `iark data lineage <activo> datos.json`.

@@ -2,7 +2,7 @@
 
 **Suite de diagramación de arquitectura**: seis especialidades (C4, integración, datos, empresarial, plataforma y seguridad) sobre un núcleo común, **federada y embebible**, con un CLI (`iark`) que dibuja y refina diagramas con IA. Antes «Diagramador C4»; el comando `c4diagram` se mantiene como alias de `iark`.
 
-- **Un JSON limpio y estable por módulo**, con esquema publicado ([`schema/`](schema/)) y sin coordenadas: la IA produce el modelo y el autolayout (ELK) produce la geometría. Se convierte a **`.drawio`**, **SVG** y **Mermaid**, y se importa desde `.drawio`, DSL de Structurizr, Mermaid, Terraform, Kubernetes, DDL de SQL, dbt y ArchiMate, según el módulo.
+- **Un JSON limpio y estable por módulo**, con esquema publicado ([`schema/`](schema/)) y sin coordenadas: la IA produce el modelo y el autolayout (ELK) produce la geometría. Se convierte a **`.drawio`**, **SVG** y **Mermaid**, y se importa desde `.drawio`, DSL de Structurizr, Mermaid, OpenAPI, AsyncAPI, Threat Dragon, Terraform, Kubernetes, CloudFormation, Helm, DDL de SQL, dbt, OpenLineage, ArchiMate y BPMN, según el módulo.
 - **Editor web interactivo** del modelo C4 (con la estética de [drawdb.app](https://www.drawdb.app/)) y un **banco de trabajo** con lienzo propio para las otras cinco especialidades.
 - **CLI `iark`**: genera con IA a partir de lenguaje natural (o leyendo un repositorio), valida, aplica autolayout, convierte, importa, compara versiones y traza entre módulos. Sin clave de API sirve con cualquier IA o agente (`iark prompt`).
 - **Federada y embebible**: cada instancia publica un manifiesto (`/.well-known/iark.json`) y se embebe por `<iframe>` + `postMessage`, con un SDK de anfitrión y el Web Component `<iark-module>`.
