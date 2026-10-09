@@ -66,9 +66,11 @@ services:
       IARK_ADMINS: "${IARK_ADMINS:?Falta IARK_ADMINS en deploy/.env (tu identificador numérico de GitHub; ver la guía)}"
       # «invite» (por omisión): solo entran las personas invitadas y los administradores. «open»: entra cualquiera con cuenta de GitHub.
       IARK_SIGNUP: "${IARK_SIGNUP:-invite}"
-      # Vacío = lo que decide el servicio (30 días de sesión y 25 proyectos por persona).
+      # Vacío = lo que decide el servicio (30 días de sesión; por persona, 25 proyectos, 200 diagramas por proyecto y 256M de espacio).
       IARK_SESSION_DAYS: "${IARK_SESSION_DAYS:-}"
       IARK_MAX_PROJECTS: "${IARK_MAX_PROJECTS:-}"
+      IARK_MAX_DIAGRAMS: "${IARK_MAX_DIAGRAMS:-}"
+      IARK_MAX_BYTES: "${IARK_MAX_BYTES:-}"
       # Solo con GitHub Enterprise Server: su dirección y su API (vacío = github.com).
       IARK_GITHUB_URL: "${IARK_GITHUB_URL:-}"
       IARK_GITHUB_API_URL: "${IARK_GITHUB_API_URL:-}"

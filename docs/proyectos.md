@@ -72,7 +72,9 @@ Los errores de uso (proyecto o diagrama que no existe, nombre repetido, document
 | `POST /api/projects/import[?name=]` | Cuerpo: ese archivo → crea un proyecto nuevo (201) |
 | `GET /api/projects/<p>/check` | La comprobación del proyecto (`checkProject`) |
 
-Códigos: `not-found` 404, `exists` 409, `conflict` 409, `invalid` 400, `limit` 409 (tope de versiones con nombre), `unsupported` 501 (almacén sin historial), `unavailable` 500; el cuerpo es `{ "error": "…", "code": "…" }`. Un cuerpo que pasa de `maxBodyBytes` (5 MB) da 413.
+Códigos: `not-found` 404, `exists` 409, `conflict` 409, `invalid` 400, `limit` 409 (tope de versiones con nombre; con `--accounts`, también las [cuotas de uso](cuentas-github.md#cuotas-de-uso): proyectos por persona, diagramas por proyecto y espacio, con `quota`, `used` y `limit` en el cuerpo), `unsupported` 501 (almacén sin historial), `unavailable` 500; el cuerpo es `{ "error": "…", "code": "…" }`. Un cuerpo que pasa de `maxBodyBytes` (5 MB) da 413.
+
+**Cuotas** (solo con `--accounts`): crear o importar un proyecto, crear un diagrama y guardar uno pueden responder `409 limit` si la persona que posee el proyecto llegó a su tope; borrar, renombrar, restaurar versiones y guardar sin crecer no se rechazan nunca. `GET /api/usage` dice cuánto usa quien pregunta y cuánto puede usar. Qué se cuenta, a quién se cobra, los topes y sus límites: [Cuotas de uso](cuentas-github.md#cuotas-de-uso).
 
 **Seguridad (sin `--tokens`: solo para una persona, en su máquina).** `iark serve` escucha en localhost y una página ajena abierta en el navegador podría intentar leer o escribir en el disco del usuario a través de él. En las rutas de proyectos (y solo en ellas):
 
@@ -95,7 +97,7 @@ Cada guardado de un diagrama deja una **versión**: una copia inmutable de su do
 - **Quién guarda** lo decide el servidor, nunca el cuerpo de la petición: el nombre del token (`--tokens`) o `@usuario` de GitHub (`--accounts`). En la carpeta de trabajo con el CLI, sin identidad, `savedBy` no se anota.
 - **Restaurar** guarda el contenido de la versión como una **versión nueva** (`restoredFrom` apunta a la original): el historial anterior no se toca, así que restaurar se deshace restaurando la versión que había antes. Si el diagrama ya tiene ese contenido no se guarda nada (`unchanged: true`). Con `ifUpdatedAt` falla con `conflict` si otra persona guardó el diagrama en medio, como cualquier guardado.
 - **Un almacén que no guarda historial lo declara** (`keepsVersions: false`, o el servidor responde 501 `unsupported`) y la interfaz no ofrece «Historial…»: el diagrama se guarda con normalidad.
-- **Cuotas.** Todavía no hay límite de bytes por proyecto ni por persona. El gancho existe: `versionUsage(proyecto)` devuelve `{ versions, bytes }` (la suma de `size` de todas las versiones) para que una política futura de cuotas lo cuente junto con el resto del proyecto.
+- **Cuotas.** El historial **cuenta para la cuota de espacio** de quien posee el proyecto: `versionUsage(proyecto)` devuelve `{ versions, bytes }` (la suma de `size` de todas las versiones) y el servicio con cuentas lo suma a los documentos actuales ([Cuotas de uso](cuentas-github.md#cuotas-de-uso)). Restaurar y borrar versiones con nombre nunca se rechazan por cuota (borrar libera espacio; restaurar queda acotado por la rotación). Sin cuentas (la carpeta con el CLI, o `--tokens`) no hay cuotas y el historial solo lo acotan sus topes de versiones.
 
 ### Dónde se guarda
 
@@ -158,7 +160,7 @@ En lugar de un número, `diff` acepta `actual` (el contenido de ahora). Todos ac
 
 ### Límites
 
-- Sin edición simultánea en tiempo real, sin cola sin conexión y sin cuotas: el historial se guarda cuando el guardado llega al almacén.
+- Sin edición simultánea en tiempo real y sin cola sin conexión: el historial se guarda cuando el guardado llega al almacén. Las cuotas de espacio (solo con cuentas) cuentan el historial: [Cuotas de uso](cuentas-github.md#cuotas-de-uso).
 - El historial no viaja con el proyecto (exportar, importar, copiar) ni se mezcla entre almacenes.
 - Un servidor que no es el de esta versión no ofrece historial (501 / 404): la interfaz lo dice al abrir «Historial…» y el resto sigue como siempre.
 - Comparar compara el documento entero de cada módulo; no hay comparación de tres vías ni fusión.
@@ -237,7 +239,7 @@ Con un servidor, la barra del proyecto del banco y el chip del editor dicen «Gu
   Sin red no se puede decidir (hace falta leer el servidor) y no se pierde nada. Un diagrama borrado en el servidor se ofrece como «Descartar la mía» o copia.
 - **Pruebas.** `src/projects/offlineQueue.test.ts` y `session.offline.test.ts` (cola, reintentos con reloj simulado, conflicto y sus tres salidas, 401/403/429, identidad) y `tests/e2e/projects-cloud-offline.spec.ts` (Chromium con `context.setOffline(true)` contra un `iark serve` real: corte y recuperación, recarga con pendientes, token rechazado, conflicto, pantalla estrecha y editor C4).
 
-Límites de este trabajo sin conexión: la **lista y la apertura de proyectos siguen necesitando al servidor** (una página que arranca sin red muestra el servidor como no disponible y no reabre sola el proyecto cuando vuelve: recarga con conexión), dos pestañas que editan el mismo diagrama sin red pueden acabar en un conflicto, cada envío es el documento entero y la cola no sustituye a una copia de seguridad (es la de un solo navegador). No es edición en tiempo real, ni cuotas, ni historial de versiones.
+Límites de este trabajo sin conexión: la **lista y la apertura de proyectos siguen necesitando al servidor** (una página que arranca sin red muestra el servidor como no disponible y no reabre sola el proyecto cuando vuelve: recarga con conexión), dos pestañas que editan el mismo diagrama sin red pueden acabar en un conflicto, cada envío es el documento entero y la cola no sustituye a una copia de seguridad (es la de un solo navegador). No es edición en tiempo real ni historial de versiones. Con cuotas ([Cuotas de uso](cuentas-github.md#cuotas-de-uso)), un guardado en cola que el servidor rechaza por superar el tope no se pierde ni se reintenta en bucle: queda aparcado como «rechazado», con el mensaje del servidor, y se puede conservar, copiar a un diagrama nuevo o descartar.
 
 **5. Límites reales.**
 
