@@ -3,7 +3,9 @@
 [← Índice de la documentación](indice.md)
 
 ```
-iark generate "<instrucción>" [--from base.json] [--from-repo <carpeta|url>] [--out d.drawio] [--json d.json] [--model claude-opus-5] [--effort high] [--direction DOWN]
+iark generate "<instrucción>" [--from base.json] [--from-repo <carpeta|url>] [--out d.drawio] [--json d.json] [--model claude-opus-5] [--effort high] [--direction DOWN] [--retries n] [--no-verify] [--allow-invalid] [--strict] [--max-tokens n] [--budget-tokens n] [--max-input-tokens n]
+iark explain  [archivo | --stdin] [--module id] [--lang es|en] [--out explicacion.md] [--provider p] [--model m] [--max-tokens n] [--budget-tokens n] [--max-input-tokens n]
+iark review   [archivo | --stdin] [--module id] [--lang es|en] [--out revision.md]   # como explain, pero pasa al modelo las incidencias de validate()
 iark layout   [archivo.json | --stdin] [--out out.json] [--direction auto|down|right|left|up] [--distribution auto|centered|elk] [--density auto|compact|spacious] [--fast] [--force] [--view id]
 iark convert  [archivo.json | --stdin] [--out out.drawio] [--notation c4|card] [--no-waypoints] [--locale es|en] [--view id...]
 iark import   [archivo.drawio|archivo.dsl|archivo.mmd|… | --stdin] [--format auto|drawio|dsl|mermaid|<importador del módulo>] [--out out.json] [--name nombre] [--layout]
@@ -20,9 +22,11 @@ iark serve    [--static dist/app] [--port 8787] [--host 127.0.0.1] [--cors <orí
 iark <módulo> <comando>   # comandos propios de cada módulo (p. ej. `iark integration catalog`)
 ```
 
-`generate`, `import`, `convert`, `validate`, `schema`, `prompt` y `diff` aceptan `--module <id>` para trabajar con cualquier módulo de la suite (por defecto `c4`); `iark modules` lista los instalados y sus formatos de importación y exportación. Además de Mermaid, cada módulo puede importar formatos propios (`--format <id>`, o `auto` para deducirlo de la extensión y del contenido): Terraform y Kubernetes en plataforma, DDL de SQL y dbt en datos y ArchiMate en empresarial (ver [Importar y exportar](importadores.md)). Es `--format`, no `--from`: `--from` solo existe en `generate` y `prompt`.
+`generate`, `explain`, `review`, `import`, `convert`, `validate`, `schema`, `prompt` y `diff` aceptan `--module <id>` para trabajar con cualquier módulo de la suite (por defecto `c4`); `iark modules` lista los instalados y sus formatos de importación y exportación. Además de Mermaid, cada módulo puede importar formatos propios (`--format <id>`, o `auto` para deducirlo de la extensión y del contenido): Terraform y Kubernetes en plataforma, DDL de SQL y dbt en datos y ArchiMate en empresarial (ver [Importar y exportar](importadores.md)). Es `--format`, no `--from`: `--from` solo existe en `generate` y `prompt`.
 
-En desarrollo: `npm run cli -- <comando>`; tras `npm run build`: `node dist/cli/index.js` o `npx iark` si el paquete está instalado. La generación con IA (`generate`, `prompt`, `--from-repo`) tiene su propia página: [IA](ia.md); la trazabilidad, [Trazabilidad entre módulos](trazabilidad.md).
+En desarrollo: `npm run cli -- <comando>`; tras `npm run build`: `node dist/cli/index.js` o `npx iark` si el paquete está instalado. La IA (`generate`, `explain`, `review`, `prompt`, `--from-repo`) tiene su propia página: [IA](ia.md); la trazabilidad, [Trazabilidad entre módulos](trazabilidad.md).
+
+**Códigos de salida de la IA.** `generate` ahora **verifica el resultado con `validate()` del módulo** y reintenta por sus errores (`--no-verify` lo desactiva, `--allow-invalid` acepta el documento aunque siga con errores, `--strict` también devuelve los avisos). Códigos: `0` bien; `2` uso incorrecto o prompt demasiado grande para `--max-input-tokens`; `3` el documento incumple las reglas del módulo tras los reintentos; `4` otro error del modelo (credenciales, respuesta cortada por `--max-tokens`, presupuesto `--budget-tokens` agotado). Los tres topes están en tokens, sin precios, y también se leen de `IARK_AI_MAX_TOKENS`, `IARK_AI_BUDGET_TOKENS` e `IARK_AI_MAX_INPUT_TOKENS` (ver [IA](ia.md#topes-de-tokens-sin-precios)).
 
 ## Comparar versiones de un diagrama (`iark diff`)
 

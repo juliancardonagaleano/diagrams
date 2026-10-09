@@ -6,6 +6,25 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 
 - Cambios de la fase 1 del plan de robustecimiento en curso.
 
+### Añadido
+
+**IA: verificación, topes y evals (fase 3, acción 9)**
+
+- `iark generate` **verifica lo generado con `validate()` del módulo** (con las tres plataformas: `anthropic`, `foundry` y `openai`) y reintenta devolviéndole al modelo los errores de las reglas, además de los del esquema. `--no-verify` lo desactiva, `--allow-invalid` acepta el documento aunque siga con errores, y `--strict` también devuelve los avisos. El informe dice cuántos reintentos fueron por el esquema y cuántos por las reglas.
+- **Topes de tokens, sin precios**: `--max-tokens` (salida por llamada, 16.000 por omisión), `--budget-tokens` (total sumado en los reintentos, 200.000) y `--max-input-tokens` (rechaza antes de llamar un prompt estimado mayor, 100.000), o `IARK_AI_MAX_TOKENS`, `IARK_AI_BUDGET_TOKENS` e `IARK_AI_MAX_INPUT_TOKENS`. Con `--from-repo`, el rechazo dice qué recortar; `--dry-run` y `prompt` informan del tamaño estimado. Informe de tokens por intento y totales.
+- **`iark explain` y `iark review`**: explican o revisan en Markdown un diagrama de cualquier módulo (`--module`, `--lang es|en`, `--out`, `--stdin`, y las opciones de plataforma, modelo y presupuesto); `review` pasa al modelo las incidencias de `validate()`. `AiSpec` gana tres campos opcionales (`serialize`, `explainGuide`, `reviewGuide`): los módulos y plugins que no los tengan siguen funcionando.
+- **Evals de prompts**: `npm run evals` (16 casos de los seis módulos con respuestas grabadas a mano en `evals/recorded/`, sin red ni claves, también dentro de `npm test`) y `npm run evals:live` (modelo real, con `--yes` y tope de tokens por ejecución). Informe por módulo y por caso.
+- `tests/ai-live.test.ts`: prueba real de la IA que se salta sin `IARK_LIVE_AI=1` y credenciales (ver [docs/ia.md](docs/ia.md#prueba-real-automatizada-testsai-livetestts)).
+- Documentado por qué `iark serve` no ofrece IA y qué habría que exigir antes de añadirla ([docs/servicio.md](docs/servicio.md#por-qué-no-hay-ia-en-el-servicio)), con una prueba que fija que no hay ninguna ruta.
+
+### Cambiado
+
+- **`generate` ahora también verifica con `validate()`**: un documento que cumple el esquema pero incumple las reglas del módulo (hoy, solo los errores de C4) ya no se acepta a la primera: se reintenta y, si sigue mal, termina con código 3 (antes, 0). `--no-verify` devuelve el comportamiento anterior. Los códigos de salida de la IA pasan a ser `2` (uso o prompt demasiado grande), `3` (incumple las reglas) y `4` (resto de errores del modelo).
+
+### Corregido
+
+- Con la API de Anthropic y con Claude en Foundry, una respuesta cortada por el tope de salida o que no cumplía el esquema de zod no se podía reintentar ni explicar (el SDK la rechazaba al analizarla); ahora se trata como en las demás plataformas.
+
 ## [0.1.0] - 2026-10-07
 
 Primera versión: reúne lo construido entre el 2026-09-24 (primer commit del repositorio, el núcleo C4 con CLI y exportación `.drawio`) y el 2026-10-07 (último commit de `master` al escribir este registro). El detalle de cada tanda, con sus PR, está en [`docs/roadmap.md`](docs/roadmap.md). No hay etiqueta `v0.1.0` en git todavía.
