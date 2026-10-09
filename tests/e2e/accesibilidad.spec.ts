@@ -231,10 +231,10 @@ for (const tema of TEMAS) {
         const doc = JSON.parse(texto) as { nodes: Array<{ id: string; name: string }> };
         doc.nodes.push({ id: 'erp-heredado', name: 'ERP heredado', kind: 'system' } as never);
         doc.nodes[0]!.name += ' (antes)';
-        await page.getByRole('tab', { name: /^Comparar/ }).click();
+        await page.getByRole('tab', { name: /^Versiones/ }).click();
         await page.getByLabel('Abrir archivo a comparar…').setInputFiles({ name: 'antes.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(doc)) });
         await expect(page.getByTestId('compare-summary')).toBeVisible({ timeout: TIMEOUT_ARRANQUE });
-        await auditar(page, 'Banco integration · Comparar con diferencias', tema);
+        await auditar(page, 'Banco integration · Versiones con diferencias', tema);
         await page.getByRole('tab', { name: 'Lienzo' }).click();
         await canvasReady(page);
         await auditar(page, 'Banco integration · Lienzo comparando', tema);
