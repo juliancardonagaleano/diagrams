@@ -1,5 +1,5 @@
 {
-  "$id": "https://github.com/juliancardonagaleano/DIAgrams/schema/data-document.schema.json",
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/data-document.schema.json",
   "title": "Documento de datos (DIAgrams)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",

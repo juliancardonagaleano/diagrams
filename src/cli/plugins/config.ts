@@ -45,7 +45,7 @@ export type IarkConfigFile = z.infer<typeof iarkConfigSchema>;
 /** El JSON Schema publicado en `schema/iark-config.schema.json` (lo escribe `npm run schema` y una prueba comprueba que está al día). */
 export function iarkConfigJsonSchema(): Record<string, unknown> {
   return {
-    $id: 'https://github.com/juliancardonagaleano/DIAgrams/schema/iark-config.schema.json',
+    $id: 'https://github.com/juliancardonagaleano/diagrams/schema/iark-config.schema.json',
     title: 'Configuración de DIAgrams (iark.config.json)',
     ...(z.toJSONSchema(iarkConfigSchema, { target: 'draft-2020-12', io: 'input' }) as Record<string, unknown>),
   };

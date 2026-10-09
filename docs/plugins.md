@@ -119,7 +119,7 @@ Es **solo JSON** (la configuración no ejecuta código):
 
 ```json
 {
-  "$schema": "https://github.com/juliancardonagaleano/DIAgrams/schema/iark-config.schema.json",
+  "$schema": "https://github.com/juliancardonagaleano/diagrams/schema/iark-config.schema.json",
   "modules": ["./index.mjs", "@acme/iark-module-riesgos"],
   "defaultModule": "risk"
 }
