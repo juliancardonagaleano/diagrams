@@ -1,3 +1,4 @@
+import { parseVersionId } from '@iark/kernel';
 import { COMPUTE_ACTIONS } from '../compute';
 import { isWorkspaceId } from '../workspace';
 
@@ -16,6 +17,8 @@ import { isWorkspaceId } from '../workspace';
 export interface RouteParams {
   project?: string;
   diagram?: string;
+  /** El número de una versión del historial de un diagrama (solo si es un entero positivo válido). */
+  version?: string;
   /** Un nombre de usuario de GitHub (o de una cuenta apartada, `nombre~id`) en las rutas de miembros y de cuentas. */
   login?: string;
 }
@@ -36,6 +39,7 @@ export interface RouteInfo {
 const LOGIN = /^[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,38})(?:~[A-Za-z0-9_-]{1,40})?$/;
 const loginOf = (value: string | undefined): string | undefined => (value !== undefined && LOGIN.test(value) ? value : undefined);
 const idOf = (value: string | undefined): string | undefined => (isWorkspaceId(value) ? value : undefined);
+const versionOf = (value: string | undefined): string | undefined => (value !== undefined && parseVersionId(value) !== undefined ? value : undefined);
 
 const OPERATIONAL = new Set(['/healthz', '/readyz', '/metrics']);
 
@@ -64,6 +68,13 @@ function projectsRoute(method: string, parts: string[]): RouteInfo {
   if (parts.length === 2) return route('/api/projects/:project', { ...base, params: { project } });
   if (parts.length === 3 && (third === 'diagrams' || third === 'bundle' || third === 'check' || third === 'members')) return route(`/api/projects/:project/${third}`, { ...base, params: { project } });
   if (parts.length === 4 && third === 'diagrams') return route('/api/projects/:project/diagrams/:diagram', { ...base, params: { project, diagram: idOf(fourth) } });
+  // historial de versiones: `/diagrams/<d>/versions`, `/versions/<n>` y `/versions/<n>/restore`
+  if (third === 'diagrams' && parts[4] === 'versions') {
+    const params = { project, diagram: idOf(fourth) };
+    if (parts.length === 5) return route('/api/projects/:project/diagrams/:diagram/versions', { ...base, params });
+    if (parts.length === 6) return route('/api/projects/:project/diagrams/:diagram/versions/:version', { ...base, params: { ...params, version: versionOf(parts[5]) } });
+    if (parts.length === 7 && parts[6] === 'restore') return route('/api/projects/:project/diagrams/:diagram/versions/:version/restore', { ...base, params: { ...params, version: versionOf(parts[5]) } });
+  }
   if (parts.length === 4 && third === 'members') return route('/api/projects/:project/members/:login', { ...base, params: { project, login: loginOf(fourth) } });
   return route('/api/projects/*', base);
 }

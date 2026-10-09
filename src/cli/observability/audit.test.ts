@@ -92,7 +92,7 @@ describe('ACTIONS: toda ruta documentada que cambia algo está en la tabla', () 
   const METHODS = 'GET|POST|PUT|PATCH|DELETE';
   const documented = new Set<string>();
   for (const match of docs.matchAll(new RegExp(`\`((?:${METHODS})(?:\\\\\\|(?:${METHODS}))*) (/api/[^\`\\s]*)\``, 'g'))) {
-    const path = match[2].replace(/\[\?[^\]]*\]|\?.*$/g, '').replace('<p>', 'tienda').replace('<d>', 'contexto').replace('<usuario>', 'beto');
+    const path = match[2].replace(/\[\?[^\]]*\]|\?.*$/g, '').replace('<p>', 'tienda').replace('<d>', 'contexto').replace('<usuario>', 'beto').replace('<v>', '3');
     for (const method of match[1].split('\\|')) documented.add(`${method} ${classifyRoute(method, path).template}`);
   }
 
@@ -101,6 +101,7 @@ describe('ACTIONS: toda ruta documentada que cambia algo está en la tabla', () 
     expect(documented).toContain('PUT /api/projects/:project/members/:login');
     expect(documented).toContain('PUT /api/admin/users/:login');
     expect(documented).toContain('DELETE /api/projects/:project/diagrams/:diagram');
+    expect(documented).toContain('POST /api/projects/:project/diagrams/:diagram/versions/:version/restore');
     expect([...documented].filter((entry) => entry.endsWith('/*'))).toEqual([]);
   });
 

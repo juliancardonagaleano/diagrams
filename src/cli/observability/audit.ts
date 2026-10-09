@@ -34,6 +34,8 @@ export type AuditResult = 'ok' | 'denied' | 'error';
 export interface AuditTarget {
   project?: string;
   diagram?: string;
+  /** El número de la versión del historial, en restaurar, nombrar y borrar versiones. */
+  version?: string;
   login?: string;
 }
 
@@ -114,6 +116,10 @@ export const ACTIONS: Readonly<Record<string, string>> = {
   'PUT /api/projects/:project/diagrams/:diagram': 'diagram.save',
   'PATCH /api/projects/:project/diagrams/:diagram': 'diagram.rename',
   'DELETE /api/projects/:project/diagrams/:diagram': 'diagram.delete',
+  // Historial de versiones: restaurar crea una versión nueva; nombrar y borrar una nombrada cambian el historial.
+  'POST /api/projects/:project/diagrams/:diagram/versions/:version/restore': 'version.restore',
+  'PATCH /api/projects/:project/diagrams/:diagram/versions/:version': 'version.label',
+  'DELETE /api/projects/:project/diagrams/:diagram/versions/:version': 'version.delete',
   // Compartir y cambiar de rol son la misma petición (PUT): cuál de las dos fue lo dice el estado (201 o 200); si se rechazó, `member.set`.
   'PUT /api/projects/:project/members/:login': 'member.set',
   'DELETE /api/projects/:project/members/:login': 'member.remove',
@@ -157,7 +163,7 @@ function bodyObject(body: string | undefined): Record<string, unknown> | undefin
   }
 }
 
-const targetOf = (params: RouteParams, created?: RouteParams): AuditTarget => ({ project: created?.project ?? params.project, diagram: created?.diagram ?? params.diagram, login: params.login });
+const targetOf = (params: RouteParams, created?: RouteParams): AuditTarget => ({ project: created?.project ?? params.project, diagram: created?.diagram ?? params.diagram, version: params.version, login: params.login });
 
 /** Las filas de auditoría de una petición terminada (ninguna, la mayoría de las veces). */
 export function deriveAudit(request: FinishedRequest): AuditDraft[] {

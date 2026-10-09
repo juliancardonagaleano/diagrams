@@ -110,7 +110,7 @@ describe('iark serve: API de proyectos', () => {
     expect(added.headers.get('location')).toBe('/api/projects/tienda-web/diagrams/amenazas');
     await api.post('/api/projects/tienda-web/diagrams', { module: 'platform', name: 'Despliegue', text: example('plataforma-ejemplo.json') });
     await api.post('/api/projects/tienda-web/diagrams', { module: 'integration', name: 'Pedidos', text: example('pedidos-integracion.json') });
-    expect(readdirSync(join(root, 'tienda-web')).sort()).toEqual(['amenazas.security.json', 'despliegue.platform.json', 'pedidos.integration.json', 'project.json']);
+    expect(readdirSync(join(root, 'tienda-web')).sort()).toEqual(['.versiones', 'amenazas.security.json', 'despliegue.platform.json', 'pedidos.integration.json', 'project.json']); // y el historial de versiones, oculto
 
     // la lista trae los diagramas pero no sus documentos
     const listed = await (await api.get('/api/projects')).json();
@@ -403,7 +403,7 @@ describe('iark serve: seguridad de la API de proyectos', () => {
     const created = await api.post('/api/projects', { name: '../../fuera' });
     expect((await created.json()).id).toBe('fuera');
     expect(readdirSync(root).sort()).toEqual(['fuera', 'p']);
-    expect(JSON.stringify([readdirSync(outside).sort(), readdirSync(join(root, 'p')).sort()])).toBe(JSON.stringify([['espacio', 'otro', 'x.c4.json'], ['d.c4.json', 'project.json']]));
+    expect(JSON.stringify([readdirSync(outside).sort(), readdirSync(join(root, 'p')).sort()])).toBe(JSON.stringify([['espacio', 'otro', 'x.c4.json'], ['.versiones', 'd.c4.json', 'project.json']]));
     expect(readFileSync(join(outside, 'x.c4.json'), 'utf8')).toBe('fuera');
   });
 

@@ -47,7 +47,9 @@ describe('iark project (CLI empaquetado)', () => {
       expect(added.status, added.stderr).toBe(0);
       expect(added.stdout).toContain(`módulo ${moduleId}`);
     }
+    // los diagramas, `project.json` y el historial de versiones (`.versiones`, oculto: ver docs/proyectos.md)
     expect(readdirSync(join(cwd, 'iark-workspace', 'tienda-web')).sort()).toEqual([
+      '.versiones',
       'pedidos-integracion.integration.json',
       'plataforma-ejemplo.platform.json',
       'project.json',
