@@ -3,13 +3,27 @@ export * from './module/editor';
 export { ModuleRegistry, UnknownModuleError } from './module/registry';
 export * from './module/operations';
 export * from './module/link-types';
+export * from './module/contract';
+export * from './module/plugin';
+export * from './module/migrate';
+export * from './module/protocol';
+export { compareMajorMinor, parseMajorMinor, type MajorMinor } from './module/version';
 export * from './module/trace';
 export * from './module/trace-analysis';
 export * from './module/trace-svg';
 export { carryRefs } from './module/refs';
 export { ModuleError } from './module/errors';
 export { formatUrn, parseUrn, type ParsedUrn } from './module/urn';
-export { embedUrlFromManifest, ENDPOINT_PROTOCOLS, EndpointUrlError, resolveEndpointUrl } from './module/endpoint';
+export {
+  embedUrlFromManifest,
+  ENDPOINT_PROTOCOLS,
+  EndpointUrlError,
+  MANIFEST_SCHEMA_VERSION,
+  manifestCompatibilityProblem,
+  manifestSchemaVersion,
+  moduleCompatibilityProblem,
+  resolveEndpointUrl,
+} from './module/endpoint';
 export {
   buildManifest,
   manifestSchema,

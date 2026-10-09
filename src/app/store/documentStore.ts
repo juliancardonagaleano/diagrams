@@ -17,6 +17,7 @@ import { sampleDocument } from '@core/model/sample';
 import { applyLayoutToView, layoutView, type LayoutOptions } from '@core/layout/elkLayout';
 import type { LayoutQuality } from '@core/layout/quality';
 import type { LayoutDirection } from '@core/model/types';
+import { migratePersistedDocument, migratePersistedState, PERSIST_VERSION } from './persistMigration';
 
 /** true si el id de ruta (relación o `rel@origen->destino`) toca alguno de los elementos movidos. */
 function touchesAny(routeId: string, moved: Map<string, unknown>): boolean {
@@ -536,12 +537,17 @@ export const useDocumentStore = create<DocumentStore>()(
       name: STORAGE_KEY,
       storage: createJSONStorage(() => (isEmbedMode ? noopStorage : migratingLocalStorage)),
       partialize: (state) => ({ doc: state.doc, activeViewId: state.activeViewId, ui: state.ui, lastSavedAt: state.lastSavedAt }),
-      // Los ajustes nuevos (p. ej. nodeStyle) conservan su valor por defecto aunque el localStorage sea anterior.
+      // Los ajustes nuevos (p. ej. nodeStyle) conservan su valor por defecto aunque el localStorage sea anterior. El documento
+      // pasa siempre por las migraciones del módulo C4 (también si la forma persistida no cambió de versión): un cambio de
+      // esquema no deja inservible lo que la persona ya tenía guardado.
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<DocumentState>;
+        const p = (migratePersistedDocument(persisted) ?? {}) as Partial<DocumentState>;
         return { ...current, ...p, ui: { ...current.ui, ...(p.ui ?? {}) } };
       },
-      version: 1,
+      // Política de versiones: ver `persistMigration.ts`. Sube `PERSIST_VERSION` cuando cambie la FORMA de lo persistido
+      // (`partialize`) y añade el paso en `migratePersistedState`; sin `migrate`, zustand descartaba lo guardado con otra versión.
+      version: PERSIST_VERSION,
+      migrate: (persisted, version) => migratePersistedState(persisted, version) as DocumentStore,
     },
   ),
 );

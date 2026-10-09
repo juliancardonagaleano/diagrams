@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { ModuleEvent } from '../embed/moduleProtocol';
+import { CONTRACT_VERSION } from '@iark/kernel';
+import { MODULE_PROTOCOL_VERSION, type ModuleEvent } from '../embed/moduleProtocol';
 import { createModuleBridge, type ModuleBridge } from './bridge';
 import { newController, example } from './testing';
 
@@ -233,5 +234,64 @@ describe('puente postMessage de módulos', () => {
     active = h.bridge;
     await h.send({ action: 'load', document: securityDoc });
     expect(h.last('error')!.message).toMatch(/Indica el módulo/);
+  });
+});
+
+describe('puente postMessage de módulos: versionado', () => {
+  it('init lleva la versión del protocolo y la versión del contrato de cada módulo anunciado', async () => {
+    const h = harness({ module: 'data' });
+    active = h.bridge;
+    await h.bridge.start();
+    expect(h.last('init')!.version).toBe(MODULE_PROTOCOL_VERSION);
+    expect(h.last('init')!.capabilities.modules[0].contractVersion).toBe(CONTRACT_VERSION);
+  });
+
+  it('un load de un anfitrión con otra versión MAYOR del protocolo se rechaza con el código incompatible-protocol y no abre nada', async () => {
+    const h = harness({ module: 'security' });
+    active = h.bridge;
+    await h.bridge.start();
+    const count = h.events.length;
+    await h.send({ action: 'load', version: '2.0', document: securityDoc });
+    expect(h.events).toHaveLength(count + 1);
+    expect(h.last('error')).toMatchObject({ code: 'incompatible-protocol', message: expect.stringMatching(/incompatible.*1\.0.*2\.0/s) });
+    expect(h.events.some((e) => e.event === 'load')).toBe(false);
+    expect(h.controller.getState().text).toBe('');
+  });
+
+  it('mientras esté rechazado ninguna orden se aplica (el error lleva su requestId), salvo exit; un load compatible lo reanuda', async () => {
+    const h = harness({ module: 'security' });
+    active = h.bridge;
+    await h.bridge.start();
+    await h.send({ action: 'load', version: '2.0', document: securityDoc });
+    await h.send({ action: 'export', format: 'json', requestId: 'x-1' });
+    expect(h.last('error')).toMatchObject({ code: 'incompatible-protocol', requestId: 'x-1' });
+    expect(h.events.some((e) => e.event === 'export')).toBe(false);
+    await h.send({ action: 'exit' });
+    expect(h.last('exit')).toEqual({ event: 'exit', modified: false });
+
+    await h.send({ action: 'load', version: '1.0', document: securityDoc });
+    expect(h.last('load')).toMatchObject({ module: 'security' });
+    await h.send({ action: 'export', format: 'json', requestId: 'x-2' });
+    expect(h.last('export')).toMatchObject({ requestId: 'x-2' });
+  });
+
+  it.each([['una versión menor distinta (1.7)', '1.7'], ['sin versión (un SDK antiguo = 1.0)', undefined]])('un load con %s se acepta', async (_nombre, version) => {
+    const h = harness({ module: 'security' });
+    active = h.bridge;
+    await h.bridge.start();
+    await h.send({ action: 'load', ...(version ? { version } : {}), document: securityDoc });
+    expect(h.last('load')).toMatchObject({ module: 'security' });
+    expect(h.events.some((e) => e.event === 'error')).toBe(false);
+  });
+
+  it('un documento de una versión MÁS NUEVA del formato se rechaza con el mensaje claro y no cambia lo abierto', async () => {
+    const h = harness({ module: 'security' });
+    active = h.bridge;
+    await h.bridge.start();
+    await h.send({ action: 'load', document: securityDoc });
+    const before = h.controller.getState().text;
+    await h.send({ action: 'load', document: { ...securityDoc, version: '7.0' } });
+    expect(h.last('error')!.message).toMatch(/versión más nueva \(7\.0\).*Actualiza IArk/s);
+    expect(h.controller.getState().text).toBe(before);
   });
 });

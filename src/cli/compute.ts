@@ -27,6 +27,7 @@ import {
   type TraceSelector,
 } from '@iark/kernel';
 import { HttpError } from './httpError';
+import type { ResolvedPlugin } from './plugins/resolve';
 
 /**
  * Las operaciones de cálculo de la API de `iark serve` (validar, vistas, exportar, importar, comparar, informes y trazabilidad):
@@ -60,6 +61,11 @@ export type ComputeOutcome =
 export interface ComputeRequest {
   id: number;
   job: ComputeJob;
+}
+
+/** Lo que el hilo principal le pasa a cada hilo de trabajo al crearlo (`workerData`): los módulos de terceros con los que construir su registro. */
+export interface ComputeWorkerInit {
+  plugins: ResolvedPlugin[];
 }
 
 export interface ComputeReply {

@@ -8,6 +8,7 @@ iark layout   [archivo.json | --stdin] [--out out.json] [--direction auto|down|r
 iark convert  [archivo.json | --stdin] [--out out.drawio] [--notation c4|card] [--no-waypoints] [--locale es|en] [--view id...]
 iark import   [archivo.drawio|archivo.dsl|archivo.mmd|… | --stdin] [--format auto|drawio|dsl|mermaid|<importador del módulo>] [--out out.json] [--name nombre] [--layout]
 iark validate [archivo.json | --stdin] [--strict]
+iark migrate  [archivo.json | --stdin] [--out out.json] [--check]
 iark schema   [--generation]
 iark prompt   "<instrucción>" [--from base.json] [--from-repo <carpeta|url>]
 iark diff     <antes> [<después>] [--rev <revisión>] [--format text|markdown|json] [--exit-code] [--out archivo]
@@ -18,11 +19,35 @@ iark auth     create|list|revoke   # tokens de acceso de `iark serve --tokens` (
 iark trace    <módulo=archivo>... [--from <módulo:id>] [--direction refs|referrers|both] [--depth n] [--format markdown|mermaid|svg|json] [--type <tipo>]... [--orphans [módulo[:tipo]]] [--matrix [module|kind]] [--coverage "<origen> -> <destino>"]... [--min-coverage n] [--strict] [--strict-unresolved] [--out archivo]   # trazabilidad entre módulos: enlaces tipados, huérfanos, matriz y cobertura (ver trazabilidad.md)
 iark serve    [--static dist/app] [--port 8787] [--host 127.0.0.1] [--cors <orígenes>] [--workspace <carpeta>] [--tokens <archivo> | --accounts <archivo> …]   # servicio HTTP (ver servicio.md)
 iark <módulo> <comando>   # comandos propios de cada módulo (p. ej. `iark integration catalog`)
+
+# Opciones globales (valen antes o después del comando)
+iark --config <archivo> …   # carga los módulos de terceros de ese iark.config.json (o la variable IARK_CONFIG)
+iark --no-config …          # no carga ninguno (o IARK_NO_CONFIG=1); por omisión se carga el iark.config.json del directorio actual, si existe
 ```
 
-`generate`, `import`, `convert`, `validate`, `schema`, `prompt` y `diff` aceptan `--module <id>` para trabajar con cualquier módulo de la suite (por defecto `c4`); `iark modules` lista los instalados y sus formatos de importación y exportación. Además de Mermaid, cada módulo puede importar formatos propios (`--format <id>`, o `auto` para deducirlo de la extensión y del contenido): Terraform y Kubernetes en plataforma, DDL de SQL y dbt en datos y ArchiMate en empresarial (ver [Importar y exportar](importadores.md)). Es `--format`, no `--from`: `--from` solo existe en `generate` y `prompt`.
+`generate`, `import`, `convert`, `validate`, `migrate`, `schema`, `prompt` y `diff` aceptan `--module <id>` para trabajar con cualquier módulo de la suite (por defecto `c4`); `iark modules` lista los instalados, de dónde vienen (`incorporado` o el módulo de terceros que los aporta), sus versiones de contrato y de documento y sus formatos de importación y exportación. Además de Mermaid, cada módulo puede importar formatos propios (`--format <id>`, o `auto` para deducirlo de la extensión y del contenido): Terraform y Kubernetes en plataforma, DDL de SQL y dbt en datos y ArchiMate en empresarial (ver [Importar y exportar](importadores.md)). Es `--format`, no `--from`: `--from` solo existe en `generate` y `prompt`.
 
 En desarrollo: `npm run cli -- <comando>`; tras `npm run build`: `node dist/cli/index.js` o `npx iark` si el paquete está instalado. La generación con IA (`generate`, `prompt`, `--from-repo`) tiene su propia página: [IA](ia.md); la trazabilidad, [Trazabilidad entre módulos](trazabilidad.md).
+
+## Módulos de terceros (`--config` y `iark.config.json`)
+
+Además de los seis módulos incorporados, el CLI carga los que nombre un `iark.config.json` (solo JSON: `{ "modules": ["./index.mjs", "@acme/iark-module-riesgos"], "defaultModule": "risk" }`). Un módulo de terceros se usa como cualquier otro: `--module risk`, `iark import`, `iark trace`, `iark modules` y los comandos que aporte (`iark risk top`). La configuración se elige así: `--no-config` o `IARK_NO_CONFIG=1` (ninguna); `--config <archivo>` o `IARK_CONFIG`; el `iark.config.json` del directorio actual (no se busca en las carpetas padre); si no, ninguna. Cada módulo cargado se anota en la salida de errores (`Módulo de terceros cargado: risk ← ./index.mjs (contrato 1, documento 1.0)`) y cualquier fallo al cargarlo termina con código 2 nombrando el especificador.
+
+Cargar un módulo ejecuta su código con los permisos del proceso, así que **nunca** se carga la configuración de un proyecto clonado (`--from-repo`) ni de un espacio de trabajo (`--workspace`). Guía completa, ejemplo y seguridad: [Módulos de terceros](plugins.md).
+
+## Documentos de una versión anterior del formato (`iark migrate`)
+
+Cada módulo declara la versión de su formato (`documentVersion`, hoy `1.0` en los seis) y, cuando el formato cambia, cómo llevar un documento antiguo a la versión actual (ver [Versionado de documentos](versionado-documentos.md)). Los comandos que leen un documento (`validate`, `convert`, `layout`, `diff`…) lo migran al leerlo, sin tocar el archivo, y lo dicen: `validate` imprime «Documento migrado de la versión 1.0 a 1.1» y los demás lo avisan por la salida de errores. `iark project check` y la API del servicio también lo analizan ya migrado, con esa misma nota entre las incidencias.
+
+`iark migrate` reescribe el documento en la versión actual:
+
+```bash
+iark migrate antiguo.json --out nuevo.json          # escribe el documento migrado (sin --out, por la salida estándar)
+iark migrate antiguo.json --module data --out nuevo.json
+iark migrate --check diagrama.json                  # no escribe nada: código 1 si necesita migración, 0 si ya está al día
+```
+
+El documento de entrada no se modifica nunca; el migrado sale validado con el esquema del módulo. Un documento de una versión más nueva que la que entiende esta instalación (`Actualiza IArk para abrirlo`) o anterior a la primera migración declarada termina con código 2, también con `--check`. `--check` sirve para la integración continua: falla mientras queden documentos del repositorio por reescribir.
 
 ## Comparar versiones de un diagrama (`iark diff`)
 

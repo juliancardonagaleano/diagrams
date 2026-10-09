@@ -27,6 +27,7 @@
 - [ ] **Incluye pruebas** que fallaban antes del cambio (arreglos) o que cubren el comportamiento nuevo y sus bordes. Si no hacen falta (solo documentación o configuración), explica por qué en «Cómo».
 - [ ] No añade dependencias sin declarar: `tests/dependencias-paquetes.test.ts` y `tests/runtime-deps.test.ts` pasan.
 - [ ] Si cambia módulos, esquemas o el manifiesto, regeneré `npm run schema` y `npm run manifest`.
+- [ ] Si cambia un esquema, subí `documentVersion`, añadí la migración y conservé la foto del documento antiguo (`tests/fixtures/documentos/`); ver `docs/versionado-documentos.md`.
 - [ ] Comentarios y documentación en español, sin `any` nuevos.
 - [ ] Es una sola PR por tema: nada ajeno a lo descrito arriba.
 

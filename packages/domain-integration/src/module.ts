@@ -1,5 +1,5 @@
 import type { DomainModule, EntityRef, Exporter, Importer, ModuleIssue, ViewRef } from '@iark/kernel';
-import { looksLikeMermaid } from '@iark/kernel';
+import { CONTRACT_VERSION, looksLikeMermaid } from '@iark/kernel';
 import { integrationAiSpec } from './ai/generation';
 import { integrationCommands } from './commands';
 import { integrationEditor } from './editor';
@@ -55,6 +55,7 @@ export const integrationModule: DomainModule<IntegrationDocument> = {
   name: 'Arquitectura de integraciones',
   version: '0.1.0',
   description: 'Mapa de integración y flujos con notación EIP: sistemas, APIs, MCP, brokers, colas, contratos editables (OpenAPI, .proto, CloudEvents, MCP) y patrones; exporta a Mermaid, SVG y draw.io.',
+  contractVersion: CONTRACT_VERSION,
   documentVersion: INTEGRATION_DOCUMENT_VERSION,
   schema: integrationDocumentSchema as unknown as DomainModule<IntegrationDocument>['schema'],
   jsonSchema: integrationJsonSchema,

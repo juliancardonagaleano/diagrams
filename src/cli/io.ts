@@ -1,7 +1,7 @@
 import { readFileSync, readSync, realpathSync, writeFileSync, mkdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import type { IncludeResolver } from '@core/import/structurizr/fromStructurizrDsl';
-import { parseDocument } from '@core/model/schema';
+import { DocumentValidationError, validateDocument } from '@core/model/schema';
 import { extractJson } from '@iark/kernel';
 import type { C4Document } from '@core/model/types';
 
@@ -80,7 +80,16 @@ export function readDocument(file: string | undefined, useStdin: boolean): C4Doc
   } catch (error) {
     throw new CliError(`La entrada no es JSON válido: ${(error as Error).message}`);
   }
-  return parseDocument(json);
+  const result = validateDocument(json);
+  if (!result.ok) throw new DocumentValidationError(result.issues);
+  // Un documento de una versión anterior se migra al leerlo (`C4_MIGRATIONS`); se dice, para que nadie se sorprenda con lo que escribe `layout` o `convert`.
+  noteMigration(result.migrated);
+  return result.document;
+}
+
+/** Dice por stderr (no ensucia la salida) que el documento venía de una versión anterior del formato y se migró al leerlo. */
+export function noteMigration(migrated: { from: string; to: string } | undefined): void {
+  if (migrated) info(`Documento migrado de la versión ${migrated.from} a ${migrated.to}; \`iark migrate\` lo reescribe en la nueva.`);
 }
 
 export function writeOutput(file: string | undefined, content: string): void {

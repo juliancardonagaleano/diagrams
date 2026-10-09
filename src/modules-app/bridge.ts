@@ -8,6 +8,7 @@ import {
 } from '../embed/moduleProtocol';
 import { InvalidDocumentError, type WorkbenchController } from './controller';
 import { viewTitle, type Analysis } from '@iark/kernel';
+import { INCOMPATIBLE_PROTOCOL_CODE, negotiateProtocol } from '@iark/kernel/protocol';
 
 export interface BridgeOptions {
   controller: WorkbenchController;
@@ -44,6 +45,8 @@ export function createModuleBridge(options: BridgeOptions) {
   let lastAnalysis = controller.getState().analysis;
   let lastViewId = controller.getState().viewId;
   let disposed = false;
+  // Mensaje del último apretón de manos rechazado: mientras dure, ninguna orden se aplica (el anfitrión habla un protocolo que no entendemos).
+  let incompatible: string | undefined;
 
   const moduleId = (): string => controller.getState().moduleId ?? options.module ?? '';
 
@@ -162,6 +165,15 @@ export function createModuleBridge(options: BridgeOptions) {
       return;
     }
     const requestId = 'requestId' in parsed.action ? parsed.action.requestId : undefined;
+    if (parsed.action.action === 'load') {
+      // El `load` del anfitrión lleva la versión de su protocolo (sin ella, 1.0): una diferencia de mayor se avisa en vez de funcionar a medias.
+      const negotiation = negotiateProtocol(MODULE_PROTOCOL_VERSION, parsed.action.version);
+      incompatible = negotiation.ok ? undefined : negotiation.message;
+    }
+    if (incompatible && parsed.action.action !== 'exit') {
+      post({ event: 'error', code: INCOMPATIBLE_PROTOCOL_CODE, message: incompatible, ...(requestId ? { requestId } : {}) });
+      return;
+    }
     try {
       await handle(parsed.action);
     } catch (error) {
