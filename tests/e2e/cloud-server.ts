@@ -21,12 +21,21 @@ export interface CloudServer {
   tokens: Record<string, string>;
   /** Revoca el token de una persona en el archivo (el servidor lo nota en la siguiente petición). */
   revoke(name: string): void;
+  /**
+   * Apaga el servidor y lo vuelve a arrancar en el mismo puerto y con la misma carpeta (solo con `keepPort`): `kill` es la señal con la que se apaga
+   * (`SIGKILL` corta las conexiones de golpe, sin avisar; `SIGTERM`, la de siempre, las cierra con un «bye»). `downMs` es cuánto tiempo se queda caído.
+   */
+  restart(options?: { kill?: 'SIGTERM' | 'SIGKILL'; downMs?: number }): Promise<void>;
   stop(): Promise<void>;
 }
 
-export async function startCloudServer(options: { cors?: string; people?: Array<{ name: string; role: 'viewer' | 'editor' | 'admin' }>; env?: Record<string, string> } = {}): Promise<CloudServer> {
+export async function startCloudServer(
+  options: { cors?: string; people?: Array<{ name: string; role: 'viewer' | 'editor' | 'admin' }>; env?: Record<string, string>; keepPort?: boolean } = {},
+): Promise<CloudServer> {
   const workspace = mkdtempSync(join(tmpdir(), 'iark-e2e-nube-'));
-  const args = ['node_modules/tsx/dist/cli.mjs', 'src/cli/index.ts', 'serve', '--workspace', workspace, '-p', '0'];
+  const fixedPort = options.keepPort ? await freePort() : 0;
+  const args = ['node_modules/tsx/dist/cli.mjs', 'src/cli/index.ts', 'serve', '--workspace', workspace, '-p', String(fixedPort)];
+  if (options.keepPort) args.push('--host', '127.0.0.1');
   if (options.cors) args.push('--cors', options.cors);
   // Con personas, el servidor pide token: el archivo de tokens va fuera de la carpeta de trabajo (que es lo que se comparte).
   const tokenDir = options.people ? mkdtempSync(join(tmpdir(), 'iark-e2e-tokens-')) : undefined;
@@ -34,25 +43,46 @@ export async function startCloudServer(options: { cors?: string; people?: Array<
   const tokens: Record<string, string> = {};
   for (const person of options.people ?? []) tokens[person.name] = createToken(tokenFile!, person).token;
   if (tokenFile) args.push('--tokens', tokenFile);
-  const child: ChildProcess = spawn(process.execPath, args, { cwd: process.cwd(), env: { ...process.env, ...options.env }, stdio: ['ignore', 'pipe', 'pipe'] });
-  let output = '';
-  const url = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`El servidor no arrancó en 30 s:\n${output}`)), 30_000);
-    const onData = (chunk: Buffer): void => {
-      output += chunk.toString();
-      const found = /escuchando en (http:\/\/[^\s]+?)(?: \(|\s|$)/.exec(output);
-      if (found) {
+  const launch = async (): Promise<{ child: ChildProcess; url: string }> => {
+    // `tsx` lanza el servidor como proceso hijo: con `keepPort` (reinicios) va en su propio grupo para poder matar los dos de golpe con `SIGKILL`.
+    const child: ChildProcess = spawn(process.execPath, args, { cwd: process.cwd(), env: { ...process.env, ...options.env }, stdio: ['ignore', 'pipe', 'pipe'], detached: !!options.keepPort });
+    let output = '';
+    const url = await new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`El servidor no arrancó en 30 s:\n${output}`)), 30_000);
+      const onData = (chunk: Buffer): void => {
+        output += chunk.toString();
+        const found = /escuchando en (http:\/\/[^\s]+?)(?: \(|\s|$)/.exec(output);
+        if (found) {
+          clearTimeout(timer);
+          resolve(found[1]);
+        }
+      };
+      child.stdout!.on('data', onData);
+      child.stderr!.on('data', onData);
+      child.once('exit', (code) => {
         clearTimeout(timer);
-        resolve(found[1]);
-      }
-    };
-    child.stdout!.on('data', onData);
-    child.stderr!.on('data', onData);
-    child.once('exit', (code) => {
-      clearTimeout(timer);
-      reject(new Error(`El servidor terminó (código ${code}) antes de escuchar:\n${output}`));
+        reject(new Error(`El servidor terminó (código ${code}) antes de escuchar:\n${output}`));
+      });
     });
-  });
+    return { child, url };
+  };
+  const halt = async (target: ChildProcess, signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM'): Promise<void> => {
+    if (target.exitCode !== null) return;
+    await new Promise<void>((resolve) => {
+      const send = (sig: 'SIGTERM' | 'SIGKILL'): void => {
+        try {
+          if (options.keepPort && target.pid) process.kill(-target.pid, sig);
+          else target.kill(sig);
+        } catch {
+          // ya terminó
+        }
+      };
+      target.once('exit', () => resolve());
+      send(signal);
+      setTimeout(() => send('SIGKILL'), 5000).unref();
+    });
+  };
+  let { child, url } = await launch();
   return {
     url,
     workspace,
@@ -60,14 +90,14 @@ export async function startCloudServer(options: { cors?: string; people?: Array<
     revoke(name: string) {
       if (tokenFile) revokeToken(tokenFile, name);
     },
+    async restart(restartOptions = {}) {
+      if (!options.keepPort) throw new Error('restart() necesita startCloudServer({ keepPort: true })');
+      await halt(child, restartOptions.kill ?? 'SIGTERM');
+      if (restartOptions.downMs) await new Promise((resolve) => setTimeout(resolve, restartOptions.downMs));
+      ({ child, url } = await launch());
+    },
     async stop() {
-      if (child.exitCode === null) {
-        await new Promise<void>((resolve) => {
-          child.once('exit', () => resolve());
-          child.kill('SIGTERM');
-          setTimeout(() => child.kill('SIGKILL'), 5000).unref();
-        });
-      }
+      await halt(child);
       rmSync(workspace, { recursive: true, force: true });
       if (tokenDir) rmSync(tokenDir, { recursive: true, force: true });
     },

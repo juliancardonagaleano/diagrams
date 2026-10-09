@@ -14,6 +14,7 @@ import { Observability } from './observability';
 import type { MetricFamily } from './observability/metrics';
 import { createMetricsEndpoint } from './observability/metricsEndpoint';
 import { createAuthenticator, type Authenticator, type FailureLimiterOptions } from './serveAuth';
+import { createEventsApi, EventHub, type EventHubOptions } from './serveEvents';
 import { createProjectsApi } from './serveProjects';
 import { applySecurityHeaders } from './securityHeaders';
 import { suiteManifest } from './suiteManifest';
@@ -48,6 +49,7 @@ import type { TokenStore } from './tokens';
  *   GET  /api/projects/<p>/bundle                       el proyecto en un solo archivo (iark.project/1)
  *   POST /api/projects/import[?name=]                   cuerpo: ese archivo → crea un proyecto nuevo
  *   GET  /api/projects/<p>/check                        comprobación del proyecto: cada diagrama y las referencias entre ellos
+ *   GET  /api/events[?project=<p>]                      cambios de los proyectos en tiempo real (Server-Sent Events, solo avisos; ver `serveEvents.ts`)
  *
  * Con tokens (`--tokens <archivo>`, ver `serveAuth.ts`) esas rutas y `/api/whoami` exigen `Authorization: Bearer <token>` y aplican los
  * roles `viewer`, `editor` y `admin`:
@@ -108,6 +110,11 @@ export interface ServeOptions {
   metricsToken?: string;
   /** Cuánto tiempo (ms) se reutiliza lo medido de un proyecto para las cuotas. Por omisión 30000; 0 = siempre se mide (pruebas). */
   usageTtlMs?: number;
+  /**
+   * Cambios de los proyectos en tiempo real (`GET /api/events`, ver `serveEvents.ts`), activos con `projects`. `false` los desactiva (`--max-streams 0`):
+   * la ruta responde 404 y los clientes sondean como antes. Los números son los topes y el latido; los de por omisión sirven en producción.
+   */
+  events?: false | Pick<EventHubOptions, 'maxPerPerson' | 'maxTotal' | 'heartbeatMs' | 'maxBufferedBytes'>;
   /** Cuánto tiempo (ms) se reutiliza el resultado de `/readyz`. Por omisión 5000; 0 = siempre se comprueba (pruebas). */
   readyCacheMs?: number;
 }
@@ -130,7 +137,7 @@ function apiParts(pathname: string): string[] | undefined {
 /** Las rutas que exigen token cuando lo hay: la API de proyectos, `/api/whoami`, `/api/usage`, `/api/auth` y `/api/admin`. */
 function isAuthRoute(pathname: string): boolean {
   const parts = apiParts(pathname);
-  return !!parts && (parts[0] === 'projects' || parts[0] === 'auth' || parts[0] === 'admin' || ((parts[0] === 'whoami' || parts[0] === 'usage') && parts.length === 1));
+  return !!parts && (parts[0] === 'projects' || parts[0] === 'events' || parts[0] === 'auth' || parts[0] === 'admin' || ((parts[0] === 'whoami' || parts[0] === 'usage') && parts.length === 1));
 }
 
 /** Las rutas de cálculo: `POST /api/trace` y `/api/<módulo>/<validate|views|export|import|diff|run…>`. Con autenticación exigen credencial (salvo `--public-compute`). */
@@ -314,7 +321,21 @@ export function createSuiteServer(options: ServeOptions): Server {
     return text;
   };
 
-  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, quotas, readBody: observedBody, send, sendJson });
+  // Cambios en tiempo real: solo con espacio de trabajo y si no se desactivaron. Los canales abiertos no cuentan como peticiones en curso (ver `RequestContext.streaming`).
+  const hub = options.projects && options.events !== false ? new EventHub({ accounts: options.accounts, ...options.events }) : undefined;
+  obs.metrics?.addCollector((): MetricFamily[] =>
+    hub
+      ? [
+          { name: 'iark_event_streams', help: 'Canales de eventos en directo abiertos ahora mismo (solo el recuento).', type: 'gauge', samples: [{ value: hub.stats.open }] },
+          { name: 'iark_events_published_total', help: 'Cambios de proyectos publicados en el canal de eventos.', type: 'counter', samples: [{ value: hub.stats.published }] },
+          { name: 'iark_events_delivered_total', help: 'Mensajes de cambio enviados a algún canal (un cambio llega a cada canal de quien pertenece al proyecto).', type: 'counter', samples: [{ value: hub.stats.delivered }] },
+          { name: 'iark_event_streams_rejected_total', help: 'Canales de eventos rechazados por superar el tope por persona o el global.', type: 'counter', samples: [{ value: hub.stats.rejected }] },
+          { name: 'iark_event_streams_dropped_total', help: 'Canales de eventos cortados por no leer lo que se les enviaba.', type: 'counter', samples: [{ value: hub.stats.dropped }] },
+        ]
+      : [],
+  );
+  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, quotas, events: hub, readBody: observedBody, send, sendJson });
+  const eventsApi = createEventsApi({ hub, store: options.projects, cors, auth, recheck: rawAuth, accounts: options.accounts, trustProxy: options.trustProxy ?? false, streaming: (req, summary) => obs.contextOf(req)?.streaming(summary) });
   const adminApi = createAdminApi({ accounts: options.accounts, auth, quotas, readBody: observedBody, sendJson });
   const usageApi = createUsageApi({ accounts: options.accounts, auth, quotas, sendJson });
   const authApi = createAuthApi({
@@ -364,6 +385,7 @@ export function createSuiteServer(options: ServeOptions): Server {
   async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const parts = url.pathname.slice(API.length).split('/').filter(Boolean).map(decodeSegment);
     if (parts[0] === 'projects') return projectsApi(req, res, url, parts.slice(1));
+    if (parts[0] === 'events') return eventsApi(req, res, url, parts.slice(1));
     if (parts[0] === 'auth') return authApi(req, res, url, parts.slice(1));
     if (parts[0] === 'admin') return adminApi(req, res, url, parts.slice(1));
     if (parts[0] === 'usage') return usageApi(req, res, url, parts.slice(1));
@@ -459,7 +481,7 @@ export function createSuiteServer(options: ServeOptions): Server {
       if (url.pathname === MANIFEST_PATH) {
         requireMethod(req, 'GET');
         // Con sitio estático la instancia ofrece los editores embebibles; sin él, solo la API.
-        return sendJson(res, 200, suiteManifest(options.registry, { version: options.version, api: '../api', site: !!staticRoot, projects: !!options.projects, projectsAuth: auth ? 'bearer' : 'none' }));
+        return sendJson(res, 200, suiteManifest(options.registry, { version: options.version, api: '../api', site: !!staticRoot, projects: !!options.projects, projectsAuth: auth ? 'bearer' : 'none', events: !!hub }));
       }
       if (url.pathname === API || url.pathname.startsWith(`${API}/`)) return api(req, res, url);
       return serveStatic(req, res, url);
@@ -484,6 +506,14 @@ export function createSuiteServer(options: ServeOptions): Server {
       sendJson(res, 500, { error: 'Error interno del servicio.' });
     });
   });
+  // Los canales de eventos no terminan solos y `server.close()` espera a que terminen todas las conexiones: al parar se cierran con un aviso (`bye`).
+  if (hub) {
+    const close = server.close.bind(server);
+    server.close = ((callback?: (error?: Error) => void) => {
+      hub.closeAll();
+      return close(callback);
+    }) as Server['close'];
+  }
   // Un `Observability` que creó este servidor (no se le pasó uno) se cierra con él.
   if (ownObservability) server.once('close', () => void obs.close());
   return server;

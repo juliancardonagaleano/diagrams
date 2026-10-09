@@ -118,6 +118,10 @@ export function classifyRoute(method: string, pathname: string): RouteInfo {
   switch (parts[0]) {
     case 'projects':
       return projectsRoute(method, parts);
+    case 'events':
+      // los cambios de los proyectos en tiempo real (SSE): un canal que se queda abierto; el filtro `?project=` no está en la ruta
+      if (parts.length === 1) return route('/api/events', { protected: true });
+      return route('/api/events/*', { protected: true });
     case 'auth':
       return authRoute(parts);
     case 'admin':

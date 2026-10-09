@@ -91,6 +91,7 @@ Por regla, antes del trabajo (violaciones = regla × superficie × tema; entre p
 - Landmarks y encabezados: un `h1` por página (visible en el banco completo y en el editor clásico, oculto en el modo embebido), `main`, `header`, `nav` y `aside` con nombre donde hay más de uno; los títulos de sección bajan de nivel de uno en uno.
 - Los selectores de Semi UI llevan `aria-labelledby` hacia su etiqueta visible (su nombre propio es el literal «selected»), sin `aria-activedescendant` fantasma y con la flecha decorativa oculta; las etiquetas de las fichas están unidas a sus campos con `for`.
 - Axe ya no encuentra botones ni enlaces sin nombre (`button-name`, `link-name`); los iconos decorativos van con `aria-hidden`.
+- El aviso «hay una versión más nueva» de los proyectos en un servidor (otra persona guardó el diagrama abierto) vive en una región `role="status"` (`aria-live="polite"`) que está siempre en la página y vacía mientras no hay aviso, para que se anuncie el texto cuando aparece; «Cargar la nueva» e «Ignorar» son botones normales alcanzables con Tab, y al cargar el foco pasa a la región, que anuncia el resultado. Una prueba e2e (`tests/e2e/projects-cloud-eventos.spec.ts`) comprueba el rol, el teclado, un contraste de al menos 4,5:1 en tema claro y oscuro y que no desborda a 390 px; con axe sobre la barra del proyecto solo si `@axe-core/playwright` está instalado. **No se probó con un lector de pantalla real.**
 
 ### Contraste
 
@@ -167,6 +168,7 @@ Para repetir antes de una versión (o al tocar el lienzo, un diálogo o un tema)
 8. **Movimiento reducido** activado en el sistema: la cámara salta y no hay animaciones.
 9. **Alto contraste de Windows** y **modo oscuro del sistema**: todo se sigue viendo, los anillos de foco también.
 10. **Móvil**: los botones se pulsan sin fallar; el separador del panel lateral y el arrastre de relaciones tienen alternativa.
+11. **Aviso de versión más nueva** (dos navegadores contra un `iark serve --tokens`): al guardar la otra persona, el lector anuncia el aviso sin mover el foco; «Cargar la nueva» se alcanza con Tab y, al activarla, se anuncia «Se cargó la versión nueva».
 
 ## Cómo añadir algo sin romper nada de esto
 

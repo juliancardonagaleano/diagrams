@@ -8,6 +8,7 @@ import { AccountError, loginKey, projectRoleAllows, type ProjectRole } from './a
 import { allow, bodyObject, isJson } from './httpBody';
 import { HttpError } from './httpError';
 import type { Authenticator, Identity } from './serveAuth';
+import type { ChangeEvent, EventPublisher, PublishOptions } from './serveEvents';
 import { roleAllows, type TokenRole } from './tokens';
 import { isWorkspaceId } from './workspace';
 
@@ -33,6 +34,7 @@ import { isWorkspaceId } from './workspace';
  *   GET    /api/projects/<p>/bundle                   archivo único (iark.project/1), con Content-Disposition
  *   POST   /api/projects/import[?name=]               cuerpo: el archivo único → importa (nunca pisa un proyecto)
  *   GET    /api/projects/<p>/check                    comprobación del proyecto (checkProject)
+ *   GET    /api/events[?project=<p>]                  cambios en tiempo real (SSE; ver `serveEvents.ts`). Esta API avisa de cada cambio que hace con éxito
  *   GET    /api/projects/<p>/members                  quién pertenece al proyecto (solo con `--accounts`; ver `accounts/members.ts`)
  *   PUT    /api/projects/<p>/members/<login>          { role } → comparte el proyecto o cambia el rol
  *   DELETE /api/projects/<p>/members/<login>          quita a alguien (o la persona se va ella misma)
@@ -74,6 +76,8 @@ export interface ProjectsApiContext {
   accounts?: Accounts;
   /** Con cuentas de GitHub: las cuotas de uso (proyectos por persona, diagramas por proyecto y bytes por persona; ver `accounts/usage.ts`). */
   quotas?: Quotas;
+  /** Para avisar en tiempo real de lo que cambia (`GET /api/events`, ver `serveEvents.ts`); sin él, no se avisa de nada. */
+  events?: EventPublisher;
   readBody(req: IncomingMessage): Promise<string>;
   send(res: ServerResponse, status: number, body: string | Buffer, headers?: Record<string, string>): void;
   sendJson(res: ServerResponse, status: number, value: unknown, headers?: Record<string, string>): void;
@@ -101,7 +105,7 @@ export function projectOriginAllowed(origin: string, host: string | undefined, c
 }
 
 /** Sin autenticación: `Host`, `Origin` y `Content-Type`. Con ella (`authenticated`), solo `Content-Type`: ver el comentario de arriba. */
-function guard(req: IncomingMessage, cors: string[], authenticated: boolean): void {
+export function guard(req: IncomingMessage, cors: string[], authenticated: boolean): void {
   if (!authenticated && isLoopbackAddress(req.socket.localAddress) && !LOOPBACK_HOSTS.has(hostName(req.headers.host))) {
     throw new HttpError(403, 'Host no permitido: este servicio solo atiende en localhost, 127.0.0.1 o [::1] (protección contra «DNS rebinding»).');
   }
@@ -236,6 +240,9 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
   const { store, sendJson } = ctx;
   const members = createMembersApi({ accounts: ctx.accounts, readBody: ctx.readBody, sendJson });
 
+  /** Avisa en tiempo real de un cambio ya hecho (y ya respondido): solo identificadores y marcas, nunca el documento. `by`: quién lo hizo (ver `actor`). */
+  const announce = (actor: string | undefined, event: Omit<ChangeEvent, 'by'>, options?: PublishOptions): void => ctx.events?.publish({ ...event, ...(actor ? { by: actor } : {}) }, options);
+
   /** Con sesión de persona, cada proyecto trae el rol de quien llama. Con un token o sin autenticación, la respuesta no cambia. */
   const withRole = <T extends { id: string }>(scope: Scope | undefined, project: T): T | (T & { role: ProjectRole }) => {
     const role = scope?.roleIn(project.id);
@@ -297,7 +304,10 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     if (rest.length === 6 && action === 'restore') {
       if (method !== 'POST') return allow('POST');
       const body = await bodyObject(ctx.readBody, req);
-      return sendJson(res, 200, await projects.restoreVersion(p, d, n, { ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor }));
+      const restored = await projects.restoreVersion(p, d, n, { ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor });
+      sendJson(res, 200, restored);
+      if (!restored.unchanged) announce(actor, { type: 'diagram.restored', project: p, diagram: d, updatedAt: restored.diagram.updatedAt });
+      return;
     }
     throw new HttpError(404, 'Ruta de proyectos desconocida. Ver la lista de rutas de /api/projects en docs/proyectos.md.');
   }
@@ -315,7 +325,8 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
         const body = await bodyObject(ctx.readBody, req);
         const created = await projects.createProject({ name: text(body, 'name', { required: true })!, description: text(body, 'description') });
         await register(scope, created.id, projects);
-        return sendJson(res, 201, scope ? withRole(scope, created) : created, { Location: `/api/projects/${created.id}` });
+        sendJson(res, 201, scope ? withRole(scope, created) : created, { Location: `/api/projects/${created.id}` });
+        return announce(actor, { type: 'project.created', project: created.id, updatedAt: created.updatedAt });
       }
       return allow('GET, POST');
     }
@@ -328,7 +339,8 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       };
       const imported = await (scope && ctx.quotas ? ctx.quotas.exclusive(scope.userId, importIt) : importIt());
       await register(scope, imported.project.id, projects);
-      return sendJson(res, 201, scope ? { ...imported, project: withRole(scope, imported.project) } : imported, { Location: `/api/projects/${imported.project.id}` });
+      sendJson(res, 201, scope ? { ...imported, project: withRole(scope, imported.project) } : imported, { Location: `/api/projects/${imported.project.id}` });
+      return announce(actor, { type: 'project.created', project: imported.project.id, updatedAt: imported.project.updatedAt });
     }
 
     const projectId = id(first, 'proyecto');
@@ -338,18 +350,29 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
         if (!found) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
         return sendJson(res, 200, withRole(scope, found));
       }
-      if (method === 'PATCH') return sendJson(res, 200, withRole(scope, await projects.renameProject(projectId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!)));
+      if (method === 'PATCH') {
+        const renamed = await projects.renameProject(projectId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!);
+        sendJson(res, 200, withRole(scope, renamed));
+        return announce(actor, { type: 'project.changed', project: projectId, updatedAt: renamed.updatedAt });
+      }
       if (method === 'DELETE') {
+        // Quienes pertenecían al proyecto se olvidan al borrarlo (`scope.deleted`): se anotan antes para que el aviso les llegue.
+        const belonged = ctx.accounts ? ctx.accounts.store.membersOf(projectId).map((m) => m.user.id) : [];
         await projects.deleteProject(projectId);
         scope?.deleted(projectId);
-        return sendJson(res, 200, { deleted: projectId });
+        sendJson(res, 200, { deleted: projectId });
+        return announce(actor, { type: 'project.deleted', project: projectId }, { alsoUsers: belonged });
       }
       return allow('GET, PATCH, DELETE');
     }
 
     if (second === 'members') {
       if (!(await projects.getProject(projectId))) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
-      return members(req, res, projectId, parts.slice(2), scope?.userId);
+      // A quien se le quita el acceso se le avisa aunque ya no pertenezca (así su pantalla deja de mostrar el proyecto sin esperar al sondeo).
+      const removing = ctx.accounts && req.method === 'DELETE' && parts[2] !== undefined ? ctx.accounts.store.membersOf(projectId).find((m) => loginKey(m.user.login) === loginKey(parts[2])) : undefined;
+      await members(req, res, projectId, parts.slice(2), scope?.userId);
+      if (req.method === 'PUT' || req.method === 'DELETE') announce(actor, { type: 'project.changed', project: projectId }, { alsoUsers: removing ? [removing.user.id] : [] });
+      return;
     }
     if (second === 'bundle' && parts.length === 2) {
       if (method !== 'GET') return allow('GET');
@@ -366,7 +389,8 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       const body = await bodyObject(ctx.readBody, req);
       const input = { module: text(body, 'module', { required: true }), name: text(body, 'name'), text: text(body, 'text', { required: true })!, by: actor };
       const created = await withQuota(projectId, { text: input.text }, scope, () => projects.saveDiagram(projectId, input));
-      return sendJson(res, 201, created, { Location: `/api/projects/${projectId}/diagrams/${created.id}` });
+      sendJson(res, 201, created, { Location: `/api/projects/${projectId}/diagrams/${created.id}` });
+      return announce(actor, { type: 'diagram.created', project: projectId, diagram: created.id, updatedAt: created.updatedAt });
     }
     if (second === 'diagrams' && parts.length === 3) {
       const diagramId = id(third, 'diagrama');
@@ -378,12 +402,19 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       if (method === 'PUT') {
         const body = await bodyObject(ctx.readBody, req);
         const input = { id: diagramId, text: text(body, 'text', { required: true })!, ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor };
-        return sendJson(res, 200, await withQuota(projectId, { diagramId, text: input.text }, scope, () => projects.saveDiagram(projectId, input)));
+        const saved = await withQuota(projectId, { diagramId, text: input.text }, scope, () => projects.saveDiagram(projectId, input));
+        sendJson(res, 200, saved);
+        return announce(actor, { type: 'diagram.saved', project: projectId, diagram: diagramId, updatedAt: saved.updatedAt });
       }
-      if (method === 'PATCH') return sendJson(res, 200, await projects.renameDiagram(projectId, diagramId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!));
+      if (method === 'PATCH') {
+        const renamed = await projects.renameDiagram(projectId, diagramId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!);
+        sendJson(res, 200, renamed);
+        return announce(actor, { type: 'diagram.renamed', project: projectId, diagram: diagramId, updatedAt: renamed.updatedAt });
+      }
       if (method === 'DELETE') {
         await projects.deleteDiagram(projectId, diagramId);
-        return sendJson(res, 200, { deleted: diagramId });
+        sendJson(res, 200, { deleted: diagramId });
+        return announce(actor, { type: 'diagram.deleted', project: projectId, diagram: diagramId });
       }
       return allow('GET, PUT, PATCH, DELETE');
     }

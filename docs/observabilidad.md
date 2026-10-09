@@ -59,6 +59,7 @@ Una línea JSON por petición, escrita al terminar la respuesta:
 | `durationMs` | Milisegundos desde que llegó la petición hasta que terminó la respuesta. |
 | `bytes` | Bytes de cuerpo enviados (antes de la compresión de un proxy). |
 | `remote` | La dirección del cliente: la de la conexión o, con `--trust-proxy`, la última de `X-Forwarded-For` (la que añadió el proxy). |
+| `stream`, `events` | Solo en el canal de cambios en tiempo real (`GET /api/events`, ver [servicio.md](servicio.md#cambios-en-tiempo-real-get-apievents)): `stream: true` y cuántos avisos se enviaron. Esa línea se escribe **al cerrarse** el canal (puede durar horas) y `durationMs` es lo que estuvo abierto; no cuenta como petición en curso ni entra en el histograma de duración. |
 | `actor` | Quién llama, si la autenticación lo identificó: `{"kind":"user","id","login","role"}` (sesión de GitHub; `role` es su rol en la instancia) o `{"kind":"token","name","role"}` (token de `iark auth`). Sin credencial, o con una falsa, no hay `actor`. |
 
 **No se escribe nunca**: la cabecera `Authorization`, tokens ni sesiones, cookies (`Cookie`, `Set-Cookie`), el `code`, el `state` ni el `verifier` del inicio de sesión de GitHub, nada de la query string (la dirección de vuelta de GitHub lleva un código de un solo uso), cuerpos de petición ni de respuesta, contenido ni nombres de diagramas o proyectos, `User-Agent`, `Referer`. Lo único que llega de fuera a la línea es el `X-Request-Id` (validado) y la dirección; el resto sale de conjuntos cerrados y `JSON.stringify` escapa saltos de línea, comillas y caracteres de control (y U+0085, U+2028 y U+2029, que algunos lectores toman por saltos): nadie puede fabricar una línea falsa ni un campo falso.
@@ -150,6 +151,8 @@ Apagadas por omisión: sin `--metrics`, `GET /metrics` responde 404 como cualqui
 | `iark_http_requests_in_flight` | indicador | — | Peticiones en curso (la propia lectura de `/metrics` cuenta). |
 | `iark_http_rate_limited_total` | contador | — | Respuestas 429. |
 | `iark_auth_failures_total` | contador | `reason` | Autenticaciones fallidas: `missing` (sin credencial), `invalid` (falsa), `rate_limited`, `unavailable` (el archivo de tokens no se puede leer) y `login_failed` (inicios de sesión que no llegaron a sesión). |
+| `iark_event_streams` · `iark_events_published_total` · `iark_events_delivered_total` | indicador · contador · contador | — | Canales de cambios en tiempo real abiertos, avisos publicados y avisos entregados (uno por canal). |
+| `iark_event_streams_rejected_total` · `iark_event_streams_dropped_total` | contador | — | Canales rechazados por el tope (429) y desconectados por leer demasiado despacio. |
 | `iark_audit_events_total` | contador | `action`, `result` | Filas de auditoría (se cuentan aunque no haya `--audit-log`). |
 | `iark_log_lines_total` · `iark_log_errors_total` | contador | `log`, `outcome` · `log` | Líneas escritas o descartadas de cada registro, y fallos al abrir o escribir (solo de los registros activados). |
 | `iark_compute_workers` · `_workers_max` · `_active` · `_queued` | indicador | — | Hilos de cálculo creados, tope, operaciones en curso y en cola. |
@@ -307,6 +310,8 @@ El `Caddyfile` de `deploy/` no activa el registro de accesos de Caddy: la direcc
 	}
 }
 ```
+
+El canal de cambios en tiempo real (`GET /api/events`) es una conexión larga: el `Caddyfile` de `deploy/` lo excluye de `encode` y fija `flush_interval -1` (también sin probar con un Caddy real); con nginx, `proxy_buffering off` y `proxy_read_timeout` largo en esa ruta (ver [servicio.md](servicio.md#cambios-en-tiempo-real-get-apievents)).
 
 ## Límites
 

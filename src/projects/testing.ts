@@ -62,8 +62,37 @@ export interface FakeServer {
   usageProjects: Map<string, ProjectQuotaUsage[]>;
   /** Añade una cuenta ya existente (que entró, o una invitación con `pending: true`) sin pasar por GitHub. */
   addAccount(account: Partial<FakeAccount> & { login: string }): FakeAccount;
+  /** Los cambios en tiempo real: ver `FakeEvents`. */
+  events: FakeEvents;
   /** Responde con ese estado y cuerpo a las próximas `times` peticiones que coincidan (`MÉTODO /ruta`), sin llegar a la lógica del servidor. */
   inject(match: RegExp, status: number, body: unknown, times?: number, headers?: Record<string, string>): void;
+}
+
+/**
+ * El canal de cambios en tiempo real (`GET /api/events`) del servidor simulado. Por omisión **no lo ofrece** (404, como un servidor anterior): las pruebas que lo
+ * quieren ponen `supported = true` antes de crear la sesión, y mandan los avisos a mano con `emit` (el servidor simulado no los deduce de las escrituras: así
+ * cada prueba decide qué llega, cuándo y en qué orden, incluida la carrera en que el aviso llega antes que la respuesta del guardado).
+ */
+export interface FakeEvents {
+  supported: boolean;
+  /** Canales abiertos ahora mismo. */
+  readonly open: number;
+  /** Cuántas veces se intentó abrir el canal (con o sin éxito). */
+  attempts: number;
+  /** Los milisegundos entre latidos que anuncia `ready`; el cliente da por muerta la conexión tras tres latidos sin noticias. Por omisión, una hora (las pruebas no mandan latidos a mano). */
+  heartbeatMs: number;
+  /** Qué se envía al abrir: el mensaje `ready` (por omisión sí; sin él, el cliente no sabe que está en directo). */
+  sendReady: boolean;
+  /** Manda un aviso de cambio (`event: change`) a los canales abiertos. */
+  emit(event: { type: string; project: string; diagram?: string; updatedAt?: string; by?: string }): void;
+  /** Manda un latido (comentario). */
+  heartbeat(): void;
+  /** Cierra los canales como un corte de red (el lector falla). */
+  drop(): void;
+  /** El servidor cierra los canales con un `bye`. */
+  bye(reason: 'unauthorized' | 'shutdown'): void;
+  /** Escribe texto crudo en los canales (para probar mensajes raros). */
+  write(text: string): void;
 }
 
 /** Una cuenta de la instancia en el servidor simulado (lo que `GET /api/admin/users` cuenta de ella, menos el número de proyectos, que se deduce de `members`). */
@@ -113,7 +142,38 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
   const codes = new Map<string, { person: FakePerson; challenge: string }>();
   const injected: Array<{ match: RegExp; status: number; body: unknown; times: number; headers?: Record<string, string> }> = [];
   let accountSeq = 0;
+  const channels = new Set<ReadableStreamDefaultController<Uint8Array>>();
+  const encoder = new TextEncoder();
+  const push = (text: string): void => {
+    for (const channel of channels) channel.enqueue(encoder.encode(text));
+  };
+  const events: FakeEvents = {
+    supported: false,
+    get open() {
+      return channels.size;
+    },
+    attempts: 0,
+    heartbeatMs: 3_600_000,
+    sendReady: true,
+    emit: (event) => push(`event: change\ndata: ${JSON.stringify({ ...event, at: new Date().toISOString() })}\n\n`),
+    heartbeat: () => push(': hb\n\n'),
+    drop: () => {
+      for (const channel of [...channels]) {
+        channels.delete(channel);
+        channel.error(new TypeError('network error'));
+      }
+    },
+    bye: (reason) => {
+      push(`event: bye\ndata: ${JSON.stringify({ reason })}\n\n`);
+      for (const channel of [...channels]) {
+        channels.delete(channel);
+        channel.close();
+      }
+    },
+    write: push,
+  };
   const server: FakeServer = {
+    events,
     store: options.store ?? new MemoryProjectStore(),
     log: [],
     down: false,
@@ -317,6 +377,32 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
       return json(404, { error: 'Ruta de autenticación desconocida. Ver /api/auth/providers.' });
     }
 
+    if (path === '/api/events') {
+      events.attempts += 1;
+      if (!events.supported || server.noProjects) return json(404, { error: 'Ruta de la API desconocida. Ver /api/modules.' });
+      if (!authorized) return unauthorized();
+      let channel: ReadableStreamDefaultController<Uint8Array> | undefined;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          channel = controller;
+          channels.add(controller);
+          if (events.sendReady) controller.enqueue(encoder.encode(`retry: 5000\nevent: ready\ndata: {"heartbeatMs":${events.heartbeatMs}}\n\n`));
+        },
+        cancel() {
+          if (channel) channels.delete(channel);
+        },
+      });
+      // Un `fetch` abortado falla en la lectura, como el de verdad.
+      init.signal?.addEventListener('abort', () => {
+        if (!channel || !channels.delete(channel)) return;
+        try {
+          channel.error(init.signal?.reason ?? new DOMException('Aborted', 'AbortError'));
+        } catch {
+          /* ya cerrado */
+        }
+      });
+      return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8' } });
+    }
     if (path === '/api/whoami') {
       if (server.noProjects) return json(404, { error: 'No existe esa ruta.' });
       if (caller) return json(200, { auth: true, name: caller.name ?? caller.login, role: siteRoleOf(caller), user: publicUser(caller) });

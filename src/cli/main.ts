@@ -597,6 +597,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
     .option('--max-projects <n>', 'cuota: proyectos que puede poseer cada persona (o IARK_MAX_PROJECTS); por omisión 25; 0 quita el tope', (v: string) => Number(v), process.env.IARK_MAX_PROJECTS ? Number(process.env.IARK_MAX_PROJECTS) : undefined)
     .option('--max-diagrams <n>', 'cuota: diagramas que admite cada proyecto (o IARK_MAX_DIAGRAMS); por omisión 200; 0 quita el tope', (v: string) => Number(v), process.env.IARK_MAX_DIAGRAMS ? Number(process.env.IARK_MAX_DIAGRAMS) : undefined)
     .option('--max-bytes <tamaño>', 'cuota: espacio total de los proyectos de cada persona, documentos de los diagramas más historial de versiones (o IARK_MAX_BYTES): bytes o 256M, 2G…; por omisión 256M; 0 quita el tope. Un administrador puede fijar otra cuota a una persona (docs/cuentas-github.md)', process.env.IARK_MAX_BYTES || undefined)
+    .option('--max-streams <n>', 'canales de cambios en tiempo real (GET /api/events) abiertos a la vez por persona (o IARK_MAX_STREAMS); por omisión 8; 0 desactiva el canal y los clientes sondean como antes', (v: string) => Number(v), process.env.IARK_MAX_STREAMS ? Number(process.env.IARK_MAX_STREAMS) : undefined)
     .option(
       '--frame-ancestors <orígenes>',
       'orígenes que pueden incrustar por iframe las cargas embebidas (?embed=1), separados por comas, o * (o la variable IARK_FRAME_ANCESTORS). Por omisión *, porque el producto es embebible; si no incrusta desde fuera, fíjelo a los orígenes que necesite. El propio origen siempre puede',
@@ -628,6 +629,8 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         );
       }
       const compute = resolveComputeSettings(opts);
+      const streams: number | undefined = opts.maxStreams;
+      if (streams !== undefined && (!Number.isInteger(streams) || streams < 0 || streams > 1000)) throw new CliError('--max-streams debe ser un entero entre 0 (desactiva el canal) y 1000.', 2);
       // Registros y métricas (apagados por omisión): se abren antes de escuchar, para que un archivo que no se puede abrir sea un error de uso y no un servicio a medias.
       const observed = setupObservability(opts, { host: opts.host, trustProxy: !!opts.trustProxy, version: CLI_VERSION });
       // Al arrancar el archivo de tokens debe existir y ser válido (si no, error de uso): después se relee cuando cambia, y un problema deniega todo.
@@ -636,7 +639,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       // El cálculo (ELK, análisis de documentos grandes) corre en hilos aparte, con tiempo límite y cola acotada: ver `computePool.ts`.
       // Cada hilo construye su propio registro: con los mismos módulos de terceros que el principal, o un plugin funcionaría en el CLI y fallaría aquí.
       const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue, plugins: settings.plugins }) : undefined;
-      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute, observability: observed.observability, metricsToken: observed.metricsToken });
+      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute, observability: observed.observability, metricsToken: observed.metricsToken, events: streams === 0 ? false : { maxPerPerson: streams } });
       await new Promise<void>((resolveListening, rejectListening) => {
         server.once('error', rejectListening);
         server.listen(opts.port, opts.host, resolveListening);
@@ -655,6 +658,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       }
       if (projects) {
         info(`  espacio de trabajo: ${projects.root} · proyectos: /api/projects`);
+        info(streams === 0 ? '  cambios en tiempo real: desactivados (--max-streams 0); los clientes sondean cada 30 s' : `  cambios en tiempo real: /api/events (hasta ${streams ?? 8} canal(es) por persona)`);
         if (accounts) {
           info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}, almacén ${accounts.store.kind}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
           const q = accounts.quotas;

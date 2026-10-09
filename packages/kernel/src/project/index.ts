@@ -54,6 +54,19 @@ export {
   type RemoteSession,
   type SiteRole,
 } from './http';
+export {
+  EventsConnection,
+  parseProjectEvent,
+  PROJECT_EVENT_TYPES,
+  SseParser,
+  type EventsHandlers,
+  type EventsOptions,
+  type EventsState,
+  type EventsStatus,
+  type ProjectEvent,
+  type ProjectEventType,
+  type SseMessage,
+} from './events';
 export { duplicateDiagram, findDiagram, findProject, snapshotProject } from './operations';
 export {
   bundleFileName,

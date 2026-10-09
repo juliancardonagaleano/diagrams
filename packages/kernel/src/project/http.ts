@@ -1,4 +1,5 @@
 import { ProjectError, type ProjectErrorCode, type ProjectErrorInfo } from './errors';
+import { EventsConnection, type EventsHandlers, type EventsOptions } from './events';
 import type { Diagram, DiagramMeta, ProjectRole, ProjectSummary, SaveDiagramInput } from './types';
 import { requireVersionId, type DiagramVersion, type RestoredVersion, type RestoreOptions, type VersionedProjectStore, type VersionMeta } from './versions';
 
@@ -359,6 +360,8 @@ export class HttpProjectStore implements VersionedProjectStore {
   private readonly doFetch: typeof fetch;
   private readonly timeoutMs: number;
   private readonly keepalive: boolean;
+  /** Las conexiones al canal de eventos que se abrieron con `watchEvents` y siguen vivas (el token nuevo las reconecta). */
+  private readonly watchers = new Set<EventsConnection>();
 
   constructor(options: HttpProjectStoreOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
@@ -375,7 +378,31 @@ export class HttpProjectStore implements VersionedProjectStore {
 
   /** Cambia el token de las peticiones siguientes (para reconectar sin recargar la página ni perder lo pendiente). */
   setToken(token: string | undefined): void {
-    this.token = token?.trim() || undefined;
+    const next = token?.trim() || undefined;
+    const changed = next !== this.token;
+    this.token = next;
+    // Un canal de eventos abierto con la credencial anterior (o parado por no valer) se reconecta con la nueva.
+    if (changed) for (const watcher of this.watchers) watcher.kick();
+  }
+
+  /**
+   * Se suscribe a los cambios en tiempo real del servidor (`GET /api/events`, ver `events.ts`): avisos de qué cambió, nunca documentos. Se reconecta sola con espera
+   * exponencial; si el servidor no ofrece el canal el estado queda en `unsupported` y quien lo usa sigue sondeando. Devuelve cómo cerrarla.
+   * Los demás almacenes no tienen este método: quien lo usa comprueba `typeof store.watchEvents`.
+   */
+  watchEvents(handlers: EventsHandlers, options: EventsOptions = {}): { stop(): void; readonly state: EventsConnection['current'] } {
+    const connection = new EventsConnection({ baseUrl: this.baseUrl, token: () => this.token, fetch: this.doFetch }, handlers, options);
+    this.watchers.add(connection);
+    connection.start();
+    return {
+      stop: () => {
+        connection.stop();
+        this.watchers.delete(connection);
+      },
+      get state() {
+        return connection.current;
+      },
+    };
   }
 
   /** Quién es este token ante el servidor, o `{ auth: false }` si el servidor no pide autenticación. Sirve para «probar la conexión». */

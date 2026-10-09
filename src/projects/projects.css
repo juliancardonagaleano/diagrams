@@ -3,6 +3,7 @@
  * las variables de Semi UI): cada color toma la variable de la pantalla que esté y, si no hay ninguna, un valor propio.
  */
 .pj-overlay,
+.pj-newer,
 .pj-offline-actions {
   --pj-bg: var(--wb-surface, var(--semi-color-bg-2, #ffffff));
   --pj-bg-2: var(--wb-surface-2, var(--semi-color-fill-0, #f0f2f5));
@@ -1112,4 +1113,52 @@ td.pj-admin-actions {
   .pj-conflict .pj-confirm button {
     flex: 1 1 100%;
   }
+}
+
+/* Aviso «hay una versión más nueva»: una franja en línea con la barra del proyecto; la región de estado ocupa sitio solo cuando tiene texto. */
+.pj-newer {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  max-width: 100%;
+  color: var(--pj-text);
+  font: inherit;
+}
+.pj-newer[data-active='true'] {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--pj-warning-bg);
+  border: 1px solid var(--pj-warning);
+}
+.pj-newer-text:empty {
+  display: none;
+}
+.pj-newer-text:focus {
+  outline: none;
+}
+.pj-newer > button {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--pj-border);
+  background: var(--pj-bg);
+  color: var(--pj-text);
+  font: inherit;
+  cursor: pointer;
+}
+.pj-newer > button:hover:not(:disabled) {
+  background: var(--pj-bg-2);
+}
+.pj-newer > button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.pj-newer > button.pj-primary {
+  background: var(--pj-primary);
+  border-color: var(--pj-primary);
+  color: var(--pj-primary-text);
+}
+.pj-newer :focus-visible {
+  outline: 2px solid var(--pj-primary);
+  outline-offset: 1px;
 }

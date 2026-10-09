@@ -14,9 +14,13 @@ import {
   type Diagram,
   type DiagramMeta,
   type DiagramVersion,
+  type EventsOptions,
+  type EventsState,
+  type EventsStatus,
   type HttpProjectStore,
   type ImportedProject,
   type ProjectErrorCode,
+  type ProjectEvent,
   type ProjectMember,
   type ProjectRole,
   type ProjectStore,
@@ -66,6 +70,25 @@ export interface ProjectsState {
   syncErrorCode?: ProjectErrorCode;
   /** Solo con un servidor: los cambios guardados en este navegador que esperan a enviarse (ver `offlineSync.ts`). */
   offline?: OfflineSnapshot;
+  /** Solo con un servidor: hay una versión más nueva del diagrama abierto (ver `NewerVersion`). */
+  newer?: NewerVersion;
+  /**
+   * Solo con un servidor que ofrece cambios en tiempo real: cómo va el canal. `live`: los cambios llegan al instante y el sondeo se relaja; `connecting` y
+   * `retrying`: se sigue sondeando como siempre mientras se conecta; `unsupported` (el servidor no lo ofrece o un proxy lo corta) y `rejected` (el token no vale):
+   * solo sondeo. Ausente: este almacén no tiene canal o está desactivado.
+   */
+  eventsState?: EventsState;
+}
+
+/**
+ * Otra persona (u otro equipo, u otra pestaña) guardó una versión más nueva del diagrama abierto. Solo existe con un servidor y cuando aquí no hay nada
+ * pendiente de guardar: con cambios propios sin enviar, el aviso es el conflicto de siempre (o la cola sin conexión), que no pierde nada.
+ */
+export interface NewerVersion {
+  /** La marca `updatedAt` de la versión más nueva del servidor. */
+  updatedAt: string;
+  /** Quién la guardó (`@usuario` o nombre de token), si el servidor lo contó. */
+  by?: string;
 }
 
 /** Dónde se guardan los proyectos de esta sesión: este navegador o un servidor (con su dirección, para mostrarla). */
@@ -125,6 +148,12 @@ export interface SessionOptions {
    * Solo con un servidor: el trabajo sin conexión. Por omisión, los cambios que no llegan al servidor se guardan en IndexedDB y se
    * reenvían solos; `false` lo desactiva (el cambio queda en memoria, con «Reintentar»). Las pruebas dan su propia cola y reloj.
    */
+  /**
+   * Solo con un servidor que lo ofrece: los cambios en tiempo real (`GET /api/events`). Por omisión activos; `false` los desactiva (solo sondeo). Con un objeto,
+   * los ajustes de reconexión (las pruebas acortan las esperas) y `safetyPollMs`: con el canal en directo la lista se relee igualmente cada tanto (por omisión 5 min)
+   * por si algún aviso se perdió.
+   */
+  events?: false | (EventsOptions & { safetyPollMs?: number });
   offline?: false | { queue?: OfflineQueue; policy?: Partial<RetryPolicy>; now?: () => number; identity?: IdentityMemory; locks?: false | LockManagerLike };
 }
 
@@ -133,6 +162,10 @@ export type ConflictChoice = 'overwrite' | 'reload' | 'copy';
 
 const CHANNEL = 'iark-projects';
 export const DEFAULT_POLL_MS = 30_000;
+/** Con el canal de eventos en directo, cada cuánto se relee la lista de todos modos. */
+export const DEFAULT_SAFETY_POLL_MS = 5 * 60_000;
+/** Los avisos que llegan juntos (un guardado y su renombrado, una importación) se atienden con una sola lectura. */
+const EVENT_REFRESH_MS = 60;
 
 /** El almacén que usa una sesión cuando no se le dice: `http` es un servidor y todo lo demás, este navegador. */
 function backendOf(store: ProjectStore): SessionBackend {
@@ -178,6 +211,16 @@ export class ProjectSession {
   private watchers = 0;
   private refreshing: Promise<void> | undefined;
   private stopWatching: (() => void) | undefined;
+  /** El canal de cambios en tiempo real (solo con un servidor que lo ofrece). */
+  private eventsWatch: { stop(): void } | undefined;
+  private eventTimer: ReturnType<typeof setTimeout> | undefined;
+  private eventsWasLive = false;
+  /** Cuándo se leyó la lista por última vez con éxito (ms). */
+  private lastRefreshAt = 0;
+  /** Quién guardó por última vez cada diagrama (`proyecto/diagrama`), según los avisos: para decir quién en «hay una versión más nueva». */
+  private readonly authors = new Map<string, string>();
+  /** La versión más nueva que la persona dijo ignorar (`proyecto/diagrama/updatedAt`): no se vuelve a avisar de ella, sí de otra aún más nueva. */
+  private ignoredNewer: string | undefined;
   /** El trabajo sin conexión (solo con un servidor): guarda en este navegador lo que no llega y lo reenvía solo. */
   private readonly sync: OfflineSync | undefined;
   private stopNetwork: (() => void) | undefined;
@@ -300,8 +343,26 @@ export class ProjectSession {
   };
 
   private set(patch: Partial<ProjectsState>): void {
-    this.state = { ...this.state, ...patch };
+    const next = { ...this.state, ...patch };
+    const newer = this.newerFor(next);
+    this.state = newer?.updatedAt === next.newer?.updatedAt && newer?.by === next.newer?.by ? next : { ...next, newer };
     for (const listener of this.listeners) listener();
+  }
+
+  /**
+   * ¿El servidor tiene una versión más nueva del diagrama abierto que la que esta pestaña conoce? Solo si aquí no hay nada pendiente: con cambios sin guardar,
+   * sin enviar, en conflicto o sin conexión, lo que corresponde es el flujo de siempre (conflicto al guardar, con sus tres salidas), y ofrecer «cargar la nueva»
+   * aquí tiraría lo que la persona escribió. Se deduce de la lista (la marca del diagrama frente a la que se conoce), así que sirve igual con el sondeo.
+   */
+  private newerFor(state: ProjectsState): NewerVersion | undefined {
+    const { projectId, diagramId } = state;
+    if (!this.remote || !projectId || !diagramId || !this.baseUpdatedAt) return undefined;
+    if ((state.save !== 'idle' && state.save !== 'saved') || this.pendingText !== undefined || this.sync?.find(projectId, diagramId)) return undefined;
+    const meta = state.projects.find((p) => p.id === projectId)?.diagrams.find((d) => d.id === diagramId);
+    if (!meta || !(meta.updatedAt > this.baseUpdatedAt)) return undefined;
+    if (this.ignoredNewer === `${projectId}/${diagramId}/${meta.updatedAt}`) return undefined;
+    const by = this.authors.get(`${projectId}/${diagramId}`);
+    return { updatedAt: meta.updatedAt, ...(by ? { by } : {}) };
   }
 
   get project(): ProjectSummary | undefined {
@@ -323,6 +384,7 @@ export class ProjectSession {
     // escriba desde ahora quede guardado a su nombre (y no lo pueda enviar otra persona con otra credencial).
     void this.sync?.verifyQuiet();
     void this.sync?.kick('start');
+    this.startEvents();
     const last = this.pointer?.read();
     const project = this.state.projects.find((p) => p.id === last?.projectId);
     if (!project) return undefined;
@@ -346,6 +408,7 @@ export class ProjectSession {
         this.discardPending();
         this.baseUpdatedAt = undefined;
       }
+      this.lastRefreshAt = Date.now();
       this.set({ projects, available: true, error: undefined, errorCode: undefined, syncError: undefined, syncErrorCode: undefined, projectId, diagramId, ...(lost ? { save: 'idle' as const, ...NO_SAVE_ERROR } : {}) });
     } catch (error) {
       if (options.background && this.state.available) this.set({ syncError: (error as Error).message, syncErrorCode: codeOf(error) });
@@ -405,6 +468,9 @@ export class ProjectSession {
       if (this.interested && visible()) void this.refreshQuiet();
     };
     const tick = (): void => {
+      // Con el canal en directo los cambios llegan solos: la lectura periódica queda como red de seguridad, mucho más espaciada.
+      const safety = typeof this.options.events === 'object' ? (this.options.events.safetyPollMs ?? DEFAULT_SAFETY_POLL_MS) : DEFAULT_SAFETY_POLL_MS;
+      if (this.state.eventsState === 'live' && Date.now() - this.lastRefreshAt < safety) return;
       if (visible() && this.interested) void this.refreshQuiet();
     };
     window.addEventListener('focus', comeBack);
@@ -417,6 +483,80 @@ export class ProjectSession {
       document.removeEventListener('visibilitychange', comeBack);
       clearInterval(interval);
     };
+  }
+
+  // ───────────── cambios en tiempo real ─────────────
+
+  /**
+   * Abre el canal de cambios en tiempo real, si el almacén lo tiene, no está desactivado y el servidor no está rechazando el token (insistir con uno malo suma
+   * intentos fallidos). Si el servidor no lo ofrece, queda en `unsupported` y todo sigue como antes: el sondeo.
+   */
+  private startEvents(): void {
+    if (this.eventsWatch || !this.remote || this.options.events === false || !this.state.available) return;
+    if (this.state.errorCode === 'unauthorized' || this.state.syncErrorCode === 'unauthorized') return;
+    const store = this.store as { watchEvents?: HttpProjectStore['watchEvents'] };
+    if (typeof store.watchEvents !== 'function') return;
+    const settings = typeof this.options.events === 'object' ? this.options.events : {};
+    const connection: EventsOptions = { baseMs: settings.baseMs, maxMs: settings.maxMs, silenceMs: settings.silenceMs, random: settings.random };
+    this.eventsWatch = store.watchEvents({ onEvent: (event) => this.onEvent(event), onStatus: (status) => this.onEventsStatus(status) }, connection);
+  }
+
+  private onEventsStatus(status: EventsStatus): void {
+    if (status.state === 'stopped') return;
+    this.set({ eventsState: status.state });
+    // Al ponerse en directo tras un corte se vuelve a leer la lista: lo que pasó mientras no había canal no avisó de nada. La primera vez no hace falta (acaba de leerse).
+    if (status.state === 'live') {
+      if (this.eventsWasLive) void this.refreshFresh();
+      this.eventsWasLive = true;
+    }
+    // El token dejó de valer con el canal abierto: se lee la lista para que la pantalla lo cuente (volver a conectar) en lugar de quedarse mirando.
+    if (status.state === 'rejected' && status.error?.code === 'unauthorized') void this.refreshQuiet();
+  }
+
+  private onEvent(event: ProjectEvent): void {
+    if (event.diagram && event.by) this.authors.set(`${event.project}/${event.diagram}`, event.by);
+    if (!this.interested || this.eventTimer) return;
+    this.eventTimer = setTimeout(() => {
+      this.eventTimer = undefined;
+      void this.refreshFresh();
+    }, EVENT_REFRESH_MS);
+  }
+
+  /** Una lectura de la lista que empieza ahora: si ya hay una en curso se espera a que termine (pudo empezar antes del cambio) y se hace otra. */
+  private async refreshFresh(): Promise<void> {
+    if (this.refreshing) await this.refreshing.catch(() => undefined);
+    await this.refreshQuiet();
+  }
+
+  /**
+   * Carga la versión más nueva del diagrama abierto («Cargar la nueva» del aviso `newer`): devuelve el diagrama para que el anfitrión lo ponga en el editor, y
+   * desde ahí se guarda sobre su marca. Rechaza con `conflict` si hay algo pendiente de guardar aquí (sustituirlo lo perdería: eso se resuelve donde siempre).
+   */
+  async loadNewer(): Promise<Diagram | undefined> {
+    const { projectId, diagramId } = this.state;
+    if (!projectId || !diagramId) return undefined;
+    const busy = (): boolean => this.pendingText !== undefined || (this.state.save !== 'idle' && this.state.save !== 'saved') || this.openEntry() !== undefined;
+    const refuse = (): never => {
+      throw new ProjectError('conflict', 'Hay cambios tuyos sin guardar en este diagrama: no se carga la versión nueva para no perderlos. Si ya hay otra versión en el servidor, al guardar verás el conflicto y podrás elegir.');
+    };
+    if (busy()) refuse();
+    const diagram = await this.store.getDiagram(projectId, diagramId);
+    if (!diagram) {
+      await this.refresh({ background: true }); // ya no existe: la lista lo dirá y el diagrama se suelta
+      return undefined;
+    }
+    if (this.state.projectId !== projectId || this.state.diagramId !== diagramId) return undefined; // mientras tanto se abrió otro
+    if (busy()) refuse(); // se escribió algo mientras se leía
+    this.baseUpdatedAt = diagram.updatedAt;
+    this.set({ save: 'idle', ...NO_SAVE_ERROR });
+    return diagram;
+  }
+
+  /** Ignora el aviso de versión más nueva (no vuelve a salir hasta que haya otra aún más nueva). Guardar encima sigue pasando por el conflicto de siempre. */
+  dismissNewer(): void {
+    const { projectId, diagramId, newer } = this.state;
+    this.ignoredNewer = newer ? `${projectId}/${diagramId}/${newer.updatedAt}` : undefined;
+    this.set({});
   }
 
   /** Reintenta el guardado pendiente si falló por algo que puede pasar solo (red, servidor caído), no por el token ni por el contenido. */
@@ -461,6 +601,7 @@ export class ProjectSession {
   async useToken(token: string | undefined): Promise<void> {
     (this.store as { setToken?: (token?: string) => void }).setToken?.(token);
     await this.refresh();
+    this.startEvents(); // si no se había abierto por no valer el token (con uno abierto, el almacén ya lo reconectó con el nuevo)
     await this.sync?.credentialsChanged();
     const refused = this.state.saveErrorCode === 'unauthorized' || this.state.saveErrorCode === 'forbidden';
     if (this.pendingText !== undefined && this.state.save === 'error' && refused) await this.retry();
@@ -1019,6 +1160,10 @@ export class ProjectSession {
   }
 
   dispose(): void {
+    this.eventsWatch?.stop();
+    this.eventsWatch = undefined;
+    if (this.eventTimer) clearTimeout(this.eventTimer);
+    this.eventTimer = undefined;
     this.stopWatching?.();
     this.stopNetwork?.();
     this.sync?.dispose();

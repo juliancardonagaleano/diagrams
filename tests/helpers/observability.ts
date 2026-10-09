@@ -27,6 +27,9 @@ export interface AccessRow {
   bytes: number;
   remote: string;
   actor?: Actor;
+  /** Solo un canal que se queda abierto (los cambios en tiempo real): que lo fue y cuántos avisos se enviaron. */
+  stream?: true;
+  events?: number;
   aborted?: true;
 }
 

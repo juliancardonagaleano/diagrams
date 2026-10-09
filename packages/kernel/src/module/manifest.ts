@@ -56,6 +56,8 @@ export const manifestSchema = z.object({
   projects: z.string().optional(),
   /** Cómo se autentica esa API; acompaña a `projects`. */
   projectsAuth: z.enum(PROJECTS_AUTH).optional(),
+  /** URL (absoluta o relativa al manifiesto) del canal de cambios en tiempo real (`GET /api/events`, Server-Sent Events); acompaña a `projects` y solo la declara una instancia que lo ofrece. Sin ella, se sondea. */
+  projectsEvents: z.string().optional(),
 });
 
 export type ModuleManifest = z.infer<typeof moduleManifestSchema>;

@@ -175,9 +175,10 @@ export class Metrics {
     this.collectors.push(collector);
   }
 
-  observeRequest(method: string, route: string, status: number, seconds: number): void {
+  /** `timed` falso (un canal que se queda abierto, p. ej. los eventos en tiempo real) cuenta la petición pero no su duración: horas de conexión no son latencia. */
+  observeRequest(method: string, route: string, status: number, seconds: number, timed = true): void {
     this.requests.inc({ method: methodLabel(method), route, status_class: statusClass(status) });
-    this.duration.observe({ route }, seconds);
+    if (timed) this.duration.observe({ route }, seconds);
     if (status === 429) this.rateLimited.inc();
   }
 

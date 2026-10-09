@@ -36,7 +36,12 @@ async function sessionOf(cloud: Cloud, token: string, traffic: Traffic = { reque
       traffic.open -= 1;
     }
   };
-  const session = createProjectSession({ config: { kind: 'remote', url: cloud.base, token }, fetch: record, session: { broadcast: false, pollMs: 0, debounceMs: 10 } });
+  const session = createProjectSession({
+    config: { kind: 'remote', url: cloud.base, token },
+    fetch: record,
+    // sin canal de eventos: este cliente lee cada cuerpo hasta el final, y un canal abierto no termina
+    session: { broadcast: false, pollMs: 0, debounceMs: 10, events: false },
+  });
   await session.init();
   return session;
 }

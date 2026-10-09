@@ -38,6 +38,8 @@ export interface ProjectBinding {
    * guardar la propia como diagrama nuevo. Con `key` se resuelve el de otro diagrama que quedó pendiente en el navegador.
    */
   resolveConflict(choice: ConflictChoice, options?: { key?: string; name?: string }): Promise<void>;
+  /** Carga en el editor la versión más nueva que otra persona guardó del diagrama abierto («Cargar la nueva»). Rechaza con el motivo si hay cambios sin guardar. */
+  loadNewer(): Promise<void>;
   /**
    * Restaura una versión del diagrama abierto (queda guardada como una versión nueva) y la carga en el editor. Rechaza con el motivo si no se
    * pudo restaurar o si el resultado no es un documento C4 válido (el historial queda como está).
@@ -162,6 +164,12 @@ export function useProjectBinding(): ProjectBinding {
     [session, load],
   );
 
+  const loadNewer = useCallback(async (): Promise<void> => {
+    if (!session) return;
+    const diagram = await session.loadNewer();
+    if (diagram) load(diagram.text, diagram.name);
+  }, [session, load]);
+
   const restoreVersion = useCallback(
     async (versionId: number): Promise<RestoreResult> => {
       const { projectId, diagramId } = session?.getState() ?? {};
@@ -178,5 +186,5 @@ export function useProjectBinding(): ProjectBinding {
     return { module: C4_MODULE, text: serialize(doc), name: doc.workspace.name };
   }, []);
 
-  return { session, state, open, current, resolveConflict, restoreVersion };
+  return { session, state, open, current, resolveConflict, loadNewer, restoreVersion };
 }
