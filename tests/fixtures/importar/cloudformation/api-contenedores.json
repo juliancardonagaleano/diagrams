@@ -1,0 +1,93 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "API de pedidos en contenedores (ECS Fargate) detrás de un balanceador",
+  "Parameters": {
+    "Stage": { "Type": "String", "Default": "staging" },
+    "ImageTag": { "Type": "String", "Default": "1.4.2" }
+  },
+  "Resources": {
+    "Cluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": { "ClusterName": { "Fn::Sub": "${Stage}-pedidos" } }
+    },
+    "Repository": {
+      "Type": "AWS::ECR::Repository",
+      "Properties": { "RepositoryName": "pedidos/api" }
+    },
+    "Table": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "TableName": { "Fn::Join": ["-", [{ "Ref": "Stage" }, "pedidos"]] },
+        "BillingMode": "PAY_PER_REQUEST",
+        "AttributeDefinitions": [{ "AttributeName": "id", "AttributeType": "S" }],
+        "KeySchema": [{ "AttributeName": "id", "KeyType": "HASH" }]
+      }
+    },
+    "Events": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": { "TopicName": "pedidos-eventos" }
+    },
+    "TaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "api",
+        "Cpu": "512",
+        "Memory": "1024",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": ["FARGATE"],
+        "ContainerDefinitions": [
+          {
+            "Name": "api",
+            "Image": { "Fn::Sub": "${AWS::AccountId}.dkr.ecr.eu-west-1.amazonaws.com/pedidos/api:1.4.2" },
+            "PortMappings": [{ "ContainerPort": 8080 }],
+            "Environment": [
+              { "Name": "TABLE", "Value": { "Ref": "Table" } },
+              { "Name": "TOPIC", "Value": { "Ref": "Events" } }
+            ]
+          }
+        ]
+      }
+    },
+    "Service": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": "Listener",
+      "Properties": {
+        "Cluster": { "Ref": "Cluster" },
+        "LaunchType": "FARGATE",
+        "DesiredCount": 3,
+        "TaskDefinition": { "Ref": "TaskDefinition" },
+        "LoadBalancers": [
+          { "ContainerName": "api", "ContainerPort": 8080, "TargetGroupArn": { "Ref": "TargetGroup" } }
+        ],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": { "Subnets": ["subnet-0a1b2c3d", "subnet-4e5f6a7b"] }
+        }
+      }
+    },
+    "LoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": { "Name": "pedidos-alb", "Type": "application", "Scheme": "internet-facing" }
+    },
+    "TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": { "Port": 8080, "Protocol": "HTTP", "TargetType": "ip", "VpcId": "vpc-0123456789abcdef0" }
+    },
+    "Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "LoadBalancerArn": { "Ref": "LoadBalancer" },
+        "Port": 443,
+        "Protocol": "HTTPS",
+        "DefaultActions": [{ "Type": "forward", "TargetGroupArn": { "Ref": "TargetGroup" } }]
+      }
+    },
+    "Importada": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": { "QueueName": { "Fn::ImportValue": "compartida-cola" } }
+    },
+    "Referencia": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": { "TopicArn": { "Ref": "Events" }, "Protocol": "sqs", "Endpoint": { "Fn::GetAtt": ["Fantasma", "Arn"] } }
+    }
+  }
+}

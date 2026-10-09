@@ -756,9 +756,9 @@ describe('módulo', () => {
     const registry = new ModuleRegistry().register(platformModule);
     expect(registry.require('platform')).toBe(platformModule);
     expect(platformModule.exporters.map((e) => e.id)).toEqual(['mermaid', 'svg', 'drawio']);
-    expect(platformModule.importers.map((i) => i.id)).toEqual(['mermaid', 'terraform', 'kubernetes']);
+    expect(platformModule.importers.map((i) => i.id)).toEqual(['mermaid', 'terraform', 'kubernetes', 'cloudformation']);
     const manifest = buildManifest(registry, { name: 'Prueba', version: '0.0.0' });
-    expect(manifest.modules[0]).toMatchObject({ id: 'platform', importFormats: ['mermaid', 'terraform', 'kubernetes'], exportFormats: ['mermaid', 'svg', 'drawio'] });
+    expect(manifest.modules[0]).toMatchObject({ id: 'platform', importFormats: ['mermaid', 'terraform', 'kubernetes', 'cloudformation'], exportFormats: ['mermaid', 'svg', 'drawio'] });
     expect(platformModule.entities!(doc).map((e) => e.kind)).toEqual(expect.arrayContaining(['environment', 'network', 'resource', 'service', 'pipeline']));
     expect(platformModule.validate(doc)).toEqual([]);
     expect((platformModule.jsonSchema() as { type: string }).type).toBe('object');

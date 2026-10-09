@@ -1,0 +1,283 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Tienda en línea - red, servidor web, base de datos y proceso de pedidos
+
+Parameters:
+  Environment:
+    Type: String
+    Default: produccion
+    AllowedValues: [desarrollo, preproduccion, produccion]
+    Description: Entorno de despliegue
+  InstanceType:
+    Type: String
+    Default: t3.medium
+  DbPassword:
+    Type: String
+    NoEcho: true
+    Default: cambiar-esta-clave-123
+  ArtifactsBucket:
+    Type: String
+
+Conditions:
+  EsProduccion: !Equals [!Ref Environment, produccion]
+
+Mappings:
+  RegionAmi:
+    eu-west-1:
+      Ami: ami-0abcdef1234567890
+
+Resources:
+  # ───── Red ─────
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${Environment}-red'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Team
+          Value: plataforma
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: eu-west-1a
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: publica-a
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.10.0/24
+      AvailabilityZone: eu-west-1a
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.11.0/24
+      AvailabilityZone: eu-west-1b
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  # ───── Grupos de seguridad ─────
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTPS desde Internet
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Funciones dentro de la VPC
+      VpcId: !Ref Vpc
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL desde la web y las funciones
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref WebSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !GetAtt LambdaSecurityGroup.GroupId
+
+  # ───── Cómputo y datos ─────
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !FindInMap [RegionAmi, !Ref 'AWS::Region', Ami]
+      SubnetId: !Ref PublicSubnetA
+      SecurityGroupIds:
+        - !Ref WebSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo "DB_HOST=${Database.Endpoint.Address}" >> /etc/tienda.env
+          echo "BUCKET=${AssetsBucket}" >> /etc/tienda.env
+      Tags:
+        - Key: Name
+          Value: tienda-web
+        - Key: Owner
+          Value: equipo-web
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subredes privadas de la base de datos
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub '${Environment}-pedidos-db'
+      Engine: postgres
+      EngineVersion: '15.4'
+      DBInstanceClass: db.m6g.large
+      AllocatedStorage: '100'
+      MultiAZ: !If [EsProduccion, true, false]
+      PubliclyAccessible: false
+      MasterUsername: tienda
+      MasterUserPassword: !Ref DbPassword
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups:
+        - !GetAtt DbSecurityGroup.GroupId
+
+  OrdersQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${Environment}-pedidos'
+      VisibilityTimeout: 120
+
+  OrderProcessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+
+  OrderProcessor:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: procesar-pedidos
+      Runtime: python3.12
+      Handler: app.handler
+      MemorySize: 512
+      Timeout: 30
+      Role: !GetAtt OrderProcessorRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactsBucket
+        S3Key: procesar-pedidos.zip
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt Database.Endpoint.Address
+          QUEUE_URL: !Ref OrdersQueue
+          ASSETS: !Join ['', ['s3://', !Ref AssetsBucket, '/pedidos']]
+      Tags:
+        - Key: Team
+          Value: pedidos
+
+  OrdersEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt OrdersQueue.Arn
+      FunctionName: !Ref OrderProcessor
+      BatchSize: 10
+
+  AssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${Environment}-tienda-assets'
+
+  # ───── DNS y extras ─────
+  Dns:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: tienda.example.com
+
+  DnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref Dns
+      Name: www.tienda.example.com
+      Type: A
+      TTL: '300'
+      ResourceRecords:
+        - !GetAtt WebServer.PublicIp
+
+  Monitoring:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.eu-west-1.amazonaws.com/plantillas-internas/monitorizacion.yaml
+      Parameters:
+        Queue: !Ref OrdersQueue
+
+  DbAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: cpu-base-de-datos
+      Namespace: AWS/RDS
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref Database
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 80
+      EvaluationPeriods: 3
+
+  Semilla:
+    Type: Custom::SembrarCatalogo
+    Properties:
+      ServiceToken: !GetAtt OrderProcessor.Arn
+
+  Auditoria:
+    Type: AWS::CloudTrail::Trail
+    Condition: EsProduccion
+    Properties:
+      IsLogging: true
+      S3BucketName: !Ref AssetsBucket
+
+Outputs:
+  DbEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-db'
+  QueueUrl:
+    Value: !Ref OrdersQueue

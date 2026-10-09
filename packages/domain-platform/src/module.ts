@@ -6,6 +6,7 @@ import { platformEditor } from './editor';
 import { toDrawio } from './export/drawio';
 import { toMermaid } from './export/mermaid';
 import { toSvg } from './export/render';
+import { fromCloudFormation, looksLikeCloudFormation } from './import/fromCloudFormation';
 import { fromKubernetes, looksLikeKubernetes } from './import/fromKubernetes';
 import { fromMermaid } from './import/fromMermaid';
 import { iconCommands } from './icons/commands';
@@ -48,6 +49,16 @@ const kubernetesImporter: Importer<PlatformDocument> = {
   import: (text, ctx) => fromKubernetes(text, { name: ctx.name, fallbackName: ctx.fallbackName, file: ctx.file }),
 };
 
+const cloudformationImporter: Importer<PlatformDocument> = {
+  id: 'cloudformation',
+  label: 'AWS CloudFormation',
+  // Sin `.json`: Terraform (`plan.json`, `terraform show -json`) también es JSON y, siendo el único que lo declarase, un único
+  // candidato ganaría siempre. Una plantilla JSON se reconoce por el contenido; las de YAML (con `!Ref`, `!Sub`…) por `.yaml` o `.yml`.
+  extensions: ['.yaml', '.yml', '.template', '.cfn'],
+  detect: looksLikeCloudFormation,
+  import: (text, ctx) => fromCloudFormation(text, { name: ctx.name, fallbackName: ctx.fallbackName, file: ctx.file }),
+};
+
 const mermaidExporter: Exporter<PlatformDocument> = {
   id: 'mermaid',
   label: 'Mermaid',
@@ -83,12 +94,12 @@ export const platformModule: DomainModule<PlatformDocument> = {
   id: 'platform',
   name: 'Arquitectura de plataforma',
   version: '0.1.0',
-  description: 'Entornos, redes, recursos, servicios, despliegues y pipelines, con topología, despliegue por entorno e impacto; importa de Mermaid, Terraform y Kubernetes y exporta a Mermaid, SVG y draw.io.',
+  description: 'Entornos, redes, recursos, servicios, despliegues y pipelines, con topología, despliegue por entorno e impacto; importa de Mermaid, Terraform, Kubernetes y CloudFormation y exporta a Mermaid, SVG y draw.io.',
   documentVersion: PLATFORM_DOCUMENT_VERSION,
   schema: platformDocumentSchema as unknown as DomainModule<PlatformDocument>['schema'],
   jsonSchema: platformJsonSchema,
   validate: (doc): ModuleIssue[] => [...analyzePlatform(doc), ...iconIssues(doc)],
-  importers: [mermaidImporter, terraformImporter, kubernetesImporter],
+  importers: [mermaidImporter, terraformImporter, kubernetesImporter, cloudformationImporter],
   exporters: [mermaidExporter, svgExporter, drawioExporter],
   ai: platformAiSpec,
   entities: (doc): EntityRef[] => [
