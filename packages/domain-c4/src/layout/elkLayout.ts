@@ -1,4 +1,5 @@
-import ELK, { type ElkExtendedEdge, type ElkNode } from 'elkjs/lib/elk.bundled.js';
+import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api';
+import { layoutElk } from '@iark/kernel';
 import { deriveView, type DerivedBoundary, type DerivedNode, type DerivedView } from '../model/viewDerivation';
 import {
   BOUNDARY_PADDING,
@@ -78,12 +79,6 @@ export interface LayoutVariant {
 export const DEFAULTS = { direction: 'DOWN' as LayoutDirection, spacing: 70, layerSpacing: 110 };
 
 const DENSITY_FACTOR: Record<Exclude<LayoutDensity, 'auto'>, number> = { compact: 0.8, spacious: 1.3 };
-
-let elkInstance: InstanceType<typeof ELK> | null = null;
-function elk(): InstanceType<typeof ELK> {
-  if (!elkInstance) elkInstance = new ELK();
-  return elkInstance;
-}
 
 export interface ResolvedLayoutParams {
   /** Dirección preferida (resuelta desde 'auto' según el nivel de la vista). */
@@ -297,7 +292,8 @@ export async function runElkLayout(derived: DerivedView, params: ResolvedLayoutP
   });
 
   const graph: ElkNode = { id: 'root', layoutOptions: rootOptions, children: topLevel, edges: elkEdges };
-  const result = await elk().layout(graph);
+  // ELK corre donde decide el núcleo: un hilo de trabajo en el navegador (la página no se congela), el hilo actual en Node.
+  const result = await layoutElk(graph);
 
   const positions: PositionedElement[] = [];
   const boundaryPositions: PositionedElement[] = [];
