@@ -4,6 +4,7 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 
 ## [Unreleased]
 
+- **CI**: el workflow `deploy-pages.yml` ya corre también en los pull request de solo documentación (se quitó el `paths-ignore` del disparador `pull_request`), para que `test` pueda marcarse como comprobación obligatoria de `master` sin dejar esas PR esperando. En el push a master el filtro sigue, así que un merge de solo documentación no republica el sitio.
 - **Topes de tamaño de la compilación**: el gestor de proyectos y el historial de versiones se cargan al abrirlos (`src/projects/lazy.tsx`) y salen de la carga inicial del editor y del banco; los topes de carga inicial pasan a 1560, 1230, 630 y 530 kB (el peso viene de `domain-c4`, del lienzo común de C4, y de los dos catálogos de idioma). Detalle en `docs/rendimiento.md`.
 - Cambios de la fase 1 del plan de robustecimiento en curso.
 - Pantalla «Administración de la instancia» para quien administra un servicio con cuentas (`siteRole: admin`): lista, busca y filtra las cuentas, invita por usuario de GitHub, cambia el rol, desactiva y reactiva, y cancela invitaciones, con confirmación y los errores del servidor a la vista. Se abre con «Administrar cuentas…» en «Dónde se guardan» y a los demás no les aparece; el cliente HTTP gana `listAccounts`, `setAccount` y `cancelInvitation`. Ver [`docs/cuentas-github.md`](docs/cuentas-github.md#pantalla-de-administración).
