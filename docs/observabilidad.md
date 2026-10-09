@@ -100,6 +100,7 @@ Una línea JSON por **intento** de hacer algo que importa, con su resultado, tam
 | `project.rename` · `project.delete` | Renombrar / borrar un proyecto. | `project` |
 | `project.export` | Descargar el archivo único de un proyecto (`/bundle`): es sacar todo el proyecto, y por eso se audita aunque sea una lectura. | `project` |
 | `diagram.create` · `diagram.save` · `diagram.rename` · `diagram.delete` | Crear / guardar / renombrar / borrar un diagrama. | `project`, `diagram` |
+| `version.restore` · `version.label` · `version.delete` | Historial de versiones de un diagrama: restaurar una versión (crea una nueva), nombrarla o borrar una nombrada. | `project`, `diagram`, `version` |
 | `member.add` · `member.role` · `member.remove` | Compartir un proyecto con alguien (201), cambiar su rol (200) o quitarle (también cuando alguien se va por sí mismo). Si la petición se rechaza antes de saber cuál de las dos era, `member.set`. | `project`, `login` · `role` |
 | `user.invite` · `user.role` · `user.disable` · `user.enable` · `user.remove` | Administración de cuentas (`/api/admin/users`): invitar, cambiar el rol de la instancia, desactivar, reactivar, quitar una invitación. Una petición con dos cambios deja dos filas. Si se rechaza sin leer el cuerpo, `user.set`. | `login` · `siteRole`, `disabled` |
 

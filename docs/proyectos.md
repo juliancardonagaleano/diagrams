@@ -63,11 +63,16 @@ Los errores de uso (proyecto o diagrama que no existe, nombre repetido, document
 | `GET\|PATCH\|DELETE /api/projects/<p>` | Resumen · renombra `{ name }` · borra |
 | `POST /api/projects/<p>/diagrams` | Crea `{ module, name?, text }` (201) |
 | `GET\|PUT\|PATCH\|DELETE /api/projects/<p>/diagrams/<d>` | `{ ...meta, text }` · guarda `{ text, ifUpdatedAt? }` (el diagrama debe existir) · renombra `{ name }` · borra |
+| `GET /api/projects/<p>/diagrams/<d>/versions` | El historial del diagrama (más reciente primero, sin documentos): [Historial de versiones](#historial-de-versiones) |
+| `GET /api/projects/<p>/diagrams/<d>/versions/<v>` | Una versión con su documento (`{ ...meta, text }`) |
+| `POST /api/projects/<p>/diagrams/<d>/versions/<v>/restore` | Restaura esa versión como versión **nueva** `{ ifUpdatedAt? }` → `{ diagram, version, unchanged }` |
+| `PATCH /api/projects/<p>/diagrams/<d>/versions/<v>` | Nombra la versión `{ label }` |
+| `DELETE /api/projects/<p>/diagrams/<d>/versions/<v>` | Borra una versión **con nombre** (solo `admin`) |
 | `GET /api/projects/<p>/bundle` | El archivo único (`Content-Disposition` con `<proyecto>.iark-project.json`) |
 | `POST /api/projects/import[?name=]` | Cuerpo: ese archivo → crea un proyecto nuevo (201) |
 | `GET /api/projects/<p>/check` | La comprobación del proyecto (`checkProject`) |
 
-Códigos: `not-found` 404, `exists` 409, `conflict` 409, `invalid` 400, `unavailable` 500; el cuerpo es `{ "error": "…", "code": "…" }`. Un cuerpo que pasa de `maxBodyBytes` (5 MB) da 413.
+Códigos: `not-found` 404, `exists` 409, `conflict` 409, `invalid` 400, `limit` 409 (tope de versiones con nombre), `unsupported` 501 (almacén sin historial), `unavailable` 500; el cuerpo es `{ "error": "…", "code": "…" }`. Un cuerpo que pasa de `maxBodyBytes` (5 MB) da 413.
 
 **Seguridad (sin `--tokens`: solo para una persona, en su máquina).** `iark serve` escucha en localhost y una página ajena abierta en el navegador podría intentar leer o escribir en el disco del usuario a través de él. En las rutas de proyectos (y solo en ellas):
 
@@ -77,6 +82,86 @@ Códigos: `not-found` 404, `exists` 409, `conflict` 409, `invalid` 400, `unavail
 - Los ids se validan antes de tocar el disco (400 si no son un id válido) y los errores de disco no revelan rutas.
 
 Con `--tokens` esta lista cambia (no hay `Host` ni `Origin` que comprobar, pero sí token y rol): ver [Servidor para varias personas](servicio.md#servidor-para-varias-personas-nube-autoalojada).
+
+## Historial de versiones
+
+Cada guardado de un diagrama deja una **versión**: una copia inmutable de su documento que se puede ver, comparar con el diagrama de ahora, **restaurar** y **nombrar**. Funciona igual en los tres sitios donde viven los proyectos (carpeta de trabajo, este navegador y servidor propio) y desde la API, el CLI y la interfaz.
+
+### Modelo y política
+
+- **Una versión** lleva un `id` entero que crece de uno en uno dentro de cada diagrama (**no se reutiliza** aunque la versión se descarte o se borre), `savedAt` (ISO 8601), `savedBy` (quién la guardó, si se sabe), `label` (el nombre, si lo tiene), `size` (bytes del documento), `hash` (SHA-256 del documento) y `restoredFrom` (la versión de la que se restauró, si es el caso). Un documento guardado nunca se modifica: el historial solo crece, se rota o se borra una versión con nombre.
+- **Coalescencia.** Si la **misma persona** vuelve a guardar el diagrama antes de `coalesceSeconds` (30 por omisión) desde la primera versión de la serie, el guardado **sustituye** a la última versión automática en lugar de añadir otra: el autoguardado de la interfaz no inunda el historial. Una versión **con nombre** o **restaurada** nunca se sustituye, y una persona distinta (otro `savedBy`) siempre añade una versión nueva.
+- **Retención.** Se conservan las últimas `keepAutomatic` versiones automáticas (50) más las nombradas, hasta `maxVersions` en total (150): quedan 100 para las nombradas. Al pasarse se descarta la automática más antigua; la versión más reciente (el estado actual) nunca se descarta. Dar nombre a una versión cuando ya no caben más nombradas falla con `limit` (409): borra una o usa otra.
+- **Quién guarda** lo decide el servidor, nunca el cuerpo de la petición: el nombre del token (`--tokens`) o `@usuario` de GitHub (`--accounts`). En la carpeta de trabajo con el CLI, sin identidad, `savedBy` no se anota.
+- **Restaurar** guarda el contenido de la versión como una **versión nueva** (`restoredFrom` apunta a la original): el historial anterior no se toca, así que restaurar se deshace restaurando la versión que había antes. Si el diagrama ya tiene ese contenido no se guarda nada (`unchanged: true`). Con `ifUpdatedAt` falla con `conflict` si otra persona guardó el diagrama en medio, como cualquier guardado.
+- **Un almacén que no guarda historial lo declara** (`keepsVersions: false`, o el servidor responde 501 `unsupported`) y la interfaz no ofrece «Historial…»: el diagrama se guarda con normalidad.
+- **Cuotas.** Todavía no hay límite de bytes por proyecto ni por persona. El gancho existe: `versionUsage(proyecto)` devuelve `{ versions, bytes }` (la suma de `size` de todas las versiones) para que una política futura de cuotas lo cuente junto con el resto del proyecto.
+
+### Dónde se guarda
+
+| Almacén | Dónde | Configuración |
+|---|---|---|
+| Carpeta de trabajo (`iark project`, `iark serve --workspace`) | `<proyecto>/.versiones/<diagrama>/` | Variables de entorno de abajo |
+| Este navegador | IndexedDB, en los almacenes `versions`, `versionTexts` y `versionState` de la misma base de los proyectos | Política por omisión |
+| Servidor propio | El del servidor (el navegador usa la API) | Las variables de entorno del servidor |
+
+En la carpeta de trabajo cada diagrama tiene un directorio `.versiones/<diagrama>/` con un `index.json` (`iark.versions/1`: los metadatos de cada versión y el mayor `id` dado hasta ahora) y un `NNNNNN.json` por versión con el documento. Son directorios ocultos, así que **`iark project list`, `check`, `export` e `import` no los ven** (un directorio oculto se ignora, igual que `.git`) y siguen funcionando igual. Todo se escribe de forma atómica (temporal y `rename`) y, si el historial se estropea (un `index.json` ilegible o demasiado grande), se ignora: el diagrama sigue guardándose y el historial vuelve a empezar desde el contenido actual.
+
+- **¿En git?** El historial es **local a cada equipo y ocupa disco** (hasta 150 copias por diagrama): normalmente no interesa versionarlo si el proyecto ya va en git. Añade `.versiones/` a tu `.gitignore` o déjalo: no afecta a nada más.
+- **El historial no viaja en el archivo único** (`iark project export`/`import` y «Exportar» de la interfaz solo llevan el contenido actual) ni se copia con *Copiar a…*: un proyecto importado empieza con el historial vacío.
+- **Una escritura a la vez.** La coalescencia y la retención leen y escriben el historial sin bloqueo entre procesos: dos procesos (el CLI y `iark serve`) guardando el mismo diagrama exactamente a la vez pueden perder una versión del historial, nunca el diagrama. Lo usual (un proceso, o guardados en momentos distintos) no se ve afectado.
+
+| Variable | Qué hace |
+|---|---|
+| `IARK_VERSIONS=off` | No guarda historial en la carpeta de trabajo (los comandos de historial dicen que está desactivado y la API responde 501) |
+| `IARK_VERSIONS_COALESCE=<segundos>` | `coalesceSeconds`: de 0 (cada guardado es una versión) a 3600 |
+| `IARK_VERSIONS_KEEP=<n>` | `keepAutomatic`: de 1 a 1000 |
+| `IARK_VERSIONS_MAX=<n>` | `maxVersions`: mayor que `IARK_VERSIONS_KEEP`, hasta 5000 |
+
+Un valor que no es un número del rango se rechaza al abrir la carpeta (código 2 en el CLI, el servicio no arranca).
+
+### API
+
+Las cinco rutas de [la API de proyectos](#api-http-de-proyectos) cuelgan de un diagrama y usan **los mismos roles y reglas de seguridad** (tokens, cuentas, `Origin`, `Content-Type: application/json` en `POST`/`PATCH`/`DELETE`, límites de cuerpo):
+
+| Petición | Rol mínimo | Respuesta |
+|---|---|---|
+| `GET …/versions` | `viewer` | `VersionMeta[]`, la más reciente primero (sin documentos) |
+| `GET …/versions/<v>` | `viewer` | `{ ...meta, text }`; 404 `not-found` si ya no existe |
+| `POST …/versions/<v>/restore` `{ ifUpdatedAt? }` | `editor` | `{ diagram, version, unchanged }`; 409 `conflict` si `ifUpdatedAt` no es el vigente |
+| `PATCH …/versions/<v>` `{ label }` | `editor` | La versión con su nombre; 409 `limit` si ya hay tantas nombradas como caben |
+| `DELETE …/versions/<v>` | **`admin`** | `{ deleted: <v> }`; solo versiones **con nombre** (una sin nombre se descarta sola; 400 si no tiene nombre) |
+
+Con `--accounts` el rol es el de la persona en ese proyecto; un proyecto al que no se pertenece responde 404 y un rol que no alcanza, 403, antes de leer el cuerpo. Un servidor anterior al historial responde 404 sin `code` en estas rutas y el cliente lo trata como `unsupported`. La auditoría ([observabilidad.md](observabilidad.md)) anota restaurar, nombrar y borrar versiones.
+
+### CLI
+
+```bash
+iark project history tienda-web pedidos                  # versiones del diagrama: #, fecha, quién, tamaño y nombre; --json
+iark project diff tienda-web pedidos 2                   # qué cambió de la versión #2 al contenido actual (mismo motor y formatos que `iark diff`)
+iark project diff tienda-web pedidos 2 5 --format markdown --exit-code
+iark project label tienda-web pedidos 2 "Entrega 1"      # le da nombre: ya no se sustituye ni se descarta sola
+iark project restore tienda-web pedidos 2                # el contenido de la #2 pasa a ser el actual, como versión NUEVA
+iark project delete-version tienda-web pedidos 2 --yes   # borra una versión con nombre
+```
+
+En lugar de un número, `diff` acepta `actual` (el contenido de ahora). Todos aceptan `-w, --workspace <carpeta>` y el proyecto y el diagrama por id o por nombre. El CLI no tiene identidad: sus versiones no llevan `savedBy`, y por eso **varios guardados seguidos desde el CLI en menos de `coalesceSeconds` se funden en una versión** (`IARK_VERSIONS_COALESCE=0` para que cada guardado cuente). Los errores de uso (versión inexistente, historial desactivado, falta `--yes`) salen con código 2.
+
+### En la interfaz
+
+«Historial…» aparece, con un diagrama de un proyecto abierto en un almacén que guarda historial, en la **barra del proyecto** del banco de trabajo y en el **editor C4** (botón «Historial…» del encabezado y entrada «Historial de versiones…» del menú *Archivo*). Abre un cuadro de diálogo (foco atrapado, `Esc` lo cierra y devuelve el foco al botón, flechas para moverse por la lista; en móviles de hasta 700 px ocupa la pantalla):
+
+- La **lista** de versiones, la actual marcada, con fecha, quién la guardó, su nombre y si es una restauración.
+- **Qué cambió**: con una versión elegida (por omisión, la última distinta de la actual) se compara con el diagrama de ahora con el mismo motor de `iark diff` (añadidos, quitados, modificados; la maquetación guardada y el orden de las listas no cuentan). Un documento que no se puede leer (un borrador que no es JSON) lo dice en lugar de fallar.
+- **Restaurar esta versión** pide confirmación. Si el diagrama está abierto, antes guarda lo pendiente (así lo de ahora queda en el historial) y restaura con la marca que conoce la pestaña: si otra persona guardó mientras tanto, avisa del conflicto y no toca nada. Después el editor se recarga con lo restaurado.
+- **Nombrar versión**, y **Borrar esta versión** para quien administra el proyecto. Un lector ve el historial pero no restaura ni nombra (los botones aparecen desactivados y el cuadro dice por qué; el servidor lo impone igualmente).
+
+### Límites
+
+- Sin edición simultánea en tiempo real, sin cola sin conexión y sin cuotas: el historial se guarda cuando el guardado llega al almacén.
+- El historial no viaja con el proyecto (exportar, importar, copiar) ni se mezcla entre almacenes.
+- Un servidor que no es el de esta versión no ofrece historial (501 / 404): la interfaz lo dice al abrir «Historial…» y el resto sigue como siempre.
+- Comparar compara el documento entero de cada módulo; no hay comparación de tres vías ni fusión.
 
 ## Proyectos en la app web (este navegador)
 

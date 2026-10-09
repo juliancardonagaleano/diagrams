@@ -12,7 +12,9 @@ export type ProjectErrorCode =
   /** Un servidor remoto pide un token, o el que se usa no existe o ya no vale. */
   | 'unauthorized'
   /** Un servidor remoto reconoce el token, pero su rol (o el origen de la petición) no permite esa operación. */
-  | 'forbidden';
+  | 'forbidden'
+  /** El almacén (o el servidor) no ofrece esa operación: por ejemplo, el historial de versiones en uno que no lo guarda. */
+  | 'unsupported';
 
 /** Detalle opcional de un error que vino de un servidor remoto (el cliente HTTP lo rellena; los almacenes locales no). */
 export interface ProjectErrorInfo {

@@ -6,10 +6,12 @@ import { DocumentValidationError, formatIssues, parseDocument } from '@core/mode
 import { DEFAULT_MODULE } from './registry';
 import { CliError, extractJson, info, readInput, writeOutput } from './io';
 
-const FORMATS = ['text', 'markdown', 'json'] as const;
-type Format = (typeof FORMATS)[number];
+export const DIFF_FORMATS = ['text', 'markdown', 'json'] as const;
+const FORMATS = DIFF_FORMATS;
+export type DiffFormat = (typeof FORMATS)[number];
+type Format = DiffFormat;
 
-function parseFormat(value: string): Format {
+export function parseFormat(value: string): Format {
   const v = value.toLowerCase() as Format;
   if (!FORMATS.includes(v)) throw new InvalidArgumentError(`Formato inválido «${value}». Use: ${FORMATS.join(', ')}.`);
   return v;
@@ -72,7 +74,7 @@ function readText(file: string): string {
  * código) o cualquier fuente que el módulo importe (.drawio, .dsl, .mmd…), como `generate --from`. Un documento inválido
  * termina con código 2, y el mensaje dice cuál de los dos era.
  */
-async function loadDocument(registry: ModuleRegistry, module: DomainModule<any>, text: { raw: string; file: string; origin: string; which: string }, importSource: ImportSource): Promise<unknown> {
+export async function loadDocument(registry: ModuleRegistry, module: DomainModule<any>, text: { raw: string; file: string; origin: string; which: string }, importSource: ImportSource): Promise<unknown> {
   const { raw, file, origin, which } = text;
   let json: unknown;
   if (extname(file).toLowerCase() === '.json' || /^(\{|```json)/i.test(raw.trimStart())) {
@@ -102,6 +104,32 @@ async function loadDocument(registry: ModuleRegistry, module: DomainModule<any>,
   }
   if (parsed.migrated) info(`aviso (${origin}): documento migrado de la versión ${parsed.migrated.from} a ${parsed.migrated.to} antes de compararlo.`);
   return parsed.document;
+}
+
+/** Una de las dos mitades de una comparación: el texto, el nombre con que se identifica el formato y cómo se llama en los mensajes. */
+export interface DiffSide {
+  raw: string;
+  file: string;
+  origin: string;
+}
+
+/**
+ * Compara dos textos de un mismo módulo y devuelve la salida ya formateada (la misma de `iark diff`) y si hay cambios. Lo usan `iark diff` y
+ * la comparación de versiones de un diagrama (`iark project diff`), para que las dos digan lo mismo con el mismo formato.
+ */
+export async function compareTexts(registry: ModuleRegistry, module: DomainModule<any>, before: DiffSide, after: DiffSide, format: Format, importSource: ImportSource): Promise<{ text: string; changed: boolean }> {
+  const [documentBefore, documentAfter] = [
+    await loadDocument(registry, module, { ...before, which: 'La versión anterior' }, importSource),
+    await loadDocument(registry, module, { ...after, which: 'La versión nueva' }, importSource),
+  ];
+  const diff = diffDocuments(documentBefore, documentAfter, module.diff);
+  const text =
+    format === 'json'
+      ? formatDiffJson(diff)
+      : format === 'markdown'
+        ? formatDiffMarkdown(diff, { subtitle: `\`${before.origin}\` → \`${after.origin}\`` })
+        : formatDiffText(diff, { subtitle: `${before.origin} → ${after.origin}` });
+  return { text, changed: hasChanges(diff) };
 }
 
 /**
@@ -137,18 +165,8 @@ export function registerDiff(program: Command, registry: ModuleRegistry, importS
         before = { raw: readText(beforeFile), file: beforeFile, origin: beforeFile === '-' ? 'entrada estándar' : beforeFile };
         after = { raw: readText(afterFile), file: afterFile, origin: afterFile === '-' ? 'entrada estándar' : afterFile };
       }
-      const [documentBefore, documentAfter] = [
-        await loadDocument(registry, module, { ...before, which: 'La versión anterior' }, importSource),
-        await loadDocument(registry, module, { ...after, which: 'La versión nueva' }, importSource),
-      ];
-      const diff = diffDocuments(documentBefore, documentAfter, module.diff);
-      const text =
-        opts.format === 'json'
-          ? formatDiffJson(diff)
-          : opts.format === 'markdown'
-            ? formatDiffMarkdown(diff, { subtitle: `\`${before.origin}\` → \`${after.origin}\`` })
-            : formatDiffText(diff, { subtitle: `${before.origin} → ${after.origin}` });
+      const { text, changed } = await compareTexts(registry, module, before, after, opts.format, importSource);
       writeOutput(opts.out, text);
-      if (opts.exitCode && hasChanges(diff)) process.exitCode = 1;
+      if (opts.exitCode && changed) process.exitCode = 1;
     });
 }

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ModuleRegistry, ProjectError, type DomainModule } from '@iark/kernel';
 import { buildProgram, run } from './main';
 import { createDefaultRegistry } from './registry';
@@ -454,10 +454,142 @@ describe('iark project: archivo único, comprobación y trazabilidad', () => {
   });
 });
 
+describe('iark project: historial de versiones', () => {
+  // sin coalescencia, para que cada `--update` seguido sea una versión (el CLI no tiene identidad: todos los guardados son de «la misma persona»)
+  beforeEach(() => void vi.stubEnv('IARK_VERSIONS_COALESCE', '0'));
+  afterEach(() => void vi.unstubAllEnvs());
+
+  /** El C4 de ejemplo con el primer elemento renombrado y `extra` sistemas más: cada valor es un documento distinto. */
+  const banca = (extra: number): string => {
+    const document = JSON.parse(example('banca.json'));
+    document.model.elements[0].name = `Cliente (rev ${extra})`;
+    for (let i = 0; i < extra; i++) document.model.elements.push({ id: `extra${i}`, type: 'softwareSystem', name: `Sistema extra ${i}` });
+    return `${JSON.stringify(document, null, 2)}\n`;
+  };
+
+  /** El proyecto «Tienda» con el diagrama «Banca» guardado tres veces (las versiones #1, #2 y #3, de menos a más extras). */
+  async function seed() {
+    const env = workspace();
+    const dir = tmp();
+    const files = [0, 1, 2].map((n) => {
+      const file = join(dir, `rev${n}.c4.json`);
+      writeFileSync(file, banca(n));
+      return file;
+    });
+    await ok(env.ark('project', 'create', 'Tienda'));
+    await ok(env.ark('project', 'add', 'Tienda', files[0], '--name', 'Banca'));
+    await ok(env.ark('project', 'add', 'Tienda', files[1], '--name', 'Banca', '--update'));
+    await ok(env.ark('project', 'add', 'Tienda', files[2], '--name', 'Banca', '--update'));
+    return { ...env, files };
+  }
+
+  it('history lista las versiones de la más reciente a la más antigua, y --json las da con su tamaño y hash', async () => {
+    const { ark } = await seed();
+    const text = (await ok(ark('project', 'history', 'Tienda', 'Banca'))).out;
+    expect(text).toContain('Historial de «Banca» (banca) en el proyecto «Tienda»: 3 versiones');
+    const rows = text.split('\n').filter((line) => /^\s+#\d/.test(line));
+    expect(rows.map((line) => /#(\d+)/.exec(line)![1])).toEqual(['3', '2', '1']);
+    const versions = JSON.parse((await ok(ark('project', 'history', 'Tienda', 'Banca', '--json'))).out);
+    expect(versions.map((v: { id: number }) => v.id)).toEqual([3, 2, 1]);
+    expect(versions[0]).toMatchObject({ size: Buffer.byteLength(banca(2)) });
+    expect(versions[0].hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(versions[0].savedBy).toBeUndefined(); // una carpeta local no sabe quién guarda
+  });
+
+  it('restore guarda el contenido antiguo como una versión NUEVA y deja el historial intacto; deshacerlo es restaurar la anterior', async () => {
+    const { ark } = await seed();
+    const restored = (await ok(ark('project', 'restore', 'Tienda', 'Banca', '1'))).out;
+    expect(restored).toContain('Versión #1 de «Banca» restaurada: quedó guardada como la versión #4');
+    expect((await ok(ark('project', 'get', 'Tienda', 'Banca'))).out).toBe(banca(0));
+    const list = JSON.parse((await ok(ark('project', 'history', 'Tienda', 'Banca', '--json'))).out);
+    expect(list.map((v: { id: number }) => v.id)).toEqual([4, 3, 2, 1]);
+    expect(list[0].restoredFrom).toBe(1);
+    expect((await ok(ark('project', 'history', 'Tienda', 'Banca'))).out).toContain('(restaurada de la #1)');
+    // deshacer: la #3 era lo último que había
+    await ok(ark('project', 'restore', 'Tienda', 'Banca', '#3'));
+    expect((await ok(ark('project', 'get', 'Tienda', 'Banca'))).out).toBe(banca(2));
+    // restaurar lo que ya es el contenido actual no guarda nada
+    expect((await ok(ark('project', 'restore', 'Tienda', 'Banca', '3'))).out).toContain('ya tenía el contenido de la versión #3: no se guardó nada');
+    expect(JSON.parse((await ok(ark('project', 'history', 'Tienda', 'Banca', '--json'))).out)).toHaveLength(5);
+  });
+
+  it('label y delete-version: nombrar protege una versión; borrarla pide --yes y solo vale para las nombradas', async () => {
+    const { ark } = await seed();
+    expect((await ok(ark('project', 'label', 'Tienda', 'Banca', '2', 'Antes de ampliar'))).out).toContain('Versión #2 de «Banca» nombrada «Antes de ampliar»');
+    expect((await ok(ark('project', 'history', 'Tienda', 'Banca'))).out).toMatch(/#2 .*«Antes de ampliar»/);
+    await fails(ark('project', 'label', 'Tienda', 'Banca', '2', '   '), 2, /nombre/i);
+    await fails(ark('project', 'delete-version', 'Tienda', 'Banca', '2'), 2, /--yes/);
+    await fails(ark('project', 'delete-version', 'Tienda', 'Banca', '3', '--yes'), 2, /nombre/i); // una automática no se borra a mano
+    expect((await ok(ark('project', 'delete-version', 'Tienda', 'Banca', '2', '--yes'))).out).toContain('Versión #2 de «Banca» borrada');
+    expect((await ok(ark('project', 'history', 'Tienda', 'Banca'))).out).not.toContain('Antes de ampliar');
+  });
+
+  it('diff compara con el mismo motor y la misma salida que `iark diff`: una versión contra la actual, o dos entre sí', async () => {
+    const { ark, files } = await seed();
+    // lo mismo que `iark diff` sobre los archivos, en los tres formatos (salvo el rótulo «antes → después», que es la primera línea con la flecha)
+    const sinRotulo = (salida: string): string => salida.replace(/^.*→.*$/m, '');
+    for (const format of ['text', 'markdown', 'json']) {
+      const hecho = (await ok(ark('project', 'diff', 'Tienda', 'Banca', '1', '3', '--format', format))).out;
+      const directo = (await ok(iark('diff', files[0], files[2], '--format', format))).out;
+      if (format === 'json') expect(JSON.parse(hecho)).toEqual(JSON.parse(directo));
+      else expect(sinRotulo(hecho)).toBe(sinRotulo(directo));
+    }
+    const text = (await ok(ark('project', 'diff', 'Tienda', 'Banca', '1', '3'))).out;
+    expect(text).toContain('Banca, versión #1 → Banca, versión #3');
+    expect(text).toContain('Sistema extra 1');
+    // con una sola versión, contra la actual; `actual` también vale en cualquier lado
+    expect((await ok(ark('project', 'diff', 'Tienda', 'Banca', '1'))).out).toContain('Banca, versión #1 → Banca, actual');
+    expect((await ok(ark('project', 'diff', 'Tienda', 'Banca', 'actual', '1', '--format', 'json'))).out).toContain('"');
+    // --exit-code: 1 si hay cambios, 0 si no
+    expect((await ark('project', 'diff', 'Tienda', 'Banca', '1', '--exit-code')).code).toBe(1);
+    expect((await ok(ark('project', 'diff', 'Tienda', 'Banca', '3', '--exit-code'))).out).toBe('Banca, versión #3 → Banca, actual\nSin cambios.\n');
+    // a un archivo
+    const out = join(tmp(), 'cambios.md');
+    await ok(ark('project', 'diff', 'Tienda', 'Banca', '1', '3', '--format', 'markdown', '-o', out));
+    expect(readFileSync(out, 'utf8')).toContain('Sistema extra 1');
+  });
+
+  it('versiones que no existen, números inválidos y diagramas o proyectos que no están: error de una línea con código 2', async () => {
+    const { ark } = await seed();
+    for (const bad of ['abc', '0', '-1', '1e3', '07', '1.5', '99999999999', '']) {
+      await fails(ark('project', 'restore', 'Tienda', 'Banca', bad), 2, /no es un número de versión/);
+    }
+    await fails(ark('project', 'restore', 'Tienda', 'Banca', '99'), 2, /99/);
+    await fails(ark('project', 'diff', 'Tienda', 'Banca', '99'), 2, /no tiene la versión #99/);
+    await fails(ark('project', 'diff', 'Tienda', 'Banca', 'abc'), 2, /no es un número de versión/);
+    await fails(ark('project', 'history', 'Tienda', 'Nada'), 2, /Nada/);
+    await fails(ark('project', 'history', 'Nada', 'Banca'), 2, /No existe el proyecto/);
+  });
+
+  it('con el historial desactivado (IARK_VERSIONS=off) los comandos lo dicen, guardar sigue funcionando y no se escribe nada en disco', async () => {
+    vi.stubEnv('IARK_VERSIONS', 'off');
+    const { ws, ark } = workspace();
+    const file = join(tmp(), 'banca.c4.json');
+    writeFileSync(file, banca(0));
+    await ok(ark('project', 'create', 'Tienda'));
+    await ok(ark('project', 'add', 'Tienda', file, '--name', 'Banca'));
+    for (const args of [['history', 'Tienda', 'Banca'], ['restore', 'Tienda', 'Banca', '1'], ['label', 'Tienda', 'Banca', '1', 'x'], ['diff', 'Tienda', 'Banca', '1']]) {
+      await fails(ark('project', ...args), 2, /historial de versiones está desactivado/);
+    }
+    expect(readdirSync(join(ws, 'tienda')).sort()).toEqual(['banca.c4.json', 'project.json']);
+  });
+
+  it('IARK_VERSIONS_KEEP acota las automáticas: las más viejas se descartan y se quedan las nombradas', async () => {
+    vi.stubEnv('IARK_VERSIONS_KEEP', '2');
+    vi.stubEnv('IARK_VERSIONS_MAX', '5');
+    const { ark, files } = await seed(); // 3 guardados: con tope de 2 automáticas, la #1 ya rotó
+    expect(JSON.parse((await ok(ark('project', 'history', 'Tienda', 'Banca', '--json'))).out).map((v: { id: number }) => v.id)).toEqual([3, 2]);
+    await ok(ark('project', 'label', 'Tienda', 'Banca', '2', 'Me quedo'));
+    for (let i = 0; i < 3; i++) await ok(ark('project', 'add', 'Tienda', files[i], '--name', 'Banca', '--update'));
+    expect((await ok(ark('project', 'history', 'Tienda', 'Banca'))).out).toMatch(/«Me quedo»/);
+    await fails(ark('project', 'diff', 'Tienda', 'Banca', '1'), 2, /rotar el historial/);
+  });
+});
+
 describe('iark project: registro y ayuda', () => {
   it('cuelga de `iark project` con sus subcomandos y la opción de carpeta de trabajo en todos', () => {
     const project = buildProgram(createDefaultRegistry()).commands.find((c) => c.name() === 'project')!;
-    expect(project.commands.map((c) => c.name())).toEqual(['list', 'create', 'rename', 'delete', 'show', 'add', 'get', 'rename-diagram', 'remove', 'copy', 'export', 'import', 'check', 'trace']);
+    expect(project.commands.map((c) => c.name())).toEqual(['list', 'create', 'rename', 'delete', 'show', 'add', 'get', 'rename-diagram', 'remove', 'copy', 'history', 'restore', 'label', 'delete-version', 'diff', 'export', 'import', 'check', 'trace']);
     for (const sub of project.commands) expect(sub.options.some((o) => o.long === '--workspace' && o.short === '-w'), sub.name()).toBe(true);
   });
 });

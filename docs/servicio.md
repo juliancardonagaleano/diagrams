@@ -120,6 +120,9 @@ iark serve --host 0.0.0.0 --port 8787 \
 | Crear, guardar, renombrar y borrar **diagramas** | no | sí | sí |
 | Crear y renombrar **proyectos** · importar un proyecto (`POST /api/projects/import`) | no | sí | sí |
 | Borrar **proyectos** (`DELETE /api/projects/<p>`) | no | no | sí |
+| Ver el **historial de versiones** de un diagrama y leer una versión (`GET …/versions`) | sí | sí | sí |
+| Restaurar (`POST …/versions/<v>/restore`) y nombrar una versión (`PATCH …/versions/<v>`) | no | sí | sí |
+| Borrar una versión **con nombre** (`DELETE …/versions/<v>`) | no | no | sí |
 
 Cada rol incluye lo de los de abajo. Lo que no es una lectura (también un método o una ruta que no existen) exige al menos `editor`: un `viewer` recibe 403 en cualquier escritura, sin sondear con peticiones torcidas. El rol se comprueba **antes** de leer el cuerpo o tocar el disco. Con `--tokens` los roles valen para todo el espacio de trabajo (no hay permisos por proyecto); con `--accounts` cada persona tiene un rol en cada proyecto (ver [Quién ve qué](cuentas-github.md#quién-ve-qué)).
 

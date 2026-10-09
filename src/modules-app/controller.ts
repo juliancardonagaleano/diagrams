@@ -23,7 +23,7 @@ import {
   type SourceFile,
   type ViewChoices,
 } from '@iark/kernel';
-import type { ConflictChoice, ProjectSession } from '../projects/session';
+import type { ConflictChoice, ProjectSession, RestoreResult } from '../projects/session';
 
 /** Un módulo que el banco de trabajo sabe cargar (bajo demanda: cada especialidad es un trozo aparte del paquete). */
 export interface ModuleSource {
@@ -368,6 +368,20 @@ export class WorkbenchController {
     const diagram = await projects.resolveConflict(choice, options);
     const module = diagram && this.state.module;
     if (diagram && module) this.apply(module, diagram.text, { modified: false });
+  }
+
+  /**
+   * Restaura una versión del diagrama abierto: la sesión guarda lo pendiente, restaura (queda como una versión nueva) y el editor carga el
+   * resultado. Rechaza con el motivo si no hay un diagrama abierto o el servidor lo niega (rol, conflicto…).
+   */
+  async restoreVersion(versionId: number): Promise<RestoreResult> {
+    const projects = this.options.projects;
+    const { projectId, diagramId } = projects?.getState() ?? {};
+    if (!projects || !projectId || !diagramId) throw new Error('Abre un diagrama de un proyecto para restaurar una de sus versiones.');
+    const result = await projects.restoreVersion(projectId, diagramId, versionId);
+    const module = this.state.module;
+    if (module && !result.unchanged) this.apply(module, result.diagram.text, { modified: false });
+    return result;
   }
 
   /** Documento vacío y válido (o ejemplo) con el que empieza un diagrama nuevo del módulo. */

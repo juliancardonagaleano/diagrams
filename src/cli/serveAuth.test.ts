@@ -162,6 +162,12 @@ describe('cabeceras y direcciones', () => {
       ['PUT', ['p', 'members', 'ana'], 'admin'], // compartir y dejar de compartir
       ['DELETE', ['p', 'members', 'ana'], 'admin'],
       ['POST', ['p', 'members'], 'admin'],
+      ['GET', ['p', 'diagrams', 'd', 'versions'], 'viewer'], // historial de versiones: leer
+      ['GET', ['p', 'diagrams', 'd', 'versions', '3'], 'viewer'],
+      ['POST', ['p', 'diagrams', 'd', 'versions', '3', 'restore'], 'editor'], // restaurar y nombrar
+      ['PATCH', ['p', 'diagrams', 'd', 'versions', '3'], 'editor'],
+      ['DELETE', ['p', 'diagrams', 'd', 'versions', '3'], 'admin'], // borrar una nombrada
+      ['PUT', ['p', 'diagrams', 'd', 'versions', '3'], 'editor'],
       ['PUT', [], 'editor'], // lo que no existe: nunca un viewer
       ['PUT', ['p'], 'editor'],
       ['DELETE', [], 'editor'],

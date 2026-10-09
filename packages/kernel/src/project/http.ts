@@ -1,5 +1,6 @@
 import { ProjectError, type ProjectErrorCode, type ProjectErrorInfo } from './errors';
-import type { Diagram, DiagramMeta, ProjectRole, ProjectStore, ProjectSummary, SaveDiagramInput } from './types';
+import type { Diagram, DiagramMeta, ProjectRole, ProjectSummary, SaveDiagramInput } from './types';
+import { requireVersionId, type DiagramVersion, type RestoredVersion, type RestoreOptions, type VersionedProjectStore, type VersionMeta } from './versions';
 
 /**
  * Almacén de proyectos remoto: habla con la API `/api/projects` de `iark serve --workspace` (la carpeta de trabajo de un
@@ -131,7 +132,7 @@ export const SESSION_TOKEN_PREFIX = 'iark_s_';
 
 const API = '/api/projects';
 const ADMIN_USERS = '/api/admin/users';
-const LOCAL_CODES: ReadonlySet<string> = new Set<ProjectErrorCode>(['not-found', 'exists', 'invalid', 'conflict']);
+const LOCAL_CODES: ReadonlySet<string> = new Set<ProjectErrorCode>(['not-found', 'exists', 'invalid', 'conflict', 'unsupported']);
 const ROLES: ReadonlySet<string> = new Set<ProjectRole>(['viewer', 'editor', 'admin']);
 const SITE_ROLES: ReadonlySet<string> = new Set<SiteRole>(['admin', 'member', 'guest']);
 
@@ -227,6 +228,24 @@ function parseAccount(value: unknown): AdminAccount | undefined {
   };
 }
 
+/** Una versión de la respuesta del servidor, o `undefined` si no tiene lo mínimo del contrato. */
+function parseVersion(value: unknown): VersionMeta | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const v = value as Record<string, unknown>;
+  const id = v.id;
+  if (typeof id !== 'number' || !Number.isInteger(id) || id < 1 || typeof v.savedAt !== 'string' || typeof v.hash !== 'string') return undefined;
+  const size = typeof v.size === 'number' && Number.isFinite(v.size) ? Math.max(0, Math.trunc(v.size)) : 0;
+  return {
+    id,
+    savedAt: v.savedAt,
+    ...(typeof v.savedBy === 'string' && v.savedBy ? { savedBy: v.savedBy } : {}),
+    ...(typeof v.label === 'string' && v.label ? { label: v.label } : {}),
+    size,
+    hash: v.hash,
+    ...(typeof v.restoredFrom === 'number' && Number.isInteger(v.restoredFrom) ? { restoredFrom: v.restoredFrom } : {}),
+  };
+}
+
 /** Un nombre de usuario de GitHub como se escribe a mano (`@octocat`, con espacios) → `octocat`. Lanza `invalid` si queda vacío. */
 function cleanLogin(value: string): string {
   const login = value.trim().replace(/^@/, '');
@@ -234,8 +253,13 @@ function cleanLogin(value: string): string {
   return login;
 }
 
-export class HttpProjectStore implements ProjectStore {
+export class HttpProjectStore implements VersionedProjectStore {
   readonly kind = 'http';
+  /**
+   * Un servidor de esta versión guarda el historial de cada diagrama. Uno anterior no tiene las rutas: sus llamadas fallan con `unsupported`
+   * (y la interfaz, que ya se había ofrecido, lo cuenta en lugar de romper). El servidor decide además quién puede qué (roles).
+   */
+  readonly keepsVersions = true as const;
   /** La dirección del servicio, ya normalizada. */
   readonly baseUrl: string;
   private token: string | undefined;
@@ -421,6 +445,58 @@ export class HttpProjectStore implements ProjectStore {
 
   async deleteDiagram(projectId: string, diagramId: string): Promise<void> {
     await this.request('DELETE', `${API}/${encodeURIComponent(projectId)}/diagrams/${encodeURIComponent(diagramId)}`);
+  }
+
+  // ───────────── historial de versiones ─────────────
+
+  private versionsPath(projectId: string, diagramId: string, rest = ''): string {
+    return `${API}/${encodeURIComponent(projectId)}/diagrams/${encodeURIComponent(diagramId)}/versions${rest}`;
+  }
+
+  /** Como `request`, pero un 404 sin `code` (la ruta no existe: un servidor anterior al historial) se cuenta como lo que es. */
+  private async versionsRequest(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<unknown> {
+    try {
+      return await this.request(method, path, body);
+    } catch (error) {
+      if (error instanceof ProjectError && error.code === 'unavailable' && error.info.status === 404 && !error.info.network) {
+        throw new ProjectError('unsupported', 'Este servidor no guarda historial de versiones (¿es de una versión anterior de IArk?).', error.info);
+      }
+      throw error;
+    }
+  }
+
+  async listVersions(projectId: string, diagramId: string): Promise<VersionMeta[]> {
+    const found = await this.versionsRequest('GET', this.versionsPath(projectId, diagramId));
+    return (Array.isArray(found) ? found : []).flatMap((entry: unknown) => {
+      const version = parseVersion(entry);
+      return version ? [version] : [];
+    });
+  }
+
+  async getVersion(projectId: string, diagramId: string, versionId: number): Promise<DiagramVersion | undefined> {
+    const id = requireVersionId(versionId); // antes de `read`, que se tragaría el `invalid`
+    const found = (await this.read(() => this.versionsRequest('GET', this.versionsPath(projectId, diagramId, `/${id}`)))) as Record<string, unknown> | undefined;
+    const version = parseVersion(found);
+    if (!found || !version || typeof found.text !== 'string') return undefined;
+    return { ...version, text: found.text };
+  }
+
+  async restoreVersion(projectId: string, diagramId: string, versionId: number, options: RestoreOptions = {}): Promise<RestoredVersion> {
+    // `by` no se envía: quién restaura lo decide el servidor con la identidad de la petición, no el cliente.
+    const found = (await this.versionsRequest('POST', this.versionsPath(projectId, diagramId, `/${requireVersionId(versionId)}/restore`), { ifUpdatedAt: options.ifUpdatedAt })) as Record<string, unknown>;
+    const version = parseVersion(found.version);
+    if (!version || !found.diagram || typeof found.diagram !== 'object') throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una restauración.`);
+    return { diagram: found.diagram as DiagramMeta, version, unchanged: found.unchanged === true };
+  }
+
+  async labelVersion(projectId: string, diagramId: string, versionId: number, label: string): Promise<VersionMeta> {
+    const version = parseVersion(await this.versionsRequest('PATCH', this.versionsPath(projectId, diagramId, `/${requireVersionId(versionId)}`), { label }));
+    if (!version) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una versión.`);
+    return version;
+  }
+
+  async deleteVersion(projectId: string, diagramId: string, versionId: number): Promise<void> {
+    await this.versionsRequest('DELETE', this.versionsPath(projectId, diagramId, `/${requireVersionId(versionId)}`));
   }
 
   /** Una lectura por id: lo que no existe (o un id que el servidor no acepta) es `undefined`, como en los almacenes locales. */

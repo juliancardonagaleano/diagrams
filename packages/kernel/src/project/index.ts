@@ -1,7 +1,40 @@
 export * from './types';
 export { ProjectError, type ProjectErrorCode, type ProjectErrorInfo } from './errors';
 export { cleanName, MAX_NAME_LENGTH, MODULE_ID, nameKey, requireModuleId, sameName, slugify, uniqueName, uniqueSlug } from './names';
-export { MemoryProjectStore } from './memory';
+export { MemoryProjectStore, type MemoryProjectStoreOptions } from './memory';
+export {
+  applyPlan,
+  cleanBy,
+  cleanVersionLabel,
+  DEFAULT_VERSION_POLICY,
+  describeContent,
+  findVersion,
+  isVersioned,
+  maxNamedVersions,
+  newestFirst,
+  parseVersionId,
+  planDelete,
+  planLabel,
+  planSave,
+  requireVersionId,
+  resolveVersionPolicy,
+  sha256Hex,
+  unsupportedVersions,
+  versionMeta,
+  versionUsageOf,
+  VERSION_POLICY_LIMITS,
+  type DiagramVersion,
+  type PlanInput,
+  type PlannedVersion,
+  type RestoredVersion,
+  type RestoreOptions,
+  type SaveFacts,
+  type VersionedProjectStore,
+  type VersionMeta,
+  type VersionPlan,
+  type VersionPolicy,
+  type VersionUsage,
+} from './versions';
 export {
   HttpProjectStore,
   normalizeBaseUrl,

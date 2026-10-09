@@ -13,7 +13,9 @@ import {
   findDiagram,
   findProject,
   importBundle,
+  isVersioned,
   parseBundle,
+  parseVersionId,
   ProjectError,
   projectTrace,
   sameName,
@@ -24,7 +26,10 @@ import {
   type DiagramMeta,
   type ModuleRegistry,
   type ProjectSummary,
+  type VersionedProjectStore,
+  type VersionMeta,
 } from '@iark/kernel';
+import { compareTexts, DIFF_FORMATS, parseFormat, type DiffFormat, type ImportSource } from './diff';
 import { CliError, info, readInput, writeOutput } from './io';
 import { addTraceViewOptions, buildTraceOutput, emitTrace, type TraceViewOptions } from './trace';
 import { FolderProjectStore } from './workspace';
@@ -66,6 +71,9 @@ function readText(file: string): string {
 function requireYes(yes: boolean | undefined, what: string): void {
   if (!yes) throw new CliError(`${what} No se puede deshacer y el comando no pide confirmación: repítalo con --yes para confirmarlo.`, 2);
 }
+
+/** `1234` → `1,2 kB`; los tamaños de un documento. */
+const sizeOf = (bytes: number): string => (bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1).replace('.', ',')} kB` : `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`);
 
 const diagramLines = (project: ProjectSummary): string[] =>
   columns(project.diagrams.map((d) => [d.id, d.module, d.name, when(d.updatedAt)]));
@@ -138,6 +146,35 @@ function checkLine(d: DiagramCheck): string[] {
   const detail = d.status === 'ok' ? `${plural(d.errors, 'error', 'errores')}, ${plural(d.warnings, 'aviso', 'avisos')}, ${plural(d.infos, 'nota', 'notas')}` : (d.detail ?? '');
   return [STATUS_LABEL[d.status], d.module, d.name, detail];
 }
+
+// ───────────── historial de versiones ─────────────
+
+/**
+ * El almacén con historial, o un error de uso que dice por qué no lo hay: el historial está desactivado (`IARK_VERSIONS=off`). Los comandos de
+ * versiones lo piden antes de nada para no fingir que hay historial donde no se guarda.
+ */
+function versioned(store: FolderProjectStore): VersionedProjectStore {
+  if (!isVersioned(store)) throw new CliError('El historial de versiones está desactivado en este espacio de trabajo (IARK_VERSIONS=off). Quite la variable para guardar y consultar versiones.', 2);
+  return store;
+}
+
+/** El número de versión de un argumento (`7`, o `#7`), o un error de uso. */
+function versionArgument(raw: string): number {
+  const id = parseVersionId(raw.replace(/^#/, ''));
+  if (id === undefined) throw new CliError(`«${raw}» no es un número de versión (un entero positivo, como el que muestra \`iark project history\`).`, 2);
+  return id;
+}
+
+/** Una versión que puede ser `actual` (el documento tal como está ahora). */
+const CURRENT = /^(actual|current)$/i;
+
+const versionLine = (v: VersionMeta): string[] => [
+  `#${v.id}`,
+  when(v.savedAt),
+  v.savedBy ?? '-',
+  v.label ? `«${v.label}»` : '',
+  `${sizeOf(v.size)}${v.restoredFrom !== undefined ? ` (restaurada de la #${v.restoredFrom})` : ''}`,
+];
 
 // ───────────── registro de los comandos ─────────────
 
@@ -308,6 +345,114 @@ export function registerProject(program: Command, registry: ModuleRegistry): voi
       const target = opts.to !== undefined ? await findProject(store, opts.to) : found;
       const copy = await duplicateDiagram(store, found.id, meta.id, { toProjectId: target.id, name: opts.name });
       writeLine(`Diagrama «${meta.name}» copiado como «${copy.name}» (id ${copy.id}) en el proyecto «${target.name}».`);
+    });
+
+  // ───────────── historial de versiones ─────────────
+
+  sub('history')
+    .description('Historial de versiones de un diagrama: cada guardado deja una versión (la más reciente primero), con su fecha, quién la guardó y el nombre que se le haya dado')
+    .argument('<proyecto>', 'id o nombre')
+    .argument('<diagrama>', 'id o nombre')
+    .option('--json', 'salida en JSON', false)
+    .action(async (ref: string, diagramRef: string, opts: WorkspaceOptions & { json: boolean }) => {
+      const store = openStore(opts);
+      const found = await findProject(store, ref);
+      const meta = findDiagram(found, diagramRef);
+      const versions = await versioned(store).listVersions(found.id, meta.id);
+      if (opts.json) return write(json(versions));
+      if (versions.length === 0) return writeLine(`«${meta.name}» todavía no tiene versiones guardadas.`);
+      writeLine(`Historial de «${meta.name}» (${meta.id}) en el proyecto «${found.name}»: ${plural(versions.length, 'versión', 'versiones')}`);
+      for (const line of columns(versions.map(versionLine))) writeLine(`  ${line}`);
+    });
+
+  sub('restore')
+    .description(
+      'Restaura una versión de un diagrama: su contenido pasa a ser el actual y se guarda como una versión NUEVA. Nada del historial se borra, así que se puede deshacer restaurando la versión que había antes',
+    )
+    .argument('<proyecto>', 'id o nombre')
+    .argument('<diagrama>', 'id o nombre')
+    .argument('<versión>', 'número de la versión (ver `iark project history`)')
+    .action(async (ref: string, diagramRef: string, versionRef: string, opts: WorkspaceOptions) => {
+      const store = openStore(opts);
+      const found = await findProject(store, ref);
+      const meta = findDiagram(found, diagramRef);
+      const id = versionArgument(versionRef);
+      const result = await versioned(store).restoreVersion(found.id, meta.id, id);
+      writeLine(
+        result.unchanged
+          ? `«${meta.name}» ya tenía el contenido de la versión #${id}: no se guardó nada.`
+          : `Versión #${id} de «${meta.name}» restaurada: quedó guardada como la versión #${result.version.id} (el historial anterior sigue intacto).`,
+      );
+    });
+
+  sub('label')
+    .description('Pone un nombre a una versión (p. ej. «Entrega 1»): una versión con nombre no se sustituye ni se descarta sola al rotar el historial')
+    .argument('<proyecto>', 'id o nombre')
+    .argument('<diagrama>', 'id o nombre')
+    .argument('<versión>', 'número de la versión')
+    .argument('<nombre>', 'nombre de la versión')
+    .action(async (ref: string, diagramRef: string, versionRef: string, label: string, opts: WorkspaceOptions) => {
+      const store = openStore(opts);
+      const found = await findProject(store, ref);
+      const meta = findDiagram(found, diagramRef);
+      const named = await versioned(store).labelVersion(found.id, meta.id, versionArgument(versionRef), label);
+      writeLine(`Versión #${named.id} de «${meta.name}» nombrada «${named.label}».`);
+    });
+
+  sub('delete-version')
+    .description('Borra una versión CON nombre del historial (las que no tienen nombre se descartan solas al rotar)')
+    .argument('<proyecto>', 'id o nombre')
+    .argument('<diagrama>', 'id o nombre')
+    .argument('<versión>', 'número de la versión')
+    .option('--yes', 'confirma el borrado (sin él, el comando no hace nada)', false)
+    .action(async (ref: string, diagramRef: string, versionRef: string, opts: WorkspaceOptions & { yes: boolean }) => {
+      const store = openStore(opts);
+      const found = await findProject(store, ref);
+      const meta = findDiagram(found, diagramRef);
+      const id = versionArgument(versionRef);
+      const history = versioned(store);
+      requireYes(opts.yes, `Borrar la versión #${id} de «${meta.name}» la quita del historial para siempre.`);
+      await history.deleteVersion(found.id, meta.id, id);
+      writeLine(`Versión #${id} de «${meta.name}» borrada.`);
+    });
+
+  sub('diff')
+    .description(
+      'Compara dos versiones de un diagrama con el mismo motor y la misma salida que `iark diff`. Con una sola versión, la compara con el contenido actual del diagrama (qué cambió desde entonces); ' +
+        'con dos, de la primera a la segunda. En lugar de un número vale `actual` (el contenido de ahora)',
+    )
+    .argument('<proyecto>', 'id o nombre')
+    .argument('<diagrama>', 'id o nombre')
+    .argument('<antes>', 'número de la versión anterior (o `actual`)')
+    .argument('[después]', 'número de la versión nueva (por omisión, `actual`)')
+    .option('--format <formato>', `salida: ${DIFF_FORMATS.join(' | ')} (markdown sirve para pegar en una PR o un changelog)`, parseFormat, 'text')
+    .option('--exit-code', 'termina con código 1 si hay cambios (como `git diff --exit-code`); sin la opción, 0 aunque los haya', false)
+    .option('-o, --out <archivo>', 'archivo de salida (por defecto stdout)')
+    .action(async (ref: string, diagramRef: string, beforeRef: string, afterRef: string | undefined, opts: WorkspaceOptions & { format: DiffFormat; exitCode: boolean; out?: string }) => {
+      const store = openStore(opts);
+      const found = await findProject(store, ref);
+      const meta = findDiagram(found, diagramRef);
+      const history = versioned(store);
+      const side = async (reference: string) => {
+        const file = `${meta.id}.${meta.module}.json`;
+        if (CURRENT.test(reference)) {
+          const current = await store.getDiagram(found.id, meta.id);
+          if (!current) throw new ProjectError('not-found', `No existe el diagrama «${diagramRef}» en el proyecto «${found.name}».`);
+          return { raw: current.text, file, origin: `${meta.name}, actual` };
+        }
+        const id = versionArgument(reference);
+        const version = await history.getVersion(found.id, meta.id, id);
+        if (!version) throw new ProjectError('not-found', `«${meta.name}» no tiene la versión #${id} (¿se descartó al rotar el historial? Mire \`iark project history\`).`);
+        return { raw: version.text, file, origin: `${meta.name}, versión #${id}${version.label ? ` «${version.label}»` : ''}` };
+      };
+      const [before, after] = [await side(beforeRef), await side(afterRef ?? 'actual')];
+      // una versión guardada es JSON del módulo (o un borrador que no lo es, y entonces lo dirá el motor): no se importa de otras fuentes
+      const noImport: ImportSource = async () => {
+        throw new CliError('Una versión de un diagrama es un documento JSON del módulo: no se puede importar de otra fuente.', 2);
+      };
+      const { text, changed } = await compareTexts(registry, registry.require(meta.module), before, after, opts.format, noImport);
+      writeOutput(opts.out, text);
+      if (opts.exitCode && changed) process.exitCode = 1;
     });
 
   sub('export')

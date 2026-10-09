@@ -10,6 +10,7 @@ import { createSuiteServer } from '../src/cli/serve';
 import { createToken, revokeToken, TokenStore, type TokenRole } from '../src/cli/tokens';
 import { FolderProjectStore } from '../src/cli/workspace';
 import { projectStoreContract } from './helpers/projectStoreContract';
+import { projectVersionsContract } from './helpers/projectVersionsContract';
 
 /**
  * El cliente remoto contra el servidor de verdad: el mismo contrato de almacén que cumplen la memoria, IndexedDB y la carpeta,
@@ -27,9 +28,9 @@ interface Running {
   close(): Promise<void>;
 }
 
-async function startServer(): Promise<Running> {
+async function startServer(options: ConstructorParameters<typeof FolderProjectStore>[1] = {}): Promise<Running> {
   const root = mkdtempSync(join(tmpdir(), 'iark-http-'));
-  const server = createSuiteServer({ registry: createDefaultRegistry(), version: '1', projects: new FolderProjectStore(root) });
+  const server = createSuiteServer({ registry: createDefaultRegistry(), version: '1', projects: new FolderProjectStore(root, options) });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const close = async (): Promise<void> => {
@@ -43,6 +44,17 @@ projectStoreContract('HttpProjectStore (servidor real)', async () => {
   const running = await startServer();
   return { store: new HttpProjectStore({ baseUrl: running.base }), cleanup: running.close };
 });
+
+// El historial pasa por HTTP: el cliente habla con un servidor de verdad (que guarda en una carpeta) con la política y el reloj de la prueba.
+// Quién guarda lo decide el servidor con la identidad de la petición, así que aquí (sin autenticación) no se anota, y el uso lo cuenta el servidor.
+projectVersionsContract(
+  'HttpProjectStore (servidor real)',
+  async ({ policy, clock }) => {
+    const running = await startServer({ versions: policy, clock: () => clock.now() });
+    return { store: new HttpProjectStore({ baseUrl: running.base }), cleanup: running.close };
+  },
+  { recordsActor: false, reportsUsage: false },
+);
 
 describe('HttpProjectStore contra iark serve', () => {
   it('dos clientes comparten el espacio de trabajo y el segundo ve lo que guardó el primero', async () => {

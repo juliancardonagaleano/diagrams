@@ -3,7 +3,7 @@ import type { DiagramMeta } from '@iark/kernel';
 import { formatIssues, validateDocument } from '@core/model/schema';
 import type { C4Document } from '@core/model/types';
 import { getProjectSession as sharedProjectSession, resetProjectSession as resetSharedProjectSession } from '../../projects/factory';
-import type { ConflictChoice, ProjectSession, ProjectsState } from '../../projects/session';
+import type { ConflictChoice, ProjectSession, ProjectsState, RestoreResult } from '../../projects/session';
 import { isEmbedMode, useDocumentStore } from '../store/documentStore';
 import { extractJson } from '../utils/files';
 
@@ -38,6 +38,11 @@ export interface ProjectBinding {
    * guardar la propia como diagrama nuevo. Con `key` se resuelve el de otro diagrama que quedó pendiente en el navegador.
    */
   resolveConflict(choice: ConflictChoice, options?: { key?: string; name?: string }): Promise<void>;
+  /**
+   * Restaura una versión del diagrama abierto (queda guardada como una versión nueva) y la carga en el editor. Rechaza con el motivo si no se
+   * pudo restaurar o si el resultado no es un documento C4 válido (el historial queda como está).
+   */
+  restoreVersion(versionId: number): Promise<RestoreResult>;
 }
 
 const NO_STATE = { subscribe: () => () => undefined, getState: () => undefined as ProjectsState | undefined };
@@ -157,10 +162,21 @@ export function useProjectBinding(): ProjectBinding {
     [session, load],
   );
 
+  const restoreVersion = useCallback(
+    async (versionId: number): Promise<RestoreResult> => {
+      const { projectId, diagramId } = session?.getState() ?? {};
+      if (!session || !projectId || !diagramId) throw new Error('Abre un diagrama de un proyecto para restaurar una de sus versiones.');
+      const result = await session.restoreVersion(projectId, diagramId, versionId);
+      if (!result.unchanged) load(result.diagram.text, result.diagram.name);
+      return result;
+    },
+    [session, load],
+  );
+
   const current = useCallback((): { module: string; text: string; name: string } => {
     const { doc } = useDocumentStore.getState();
     return { module: C4_MODULE, text: serialize(doc), name: doc.workspace.name };
   }, []);
 
-  return { session, state, open, current, resolveConflict };
+  return { session, state, open, current, resolveConflict, restoreVersion };
 }
