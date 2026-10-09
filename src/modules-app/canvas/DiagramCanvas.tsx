@@ -12,11 +12,12 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { layoutGraph, pretty, type EditResult, type EditorSpec, type GraphLayout } from '@iark/kernel';
+import { pretty, type EditResult, type EditorSpec, type GraphLayout } from '@iark/kernel';
 import './canvas.css';
 import { ActionPrompt } from './ActionPrompt';
+import { autolayoutGraph } from './autolayout';
 import type { CanvasCompare } from '../compare';
-import { absolutePositions, buildFlow, dropTarget, ghostNodes, layoutLabelText, movedByDrag, removedNodes, structureKey, type FlowEdge, type FlowNode } from './flow';
+import { absolutePositions, buildFlow, dropTarget, ghostNodes, movedByDrag, removedNodes, structureKey, type FlowEdge, type FlowNode } from './flow';
 import type { EditHistory } from './history';
 import { Inspector, type LinkTools } from './Inspector';
 import { NotationEdge } from './NotationEdge';
@@ -161,17 +162,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
       setLaidFor(wanted);
     };
     try {
-      const own = spec.layout && documentRef.current !== undefined ? await spec.layout(documentRef.current, viewId) : undefined;
-      if (own) return apply(own);
-      const kinds = new Map(spec.nodeKinds.map((k) => [k.kind, k]));
-      const parents = new Set(g.nodes.filter((n) => n.parentId).map((n) => n.parentId as string));
-      const result = await layoutGraph(
-        g.nodes.filter((n) => !parents.has(n.id)).map((n) => ({ id: n.id, width: n.width ?? kinds.get(n.kind)?.width ?? 180, height: n.height ?? kinds.get(n.kind)?.height ?? 72, groupId: n.parentId })),
-        g.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, label: layoutLabelText(e) })),
-        g.nodes.filter((n) => parents.has(n.id)).map((n) => ({ id: n.id, groupId: n.parentId })),
-        { direction: 'RIGHT' },
-      );
-      apply(result);
+      apply(await autolayoutGraph(spec, documentRef.current, g, viewId));
     } catch {
       fail();
     }

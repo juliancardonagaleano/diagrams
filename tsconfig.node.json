@@ -5,5 +5,5 @@
     "types": ["node"]
   },
   "include": ["packages/*/src", "src/cli", "src/embed/protocol.ts", "scripts", "vite.config.ts", "tsup.config.ts", "vitest.config.ts"],
-  "exclude": ["src/**/*.test.ts", "packages/*/src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts", "packages/*/src/**/*.test.ts", "scripts/perf.ts", "scripts/perf"]
 }
