@@ -7,6 +7,7 @@ import { toDrawio } from './export/drawio';
 import { toMermaid } from './export/mermaid';
 import { toSvg } from './export/render';
 import { fromMermaid } from './import/fromMermaid';
+import { fromThreatDragon, looksLikeThreatDragon } from './import/fromThreatDragon';
 import { analyzeSecurity } from './issues';
 import { securityDocumentSchema, securityJsonSchema } from './schema';
 import { SECURITY_DOCUMENT_VERSION, type SecurityDocument } from './types';
@@ -18,6 +19,15 @@ const mermaidImporter: Importer<SecurityDocument> = {
   extensions: ['.mmd', '.mermaid', '.md'],
   detect: looksLikeMermaid,
   import: (text, ctx) => fromMermaid(text, { name: ctx.name, fallbackName: ctx.fallbackName }),
+};
+
+/** El modelo JSON de OWASP Threat Dragon 2.x; cualquier otro JSON se rechaza con el motivo. */
+const threatDragonImporter: Importer<SecurityDocument> = {
+  id: 'threat-dragon',
+  label: 'OWASP Threat Dragon (JSON)',
+  extensions: ['.json'],
+  detect: looksLikeThreatDragon,
+  import: (text, ctx) => fromThreatDragon(text, { name: ctx.name, fallbackName: ctx.fallbackName }),
 };
 
 const mermaidExporter: Exporter<SecurityDocument> = {
@@ -55,12 +65,12 @@ export const securityModule: DomainModule<SecurityDocument> = {
   id: 'security',
   name: 'Arquitectura de seguridad',
   version: '0.1.0',
-  description: 'Zonas de confianza, activos, flujos de datos, amenazas STRIDE y controles, con diagrama de flujo de datos, modelo de amenazas, riesgos y superficie de ataque; exporta a Mermaid, SVG y draw.io.',
+  description: 'Zonas de confianza, activos, flujos de datos, amenazas STRIDE y controles, con diagrama de flujo de datos, modelo de amenazas, riesgos y superficie de ataque; importa de Mermaid y OWASP Threat Dragon y exporta a Mermaid, SVG y draw.io.',
   documentVersion: SECURITY_DOCUMENT_VERSION,
   schema: securityDocumentSchema as unknown as DomainModule<SecurityDocument>['schema'],
   jsonSchema: securityJsonSchema,
   validate: (doc): ModuleIssue[] => analyzeSecurity(doc),
-  importers: [mermaidImporter],
+  importers: [mermaidImporter, threatDragonImporter],
   exporters: [mermaidExporter, svgExporter, drawioExporter],
   ai: securityAiSpec,
   entities: (doc): EntityRef[] => [

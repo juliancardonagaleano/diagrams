@@ -1,0 +1,1067 @@
+{
+  "summary": {
+    "title": "Tienda en línea",
+    "owner": "Equipo de Seguridad",
+    "description": "Modelo de amenazas del flujo de compra y de la privacidad del perfil.",
+    "id": 0
+  },
+  "detail": {
+    "contributors": [
+      {
+        "name": "Marta Ríos"
+      },
+      {
+        "name": "Joaquín Salas"
+      }
+    ],
+    "diagrams": [
+      {
+        "id": 0,
+        "title": "Flujo de compra",
+        "diagramType": "STRIDE",
+        "placeholder": "Nuevo diagrama STRIDE",
+        "thumbnail": "./public/content/images/thumbnail.stride.jpg",
+        "version": "2.0",
+        "cells": [
+          {
+            "position": {
+              "x": 260,
+              "y": 40
+            },
+            "size": {
+              "width": 560,
+              "height": 400
+            },
+            "attrs": {
+              "headerText": {
+                "text": "Red corporativa"
+              }
+            },
+            "visible": true,
+            "shape": "trust-boundary-box",
+            "id": "b877f04d-5b42-59f8-9779-f2bc7aeac80e",
+            "zIndex": -1,
+            "data": {
+              "type": "tm.BoundaryBox",
+              "name": "Red corporativa",
+              "description": "",
+              "isTrustBoundary": true,
+              "hasOpenThreats": false
+            }
+          },
+          {
+            "position": {
+              "x": 580,
+              "y": 150
+            },
+            "size": {
+              "width": 220,
+              "height": 270
+            },
+            "attrs": {
+              "headerText": {
+                "text": "Zona de datos"
+              }
+            },
+            "visible": true,
+            "shape": "trust-boundary-box",
+            "id": "a4a40554-a324-5580-a667-c0de74fc58e7",
+            "zIndex": 0,
+            "data": {
+              "type": "tm.BoundaryBox",
+              "name": "Zona de datos",
+              "description": "",
+              "isTrustBoundary": true,
+              "hasOpenThreats": false
+            }
+          },
+          {
+            "position": {
+              "x": 30,
+              "y": 120
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "Cliente"
+              }
+            },
+            "visible": true,
+            "shape": "actor",
+            "id": "102cb8eb-0ef6-5f95-b177-977425fca90f",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Actor",
+              "name": "Cliente",
+              "description": "Persona que compra desde el navegador",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "providesAuthentication": false,
+              "threats": [
+                {
+                  "id": "290e7602-51b5-5878-ae7b-e1fba1ef357e",
+                  "title": "Repudio de un pedido",
+                  "status": "Open",
+                  "severity": "Low",
+                  "type": "Repudiation",
+                  "description": "El cliente niega haber hecho un pedido.",
+                  "mitigation": "Registrar cada pedido con la identidad y la hora y conservar el registro",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 1,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "position": {
+              "x": 840,
+              "y": 90
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "Pasarela de pagos"
+              }
+            },
+            "visible": true,
+            "shape": "actor",
+            "id": "8a3aa9cb-9f0b-5d26-bff0-cba088ddc033",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Actor",
+              "name": "Pasarela de pagos",
+              "description": "Servicio de un tercero que cobra la tarjeta",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "providesAuthentication": false,
+              "threats": []
+            }
+          },
+          {
+            "position": {
+              "x": 300,
+              "y": 120
+            },
+            "size": {
+              "width": 140,
+              "height": 140
+            },
+            "attrs": {
+              "text": {
+                "text": "API de pedidos"
+              }
+            },
+            "visible": true,
+            "shape": "process",
+            "id": "ead11635-fff5-5dc4-9acb-055fc57821c3",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Process",
+              "name": "API de pedidos",
+              "description": "Recibe los pedidos y coordina el cobro",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "privilegeLevel": "Usuario del sistema",
+              "isWebApplication": true,
+              "handlesCardPayment": true,
+              "handlesGoodsOrServices": false,
+              "isALibrary": false,
+              "threats": [
+                {
+                  "id": "ea4da5a4-c34a-501c-9352-e34123c1cc46",
+                  "title": "Suplantación del cliente ante la API",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Spoofing",
+                  "description": "Un atacante reutiliza un token robado.",
+                  "mitigation": "Tokens de corta duración con rotación y validación de audiencia",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 2,
+                  "score": ""
+                },
+                {
+                  "id": "0b691555-73da-5627-82a8-c987130fcd31",
+                  "title": "Manipulación de importes",
+                  "status": "Mitigated",
+                  "severity": "Medium",
+                  "type": "Tampering",
+                  "description": "Se altera el importe antes de cobrar.",
+                  "mitigation": "Validar el importe en el servidor contra el catálogo y firmar el pedido",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 3,
+                  "score": ""
+                },
+                {
+                  "id": "8bd8f996-2f9c-54f8-8664-6119c38ba69b",
+                  "title": "Elevación de privilegios por rol",
+                  "status": "NotApplicable",
+                  "severity": "Low",
+                  "type": "Elevation of privilege",
+                  "description": "Un cliente obtiene permisos de administración.",
+                  "mitigation": "La API no expone ninguna operación de administración.",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 4,
+                  "score": ""
+                },
+                {
+                  "id": "1e42d93c-1c31-591f-94c8-423f15bde0c5",
+                  "title": "New STRIDE threat",
+                  "status": "Open",
+                  "severity": "TBD",
+                  "type": "Repudiation",
+                  "description": "Provide a description for this threat",
+                  "mitigation": "Provide remediation for this threat or a reason if status is N/A",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 5,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "position": {
+              "x": 300,
+              "y": 300
+            },
+            "size": {
+              "width": 140,
+              "height": 140
+            },
+            "attrs": {
+              "text": {
+                "text": "Worker de facturación"
+              }
+            },
+            "visible": true,
+            "shape": "process",
+            "id": "8935e6f8-1824-57b5-b3a7-0e765363938a",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Process",
+              "name": "Worker de facturación",
+              "description": "Genera las facturas de forma diferida",
+              "outOfScope": true,
+              "reasonOutOfScope": "Lo analiza el equipo de facturación",
+              "hasOpenThreats": false,
+              "privilegeLevel": "",
+              "isWebApplication": false,
+              "handlesCardPayment": false,
+              "handlesGoodsOrServices": false,
+              "isALibrary": false,
+              "threats": []
+            }
+          },
+          {
+            "position": {
+              "x": 600,
+              "y": 190
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "Base de pedidos"
+              }
+            },
+            "visible": true,
+            "shape": "store",
+            "id": "a1ea02ce-494d-5e2e-ac2f-4b9aa9a2e029",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Store",
+              "name": "Base de pedidos",
+              "description": "PostgreSQL con los pedidos y los datos de contacto",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "isALog": false,
+              "isEncrypted": false,
+              "isSigned": false,
+              "storesCredentials": true,
+              "storesInventory": false,
+              "threats": [
+                {
+                  "id": "f8ecf8b1-0b71-5f37-95ce-9d55d376f2d6",
+                  "title": "Divulgación de datos de pedidos",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Information disclosure",
+                  "description": "Un acceso indebido a la base expone datos personales.",
+                  "mitigation": "Cifrar en reposo con claves gestionadas y restringir el acceso por rol",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 6,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "position": {
+              "x": 600,
+              "y": 320
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "Registro de auditoría"
+              }
+            },
+            "visible": true,
+            "shape": "store",
+            "id": "9db1e23c-226d-5b2c-8307-ddb84d468dee",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Store",
+              "name": "Registro de auditoría",
+              "description": "Registro inmutable de las operaciones",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "isALog": true,
+              "isEncrypted": true,
+              "isSigned": true,
+              "storesCredentials": false,
+              "storesInventory": false,
+              "threats": [
+                {
+                  "id": "c113491e-97ff-5f31-b1dc-460f00f4867c",
+                  "title": "Manipulación de registros",
+                  "status": "Open",
+                  "severity": "Medium",
+                  "type": "Tampering",
+                  "description": "Se borran o alteran trazas.",
+                  "mitigation": "Cifrar en reposo con claves gestionadas y restringir el acceso por rol",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 7,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "0de2140e-5bfb-5911-aab7-ebba17711302",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "102cb8eb-0ef6-5f95-b177-977425fca90f"
+            },
+            "target": {
+              "cell": "ead11635-fff5-5dc4-9acb-055fc57821c3"
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": "Pedido"
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Pedido",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "isBidirectional": false,
+              "isEncrypted": true,
+              "isPublicNetwork": true,
+              "protocol": "HTTPS",
+              "threats": [
+                {
+                  "id": "14e924d7-6d03-5f53-b88a-b771be40a6f8",
+                  "title": "Interceptación en la red pública",
+                  "status": "Mitigated",
+                  "severity": "High",
+                  "type": "Information disclosure",
+                  "description": "Se escucha el tráfico entre el navegador y la API.",
+                  "mitigation": "TLS 1.2 o superior con HSTS",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 8,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "1459415c-99ca-57b9-b882-7e05b8be1166",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "ead11635-fff5-5dc4-9acb-055fc57821c3"
+            },
+            "target": {
+              "cell": "a1ea02ce-494d-5e2e-ac2f-4b9aa9a2e029"
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": "Consulta de pedidos"
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Consulta de pedidos",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "isBidirectional": true,
+              "isEncrypted": false,
+              "isPublicNetwork": false,
+              "protocol": "TCP",
+              "threats": [
+                {
+                  "id": "e6d55024-551a-5bf5-83f8-6de0ed96bf6c",
+                  "title": "Denegación de servicio por consultas pesadas",
+                  "status": "Open",
+                  "severity": "Medium",
+                  "type": "Denial of service",
+                  "description": "Consultas costosas que bloquean la base.",
+                  "mitigation": "Limitar la tasa de peticiones y poner tiempo máximo a las consultas",
+                  "modelType": "STRIDE",
+                  "new": false,
+                  "number": 9,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "a4e77762-3cc9-5111-88b5-fd18cbc03803",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "ead11635-fff5-5dc4-9acb-055fc57821c3"
+            },
+            "target": {
+              "cell": "8a3aa9cb-9f0b-5d26-bff0-cba088ddc033"
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": "Cobro"
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Cobro",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "isBidirectional": false,
+              "isEncrypted": true,
+              "isPublicNetwork": true,
+              "protocol": "HTTPS",
+              "threats": []
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "bea9dc07-d7b7-555a-a38d-0271424f212d",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "ead11635-fff5-5dc4-9acb-055fc57821c3"
+            },
+            "target": {
+              "cell": "9db1e23c-226d-5b2c-8307-ddb84d468dee"
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": "Traza"
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Traza",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "isBidirectional": false,
+              "isEncrypted": true,
+              "isPublicNetwork": false,
+              "protocol": "TCP",
+              "threats": []
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "ccb99451-3de4-59f1-98d5-fadf0b9cb13c",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "8935e6f8-1824-57b5-b3a7-0e765363938a"
+            },
+            "target": {
+              "cell": "a1ea02ce-494d-5e2e-ac2f-4b9aa9a2e029"
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": "Factura pendiente"
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Factura pendiente",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "isBidirectional": false,
+              "isEncrypted": false,
+              "isPublicNetwork": false,
+              "protocol": "TCP",
+              "threats": []
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "5a904600-666a-5e88-91f2-67289254106e",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "ead11635-fff5-5dc4-9acb-055fc57821c3"
+            },
+            "target": {
+              "x": 860,
+              "y": 400
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": "Notificación"
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Notificación",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "isBidirectional": false,
+              "isEncrypted": false,
+              "isPublicNetwork": false,
+              "protocol": "SMTP",
+              "threats": []
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "011372ec-e050-5744-b8d9-701731cccf90",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "102cb8eb-0ef6-5f95-b177-977425fca90f"
+            },
+            "target": {
+              "cell": "8935e6f8-1824-57b5-b3a7-0e765363938a"
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": ""
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Flow",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "isBidirectional": false,
+              "isEncrypted": false,
+              "isPublicNetwork": false,
+              "protocol": "",
+              "threats": []
+            }
+          },
+          {
+            "position": {
+              "x": 840,
+              "y": 300
+            },
+            "size": {
+              "width": 120,
+              "height": 120
+            },
+            "attrs": {},
+            "visible": true,
+            "shape": "trust-broundary-curve",
+            "id": "aa1b2519-1273-5448-b83d-13d8d3f91154",
+            "zIndex": -1,
+            "data": {
+              "type": "tm.Boundary",
+              "name": "Borde de la nube",
+              "description": "",
+              "isTrustBoundary": true,
+              "hasOpenThreats": false
+            }
+          },
+          {
+            "position": {
+              "x": 280,
+              "y": 470
+            },
+            "size": {
+              "width": 200,
+              "height": 40
+            },
+            "attrs": {
+              "text": {
+                "text": "Nota"
+              }
+            },
+            "visible": true,
+            "shape": "td-text-block",
+            "id": "e2ca6b75-3b8e-523c-9eca-c7c0c6882855",
+            "zIndex": 2,
+            "data": {
+              "type": "tm.Text",
+              "name": "Revisar con el equipo de plataforma",
+              "description": "",
+              "hasOpenThreats": false
+            }
+          }
+        ]
+      },
+      {
+        "id": 1,
+        "title": "Privacidad del perfil",
+        "diagramType": "LINDDUN",
+        "placeholder": "Nuevo diagrama LINDDUN",
+        "thumbnail": "./public/content/images/thumbnail.linddun.jpg",
+        "version": "2.0",
+        "cells": [
+          {
+            "position": {
+              "x": 260,
+              "y": 40
+            },
+            "size": {
+              "width": 380,
+              "height": 260
+            },
+            "attrs": {
+              "headerText": {
+                "text": "Servicios de perfil"
+              }
+            },
+            "visible": true,
+            "shape": "trust-boundary-box",
+            "id": "795934fc-3df6-55c0-9368-14efcedc3620",
+            "zIndex": -1,
+            "data": {
+              "type": "tm.BoundaryBox",
+              "name": "Servicios de perfil",
+              "description": "",
+              "isTrustBoundary": true,
+              "hasOpenThreats": false
+            }
+          },
+          {
+            "position": {
+              "x": 30,
+              "y": 120
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "Cliente"
+              }
+            },
+            "visible": true,
+            "shape": "actor",
+            "id": "2295fd19-5363-57ed-bf73-398ab5d4093a",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Actor",
+              "name": "Cliente",
+              "description": "Titular de los datos",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "providesAuthentication": false,
+              "threats": []
+            }
+          },
+          {
+            "position": {
+              "x": 300,
+              "y": 110
+            },
+            "size": {
+              "width": 140,
+              "height": 140
+            },
+            "attrs": {
+              "text": {
+                "text": "Perfil del cliente"
+              }
+            },
+            "visible": true,
+            "shape": "process",
+            "id": "7b5733a5-2408-536d-8feb-20c0790c3b17",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Process",
+              "name": "Perfil del cliente",
+              "description": "Edita y consulta el perfil",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "privilegeLevel": "",
+              "isWebApplication": true,
+              "handlesCardPayment": false,
+              "handlesGoodsOrServices": false,
+              "isALibrary": false,
+              "threats": [
+                {
+                  "id": "64d2271d-aa78-50ff-9224-d0903c0e4809",
+                  "title": "Vinculación de identidades",
+                  "status": "Open",
+                  "severity": "Medium",
+                  "type": "Linkability",
+                  "description": "Se cruzan perfiles de distintos servicios.",
+                  "mitigation": "Separar los identificadores por servicio",
+                  "modelType": "LINDDUN",
+                  "new": false,
+                  "number": 1,
+                  "score": ""
+                },
+                {
+                  "id": "bdfc7d52-934e-500f-aec3-18cb061eb5d2",
+                  "title": "Falta de prueba de consentimiento",
+                  "status": "Open",
+                  "severity": "Low",
+                  "type": "Non-repudiation",
+                  "description": "No se puede probar el consentimiento.",
+                  "mitigation": "Guardar el consentimiento con fecha y versión del texto",
+                  "modelType": "LINDDUN",
+                  "new": false,
+                  "number": 2,
+                  "score": ""
+                },
+                {
+                  "id": "cdfd0f96-86b0-5675-ac08-2437b19831a7",
+                  "title": "Detección de la existencia de un perfil",
+                  "status": "Mitigated",
+                  "severity": "Low",
+                  "type": "Detectability",
+                  "description": "Se descubre si alguien tiene cuenta.",
+                  "mitigation": "Responder igual aunque la cuenta no exista",
+                  "modelType": "LINDDUN",
+                  "new": false,
+                  "number": 3,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "position": {
+              "x": 480,
+              "y": 200
+            },
+            "size": {
+              "width": 160,
+              "height": 80
+            },
+            "attrs": {
+              "text": {
+                "text": "Datos personales"
+              }
+            },
+            "visible": true,
+            "shape": "store",
+            "id": "3888cf14-1e4f-5e5a-b580-0808c956ddd6",
+            "zIndex": 1,
+            "data": {
+              "type": "tm.Store",
+              "name": "Datos personales",
+              "description": "Tabla de datos personales del perfil",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": true,
+              "isALog": false,
+              "isEncrypted": false,
+              "isSigned": false,
+              "storesCredentials": false,
+              "storesInventory": false,
+              "threats": [
+                {
+                  "id": "d15675d3-9101-527a-9490-c1dc5f804c40",
+                  "title": "Integridad de los datos del perfil",
+                  "status": "Open",
+                  "severity": "High",
+                  "type": "Integrity",
+                  "description": "Cambios sin control de los datos.",
+                  "mitigation": "Registrar cada cambio y permitir revertirlo",
+                  "modelType": "CIA",
+                  "new": false,
+                  "number": 4,
+                  "score": ""
+                },
+                {
+                  "id": "590f0d2a-6616-5967-a4fc-d03520b3ed93",
+                  "title": "Riesgo de privacidad no clasificado",
+                  "status": "Open",
+                  "severity": "Medium",
+                  "type": "Distributed",
+                  "description": "Una categoría que no pertenece a STRIDE.",
+                  "mitigation": "Revisar con el delegado de protección de datos",
+                  "modelType": "CIADIE",
+                  "new": false,
+                  "number": 5,
+                  "score": ""
+                }
+              ]
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "0abb5f46-bba5-5d5a-b9b8-c38ae35cab0f",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "2295fd19-5363-57ed-bf73-398ab5d4093a"
+            },
+            "target": {
+              "cell": "7b5733a5-2408-536d-8feb-20c0790c3b17"
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": "Edición del perfil"
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Edición del perfil",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "isBidirectional": false,
+              "isEncrypted": true,
+              "isPublicNetwork": true,
+              "protocol": "HTTPS",
+              "threats": []
+            }
+          },
+          {
+            "shape": "flow",
+            "id": "9af084c5-18ef-5432-9826-311cd7b5f59b",
+            "zIndex": 10,
+            "width": 200,
+            "height": 100,
+            "source": {
+              "cell": "7b5733a5-2408-536d-8feb-20c0790c3b17"
+            },
+            "target": {
+              "cell": "3888cf14-1e4f-5e5a-b580-0808c956ddd6"
+            },
+            "vertices": [],
+            "labels": [
+              {
+                "position": 0.5,
+                "attrs": {
+                  "label": {
+                    "text": "Perfil"
+                  }
+                }
+              }
+            ],
+            "connector": "smooth",
+            "attrs": {
+              "line": {
+                "stroke": "red",
+                "strokeWidth": 2,
+                "targetMarker": {
+                  "name": "block"
+                }
+              }
+            },
+            "data": {
+              "type": "tm.Flow",
+              "name": "Perfil",
+              "description": "",
+              "outOfScope": false,
+              "reasonOutOfScope": "",
+              "hasOpenThreats": false,
+              "isBidirectional": false,
+              "isEncrypted": true,
+              "isPublicNetwork": false,
+              "protocol": "TCP",
+              "threats": []
+            }
+          }
+        ]
+      }
+    ],
+    "diagramTop": 2,
+    "reviewer": "Lucía Prado",
+    "threatTop": 14
+  }
+}
