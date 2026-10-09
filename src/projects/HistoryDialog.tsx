@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { describeContent, diffSummaryLine, formatFieldChange, ProjectError, type AnyModule, type ChangedEntry, type DiagramMeta, type DiagramVersion, type DiffEntry, type VersionMeta } from '@iark/kernel';
+import { describeContent, formatValue, ProjectError, type AnyModule, type ChangedEntry, type DiagramMeta, type DiagramVersion, type DiffEntry, type DocumentDiff, type FieldChange, type VersionMeta } from '@iark/kernel';
+import { projectErrorText } from '../i18n/errores';
+import { formatBytes } from '../i18n/format';
+import { formatDate, t, tp } from '../i18n';
+import { useT } from '../i18n/react';
 import { PROJECT_ROLE_LABEL } from './people';
 import type { ProjectSession, RestoreResult, VersionRights } from './session';
 import { changesBetween, type VersionChange } from './versionDiff';
@@ -33,25 +37,42 @@ type Detail =
 const SHOWN_PER_SECTION = 40;
 
 const SECTIONS = [
-  { kind: 'added', title: 'Añadidos', sign: '+' },
-  { kind: 'removed', title: 'Quitados', sign: '−' },
-  { kind: 'changed', title: 'Modificados', sign: '~' },
+  { kind: 'added', sign: '+' },
+  { kind: 'removed', sign: '−' },
+  { kind: 'changed', sign: '~' },
 ] as const;
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
-const when = (iso: string): string => {
-  const time = Date.parse(iso);
-  return Number.isNaN(time) ? iso : new Date(time).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' });
-};
-const sizeOf = (bytes: number): string => (bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1).replace('.', ',')} kB` : `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`);
+const sectionTitle = (kind: (typeof SECTIONS)[number]['kind']): string => (kind === 'added' ? t('hist.section.added') : kind === 'removed' ? t('hist.section.removed') : t('hist.section.changed'));
 
-/** Lo que le pasa a la persona según el error: el mensaje del servidor (claro y en español) y, cuando hay algo que hacer, qué. */
+const when = (iso: string): string => (Number.isNaN(Date.parse(iso)) ? iso : formatDate(iso, { dateStyle: 'medium', timeStyle: 'short' }));
+const sizeOf = formatBytes;
+
+/** «2 añadidos, 1 quitado, 3 modificados (5 campos)»: el resumen de `iark diff`, pero en el idioma de la interfaz (el del núcleo está solo en español). */
+function summaryLine(diff: DocumentDiff): string {
+  const { added, removed, changed, moved, fields, total } = diff.summary;
+  if (total === 0) return moved > 0 ? t('hist.summary.sameMoved', { moved: tp('hist.n.movedItems', moved) }) : t('hist.summary.same');
+  const parts = [
+    added > 0 && tp('hist.n.added', added),
+    removed > 0 && tp('hist.n.removed', removed),
+    changed > 0 && t('hist.summary.changedFields', { changed: tp('hist.n.changed', changed), fields: tp('hist.n.fields', fields) }),
+  ].filter((part): part is string => !!part);
+  return moved > 0 ? t('hist.summary.lineMoved', { parts: parts.join(', '), moved: tp('hist.n.moved', moved) }) : t('hist.summary.line', { parts: parts.join(', ') });
+}
+
+/** Lo que cambió en un campo, en una línea: `"A" → "B"`, o `+beta −legacy` si es una lista de valores. */
+function fieldChange(field: FieldChange): string {
+  if (field.added || field.removed) return [...(field.added ?? []).map((v) => `+${String(v)}`), ...(field.removed ?? []).map((v) => `−${String(v)}`)].join(' ');
+  const value = (v: unknown): string => (v === undefined ? t('hist.noValue') : formatValue(v));
+  return `${value(field.before)} → ${value(field.after)}`;
+}
+
+/** Lo que le pasa a la persona según el error: el mensaje (traducido por su motivo) y, cuando hay algo que hacer, qué. */
 function explain(error: unknown): string {
-  if (!(error instanceof ProjectError)) return error instanceof Error ? error.message : String(error);
-  if (error.code === 'unauthorized') return 'Tu sesión caducó (o se cerró desde otro sitio): cierra este cuadro e inicia sesión de nuevo en «Dónde se guardan».';
-  if (error.code === 'forbidden') return `${error.message} Puede que tu rol en el proyecto haya cambiado.`;
-  if (error.code === 'conflict') return `${error.message} Resuelve el conflicto en la barra del proyecto («Quedarme con mi versión» o «Cargar la otra») y vuelve a abrir el historial.`;
-  return error.message;
+  if (!(error instanceof ProjectError)) return projectErrorText(error);
+  if (error.code === 'unauthorized') return t('common.sessionExpired');
+  if (error.code === 'forbidden') return `${projectErrorText(error)} ${t('hist.roleChanged')}`;
+  if (error.code === 'conflict') return `${projectErrorText(error)} ${t('hist.resolveConflict')}`;
+  return projectErrorText(error);
 }
 
 /** Los cambios de una clase, agrupados por la lista del documento a la que pertenecen. */
@@ -65,14 +86,14 @@ function Changes({ change, versionId }: { change: VersionChange; versionId: numb
   if (change.status === 'same') {
     return (
       <p className="pj-hint" data-testid="history-changes" data-status="same">
-        Sin cambios de contenido frente al diagrama actual (la maquetación guardada y el orden de las listas no cuentan como cambios).
+        {t('hist.noContentChanges')}
       </p>
     );
   }
   if (change.status === 'unreadable') {
     return (
       <p className="pj-hint" role="status" data-testid="history-changes" data-status="unreadable">
-        No se pudo resumir qué cambió: {change.reason}
+        {t('hist.cannotSummarize', { reason: change.reason })}
       </p>
     );
   }
@@ -81,9 +102,10 @@ function Changes({ change, versionId }: { change: VersionChange; versionId: numb
   return (
     <div data-testid="history-changes" data-status="changed">
       <p className="pj-history-summary" data-testid="history-summary">
-        <strong>{diffSummaryLine(diff)}</strong> De la versión {versionId} al diagrama actual.
+        <strong>{summaryLine(diff)}</strong> {t('hist.fromTo', { id: versionId })}
       </p>
-      {SECTIONS.map(({ kind, title, sign }) => {
+      {SECTIONS.map(({ kind, sign }) => {
+        const title = sectionTitle(kind);
         const entries: DiffEntry[] = diff[kind];
         if (entries.length === 0) return null;
         const shown = entries.slice(0, SHOWN_PER_SECTION);
@@ -98,17 +120,17 @@ function Changes({ change, versionId }: { change: VersionChange; versionId: numb
             </h4>
             {byCollection(shown).map(([collection, group]) => (
               <div key={collection} className="pj-history-group">
-                <h5>{collection === 'documento' ? 'Campos del documento' : collection}</h5>
+                <h5>{collection === 'documento' ? t('hist.documentFields') : collection}</h5>
                 <ul>
                   {group.map((entry) => (
                     <li key={`${entry.collection}/${entry.id}`}>
-                      <strong>{entry.collection === 'documento' ? 'Campos del documento' : entry.label}</strong>
+                      <strong>{entry.collection === 'documento' ? t('hist.documentFields') : entry.label}</strong>
                       {entry.kind && <small> {entry.kind}</small>}
                       {kind === 'changed' && (entry as ChangedEntry).fields.length > 0 && (
                         <ul className="pj-history-fields">
                           {(entry as ChangedEntry).fields.map((f) => (
                             <li key={f.path}>
-                              <code>{f.path}</code>: {formatFieldChange(f)}
+                              <code>{f.path}</code>: {fieldChange(f)}
                             </li>
                           ))}
                         </ul>
@@ -121,7 +143,7 @@ function Changes({ change, versionId }: { change: VersionChange; versionId: numb
           </section>
         );
       })}
-      {remaining > 0 && <p className="pj-hint">… y {plural(remaining, 'cambio más', 'cambios más')} que no se muestran aquí.</p>}
+      {remaining > 0 && <p className="pj-hint">{tp('hist.more', remaining)}</p>}
     </div>
   );
 }
@@ -140,6 +162,7 @@ function Changes({ change, versionId }: { change: VersionChange; versionId: numb
  * - Si el servidor no guarda historial (es anterior a esta función) el cuadro lo cuenta en lugar de fallar, y los diagramas se siguen guardando.
  */
 export function HistoryDialog({ session, projectId, diagram, loadModule, onRestore, onClose, notify }: HistoryDialogProps) {
+  const { t, tp } = useT();
   const projectName = session.getState().projects.find((p) => p.id === projectId)?.name ?? projectId;
   const host = session.backend.kind === 'remote' ? session.backend.host : undefined;
   const [versions, setVersions] = useState<VersionMeta[] | undefined>();
@@ -190,7 +213,7 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
       const found = await session.store.getDiagram(projectId, diagram.id);
       if (!alive.current) return;
       if (!found) {
-        setBlocked({ code: 'other', message: `El diagrama «${diagram.name}» ya no existe en el proyecto.` });
+        setBlocked({ code: 'other', message: t('hist.missingDiagram', { name: diagram.name }) });
         return;
       }
       const [list, mine] = await Promise.all([session.listVersions(projectId, diagram.id), session.versionRights(projectId)]);
@@ -237,7 +260,7 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
         }
         if (stale) return;
         if (!version) {
-          setDetail({ id: selected, state: 'error', message: `La versión ${selected} ya no existe (el historial descarta las automáticas más viejas). Actualiza la lista.` });
+          setDetail({ id: selected, state: 'error', message: t('hist.versionGone', { id: selected }) });
           return;
         }
         const change: VersionChange = version.hash === current.hash ? { status: 'same' } : changesBetween(await loadModule(diagram.module), version.text, current.text);
@@ -319,11 +342,13 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
       const result = await onRestore(meta.id);
       said(
         result.unchanged
-          ? `«${diagram.name}» ya tenía el contenido de la versión ${meta.id}: no se guardó nada.`
-          : `Versión ${meta.id} restaurada: quedó guardada como la versión ${result.version.id}.${before ? ` Lo que había antes sigue en la versión ${before.id}: para deshacerlo, restáurala.` : ''}`,
+          ? t('hist.unchanged', { name: diagram.name, id: meta.id })
+          : before
+            ? t('hist.restoredBefore', { id: meta.id, newId: result.version.id, before: before.id })
+            : t('hist.restored', { id: meta.id, newId: result.version.id }),
       );
       await load(result.version.id);
-    }, `No se pudo restaurar la versión ${meta.id}.`);
+    }, t('hist.failedRestore', { id: meta.id }));
   };
 
   const saveLabel = (event: FormEvent): void => {
@@ -331,7 +356,7 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
     if (!meta) return;
     const label = labelText.trim();
     if (!label) {
-      setLabelError('Escribe un nombre para la versión (por ejemplo «Entrega 1»).');
+      setLabelError(t('hist.nameRequired'));
       labelInput.current?.focus();
       return;
     }
@@ -339,9 +364,9 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
     setMode('idle');
     void act(async () => {
       const named = await session.labelVersion(projectId, diagram.id, meta.id, label);
-      said(`Versión ${meta.id} nombrada «${named.label}»: ya no se descartará sola.`);
+      said(t('hist.labeled', { id: meta.id, label: named.label ?? label }));
       await load(meta.id);
-    }, `No se pudo nombrar la versión ${meta.id}.`);
+    }, t('hist.failedLabel', { id: meta.id }));
   };
 
   const remove = (): void => {
@@ -353,10 +378,10 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
     void act(async () => {
       await session.deleteVersion(projectId, diagram.id, meta.id);
       cache.current.delete(meta.id);
-      said(`Se borró la versión ${meta.id}${meta.label ? ` «${meta.label}»` : ''} del historial.`);
+      said(meta.label ? t('hist.deletedNamed', { id: meta.id, label: meta.label }) : t('hist.deleted', { id: meta.id }));
       choose(neighbour?.id);
       await load(neighbour?.id);
-    }, `No se pudo borrar la versión ${meta.id}.`);
+    }, t('hist.failedDelete', { id: meta.id }));
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
@@ -398,20 +423,20 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
 
   const named = versions?.filter((v) => v.label !== undefined).length ?? 0;
   const readOnlyReason =
-    rights.role === 'viewer' ? `Tu rol en el proyecto (${PROJECT_ROLE_LABEL.viewer.toLowerCase()}) permite consultar el historial, pero no restaurar ni nombrar versiones.` : undefined;
-  const restoreHint = readOnlyReason ?? (isActual ? 'Esta versión es igual al diagrama actual: no hay nada que restaurar.' : undefined);
+    rights.role === 'viewer' ? t('hist.viewerOnly', { role: PROJECT_ROLE_LABEL.viewer.toLowerCase() }) : undefined;
+  const restoreHint = readOnlyReason ?? (isActual ? t('hist.sameAsDiagram') : undefined);
 
   return (
     <div className="pj-overlay pj-history-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="pj-dialog pj-history" role="dialog" aria-modal="true" aria-labelledby="pj-history-title" ref={dialog} tabIndex={-1} onKeyDown={onKeyDown} data-testid="history-dialog">
         <header className="pj-head">
           <div className="pj-history-title">
-            <h2 id="pj-history-title">Historial de versiones</h2>
+            <h2 id="pj-history-title">{t('hist.title')}</h2>
             <small className="pj-hint">
-              «{diagram.name}» · proyecto «{projectName}»{host ? ` · servidor ${host}` : ''}
+              {host ? t('hist.subtitleHost', { name: diagram.name, project: projectName, host }) : t('hist.subtitle', { name: diagram.name, project: projectName })}
             </small>
           </div>
-          <button type="button" onClick={onClose} aria-label="Cerrar">
+          <button type="button" onClick={onClose} aria-label={t('common.close')}>
             ✕
           </button>
         </header>
@@ -432,33 +457,33 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
             <p className="pj-error" role="alert" data-testid="history-blocked" data-code={blocked.code}>
               {blocked.message}
             </p>
-            {blocked.code === 'unsupported' && <p className="pj-hint">Los diagramas se siguen guardando con normalidad; solo falta el historial. Actualiza IArk en el servidor para tenerlo.</p>}
+            {blocked.code === 'unsupported' && <p className="pj-hint">{t('hist.unsupportedHint')}</p>}
             {blocked.code === 'other' && (
               <p>
                 <button type="button" onClick={() => void load()} disabled={loading}>
-                  {loading ? 'Reintentando…' : 'Reintentar'}
+                  {loading ? t('hist.retrying') : t('common.retry')}
                 </button>
               </p>
             )}
           </div>
         ) : versions === undefined ? (
           <p className="pj-empty pj-history-message" role="status">
-            Cargando el historial…
+            {t('hist.loading')}
           </p>
         ) : versions.length === 0 ? (
           <p className="pj-empty pj-history-message" role="status" data-testid="history-empty">
-            Este diagrama todavía no tiene versiones: aparecerán con el próximo guardado.
+            {t('hist.empty')}
           </p>
         ) : (
           <div className="pj-history-body">
-            <section className="pj-history-list" aria-label="Versiones">
+            <section className="pj-history-list" aria-label={t('hist.list')}>
               <div className="pj-history-listhead">
                 <p className="pj-hint" data-testid="history-count" role="status">
-                  {plural(versions.length, 'versión', 'versiones')}
-                  {named > 0 ? ` · ${plural(named, 'con nombre', 'con nombre')}` : ''}
+                  {tp('hist.count', versions.length)}
+                  {named > 0 ? ` · ${t('hist.named', { count: named })}` : ''}
                 </p>
                 <button type="button" onClick={() => void load()} disabled={busy || loading}>
-                  {loading ? 'Actualizando…' : 'Actualizar'}
+                  {loading ? t('hist.refreshing') : t('hist.refresh')}
                 </button>
               </div>
               <ol className="pj-history-items" aria-busy={loading} onKeyDown={onListKeyDown}>
@@ -479,9 +504,9 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
                         onClick={() => select(v.id)}
                       >
                         <span className="pj-history-item-top">
-                          <strong>Versión {v.id}</strong>
+                          <strong>{t('hist.version', { id: v.id })}</strong>
                           {v.label && <span className="pj-chip pj-named">«{v.label}»</span>}
-                          {actual && <span className="pj-chip pj-on">Actual</span>}
+                          {actual && <span className="pj-chip pj-on">{t('hist.current')}</span>}
                         </span>
                         <small>
                           <time dateTime={v.savedAt}>{when(v.savedAt)}</time>
@@ -494,40 +519,40 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
               </ol>
             </section>
 
-            <section className="pj-history-detail" aria-label={meta ? `Detalle de la versión ${meta.id}` : 'Detalle de la versión'} data-testid="history-detail" aria-busy={detail?.state === 'loading'}>
+            <section className="pj-history-detail" aria-label={meta ? t('hist.detailOf', { id: meta.id }) : t('hist.detail')} data-testid="history-detail" aria-busy={detail?.state === 'loading'}>
               {meta && (
                 <>
                   <h3>
-                    Versión {meta.id}
+                    {t('hist.version', { id: meta.id })}
                     {meta.label && <span className="pj-chip pj-named">«{meta.label}»</span>}
-                    {isActual && <span className="pj-chip pj-on">{meta.id === actualId ? 'Actual' : 'Igual a la actual'}</span>}
+                    {isActual && <span className="pj-chip pj-on">{meta.id === actualId ? t('hist.current') : t('hist.sameAsCurrent')}</span>}
                   </h3>
                   <dl className="pj-history-meta">
                     <div>
-                      <dt>Guardada</dt>
+                      <dt>{t('hist.saved')}</dt>
                       <dd>
                         <time dateTime={meta.savedAt}>{when(meta.savedAt)}</time>
                       </dd>
                     </div>
                     <div>
-                      <dt>Por</dt>
-                      <dd>{meta.savedBy ?? 'no se sabe (este almacén no identifica a quien guarda)'}</dd>
+                      <dt>{t('hist.by')}</dt>
+                      <dd>{meta.savedBy ?? t('hist.unknownAuthor')}</dd>
                     </div>
                     <div>
-                      <dt>Tamaño</dt>
+                      <dt>{t('hist.size')}</dt>
                       <dd>{sizeOf(meta.size)}</dd>
                     </div>
                     {meta.restoredFrom !== undefined && (
                       <div>
-                        <dt>Origen</dt>
-                        <dd>Restaurada de la versión {meta.restoredFrom}</dd>
+                        <dt>{t('hist.origin')}</dt>
+                        <dd>{t('hist.restoredFrom', { id: meta.restoredFrom })}</dd>
                       </div>
                     )}
                   </dl>
 
                   {detail?.state === 'loading' && (
                     <p className="pj-empty" role="status">
-                      Calculando los cambios…
+                      {t('hist.computing')}
                     </p>
                   )}
                   {detail?.state === 'error' && (
@@ -537,32 +562,31 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
                   )}
                   {detail?.state === 'ready' && <Changes change={detail.change} versionId={meta.id} />}
 
-                  <div className="pj-history-actions" role="group" aria-label={`Acciones sobre la versión ${meta.id}`}>
+                  <div className="pj-history-actions" role="group" aria-label={t('hist.actionsOf', { id: meta.id })}>
                     {mode === 'restore' ? (
                       <span className="pj-confirm pj-history-confirm" role="alert" data-testid="history-confirm-restore">
-                        ¿Restaurar la versión {meta.id}? El diagrama «{diagram.name}» pasará a tener su contenido, guardado como una versión nueva. Lo que hay ahora no se pierde: queda en el historial y se puede recuperar restaurándolo.{' '}
+                        {t('hist.confirmRestore', { id: meta.id, name: diagram.name })}{' '}
                         <button type="button" className="pj-primary" onClick={restore} disabled={busy}>
-                          Sí, restaurar
+                          {t('hist.yesRestore')}
                         </button>
                         <button type="button" onClick={() => stopMode('restore')} autoFocus>
-                          No
+                          {t('common.no')}
                         </button>
                       </span>
                     ) : mode === 'delete' ? (
                       <span className="pj-confirm pj-history-confirm" role="alert" data-testid="history-confirm-delete">
-                        ¿Borrar la versión {meta.id}
-                        {meta.label ? ` «${meta.label}»` : ''} del historial? No se puede deshacer.{' '}
+                        {meta.label ? t('hist.confirmDeleteNamed', { id: meta.id, label: meta.label }) : t('hist.confirmDelete', { id: meta.id })}{' '}
                         <button type="button" className="pj-danger" onClick={remove} disabled={busy}>
-                          Sí, borrar
+                          {t('pj.yesDelete')}
                         </button>
                         <button type="button" onClick={() => stopMode('delete')} autoFocus>
-                          No
+                          {t('common.no')}
                         </button>
                       </span>
                     ) : mode === 'name' ? (
-                      <form className="pj-history-name" onSubmit={saveLabel} aria-label={`Nombrar la versión ${meta.id}`} noValidate>
+                      <form className="pj-history-name" onSubmit={saveLabel} aria-label={t('hist.nameForm', { id: meta.id })} noValidate>
                         <label className="pj-grow">
-                          Nombre de la versión
+                          {t('hist.nameLabel')}
                           <input
                             ref={labelInput}
                             autoFocus
@@ -570,7 +594,7 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
                             autoComplete="off"
                             spellCheck={false}
                             maxLength={120}
-                            placeholder="Entrega 1"
+                            placeholder={t('hist.namePlaceholder')}
                             value={labelText}
                             aria-invalid={labelError ? true : undefined}
                             aria-describedby={labelError ? 'pj-history-name-help pj-history-name-error' : 'pj-history-name-help'}
@@ -582,14 +606,14 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
                         </label>
                         <span className="pj-actions">
                           <button type="submit" className="pj-primary" disabled={busy}>
-                            Guardar nombre
+                            {t('hist.saveName')}
                           </button>
                           <button type="button" onClick={() => stopMode('name')}>
-                            Cancelar
+                            {t('common.cancel')}
                           </button>
                         </span>
                         <small id="pj-history-name-help" className="pj-hint">
-                          Una versión con nombre no se sustituye ni se descarta sola cuando el historial se rota.
+                          {t('hist.nameHelp')}
                         </small>
                         {labelError && (
                           <small id="pj-history-name-error" className="pj-error pj-history-field-error" role="alert" data-testid="history-name-error">
@@ -601,14 +625,14 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
                       <>
                         <span className="pj-actions">
                           <button type="button" className="pj-primary" onClick={() => startMode('restore')} disabled={busy || !rights.restore || isActual || detail?.state !== 'ready'} aria-describedby={restoreHint ? 'pj-history-restore-hint' : undefined} data-focus="restore">
-                            Restaurar esta versión
+                            {t('hist.restore')}
                           </button>
                           <button type="button" onClick={() => startMode('name')} disabled={busy || !rights.label} aria-describedby={readOnlyReason ? 'pj-history-restore-hint' : undefined} data-focus="name">
-                            {meta.label ? 'Cambiar el nombre' : 'Nombrar versión'}
+                            {meta.label ? t('hist.rename') : t('hist.nameVersion')}
                           </button>
                           {meta.label && rights.remove && (
                             <button type="button" className="pj-danger-outline" onClick={() => startMode('delete')} disabled={busy} data-focus="delete">
-                              Borrar esta versión
+                              {t('hist.deleteVersion')}
                             </button>
                           )}
                         </span>
@@ -618,7 +642,7 @@ export function HistoryDialog({ session, projectId, diagram, loadModule, onResto
                           </small>
                         )}
                         {meta.label && !rights.remove && rights.role === 'editor' && (
-                          <small className="pj-hint">Borrar una versión con nombre lo decide quien administra el proyecto.</small>
+                          <small className="pj-hint">{t('hist.adminDeletes')}</small>
                         )}
                       </>
                     )}

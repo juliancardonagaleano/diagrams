@@ -172,7 +172,7 @@ describe('historial de versiones (cuadro)', () => {
       open(setup);
       await loaded();
       expect(items()[0]).toHaveTextContent('Versión 4');
-      expect(screen.getByRole('region', { name: /Detalle de la versión/ })).toHaveTextContent(/kB|\d+ B/);
+      expect(screen.getByRole('region', { name: /Detalle de la versión/ })).toHaveTextContent(/KB|\d+ B/);
       await pick(4);
       expect(screen.getByTestId('history-detail')).toHaveTextContent('Restaurada de la versión 1');
     });

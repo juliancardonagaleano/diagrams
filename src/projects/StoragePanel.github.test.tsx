@@ -283,7 +283,7 @@ describe('panel «Dónde se guardan» con inicio de sesión de GitHub', () => {
       session.queueSave('a1');
       await waitFor(() => expect(session.getState().save).toBe('offline'));
       await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
-      expect(await screen.findByTestId('storage-loss')).toHaveTextContent('1 cambio sin enviar guardados en este navegador. Si cierras la sesión se descartan');
+      expect(await screen.findByTestId('storage-loss')).toHaveTextContent('1 cambio sin enviar guardado en este navegador. Si cierras la sesión se descarta');
       expect(reload).not.toHaveBeenCalled();
       expect(session.unsentCount).toBe(1);
       await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));

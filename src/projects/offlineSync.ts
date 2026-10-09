@@ -1,4 +1,5 @@
 import { ProjectError, type DiagramMeta, type ProjectStore, type RemoteSession } from '@iark/kernel';
+import { projectErrorText } from '../i18n/errores';
 import {
   backoffDelay,
   byteLength,
@@ -463,7 +464,7 @@ export class OfflineSync {
       if (error instanceof ProjectError && error.code === 'unauthorized') {
         this.authWait = true;
         this.host.authRequired(error);
-      } else this.noteFailure(isTransient(error) ? error : new ProjectError('unavailable', (error as Error)?.message ?? 'No se pudo comprobar la sesión.', { network: true }));
+      } else this.noteFailure(isTransient(error) ? error : new ProjectError('unavailable', (error as Error)?.message ?? 'No se pudo comprobar la sesión.', (error as Error)?.message ? { network: true } : { network: true, reason: 'offline-check-failed' }));
       return;
     }
     const todo = candidates();
@@ -485,17 +486,17 @@ export class OfflineSync {
       }
       if (error instanceof ProjectError) {
         if (error.code === 'unauthorized' || error.code === 'forbidden') {
-          const parked = (await this.queue.patch(change.key, { status: 'auth', reason: error.message })) ?? change;
+          const parked = (await this.queue.patch(change.key, { status: 'auth', reason: projectErrorText(error) })) ?? change;
           if (error.code === 'unauthorized') this.authWait = true;
           this.host.authRequired(error, parked);
           return error.code === 'unauthorized' ? 'stop' : 'next';
         }
         const problem: PendingProblem = error.code === 'conflict' ? 'changed' : error.code === 'not-found' ? 'gone' : 'rejected';
-        const parked = (await this.queue.patch(change.key, { status: 'conflict', problem, reason: error.message })) ?? change;
+        const parked = (await this.queue.patch(change.key, { status: 'conflict', problem, reason: projectErrorText(error) })) ?? change;
         this.host.conflicted(parked);
         return 'next';
       }
-      this.noteFailure(new ProjectError('unavailable', (error as Error)?.message ?? 'No se pudo enviar.', { network: true }));
+      this.noteFailure(new ProjectError('unavailable', (error as Error)?.message ?? 'No se pudo enviar.', (error as Error)?.message ? { network: true } : { network: true, reason: 'offline-send-failed' }));
       return 'stop';
     }
     this.failures = 0;

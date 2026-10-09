@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ProjectError, type ProjectMember, type ProjectRole } from '@iark/kernel';
+import { projectErrorText } from '../i18n/errores';
+import { t } from '../i18n';
+import { useT } from '../i18n/react';
 import { GITHUB_LOGIN, PROJECT_ROLE_HELP, PROJECT_ROLE_LABEL, PROJECT_ROLES, safeAvatarUrl } from './people';
 import type { ProjectSession } from './session';
 
@@ -12,13 +15,13 @@ export interface ShareDialogProps {
   onLeft?(): void;
 }
 
-/** Qué le pasa a la persona según el error del servidor al compartir. El mensaje del servidor es claro y viene en español: se conserva y se añade qué hacer. */
+/** Qué le pasa a la persona según el error del servidor al compartir. Se cuenta el error (en su idioma) y se añade qué hacer. */
 function explain(error: unknown): string {
   if (!(error instanceof ProjectError)) return (error as Error).message;
-  if (error.code === 'forbidden') return `${error.message} Solo quien administra el proyecto puede cambiar quién tiene acceso.`;
-  if (error.code === 'not-found') return `${error.message} Puede que el proyecto ya no exista o que ya no tengas acceso a él.`;
-  if (error.code === 'unauthorized') return 'Tu sesión caducó: cierra este cuadro e inicia sesión de nuevo en «Dónde se guardan».';
-  return error.message;
+  if (error.code === 'forbidden') return `${projectErrorText(error)} ${t('share.onlyAdmin')}`;
+  if (error.code === 'not-found') return `${projectErrorText(error)} ${t('share.maybeGone')}`;
+  if (error.code === 'unauthorized') return t('share.sessionExpired');
+  return projectErrorText(error);
 }
 
 /**
@@ -27,6 +30,7 @@ function explain(error: unknown): string {
  * lo tendrá cuando entre con esa cuenta. Un proyecto no se queda sin administrador (el servidor se niega).
  */
 export function ShareDialog({ session, project, onClose, notify, onLeft }: ShareDialogProps) {
+  const { t } = useT();
   const [members, setMembers] = useState<ProjectMember[] | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [note, setNote] = useState<string | undefined>();
@@ -82,16 +86,15 @@ export function ShareDialog({ session, project, onClose, notify, onLeft }: Share
     const name = login.trim().replace(/^@/, '');
     if (!GITHUB_LOGIN.test(name)) {
       setNote(undefined);
-      setError('Escribe un nombre de usuario de GitHub válido: letras, números y guiones (sin espacios), hasta 39 caracteres.');
+      setError(t('login.invalidName'));
       loginInput.current?.focus();
       return;
     }
     void act(async () => {
       const member = await session.setMember(project.id, name, role);
       setLogin('');
-      const text = member.pending
-        ? `Se dio acceso a @${member.login} como ${PROJECT_ROLE_LABEL[member.role].toLowerCase()}: lo tendrá en cuanto entre al servidor con esa cuenta de GitHub.`
-        : `@${member.login} ahora tiene el rol de ${PROJECT_ROLE_LABEL[member.role].toLowerCase()}.`;
+      const roleName = PROJECT_ROLE_LABEL[member.role].toLowerCase();
+      const text = member.pending ? t('share.grantedPending', { login: member.login, role: roleName }) : t('share.nowRole', { login: member.login, role: roleName });
       setNote(text);
       notify?.(text);
       await load();
@@ -102,7 +105,7 @@ export function ShareDialog({ session, project, onClose, notify, onLeft }: Share
     void act(async () => {
       if (next === member.role) return;
       await session.setMember(project.id, member.login, next);
-      setNote(`@${member.login} ahora tiene el rol de ${PROJECT_ROLE_LABEL[next].toLowerCase()}.`);
+      setNote(t('share.nowRole', { login: member.login, role: PROJECT_ROLE_LABEL[next].toLowerCase() }));
       await load();
     });
 
@@ -111,13 +114,13 @@ export function ShareDialog({ session, project, onClose, notify, onLeft }: Share
       await (member.you ? session.leaveProject(project.id) : session.removeMember(project.id, member.login));
       setConfirming(undefined);
       if (member.you) {
-        const text = `Saliste de «${project.name}».`;
+        const text = t('share.left', { name: project.name });
         notify?.(text);
         onLeft?.();
         onClose();
         return;
       }
-      setNote(`@${member.login} ya no tiene acceso a «${project.name}».`);
+      setNote(t('share.removed', { login: member.login, name: project.name }));
       await load();
     });
 
@@ -157,8 +160,8 @@ export function ShareDialog({ session, project, onClose, notify, onLeft }: Share
     <div className="pj-overlay pj-share-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="pj-dialog pj-share" role="dialog" aria-modal="true" aria-labelledby="pj-share-title" ref={dialog} tabIndex={-1} onKeyDown={onKeyDown} data-testid="share-dialog">
         <div className="pj-head">
-          <h2 id="pj-share-title">Compartir «{project.name}»</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar">
+          <h2 id="pj-share-title">{t('share.title', { name: project.name })}</h2>
+          <button type="button" onClick={onClose} aria-label={t('common.close')}>
             ✕
           </button>
         </div>
@@ -173,8 +176,8 @@ export function ShareDialog({ session, project, onClose, notify, onLeft }: Share
           </p>
         )}
         <div className="pj-share-body">
-          <ul className="pj-members" aria-label="Personas con acceso" data-testid="share-members">
-            {members === undefined && <li className="pj-empty">Cargando…</li>}
+          <ul className="pj-members" aria-label={t('share.members')} data-testid="share-members">
+            {members === undefined && <li className="pj-empty">{t('share.loading')}</li>}
             {members?.map((m) => {
               const avatar = safeAvatarUrl(m.avatarUrl);
               return (
@@ -182,28 +185,28 @@ export function ShareDialog({ session, project, onClose, notify, onLeft }: Share
                   {avatar ? <img className="pj-avatar" src={avatar} alt="" width={32} height={32} referrerPolicy="no-referrer" /> : <span className="pj-avatar pj-avatar-empty" aria-hidden="true">{m.login.slice(0, 1).toUpperCase()}</span>}
                   <span className="pj-member-who">
                     <strong>@{m.login}</strong>
-                    {m.you && <span className="pj-chip"> tú</span>}
+                    {m.you && <span className="pj-chip"> {t('share.you')}</span>}
                     {m.pending && (
-                      <span className="pj-chip pj-pending" title="La invitaron y todavía no ha entrado al servidor con su cuenta de GitHub">
-                        pendiente
+                      <span className="pj-chip pj-pending" title={t('share.pendingTitle')}>
+                        {t('share.pending')}
                       </span>
                     )}
                     {m.name && <small>{m.name}</small>}
                   </span>
-                  {roleSelect(`Rol de @${m.login}`, m.role, (next) => changeRole(m, next), busy)}
+                  {roleSelect(t('share.roleOf', { login: m.login }), m.role, (next) => changeRole(m, next), busy)}
                   {confirming === m.login ? (
                     <span className="pj-confirm" role="alert">
-                      {m.you ? `¿Salir de «${project.name}»?` : `¿Quitar a @${m.login}?`}{' '}
+                      {m.you ? t('share.confirmLeave', { name: project.name }) : t('share.confirmRemove', { login: m.login })}{' '}
                       <button type="button" className="pj-danger" onClick={() => remove(m)} disabled={busy}>
-                        {m.you ? 'Sí, salir' : 'Sí, quitar'}
+                        {m.you ? t('pj.yesLeave') : t('share.yesRemove')}
                       </button>
                       <button type="button" onClick={() => setConfirming(undefined)}>
-                        No
+                        {t('common.no')}
                       </button>
                     </span>
                   ) : (
-                    <button type="button" onClick={() => setConfirming(m.login)} disabled={busy} aria-label={m.you ? `Salir del proyecto «${project.name}»` : `Quitar a @${m.login}`}>
-                      {m.you ? 'Salir' : 'Quitar'}
+                    <button type="button" onClick={() => setConfirming(m.login)} disabled={busy} aria-label={m.you ? t('share.leaveLabel', { name: project.name }) : t('share.removeLabel', { login: m.login })}>
+                      {m.you ? t('share.leave') : t('share.remove')}
                     </button>
                   )}
                 </li>
@@ -211,23 +214,23 @@ export function ShareDialog({ session, project, onClose, notify, onLeft }: Share
             })}
           </ul>
 
-          <form className="pj-form" onSubmit={add} aria-label="Dar acceso a otra persona">
-            <strong>Dar acceso a otra persona</strong>
+          <form className="pj-form" onSubmit={add} aria-label={t('share.addForm')}>
+            <strong>{t('share.addForm')}</strong>
             <div className="pj-row">
               <label className="pj-grow">
-                Usuario de GitHub
+                {t('share.githubUser')}
                 <input ref={loginInput} type="text" autoComplete="off" spellCheck={false} placeholder="octocat" maxLength={40} value={login} onChange={(e) => setLogin(e.target.value)} />
               </label>
               <label>
-                Rol
-                {roleSelect('Rol de la persona nueva', role, setRole)}
+                {t('share.role')}
+                {roleSelect(t('share.newRoleLabel'), role, setRole)}
               </label>
               <button type="submit" className="pj-primary" disabled={busy || !login.trim()}>
-                Dar acceso
+                {t('share.grant')}
               </button>
             </div>
             <small className="pj-hint">
-              {PROJECT_ROLES.map((r) => `${PROJECT_ROLE_LABEL[r]}: ${PROJECT_ROLE_HELP[r]}`).join(' · ')}. Si la persona todavía no ha entrado al servidor con su cuenta de GitHub, queda como «pendiente» y tendrá acceso en cuanto entre.
+              {t('share.hint', { roles: PROJECT_ROLES.map((r) => `${PROJECT_ROLE_LABEL[r]}: ${PROJECT_ROLE_HELP[r]}`).join(' · ') })}
             </small>
           </form>
         </div>

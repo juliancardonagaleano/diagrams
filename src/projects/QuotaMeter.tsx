@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AccountUsage, ProjectSummary } from '@iark/kernel';
+import { useT } from '../i18n/react';
 import { isUnlimited, percentOf, quotaLines, quotaWarning, type QuotaLine } from './quota';
 import type { ProjectSession } from './session';
 
@@ -23,6 +24,7 @@ export interface QuotaMeterProps {
  * error que importa (guardar, crear) ya lo dice el gestor al intentarlo.
  */
 export function QuotaMeter({ session, projects, selected, delayMs = 400 }: QuotaMeterProps) {
+  const { t } = useT();
   const applicable = session.remote && session.credential === 'session';
   const [usage, setUsage] = useState<AccountUsage | undefined>();
   // Cambia cuando cambia algo que pesa: qué proyectos hay, cuándo se tocaron y qué diagramas tienen.
@@ -53,7 +55,7 @@ export function QuotaMeter({ session, projects, selected, delayMs = 400 }: Quota
   const warning = quotaWarning(lines);
 
   return (
-    <section className="pj-quota" aria-label="Tu cuota de uso" data-testid="quota-meter" data-level={warning?.level ?? 'ok'}>
+    <section className="pj-quota" aria-label={t('quota.label')} data-testid="quota-meter" data-level={warning?.level ?? 'ok'}>
       <ul className="pj-quota-lines">
         {lines.map((l) => (
           <Meter key={l.kind} line={l} />
@@ -69,11 +71,12 @@ export function QuotaMeter({ session, projects, selected, delayMs = 400 }: Quota
 }
 
 function Meter({ line }: { line: QuotaLine }) {
+  const { t } = useT();
   const percent = percentOf(line.used, line.limit);
   return (
     <li className="pj-quota-line" data-kind={line.kind} data-level={line.level}>
       <span className="pj-quota-label">{line.label}</span>
-      {percent !== undefined && <progress className="pj-quota-bar" value={percent} max={100} aria-label={`${line.label}: ${percent} % del tope`} />}
+      {percent !== undefined && <progress className="pj-quota-bar" value={percent} max={100} aria-label={t('quota.progress', { label: line.label, percent })} />}
       <span className="pj-quota-text">{line.text}</span>
     </li>
   );

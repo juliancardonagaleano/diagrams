@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { projectErrorText } from '../i18n/errores';
+import { useT } from '../i18n/react';
 import type { ProjectSession } from './session';
 import './projects.css';
 
@@ -23,6 +25,7 @@ export interface NewerVersionNoticeProps {
  * (el botón desaparece) y esta anuncia el resultado, para que quien navega con teclado o lector no pierda el sitio.
  */
 export function NewerVersionNotice({ session, load, notify }: NewerVersionNoticeProps) {
+  const { t } = useT();
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const region = useRef<HTMLSpanElement>(null);
   const [done, setDone] = useState<string | undefined>(undefined);
@@ -51,9 +54,9 @@ export function NewerVersionNotice({ session, load, notify }: NewerVersionNotice
     setBusy(true);
     region.current?.focus(); // el botón se deshabilita mientras carga: el foco espera en la región
     load()
-      .then(() => setDone(`Se cargó la versión nueva de «${name ?? 'el diagrama'}».`))
+      .then(() => setDone(t('newer.loaded', { name: name ?? t('newer.theDiagram') })))
       .catch((error: Error) => {
-        notify(error.message);
+        notify(projectErrorText(error));
         refocus.current = true;
       })
       .finally(() => setBusy(false));
@@ -65,19 +68,20 @@ export function NewerVersionNotice({ session, load, notify }: NewerVersionNotice
     region.current?.parentElement?.querySelector<HTMLButtonElement>('button')?.focus();
   }, [busy]);
 
-  const who = newer?.by ? `${newer.by} guardó` : 'Se guardó';
+  const shownName = name ?? t('newer.thisDiagram');
+  const text = newer ? (newer.by ? t('newer.by', { by: newer.by, name: shownName }) : t('newer.noBy', { name: shownName })) : (done ?? '');
   return (
     <span className="pj-newer" data-testid="newer-version" data-active={newer ? 'true' : 'false'}>
       <span ref={region} role="status" aria-live="polite" tabIndex={-1} className="pj-newer-text" data-testid="newer-version-text">
-        {newer ? `${who} una versión más nueva de «${name ?? 'este diagrama'}».` : (done ?? '')}
+        {text}
       </span>
       {newer && (
         <>
           <button type="button" className="pj-primary" onClick={loadNow} disabled={busy} data-testid="newer-version-load">
-            Cargar la nueva
+            {t('newer.load')}
           </button>
-          <button type="button" onClick={() => session.dismissNewer()} aria-label="Ignorar el aviso de versión más nueva" data-testid="newer-version-dismiss">
-            Ignorar
+          <button type="button" onClick={() => session.dismissNewer()} aria-label={t('newer.ignoreLabel')} data-testid="newer-version-dismiss">
+            {t('newer.ignore')}
           </button>
         </>
       )}

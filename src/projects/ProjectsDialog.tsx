@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
 import { ProjectError, type DiagramMeta, type ProjectSummary, type PublicUser } from '@iark/kernel';
+import { formatAgo } from '../i18n/format';
+import { projectErrorText } from '../i18n/errores';
+import { useT } from '../i18n/react';
 import { downloadText } from '../modules-app/files';
 import { loadBackend } from './backend';
 import { AdminDialog } from './AdminDialog';
@@ -33,17 +36,7 @@ export interface ProjectsDialogProps {
   storage?: Pick<StoragePanelProps, 'fetch' | 'areas' | 'page' | 'reload' | 'startLogin' | 'detect'>;
 }
 
-const agoFormat = (iso: string): string => {
-  const time = Date.parse(iso);
-  if (Number.isNaN(time)) return '';
-  const seconds = Math.max(0, Math.round((Date.now() - time) / 1000));
-  if (seconds < 60) return 'hace un momento';
-  if (seconds < 3600) return `hace ${Math.round(seconds / 60)} min`;
-  if (seconds < 86400) return `hace ${Math.round(seconds / 3600)} h`;
-  return new Date(time).toLocaleDateString('es');
-};
-
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+const agoFormat = (iso: string): string => formatAgo(iso)?.text ?? '';
 
 type Target = { kind: 'project' | 'diagram'; id: string };
 
@@ -52,6 +45,7 @@ type Target = { kind: 'project' | 'diagram'; id: string };
  * diagramas. Es el mismo en el banco de trabajo y en el editor C4; no conoce a ninguno de los dos (solo a la sesión).
  */
 export function ProjectsDialog({ session, modules, onOpen, current, template, onClose, notify, initialPanel, copyTarget, storage }: ProjectsDialogProps) {
+  const { t, tp, tr, lang } = useT();
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const { projects } = state;
   const remote = session.remote;
@@ -128,7 +122,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     try {
       await work();
     } catch (e) {
-      setError((e as Error).message);
+      setError(projectErrorText(e));
       // El servidor no aceptó el token (o su rol no alcanza): el formulario para escribir otro está en «Dónde se guardan».
       if (e instanceof ProjectError && needsCredential(e)) setStorageOpen(true);
       // Una sesión que dejó de valer se nota al escribir: se relee la lista para que el estado (y «Dónde se guardan») lo diga como es.
@@ -142,7 +136,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
   // «Copiar a…»: el otro almacén. Se recalcula al cambiar el servidor conocido (el panel avisa con `onChange`).
   const resolveTarget = (): CopyTarget => copyTarget ?? copyTargetFor(session.backend, { fetch: storage?.fetch, config: loadBackend(storage?.areas) });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const target = useMemo(resolveTarget, [copyTarget, session, storage?.fetch, storage?.areas, serverVersion]);
+  const target = useMemo(resolveTarget, [copyTarget, session, storage?.fetch, storage?.areas, serverVersion, lang]);
 
   /** Copia el proyecto con el archivo único del núcleo a un almacén temporal del destino (la sesión sigue en el suyo). */
   const copyTo = (project: ProjectSummary, to: CopyTarget): void =>
@@ -152,7 +146,9 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
       copying.current = true;
       try {
         const imported = await copyProject(session.store, project.id, store);
-        const text = `Copiado como «${imported.project.name}» ${to.where}${imported.renamedFrom ? `: ya había uno llamado «${imported.renamedFrom}»` : ''}.`;
+        const text = imported.renamedFrom
+          ? t('pj.copiedRenamed', { name: imported.project.name, where: to.where, old: imported.renamedFrom })
+          : t('pj.copied', { name: imported.project.name, where: to.where });
         setNote(text);
         setCopyIntent(undefined);
         notify?.(text);
@@ -162,7 +158,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
             setCopyIntent({ id: project.id, name: project.name });
             setStorageOpen(true);
           }
-          throw new ProjectError(error.code, `No se pudo copiar «${project.name}» ${to.where}: ${error.message}`, error.info);
+          throw new ProjectError(error.code, t('pj.copyFailed', { name: project.name, where: to.where, detail: projectErrorText(error) }), { ...error.info, reason: undefined, serverMessage: undefined });
         }
         throw error;
       } finally {
@@ -214,7 +210,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     void act(async () => {
       const meta = await session.createDiagram({ module: live.module, name: saveName.trim() || live.name || undefined, text: live.text }, selected.id);
       setSaveName('');
-      notify?.(`Guardado como «${meta.name}» en el proyecto «${selected.name}». Los cambios se guardan solos.`);
+      notify?.(t('pj.savedAs', { name: meta.name, project: selected.name }));
       onClose();
     });
   };
@@ -244,7 +240,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     void act(async () => {
       await session.leaveProject(project.id);
       setLeaving(undefined);
-      const text = `Saliste de «${project.name}»: ya no aparece en tu lista.`;
+      const text = t('pj.leftNote', { name: project.name });
       setNote(text);
       notify?.(text);
     });
@@ -253,7 +249,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     void act(async () => {
       const { fileName, text } = await session.exportProject(project.id);
       downloadText(fileName, text, 'application/json');
-      notify?.(`Proyecto «${project.name}» exportado en ${fileName}.`);
+      notify?.(t('pj.exported', { name: project.name, file: fileName }));
     });
 
   const importFile = (file: File): void =>
@@ -261,7 +257,9 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
       const imported = await session.importProject(await file.text());
       setSelectedId(imported.project.id);
       notify?.(
-        `Proyecto importado como «${imported.project.name}» (${plural(imported.diagrams, 'diagrama', 'diagramas')})${imported.renamedFrom ? `: ya había uno llamado «${imported.renamedFrom}»` : ''}.`,
+        imported.renamedFrom
+          ? tp('pj.importedRenamed', imported.diagrams, { name: imported.project.name, old: imported.renamedFrom })
+          : tp('pj.imported', imported.diagrams, { name: imported.project.name }),
       );
     });
 
@@ -313,7 +311,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         >
           <input
             type="text"
-            aria-label={`Nuevo nombre de ${name}`}
+            aria-label={t('pj.newNameOf', { name })}
             value={editing.value}
             autoFocus
             onChange={(e) => setEditing({ ...editing, value: e.target.value })}
@@ -325,10 +323,10 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
             }}
           />
           <button type="submit" className="pj-primary" disabled={busy}>
-            Guardar
+            {t('common.save')}
           </button>
           <button type="button" onClick={() => setEditing(undefined)}>
-            Cancelar
+            {t('common.cancel')}
           </button>
         </form>
       );
@@ -348,15 +346,15 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
       <span className="pj-confirm" role="alert">
         {warning}{' '}
         <button type="button" className="pj-danger" onClick={confirmDelete} disabled={busy}>
-          Sí, borrar
+          {t('pj.yesDelete')}
         </button>
         <button type="button" onClick={() => setConfirming(undefined)}>
-          No
+          {t('common.no')}
         </button>
       </span>
     ) : (
-      <button type="button" onClick={() => setConfirming({ kind, id })} disabled={busy || denied !== undefined} title={denied} aria-label={`Borrar ${name}`}>
-        Borrar
+      <button type="button" onClick={() => setConfirming({ kind, id })} disabled={busy || denied !== undefined} title={denied} aria-label={t('pj.deleteLabel', { name })}>
+        {t('common.delete')}
       </button>
     );
 
@@ -364,7 +362,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
   // espacio de trabajo) no se limita nada aquí y decide el servidor; con él se deshace lo que el servidor rechazaría de todos modos.
   const role = selected?.role;
   const canWrite = role !== 'viewer';
-  const readOnly = 'Tienes el rol de lector en este proyecto: puedes abrirlo, pero no cambiarlo.';
+  const readOnly = t('pj.readOnly');
   const sharable = session.canShare && role === 'admin';
   const leavable = session.canShare && role !== undefined && role !== 'admin';
 
@@ -373,8 +371,8 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     <div className="pj-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="pj-dialog" role="dialog" aria-modal="true" aria-labelledby="pj-title" ref={dialogRef} tabIndex={-1} onKeyDown={onKeyDown} data-testid="projects-dialog">
         <div className="pj-head">
-          <h2 id="pj-title">Proyectos</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar">
+          <h2 id="pj-title">{t('pj.title')}</h2>
+          <button type="button" onClick={onClose} aria-label={t('common.close')}>
             ✕
           </button>
         </div>
@@ -382,13 +380,13 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         {!state.available && (
           <p className="pj-warn" role="alert">
             {remote
-              ? `No se pudo usar el servidor${host ? ` ${host}` : ''}${state.error ? `: ${state.error.replace(/\.+$/, '')}` : ''}. Revisa «Dónde se guardan» aquí abajo.`
-              : `El almacenamiento del navegador no está disponible${state.error ? `: ${state.error}` : ''}. Los proyectos no se pueden guardar aquí; sí puedes exportar e importar archivos.`}
+              ? t('pj.serverUnusable', { target: `${host ? ` ${host}` : ''}${state.error ? `: ${state.error.replace(/\.+$/, '')}` : ''}` })
+              : t('pj.storageUnavailable', { detail: state.error ? `: ${state.error}` : '' })}
           </p>
         )}
         {remote && state.available && state.syncError && (
           <p className="pj-warn" role="status" data-testid="projects-sync-error">
-            Sin conexión con el servidor{host ? ` ${host}` : ''}: la lista puede estar desactualizada ({state.syncError}). Se vuelve a intentar sola.
+            {t('pj.syncOffline', { host: host ? ` ${host}` : '', detail: state.syncError })}
           </p>
         )}
         {error && (
@@ -426,14 +424,14 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         <QuotaMeter session={session} projects={projects} selected={selected} />
 
         <div className="pj-body">
-          <nav className="pj-list" aria-label="Proyectos">
+          <nav className="pj-list" aria-label={t('pj.listLabel')}>
             <ul>
               {projects.map((p) => (
                 <li key={p.id}>
                   <button type="button" className="pj-item" aria-current={p.id === selected?.id ? 'true' : undefined} onClick={() => setSelectedId(p.id)}>
                     <strong>{p.name}</strong>
                     <small>
-                      {plural(p.diagrams.length, 'diagrama', 'diagramas')}
+                      {tp('pj.diagrams', p.diagrams.length)}
                       {p.role && (
                         <>
                           {' · '}
@@ -442,28 +440,28 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                           </span>
                         </>
                       )}
-                      {p.id === state.projectId ? ' · abierto' : ''}
+                      {p.id === state.projectId ? ` · ${t('pj.openBadge')}` : ''}
                     </small>
                   </button>
                 </li>
               ))}
-              {projects.length === 0 && <li className="pj-empty">Aún no hay proyectos. Crea el primero aquí abajo.</li>}
+              {projects.length === 0 && <li className="pj-empty">{t('pj.emptyList')}</li>}
             </ul>
-            <form className="pj-form" onSubmit={submitNewProject} aria-label="Crear proyecto">
-              <label htmlFor="pj-new-project">Nuevo proyecto</label>
+            <form className="pj-form" onSubmit={submitNewProject} aria-label={t('pj.createForm')}>
+              <label htmlFor="pj-new-project">{t('pj.newProject')}</label>
               <div className="pj-row">
-                <input id="pj-new-project" type="text" value={newProject} placeholder="Nombre del proyecto" maxLength={120} onChange={(e) => setNewProject(e.target.value)} />
+                <input id="pj-new-project" type="text" value={newProject} placeholder={t('pj.projectNamePlaceholder')} maxLength={120} onChange={(e) => setNewProject(e.target.value)} />
                 <button type="submit" className="pj-primary" disabled={busy || !newProject.trim() || !state.available}>
-                  Crear
+                  {t('pj.create')}
                 </button>
               </div>
             </form>
             <label className="pj-file">
-              Importar proyecto…
+              {t('pj.import')}
               <input
                 type="file"
                 accept=".json,application/json"
-                aria-label="Importar proyecto desde un archivo"
+                aria-label={t('pj.importLabel')}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) importFile(file);
@@ -473,9 +471,9 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
             </label>
           </nav>
 
-          <section className="pj-detail" aria-label="Proyecto seleccionado">
+          <section className="pj-detail" aria-label={t('pj.detail')}>
             {!selected ? (
-              <p className="pj-empty">Elige o crea un proyecto para ver sus diagramas.</p>
+              <p className="pj-empty">{t('pj.pickOne')}</p>
             ) : (
               <>
                 <div className="pj-title-row">
@@ -483,47 +481,47 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                   <span className="pj-actions">
                     {role && (
                       <span className="pj-chip" data-testid="project-role-detail" data-role={role} title={`${PROJECT_ROLE_LABEL[role]}: ${PROJECT_ROLE_HELP[role]}`}>
-                        Tu rol: {PROJECT_ROLE_LABEL[role].toLowerCase()}
+                        {t('pj.yourRole', { role: PROJECT_ROLE_LABEL[role].toLowerCase() })}
                       </span>
                     )}
                     {!(editing?.kind === 'project' && editing.id === selected.id) && (
                       <button type="button" onClick={() => setEditing({ kind: 'project', id: selected.id, value: selected.name })} disabled={busy || !canWrite} title={canWrite ? undefined : readOnly}>
-                        Renombrar
+                        {t('common.rename')}
                       </button>
                     )}
                     <button type="button" onClick={() => exportProject(selected)} disabled={busy}>
-                      Exportar
+                      {t('pj.export')}
                     </button>
                     <button type="button" onClick={() => copySelected(selected)} disabled={busy} data-testid="copy-project">
                       {target.label}
                     </button>
                     {sharable && (
                       <button type="button" ref={shareButton} onClick={() => setSharing(selected.id)} disabled={busy} data-testid="share-project">
-                        Compartir…
+                        {t('pj.share')}
                       </button>
                     )}
                     {leavable &&
                       (leaving === selected.id ? (
                         <span className="pj-confirm" role="alert">
-                          ¿Salir de «{selected.name}»? Dejará de aparecer en tu lista y alguien tendrá que volver a compartírtelo.{' '}
+                          {t('pj.leaveConfirm', { name: selected.name })}{' '}
                           <button type="button" className="pj-danger" onClick={() => leaveProject(selected)} disabled={busy}>
-                            Sí, salir
+                            {t('pj.yesLeave')}
                           </button>
                           <button type="button" onClick={() => setLeaving(undefined)}>
-                            No
+                            {t('common.no')}
                           </button>
                         </span>
                       ) : (
                         <button type="button" onClick={() => setLeaving(selected.id)} disabled={busy} data-testid="leave-project">
-                          Salir del proyecto
+                          {t('pj.leave')}
                         </button>
                       ))}
                     {deleteControls(
                       'project',
                       selected.id,
                       selected.name,
-                      `¿Borrar «${selected.name}» y sus ${plural(selected.diagrams.length, 'diagrama', 'diagramas')}? No se puede deshacer.`,
-                      role !== undefined && role !== 'admin' ? 'Solo quien administra el proyecto puede borrarlo.' : undefined,
+                      tp('pj.deleteProjectConfirm', selected.diagrams.length, { name: selected.name }),
+                      role !== undefined && role !== 'admin' ? t('pj.onlyAdminDeletes') : undefined,
                     )}
                   </span>
                 </div>
@@ -535,16 +533,16 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                 )}
 
                 {selected.diagrams.length === 0 ? (
-                  <p className="pj-empty">Este proyecto no tiene diagramas todavía.</p>
+                  <p className="pj-empty">{t('pj.noDiagrams')}</p>
                 ) : (
                   <table className="pj-table">
                     <thead>
                       <tr>
-                        <th scope="col">Diagrama</th>
-                        <th scope="col">Módulo</th>
-                        <th scope="col">Modificado</th>
+                        <th scope="col">{t('pj.col.diagram')}</th>
+                        <th scope="col">{t('pj.col.module')}</th>
+                        <th scope="col">{t('pj.col.modified')}</th>
                         <th scope="col">
-                          <span className="pj-visually-hidden">Acciones</span>
+                          <span className="pj-visually-hidden">{t('pj.col.actions')}</span>
                         </th>
                       </tr>
                     </thead>
@@ -559,29 +557,29 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                           <td className="pj-actions">
                             {!(editing?.kind === 'diagram' && editing.id === d.id) && (
                               <>
-                                <button type="button" onClick={() => void open(selected.id, d)} disabled={busy} aria-label={`Abrir ${d.name}`}>
-                                  Abrir
+                                <button type="button" onClick={() => void open(selected.id, d)} disabled={busy} aria-label={t('pj.openLabel', { name: d.name })}>
+                                  {t('pj.open')}
                                 </button>
-                                <button type="button" onClick={() => setEditing({ kind: 'diagram', id: d.id, value: d.name })} disabled={busy || !canWrite} title={canWrite ? undefined : readOnly} aria-label={`Renombrar ${d.name}`}>
-                                  Renombrar
+                                <button type="button" onClick={() => setEditing({ kind: 'diagram', id: d.id, value: d.name })} disabled={busy || !canWrite} title={canWrite ? undefined : readOnly} aria-label={t('pj.renameLabel', { name: d.name })}>
+                                  {t('common.rename')}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() =>
                                     void act(async () => {
                                       const copy = await session.duplicateDiagram(selected.id, d.id);
-                                      notify?.(`Duplicado como «${copy.name}».`);
+                                      notify?.(t('pj.duplicated', { name: copy.name }));
                                     })
                                   }
                                   disabled={busy || !canWrite}
                                   title={canWrite ? undefined : readOnly}
-                                  aria-label={`Duplicar ${d.name}`}
+                                  aria-label={t('pj.duplicateLabel', { name: d.name })}
                                 >
-                                  Duplicar
+                                  {t('pj.duplicate')}
                                 </button>
                               </>
                             )}
-                            {deleteControls('diagram', d.id, d.name, `¿Borrar «${d.name}»?`, canWrite ? undefined : readOnly)}
+                            {deleteControls('diagram', d.id, d.name, t('pj.deleteDiagramConfirm', { name: d.name }), canWrite ? undefined : readOnly)}
                           </td>
                         </tr>
                       ))}
@@ -589,12 +587,12 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                   </table>
                 )}
 
-                <form className="pj-form" onSubmit={submitNewDiagram} aria-label="Nuevo diagrama">
-                  <strong>Añadir un diagrama a «{selected.name}»</strong>
+                <form className="pj-form" onSubmit={submitNewDiagram} aria-label={t('pj.newDiagramForm')}>
+                  <strong>{t('pj.addDiagramTo', { name: selected.name })}</strong>
                   <div className="pj-row">
                     <label>
-                      Módulo
-                      <select aria-label="Módulo del diagrama nuevo" value={newDiagram.module} onChange={(e) => setNewDiagram({ ...newDiagram, module: e.target.value })}>
+                      {t('pj.module')}
+                      <select aria-label={t('pj.moduleLabel')} value={newDiagram.module} onChange={(e) => setNewDiagram({ ...newDiagram, module: e.target.value })}>
                         {modules.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.label}
@@ -603,32 +601,32 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
                       </select>
                     </label>
                     <label>
-                      Nombre
-                      <input type="text" aria-label="Nombre del diagrama nuevo" value={newDiagram.name} placeholder="Sin título" maxLength={120} onChange={(e) => setNewDiagram({ ...newDiagram, name: e.target.value })} />
+                      {t('pj.name')}
+                      <input type="text" aria-label={t('pj.nameLabel')} value={newDiagram.name} placeholder={t('pj.untitled')} maxLength={120} onChange={(e) => setNewDiagram({ ...newDiagram, name: e.target.value })} />
                     </label>
                     <label>
-                      Empezar con
-                      <select aria-label="Con qué empieza el diagrama nuevo" value={newDiagram.template} onChange={(e) => setNewDiagram({ ...newDiagram, template: e.target.value as TemplateKind })}>
-                        <option value="example">El ejemplo del módulo</option>
-                        <option value="blank">Un documento vacío</option>
+                      {t('pj.startWith')}
+                      <select aria-label={t('pj.startWithLabel')} value={newDiagram.template} onChange={(e) => setNewDiagram({ ...newDiagram, template: e.target.value as TemplateKind })}>
+                        <option value="example">{t('pj.tplExample')}</option>
+                        <option value="blank">{t('pj.tplBlank')}</option>
                       </select>
                     </label>
                     <button type="submit" className="pj-primary" disabled={busy || !newDiagram.module || !canWrite} title={canWrite ? undefined : readOnly}>
-                      Crear y abrir
+                      {t('pj.createOpen')}
                     </button>
                   </div>
                 </form>
 
                 {live && (
-                  <form className="pj-form" onSubmit={submitSaveCurrent} aria-label="Guardar el documento actual">
-                    <strong>Guardar el documento que estás editando</strong>
+                  <form className="pj-form" onSubmit={submitSaveCurrent} aria-label={t('pj.saveCurrentForm')}>
+                    <strong>{t('pj.saveCurrentTitle')}</strong>
                     <div className="pj-row">
                       <label>
-                        Nombre
-                        <input type="text" aria-label="Nombre del documento actual" value={saveName} placeholder={live.name || 'Sin título'} maxLength={120} onChange={(e) => setSaveName(e.target.value)} />
+                        {t('pj.name')}
+                        <input type="text" aria-label={t('pj.currentNameLabel')} value={saveName} placeholder={live.name || t('pj.untitled')} maxLength={120} onChange={(e) => setSaveName(e.target.value)} />
                       </label>
                       <button type="submit" className="pj-primary" disabled={busy || !canWrite} title={canWrite ? undefined : readOnly}>
-                        Guardar en «{selected.name}»
+                        {t('pj.saveIn', { name: selected.name })}
                       </button>
                     </div>
                   </form>
@@ -639,16 +637,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         </div>
 
         <footer className="pj-foot" data-testid="projects-foot">
-          {remote ? (
-            <>
-              Los proyectos se guardan en el servidor {host}: los ven las personas y equipos que se conecten a él (la lista se actualiza sola mientras la miras). Para una copia de seguridad en un archivo, usa <strong>Exportar</strong> e{' '}
-              <strong>Importar proyecto</strong>.
-            </>
-          ) : (
-            <>
-              Los proyectos se guardan en este navegador. Para llevarlos a otro equipo o tener una copia de seguridad, usa <strong>Exportar</strong> e <strong>Importar proyecto</strong>.
-            </>
-          )}
+          {remote ? tr('pj.footRemote', { host: host ?? '' }) : tr('pj.footLocal')}
         </footer>
       </div>
     </div>

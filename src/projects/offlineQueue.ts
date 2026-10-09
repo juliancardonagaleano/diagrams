@@ -1,4 +1,5 @@
 import { ProjectError } from '@iark/kernel';
+import { t } from '../i18n';
 
 /**
  * Cola de cambios pendientes para el trabajo en la nube sin conexión.
@@ -158,8 +159,8 @@ const finished = (tx: IDBTransaction): Promise<void> =>
 function storageError(error: unknown): QueueStorageError {
   if (error instanceof QueueStorageError) return error;
   const name = (error as { name?: string } | null)?.name;
-  if (name === 'QuotaExceededError') return new QueueStorageError('storage', 'El navegador no tiene espacio para guardar más cambios sin conexión.');
-  return new QueueStorageError('storage', 'El navegador no deja guardar cambios sin conexión (¿ventana privada o permisos bloqueados?).');
+  if (name === 'QuotaExceededError') return new QueueStorageError('storage', t('offline.noSpace'));
+  return new QueueStorageError('storage', t('offline.noStorage'));
 }
 
 /** La cola en IndexedDB: una base propia (`iark-offline`) con un almacén de objetos por clave. */
@@ -173,7 +174,7 @@ export class IdbQueueBackend implements QueueBackend {
   ) {}
 
   private open(): Promise<IDBDatabase> {
-    if (!this.factory) return Promise.reject(new QueueStorageError('storage', 'Este navegador no ofrece IndexedDB: los cambios sin conexión solo se conservan mientras la pestaña siga abierta.'));
+    if (!this.factory) return Promise.reject(new QueueStorageError('storage', t('offline.noIdb')));
     this.db ??= new Promise<IDBDatabase>((resolve, reject) => {
       let opening: IDBOpenDBRequest;
       try {
@@ -245,8 +246,7 @@ export function defaultQueueBackend(): QueueBackend {
 
 export type UpsertResult = { ok: true } | { ok: false; reason: 'full' | 'storage'; message: string };
 
-export const FULL_MESSAGE = (limits: QueueLimits): string =>
-  `Se superó el tope de cambios sin conexión que guarda este navegador (${Math.round(limits.maxBytes / (1024 * 1024))} MB o ${limits.maxEntries} diagramas). Lo último que escribiste solo está en esta pestaña: no la cierres hasta recuperar la conexión, o descarga el diagrama.`;
+export const FULL_MESSAGE = (limits: QueueLimits): string => t('offline.full', { mb: Math.round(limits.maxBytes / (1024 * 1024)), entries: limits.maxEntries });
 
 /**
  * La cola en sí: un espejo en memoria (para preguntar sin esperar) que se escribe en el almacenamiento. `load` lo releva desde el

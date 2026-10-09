@@ -29,6 +29,7 @@ import {
   type VersionedProjectStore,
   type VersionMeta,
 } from '@iark/kernel';
+import { projectErrorText } from '../i18n/errores';
 import { hostOf, LAST_KEY } from './backend';
 import { isTransient, OfflineQueue, type PendingChange, type PendingStatus } from './offlineQueue';
 import { OfflineSync, type IdentityMemory, type LockManagerLike, type OfflineSnapshot, type SyncHost } from './offlineSync';
@@ -270,8 +271,8 @@ export class ProjectSession {
     },
     authRequired: (error, change) => {
       const open = change ? this.isOpen(change) : this.openEntry() !== undefined;
-      if (open) this.set({ save: 'error', saveError: error.message, saveErrorCode: error.code });
-      else if (error.code === 'unauthorized') this.set({ syncError: error.message, syncErrorCode: error.code });
+      if (open) this.set({ save: 'error', saveError: projectErrorText(error), saveErrorCode: error.code });
+      else if (error.code === 'unauthorized') this.set({ syncError: projectErrorText(error), syncErrorCode: error.code });
     },
   };
 
@@ -411,8 +412,8 @@ export class ProjectSession {
       this.lastRefreshAt = Date.now();
       this.set({ projects, available: true, error: undefined, errorCode: undefined, syncError: undefined, syncErrorCode: undefined, projectId, diagramId, ...(lost ? { save: 'idle' as const, ...NO_SAVE_ERROR } : {}) });
     } catch (error) {
-      if (options.background && this.state.available) this.set({ syncError: (error as Error).message, syncErrorCode: codeOf(error) });
-      else this.set({ available: false, error: (error as Error).message, errorCode: codeOf(error) });
+      if (options.background && this.state.available) this.set({ syncError: projectErrorText(error), syncErrorCode: codeOf(error) });
+      else this.set({ available: false, error: projectErrorText(error), errorCode: codeOf(error) });
     }
   }
 
@@ -537,7 +538,7 @@ export class ProjectSession {
     if (!projectId || !diagramId) return undefined;
     const busy = (): boolean => this.pendingText !== undefined || (this.state.save !== 'idle' && this.state.save !== 'saved') || this.openEntry() !== undefined;
     const refuse = (): never => {
-      throw new ProjectError('conflict', 'Hay cambios tuyos sin guardar en este diagrama: no se carga la versión nueva para no perderlos. Si ya hay otra versión en el servidor, al guardar verás el conflicto y podrás elegir.');
+      throw new ProjectError('conflict', 'Hay cambios tuyos sin guardar en este diagrama: no se carga la versión nueva para no perderlos. Si ya hay otra versión en el servidor, al guardar verás el conflicto y podrás elegir.', { reason: 'newer-unsaved' });
     };
     if (busy()) refuse();
     const diagram = await this.store.getDiagram(projectId, diagramId);
@@ -590,7 +591,7 @@ export class ProjectSession {
    */
   async logout(): Promise<void> {
     const store = this.store as { logout?: () => Promise<void> };
-    if (!store.logout) throw new ProjectError('invalid', 'Este almacén no tiene una sesión que cerrar.');
+    if (!store.logout) throw new ProjectError('invalid', 'Este almacén no tiene una sesión que cerrar.', { reason: 'logout-unsupported' });
     await store.logout();
   }
 
@@ -674,7 +675,7 @@ export class ProjectSession {
   }
 
   private get members(): Pick<HttpProjectStore, 'listMembers' | 'setMember' | 'removeMember'> {
-    if (!this.canShare) throw new ProjectError('invalid', 'Este almacén no permite compartir proyectos: hace falta un servidor con inicio de sesión de GitHub.');
+    if (!this.canShare) throw new ProjectError('invalid', 'Este almacén no permite compartir proyectos: hace falta un servidor con inicio de sesión de GitHub.', { reason: 'share-unsupported' });
     return this.store as unknown as HttpProjectStore;
   }
 
@@ -701,7 +702,7 @@ export class ProjectSession {
    */
   async leaveProject(projectId: string): Promise<void> {
     const me = (await this.members.listMembers(projectId)).find((m) => m.you);
-    if (!me) throw new ProjectError('not-found', 'Ya no perteneces a este proyecto.');
+    if (!me) throw new ProjectError('not-found', 'Ya no perteneces a este proyecto.', { reason: 'not-member-anymore' });
     if (projectId === this.state.projectId) {
       this.discardPending();
       this.selectProject(undefined);
@@ -719,7 +720,7 @@ export class ProjectSession {
   }
 
   private get accounts(): Pick<HttpProjectStore, 'listAccounts' | 'setAccount' | 'cancelInvitation'> {
-    if (!this.canAdminister) throw new ProjectError('invalid', 'Este almacén no administra cuentas: hace falta un servidor con inicio de sesión de GitHub.');
+    if (!this.canAdminister) throw new ProjectError('invalid', 'Este almacén no administra cuentas: hace falta un servidor con inicio de sesión de GitHub.', { reason: 'admin-unsupported' });
     return this.store as unknown as HttpProjectStore;
   }
 
@@ -763,7 +764,7 @@ export class ProjectSession {
     await this.sync?.ready;
     const queued = this.sync?.find(projectId, diagramId);
     const found = await this.store.getDiagram(projectId, diagramId);
-    if (!found && !queued) throw new ProjectError('not-found', 'El diagrama ya no existe en el proyecto.');
+    if (!found && !queued) throw new ProjectError('not-found', 'El diagrama ya no existe en el proyecto.', { reason: 'diagram-gone' });
     // Si quedó trabajo sin enviar de este diagrama (la pestaña se cerró sin red), lo que se abre es ese trabajo y no la versión del servidor:
     // sigue esperando para enviarse sobre la marca del servidor en la que se escribió, así que un cambio ajeno se detecta como conflicto.
     const diagram: Diagram = queued
@@ -785,7 +786,7 @@ export class ProjectSession {
 
   /** Crea un diagrama en el proyecto abierto (o en `projectId`) y lo adjunta. */
   async createDiagram(input: { module: string; name?: string; text: string }, projectId = this.state.projectId): Promise<DiagramMeta> {
-    if (!projectId) throw new ProjectError('invalid', 'Abre o crea un proyecto antes de guardar un diagrama en él.');
+    if (!projectId) throw new ProjectError('invalid', 'Abre o crea un proyecto antes de guardar un diagrama en él.', { reason: 'save-needs-project' });
     await this.flush();
     const meta = await this.store.saveDiagram(projectId, input);
     this.requestPersistence();
@@ -849,7 +850,7 @@ export class ProjectSession {
   }
 
   private get history(): VersionedProjectStore {
-    if (!isVersioned(this.store)) throw new ProjectError('unsupported', 'Este almacén no guarda el historial de versiones.');
+    if (!isVersioned(this.store)) throw new ProjectError('unsupported', 'Este almacén no guarda el historial de versiones.', { reason: 'history-unsupported' });
     return this.store;
   }
 
@@ -894,19 +895,19 @@ export class ProjectSession {
     const open = projectId === this.state.projectId && diagramId === this.state.diagramId;
     if (open) {
       await this.flush();
-      if (this.state.save === 'conflict') throw new ProjectError('conflict', 'Hay un conflicto de guardado sin resolver: resuélvelo antes de restaurar una versión.');
-      if (this.pendingText !== undefined) throw new ProjectError('unavailable', 'Los últimos cambios no se han podido guardar y restaurar una versión los sustituiría: reintenta el guardado primero.');
+      if (this.state.save === 'conflict') throw new ProjectError('conflict', 'Hay un conflicto de guardado sin resolver: resuélvelo antes de restaurar una versión.', { reason: 'restore-conflict' });
+      if (this.pendingText !== undefined) throw new ProjectError('unavailable', 'Los últimos cambios no se han podido guardar y restaurar una versión los sustituiría: reintenta el guardado primero.', { reason: 'restore-unsaved' });
     }
     let restored;
     try {
       restored = await this.history.restoreVersion(projectId, diagramId, versionId, { ifUpdatedAt: open ? this.baseUpdatedAt : undefined });
     } catch (error) {
       // Otra persona guardó el diagrama abierto mientras tanto: es el mismo conflicto de un guardado, y se resuelve donde siempre (la barra del proyecto).
-      if (open && codeOf(error) === 'conflict') this.set({ save: 'conflict', saveError: (error as Error).message, saveErrorCode: 'conflict' });
+      if (open && codeOf(error) === 'conflict') this.set({ save: 'conflict', saveError: projectErrorText(error), saveErrorCode: 'conflict' });
       throw error;
     }
     const diagram = await this.store.getDiagram(projectId, diagramId);
-    if (!diagram) throw new ProjectError('not-found', 'El diagrama ya no existe en el proyecto.');
+    if (!diagram) throw new ProjectError('not-found', 'El diagrama ya no existe en el proyecto.', { reason: 'diagram-gone' });
     if (open) {
       this.baseUpdatedAt = diagram.updatedAt;
       this.set({ save: 'saved', savedAt: Date.now(), ...NO_SAVE_ERROR });
@@ -984,7 +985,7 @@ export class ProjectSession {
     // lo último y el motor de reenvío lo envía cuando toca. Así un corte largo no genera una petición por cada edición.
     if (sync && (queued || this.browserOffline())) {
       if (await this.park(text, queued ? 'keep' : 'retry')) {
-        if (!queued) sync.noteFailure(new ProjectError('unavailable', 'El navegador está sin conexión.', { network: true }));
+        if (!queued) sync.noteFailure(new ProjectError('unavailable', 'El navegador está sin conexión.', { network: true, reason: 'offline-browser' }));
         else if (queued.status === 'retry') void sync.kick('edit');
         return;
       }
@@ -1002,7 +1003,7 @@ export class ProjectSession {
     } catch (error) {
       if (this.state.diagramId === diagramId && sync && (await this.parkAfter(error, text))) return;
       const code = codeOf(error);
-      this.set({ save: code === 'conflict' ? 'conflict' : 'error', saveError: (error as Error).message, saveErrorCode: code });
+      this.set({ save: code === 'conflict' ? 'conflict' : 'error', saveError: projectErrorText(error), saveErrorCode: code });
     }
   }
 
@@ -1016,7 +1017,7 @@ export class ProjectSession {
     if (!sync || !projectId || !diagramId || !this.baseUpdatedAt) return false;
     const meta = this.diagram;
     const problem = status === 'conflict' ? ('changed' as const) : undefined;
-    const result = await sync.park({ projectId, diagramId, name: meta?.name ?? diagramId, module: meta?.module, text, baseUpdatedAt: this.baseUpdatedAt }, status, { problem, reason: error?.message });
+    const result = await sync.park({ projectId, diagramId, name: meta?.name ?? diagramId, module: meta?.module, text, baseUpdatedAt: this.baseUpdatedAt }, status, { problem, reason: error ? projectErrorText(error) : undefined });
     if (!result.ok) return false;
     if (this.state.diagramId !== diagramId) return true;
     if (this.pendingText === text) this.pendingText = undefined;
@@ -1037,7 +1038,7 @@ export class ProjectSession {
     if (error instanceof ProjectError && (error.code === 'unauthorized' || error.code === 'forbidden')) {
       if (!(await this.park(text, 'auth', error))) return false;
       sync.noteAuth(error);
-      this.set({ save: 'error', saveError: error.message, saveErrorCode: error.code });
+      this.set({ save: 'error', saveError: projectErrorText(error), saveErrorCode: error.code });
       return true;
     }
     if (error instanceof ProjectError && error.code === 'conflict') return this.park(text, 'conflict', error);
@@ -1141,7 +1142,7 @@ export class ProjectSession {
     }
     // Copia (o «la mía» de un diagrama que ya no existe): un diagrama nuevo con otro nombre; el original no se toca.
     const module = entry.module ?? this.state.projects.find((p) => p.id === entry.projectId)?.diagrams.find((d) => d.id === entry.diagramId)?.module;
-    if (!module) throw new ProjectError('invalid', 'No se sabe de qué módulo es el diagrama: no se puede guardar la copia.');
+    if (!module) throw new ProjectError('invalid', 'No se sabe de qué módulo es el diagrama: no se puede guardar la copia.', { reason: 'module-unknown' });
     await this.saveAsNew({ projectId: entry.projectId, module, name: name?.trim() || `${entry.name} (mi versión)`, text: entry.text }, open);
     await sync.dropKey(entry.key);
     return undefined;
