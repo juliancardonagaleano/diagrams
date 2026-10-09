@@ -169,6 +169,17 @@ describe('generateStructured: verificación con validate()', () => {
     expect(bodyOf(second.fetchMock, 1).messages.at(-1).content).toContain('«n»');
   });
 
+  it('con retryOn: warning (--strict) los avisos también obligan a corregir', async () => {
+    const { fetchMock, promise } = run([reply(json({ nombre: 'a', items: [] })), reply(json({ nombre: 'a', items: ['x'] }))], { retryOn: 'warning' });
+    const result = await promise;
+    expect(result.attempts).toBe(2);
+    expect(result.retries).toEqual({ schema: 0, rules: 1 });
+    expect(bodyOf(fetchMock, 1).messages.at(-1).content).toBe('Corrige: - [warning] No hay elementos');
+    // Y agotados los reintentos, un aviso sin corregir hace fallar igual que un error.
+    const failing = run([reply(json({ nombre: 'a', items: [] })), reply(json({ nombre: 'a', items: [] }))], { retryOn: 'warning' });
+    await expect(failing.promise).rejects.toBeInstanceOf(VerificationError);
+  });
+
   it('un validate que lanza se informa como GenerationError, no como error inesperado', async () => {
     const { promise } = run([reply(json({ nombre: 'a', items: [] }))], {
       validate: () => {

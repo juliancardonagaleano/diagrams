@@ -40,6 +40,11 @@ export interface StructuredOptions<TDoc> extends TokenLimitOptions {
   /** `false` desactiva la verificación con `validate` (`--no-verify`). Por omisión se verifica si hay `validate`. */
   verify?: boolean;
   /**
+   * Gravedad que obliga a reintentar: `error` (por omisión) o `warning` (como `validate --strict`: los avisos también cuentan).
+   * Hoy solo el módulo C4 emite errores; los demás módulos solo avisos, así que con `error` el bucle de reglas no reintenta en ellos.
+   */
+  retryOn?: 'error' | 'warning';
+  /**
    * Si tras agotar los reintentos el último documento cumple el esquema pero sigue con errores de reglas, devolverlo (con sus
    * incidencias en `issues` y `verification: 'accepted-invalid'`) en lugar de fallar. Por omisión falla con el informe de incidencias.
    */
@@ -243,8 +248,10 @@ export async function generateStructured<TDoc>(spec: AiSpec<TDoc>, options: Stru
       throw new GenerationError(`Las reglas del módulo fallaron al validar el documento: ${error instanceof Error ? error.message : String(error)}`, error);
     }
   };
-  // Al refinar, los errores que el documento base ya tenía no son culpa del modelo y no bloquean.
-  const preexisting = new Set(verifying && options.base !== undefined ? runValidate(options.base).filter((i) => i.severity === 'error').map(issueKey) : []);
+  /** Las incidencias que obligan a corregir: los errores y, con `retryOn: 'warning'`, también los avisos. */
+  const isBlocking = (i: ModuleIssue): boolean => i.severity === 'error' || (options.retryOn === 'warning' && i.severity === 'warning');
+  // Al refinar, lo que el documento base ya tenía no es culpa del modelo y no bloquea.
+  const preexisting = new Set(verifying && options.base !== undefined ? runValidate(options.base).filter(isBlocking).map(issueKey) : []);
 
   let conversation: Conversation;
   try {
@@ -333,7 +340,7 @@ export async function generateStructured<TDoc>(spec: AiSpec<TDoc>, options: Stru
       return finish(document, [], 'skipped');
     }
     const issues = runValidate(document);
-    const blocking = issues.filter((i) => i.severity === 'error' && !preexisting.has(issueKey(i)));
+    const blocking = issues.filter((i) => isBlocking(i) && !preexisting.has(issueKey(i)));
     if (blocking.length === 0) {
       record('valid');
       progress(issues.length > 0 ? `Modelo válido (${issues.length} incidencia(s) sin errores).` : 'Modelo válido.');
