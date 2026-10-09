@@ -16,16 +16,12 @@ const version = rootVersion();
 const clone = (pkg: PackageInfo): PackageInfo => ({ ...pkg, manifest: structuredClone(pkg.manifest) });
 
 describe('paquetes publicables', () => {
-  it('son el kernel y los seis dominios, con el kernel primero (los demás dependen de él)', () => {
-    expect(packages.map((p) => p.manifest.name)).toEqual([
-      '@iark/kernel',
-      '@iark/domain-c4',
-      '@iark/domain-data',
-      '@iark/domain-enterprise',
-      '@iark/domain-integration',
-      '@iark/domain-platform',
-      '@iark/domain-security',
-    ]);
+  it('son el kernel y los dominios (al menos los seis incorporados), con el kernel primero (los demás dependen de él)', () => {
+    const found = packages.map((p) => p.manifest.name);
+    expect(found[0]).toBe('@iark/kernel');
+    expect(found).toEqual(expect.arrayContaining(['@iark/domain-c4', '@iark/domain-data', '@iark/domain-enterprise', '@iark/domain-integration', '@iark/domain-platform', '@iark/domain-security']));
+    expect(found.slice(1).sort()).toEqual(found.slice(1)); // el resto, por orden alfabético
+    for (const name of found.slice(1)) expect(name).toMatch(/^@iark\/domain-[a-z0-9-]+$/);
   });
 
   it.each(packages.map((pkg) => [pkg.manifest.name, pkg] as const))('%s está bien declarado para publicarse', (_name, pkg) => {

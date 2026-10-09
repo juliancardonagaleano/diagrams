@@ -309,6 +309,20 @@ describe('iark serve --config: el módulo de terceros en el servicio (y en su hi
     expect(ran.status).toBe(200);
     expect(((await ran.json()) as { output: string }).output).toContain('mainframe-fin-de-soporte');
 
+    // La trazabilidad entre módulos (también en el hilo de trabajo) enlaza los riesgos con los elementos C4 por URN.
+    const traced = await post(
+      server.base,
+      '/api/trace',
+      JSON.stringify({
+        documents: [
+          { module: 'c4', document: JSON.parse(readFileSync(resolve('examples/banca.json'), 'utf8')) },
+          { module: 'risk', document: JSON.parse(riesgos()) },
+        ],
+      }),
+    );
+    expect(traced.status).toBe(200);
+    expect(JSON.stringify(await traced.json())).toContain('urn:iark:risk:mainframe-fin-de-soporte');
+
     const schema = await fetch(`${server.base}/api/risk/schema`);
     expect(schema.status).toBe(200);
     expect(((await schema.json()) as { properties: Record<string, unknown> }).properties).toHaveProperty('risks');

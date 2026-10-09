@@ -86,7 +86,7 @@ describe('assertModuleShape', () => {
     expect(message).toContain('export default defineModule');
   });
 
-  it.each([
+  it.each<[string, Record<string, unknown>, RegExp]>([
     ['un id con mayúsculas', { id: 'Riesgos' }, /«id» debe ser un identificador en minúsculas/],
     ['un id que empieza por dígito', { id: '1riesgos' }, /«id» debe ser/],
     ['sin id', { id: undefined }, /«id» debe ser/],
@@ -169,7 +169,10 @@ describe('ModuleError entre copias del kernel', () => {
     class OtraSubclase extends ModuleError {}
     // «Otra copia» del kernel: una clase distinta que lleva la misma marca global.
     class OtraCopia extends Error {
-      readonly [Symbol.for('iark.ModuleError')] = true;
+      constructor(message: string) {
+        super(message);
+        Object.defineProperty(this, Symbol.for('iark.ModuleError'), { value: true });
+      }
     }
     const foreign = new OtraCopia('de un plugin');
     expect(foreign instanceof ModuleError).toBe(true);
