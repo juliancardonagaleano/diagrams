@@ -34,7 +34,8 @@ describe('fábrica de sesiones de proyectos', () => {
     expect(session.remote).toBe(true);
 
     await session.init();
-    expect(server.log).toEqual(['GET /api/projects', 'GET /api/whoami']); // lo segundo es la identidad que aísla el trabajo sin conexión
+    // el servidor simulado no ofrece el canal de eventos (404): la sesión lo intenta una vez y sigue sondeando; lo último es la identidad que aísla el trabajo sin conexión
+    expect(server.log).toEqual(['GET /api/projects', 'GET /api/events', 'GET /api/whoami']);
     const project = await session.createProject('Tienda');
     // el último abierto va por servidor: el local no se toca
     expect(JSON.parse(localStorage.getItem('iark.projects.last:https://iark.ejemplo.org')!)).toEqual({ projectId: project.id });

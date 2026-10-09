@@ -18,6 +18,8 @@ export interface SuiteManifestOptions {
   projects?: boolean;
   /** Cómo se autentica la API de proyectos: `bearer` (`iark serve --tokens`) o `none` (por omisión). Solo se anuncia junto a `projects`. */
   projectsAuth?: ProjectsAuth;
+  /** La instancia ofrece los cambios de proyectos en tiempo real (`GET /api/events`). Solo se anuncia junto a `projects`. */
+  events?: boolean;
 }
 
 /**
@@ -49,6 +51,6 @@ export function suiteManifest(registry: ModuleRegistry, options: SuiteManifestOp
   }
   return {
     ...buildManifest(registry, { name: SUITE_NAME, version: options.version, endpoints }),
-    ...(options.projects && api ? { projects: `${api}/projects`, projectsAuth: options.projectsAuth ?? 'none' } : {}),
+    ...(options.projects && api ? { projects: `${api}/projects`, projectsAuth: options.projectsAuth ?? 'none', ...(options.events ? { projectsEvents: `${api}/events` } : {}) } : {}),
   };
 }

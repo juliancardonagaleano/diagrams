@@ -371,6 +371,18 @@ export class WorkbenchController {
   }
 
   /**
+   * Carga en el editor la versión más nueva que otra persona (u otro equipo) guardó del diagrama abierto («Cargar la nueva» del aviso). La sesión se
+   * niega, sin tocar nada, si aquí hay cambios sin guardar; entonces el conflicto de siempre decide al guardar.
+   */
+  async loadNewer(): Promise<void> {
+    const projects = this.options.projects;
+    if (!projects) return;
+    const diagram = await projects.loadNewer();
+    const module = diagram && this.state.module;
+    if (diagram && module) this.apply(module, diagram.text, { modified: false });
+  }
+
+  /**
    * Restaura una versión del diagrama abierto: la sesión guarda lo pendiente, restaura (queda como una versión nueva) y el editor carga el
    * resultado. Rechaza con el motivo si no hay un diagrama abierto o el servidor lo niega (rol, conflicto…).
    */

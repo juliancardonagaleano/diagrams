@@ -11,7 +11,9 @@
 }
 
 {$IARK_DOMAIN} {
-	encode zstd gzip
+	# Sin comprimir el canal de cambios en tiempo real (GET /api/events, Server-Sent Events): una conexión larga que debe salir al instante.
+	@sinsse not path /api/events
+	encode @sinsse zstd gzip
 	# HSTS: el navegador no vuelve a pedir este dominio por http durante 180 días. Se pone aquí para que valga también en las respuestas
 	# que da Caddy (un 502 si IArk está caído); IArk lo envía igual cuando ve `X-Forwarded-Proto: https` (con --trust-proxy), y el
 	# prefijo `>` fija el valor al final, así que no sale duplicado. Sin `includeSubDomains` ni `preload`: son decisiones del dominio.
@@ -24,5 +26,9 @@
 	# siquiera llegue desde internet se puede cerrar aquí, antes del proxy (no está puesto por omisión):
 	#   @metricas path /metrics
 	#   respond @metricas 404
-	reverse_proxy iark:8787
+	# flush_interval -1: cada aviso del canal /api/events sale sin esperar a llenar un búfer (Caddy ya lo hace solo con text/event-stream; se deja
+	# explícito). Sin probar con un Caddy real: no lo hay en el entorno donde se escribió esto.
+	reverse_proxy iark:8787 {
+		flush_interval -1
+	}
 }
