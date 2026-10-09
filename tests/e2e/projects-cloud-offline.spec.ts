@@ -36,7 +36,7 @@ const editor = (page: Page) => page.getByLabel('Documento JSON');
 const dialog = (page: Page) => page.getByTestId('projects-dialog');
 const CLEAN = 'Guardado en «Tienda» · servidor';
 
-async function api(server: CloudServer, token: string, method: string, path: string, body?: unknown): Promise<any> {
+async function api(server: CloudServer, token: string, method: string, path: string, body?: unknown): Promise<{ id: string }> {
   const response = await fetch(`${server.url}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
