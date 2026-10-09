@@ -24,6 +24,7 @@ export { extractJson } from './util/extractJson';
 export { MAX_ID_LENGTH, pickId } from './import/ids';
 export { Warnings } from './import/warnings';
 export { IMPORT_LIMITS, textSizeProblem, treeProblem, type TreeLimits } from './import/limits';
+export { asArray, asRecord, asString, readJsonText, withoutBom, type JsonRead, type JsonRecord } from './import/json';
 export { standalonePrompt as moduleStandalonePrompt } from './ai/standalone';
 export { generateStructured, GenerationError, type Effort, type StructuredOptions, type StructuredResult } from './ai/structured';
 export { createAiClient, credentialsHint, openaiSettings, resolveModel, resolveProvider, type AiProvider, type Env } from './ai/client';
