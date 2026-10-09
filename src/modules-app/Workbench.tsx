@@ -5,7 +5,6 @@ import { useBulkInsert } from './bulkInsert';
 import { readFile } from './files';
 import { AttachmentsPanel } from './attachments';
 import { DiagramCanvas } from './canvas/DiagramCanvas';
-import { C4EmbedCanvas } from './canvas/C4EmbedCanvas';
 import type { LinkTools } from './canvas/Inspector';
 import { resolveRef, SuiteLinks } from './links';
 import { EditHistory } from './canvas/history';
@@ -15,6 +14,7 @@ import { ComparePanel, type CompareState } from './ComparePanel';
 import { ProjectBar } from './ProjectBar';
 import { getLoginNotice, setLoginNotice } from '../projects/login';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
+import { tabIndexDePestana, teclasDePestanas } from './a11y/pestanas';
 
 type PanelId = 'canvas' | 'attachments' | 'diagram' | 'issues' | 'reports' | 'compare' | 'export' | 'import';
 
@@ -64,6 +64,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
   const [toast, setToast] = useState<string | undefined>();
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const jsonEditor = useRef<HTMLTextAreaElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   useBulkInsert(jsonEditor, (value) => controller.setText(value));
 
   const notify = useCallback((message: string) => {
@@ -88,7 +89,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
       else await controller.selectModule(moduleId);
       if (!elementId) return;
       const { module: target, analysis } = controller.getState();
-      // En C4 no hay lienzo propio: se abre la vista cuyo alcance es el elemento (o la primera que lo dibuja).
+      // C4 tiene una vista por nivel y un elemento solo se ve en las suyas: se abre la vista cuyo alcance es el elemento (o la primera que lo dibuja).
       if (target?.id === 'c4' && analysis.status === 'ok') {
         const doc = analysis.document as { views?: Array<{ id: string; scopeId?: string; elements?: Array<{ id: string }> }> };
         const view = doc.views?.find((v) => v.scopeId === elementId) ?? doc.views?.find((v) => v.elements?.some((e) => e.id === elementId));
@@ -142,12 +143,6 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
     }),
     [controller, followRef, suiteLinks],
   );
-
-  const c4Refs = useMemo(() => {
-    if (state.module?.id !== 'c4' || state.analysis.status !== 'ok') return [];
-    const doc = state.analysis.document as { model?: { elements?: Array<{ id: string; name: string; ref?: string }> } };
-    return (doc.model?.elements ?? []).filter((e) => typeof e.ref === 'string').map((e) => ({ id: e.id, name: e.name, ref: e.ref as string }));
-  }, [state.module, state.analysis]);
 
   const reveal = useCallback(
     (id: string) => {
@@ -204,8 +199,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
 
   const editor = module?.editor;
   const attachments = editor?.attachments as AttachmentSpec<unknown> | undefined;
-  // C4 no declara `editor`: su lienzo es el editor principal embebido.
-  const hasCanvas = !!editor || module?.id === 'c4';
+  const hasCanvas = !!editor;
   const fallback: PanelId = hasCanvas ? 'canvas' : 'diagram';
   const active: PanelId = panel === 'attachments' && !attachments ? fallback : (panel ?? fallback);
   const canvasMode = active === 'canvas' && hasCanvas;
@@ -224,15 +218,35 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
 
   return (
     <div className="wb" data-ui={ui}>
+      {/* WCAG 2.4.1: quien navega con teclado salta la cabecera y las pestañas y va directo al contenido. */}
+      <a
+        className="wb-skip"
+        href="#wb-contenido"
+        onClick={(e) => {
+          e.preventDefault();
+          mainRef.current?.focus();
+        }}
+      >
+        Saltar al contenido
+      </a>
       <header className="wb-header">
-          {ui === 'full' && (
+          {ui === 'full' ? (
             <>
-              <a className="wb-brand" href="./" title="Abrir el editor C4">
-                IArk - DIAgrams <small>Módulos</small>
-              </a>
-              <div className="wb-modules" role="tablist" aria-label="Módulos">
-                {controller.sources.map((s) => (
-                  <button key={s.id} type="button" role="tab" aria-selected={s.id === state.moduleId} onClick={() => void controller.selectModule(s.id)}>
+              <h1 className="wb-title">
+                <a className="wb-brand" href="./" title="Abrir el editor C4">
+                  IArk - DIAgrams <small>Módulos</small>
+                </a>
+              </h1>
+              <div className="wb-modules" role="tablist" aria-label="Módulos" onKeyDown={teclasDePestanas}>
+                {controller.sources.map((s, i) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={s.id === state.moduleId}
+                    tabIndex={tabIndexDePestana(s.id === state.moduleId, !controller.sources.some((o) => o.id === state.moduleId), i === 0)}
+                    onClick={() => void controller.selectModule(s.id)}
+                  >
                     {s.label}
                   </button>
                 ))}
@@ -243,6 +257,8 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
                 </a>
               )}
             </>
+          ) : (
+            <h1 className="wb-visually-hidden">{module ? `${module.name}: banco de trabajo` : 'Banco de trabajo de IArk - DIAgrams'}</h1>
           )}
           <div className="wb-actions">
             <button type="button" disabled={!state.moduleId} onClick={() => void controller.loadExample()}>
@@ -278,7 +294,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
           </button>
         </div>
       )}
-      <main className="wb-main" data-mode={canvasMode || active === 'attachments' ? 'canvas' : undefined}>
+      <main className="wb-main" id="wb-contenido" ref={mainRef} tabIndex={-1} data-mode={canvasMode || active === 'attachments' ? 'canvas' : undefined}>
         <section className="wb-editor" aria-label="Documento">
           <div className="wb-bar">
             <strong>{module ? `${module.name} · v${module.version}` : state.loading ? 'Cargando módulo…' : 'Elige un módulo'}</strong>
@@ -312,9 +328,9 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
         </section>
 
         <section className="wb-side">
-          <div className="wb-tabs" role="tablist" aria-label="Paneles">
+          <div className="wb-tabs" role="tablist" aria-label="Paneles" onKeyDown={teclasDePestanas}>
             {tabs.map(([id, label]) => (
-              <button key={id} type="button" role="tab" aria-selected={active === id} onClick={() => setPanel(id)}>
+              <button key={id} type="button" role="tab" aria-selected={active === id} tabIndex={active === id ? 0 : -1} onClick={() => setPanel(id)}>
                 {label}
               </button>
             ))}
@@ -325,11 +341,9 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
                 Comparando con <strong>{compare.state.name}</strong>
                 {compare.state.diff ? `: ${diffSummaryLine(compare.state.diff)}` : ': el documento actual no es válido.'}
               </span>
-              {editor && (
-                <span className="wb-compare-legend" aria-hidden="true">
-                  <i data-diff="added" /> nuevo <i data-diff="modified" /> modificado <i data-diff="removed" /> quitado
-                </span>
-              )}
+              <span className="wb-compare-legend" aria-hidden="true">
+                <i data-diff="added" /> nuevo <i data-diff="modified" /> modificado <i data-diff="removed" /> quitado
+              </span>
               <button type="button" onClick={() => setPanel('compare')}>
                 Ver cambios
               </button>
@@ -337,19 +351,6 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
                 Quitar comparación
               </button>
             </div>
-          )}
-          {canvasMode && !editor && (
-            <C4EmbedCanvas
-              document={analysis.status === 'ok' ? analysis.document : undefined}
-              text={state.text}
-              viewId={state.viewId}
-              readOnly={state.readOnly}
-              theme={document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'}
-              onText={(t) => controller.setText(t)}
-              onView={(id) => controller.setView(id)}
-              refs={c4Refs}
-              onFollow={(urn) => void followRef(urn)}
-            />
           )}
           {canvasMode && editor && (
             <DiagramCanvas
@@ -420,7 +421,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
         />
       )}
       {toast && (
-        <div className="wb-toast" role="status">
+        <div className="wb-toast" role="status" aria-live="polite">
           {toast}
         </div>
       )}

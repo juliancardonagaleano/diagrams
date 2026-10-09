@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_Tienda" name="Proceso de pedidos" targetNamespace="http://tienda.example.com/bpmn">
+  <bpmn:collaboration id="Collaboration_Pedidos">
+    <bpmn:participant id="Participant_Tienda" name="Tienda en línea" processRef="Process_Pedidos" />
+    <bpmn:participant id="Participant_Cliente" name="Cliente" processRef="Process_Cliente" />
+    <bpmn:participant id="Participant_Pasarela" name="Pasarela de pagos" />
+    <bpmn:participant id="Participant_Transportista" name="Transportista" />
+    <bpmn:messageFlow id="Msg_Pedido" name="Pedido" sourceRef="Task_RealizarPedido" targetRef="Start_PedidoRecibido" />
+    <bpmn:messageFlow id="Msg_Cobro" name="Solicitud de cobro" sourceRef="Task_Cobrar" targetRef="Participant_Pasarela" />
+    <bpmn:messageFlow id="Msg_Resultado" name="Resultado del cobro" sourceRef="Participant_Pasarela" targetRef="Task_Cobrar" />
+    <bpmn:messageFlow id="Msg_Envio" name="Bulto para entregar" sourceRef="Sub_PrepararEnvio" targetRef="Participant_Transportista" />
+    <bpmn:messageFlow id="Msg_Confirmacion" name="Confirmación del pedido" sourceRef="End_Completado" targetRef="Catch_Confirmacion" />
+    <bpmn:messageFlow id="Msg_Roto" name="Mensaje a ninguna parte" sourceRef="Task_Validar" targetRef="Task_Inexistente" />
+    <bpmn:textAnnotation id="Note_Cobro">
+      <bpmn:text>Revisar el plazo con Finanzas</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Assoc_Cobro" sourceRef="Task_Cobrar" targetRef="Note_Cobro" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Pedidos" name="Gestión de pedidos" isExecutable="true">
+    <bpmn:documentation>Desde que entra un pedido hasta que se entrega y se factura.</bpmn:documentation>
+    <bpmn:laneSet id="LaneSet_Pedidos">
+      <bpmn:lane id="Lane_Ventas" name="Ventas">
+        <bpmn:flowNodeRef>Start_PedidoRecibido</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Validar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Stock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AvisarFalta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Cancelado</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Almacen" name="Almacén">
+        <bpmn:flowNodeRef>Task_Reservar</bpmn:flowNodeRef>
+        <bpmn:childLaneSet id="ChildLaneSet_Almacen">
+          <bpmn:lane id="Lane_Expediciones" name="Expediciones">
+            <bpmn:flowNodeRef>Sub_PrepararEnvio</bpmn:flowNodeRef>
+          </bpmn:lane>
+        </bpmn:childLaneSet>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finanzas" name="Finanzas">
+        <bpmn:flowNodeRef>Gateway_Split</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Cobrar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Boundary_SinRespuesta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_RevisarCobro</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Call_Facturar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Completado</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_PedidoRecibido" name="Pedido recibido">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1" />
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_Validar" name="Validar pedido" camunda:assignee="ventas">
+      <bpmn:documentation>Comprueba los datos del cliente y la dirección de entrega.</bpmn:documentation>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Stock" name="¿Hay stock?" default="Flow_4">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_Reservar" name="Reservar stock">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>stock-service</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="Task_AvisarFalta" name="Avisar de falta de stock" />
+    <bpmn:endEvent id="End_Cancelado" name="Pedido cancelado" />
+    <bpmn:parallelGateway id="Gateway_Split" name="Cobrar y preparar a la vez" />
+    <bpmn:serviceTask id="Task_Cobrar" name="Cobrar pedido">
+      <bpmn:multiInstanceLoopCharacteristics isSequential="true" />
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="Boundary_SinRespuesta" name="Cobro sin respuesta" cancelActivity="false" attachedToRef="Task_Cobrar">
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1" />
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="Task_RevisarCobro" name="Revisar el cobro a mano" />
+    <bpmn:subProcess id="Sub_PrepararEnvio" name="Preparar envío">
+      <bpmn:documentation>Prepara el bulto y le pone la etiqueta del transportista.</bpmn:documentation>
+      <bpmn:startEvent id="Start_Envio" name="Hay que preparar el bulto" />
+      <bpmn:manualTask id="Task_Embalar" name="Embalar los artículos" />
+      <bpmn:userTask id="Task_Etiquetar" name="Etiquetar el bulto" />
+      <bpmn:endEvent id="End_Envio" name="Bulto listo" />
+      <bpmn:sequenceFlow id="Flow_E1" sourceRef="Start_Envio" targetRef="Task_Embalar" />
+      <bpmn:sequenceFlow id="Flow_E2" sourceRef="Task_Embalar" targetRef="Task_Etiquetar" />
+      <bpmn:sequenceFlow id="Flow_E3" sourceRef="Task_Etiquetar" targetRef="End_Envio" />
+    </bpmn:subProcess>
+    <bpmn:parallelGateway id="Gateway_Join" />
+    <bpmn:callActivity id="Call_Facturar" name="Emitir factura" calledElement="Process_Facturacion" />
+    <bpmn:endEvent id="End_Completado" name="Pedido completado" />
+    <bpmn:dataObject id="Data_Pedido" name="Pedido" />
+    <bpmn:dataObjectReference id="DataRef_Pedido" name="Pedido validado" dataObjectRef="Data_Pedido" />
+    <bpmn:dataStoreReference id="Store_Pedidos" name="Base de pedidos" />
+    <bpmn:group id="Group_Cobro" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_PedidoRecibido" targetRef="Task_Validar" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Validar" targetRef="Gateway_Stock" />
+    <bpmn:sequenceFlow id="Flow_3" name="Sí" sourceRef="Gateway_Stock" targetRef="Task_Reservar">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${stock &gt;= cantidad}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_4" name="No" sourceRef="Gateway_Stock" targetRef="Task_AvisarFalta" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_AvisarFalta" targetRef="End_Cancelado" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_Reservar" targetRef="Gateway_Split" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Gateway_Split" targetRef="Task_Cobrar" />
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Gateway_Split" targetRef="Sub_PrepararEnvio" />
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Task_Cobrar" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Sub_PrepararEnvio" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Gateway_Join" targetRef="Call_Facturar" />
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Call_Facturar" targetRef="End_Completado" />
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="Boundary_SinRespuesta" targetRef="Task_RevisarCobro" />
+    <bpmn:sequenceFlow id="Flow_14" sourceRef="Task_RevisarCobro" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_15" sourceRef="Task_Reservar" targetRef="Fantasma" />
+  </bpmn:process>
+  <bpmn:process id="Process_Cliente" name="Compra del cliente" isExecutable="false">
+    <bpmn:startEvent id="Start_Necesidad" name="Necesita un producto" />
+    <bpmn:task id="Task_RealizarPedido" name="Realizar el pedido" />
+    <bpmn:intermediateCatchEvent id="Catch_Confirmacion" name="Espera la confirmación">
+      <bpmn:messageEventDefinition id="MessageEventDefinition_2" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="End_Satisfecho" name="Pedido recibido por el cliente" />
+    <bpmn:sequenceFlow id="Flow_C1" sourceRef="Start_Necesidad" targetRef="Task_RealizarPedido" />
+    <bpmn:sequenceFlow id="Flow_C2" sourceRef="Task_RealizarPedido" targetRef="Catch_Confirmacion" />
+    <bpmn:sequenceFlow id="Flow_C3" sourceRef="Catch_Confirmacion" targetRef="End_Satisfecho" />
+  </bpmn:process>
+  <bpmn:process id="Process_Facturacion" name="Facturación" isExecutable="true">
+    <bpmn:startEvent id="Start_Facturar" name="Pedido listo para facturar" />
+    <bpmn:businessRuleTask id="Task_Impuestos" name="Calcular los impuestos" />
+    <bpmn:scriptTask id="Task_PDF" name="Generar la factura en PDF" scriptFormat="javascript" />
+    <bpmn:endEvent id="End_Facturar" />
+    <bpmn:sequenceFlow id="Flow_F1" sourceRef="Start_Facturar" targetRef="Task_Impuestos" />
+    <bpmn:sequenceFlow id="Flow_F2" sourceRef="Task_Impuestos" targetRef="Task_PDF" />
+    <bpmn:sequenceFlow id="Flow_F3" sourceRef="Task_PDF" targetRef="End_Facturar" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_Pedidos">
+      <bpmndi:BPMNShape id="Participant_Tienda_di" bpmnElement="Participant_Tienda" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1200" height="520" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Validar_di" bpmnElement="Task_Validar">
+        <dc:Bounds x="300" y="120" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

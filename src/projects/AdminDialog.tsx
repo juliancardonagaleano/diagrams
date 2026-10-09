@@ -455,7 +455,7 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
   return (
     <div className="pj-overlay pj-admin-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="pj-dialog pj-admin" role="dialog" aria-modal="true" aria-labelledby="pj-admin-title" ref={dialog} tabIndex={-1} onKeyDown={onKeyDown} data-testid="admin-dialog">
-        <header className="pj-head">
+        <div className="pj-head">
           <div className="pj-admin-title">
             <h2 id="pj-admin-title">Administración de la instancia</h2>
             <small className="pj-hint">
@@ -465,7 +465,7 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
           <button type="button" onClick={onClose} aria-label="Cerrar">
             ✕
           </button>
-        </header>
+        </div>
 
         {blocked ? (
           <div className="pj-admin-body">

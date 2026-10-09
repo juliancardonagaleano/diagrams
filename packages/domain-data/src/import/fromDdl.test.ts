@@ -543,7 +543,7 @@ describe('detect y registro en el módulo', () => {
 
   it('el módulo lo registra con .sql y .ddl, y no confunde su detección con la de Mermaid ni dbt', () => {
     const importers = dataModule.importers;
-    expect(importers.map((i) => i.id)).toEqual(['mermaid', 'ddl', 'dbt']);
+    expect(importers.map((i) => i.id)).toEqual(['mermaid', 'ddl', 'dbt', 'openlineage']);
     expect(importers[1]).toMatchObject({ label: 'SQL (DDL)', extensions: ['.sql', '.ddl'] });
     const detected = (text: string) => importers.find((i) => i.detect?.(text))?.id;
     expect(detected(fixture('tienda-postgres'))).toBe('ddl');

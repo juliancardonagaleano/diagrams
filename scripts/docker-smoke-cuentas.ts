@@ -4,14 +4,17 @@
  * (`tests/helpers/fakeGithub.ts`) que el contenedor alcanza por `--network host`. No usa la red: solo Docker y el puerto local.
  *
  * Lo que comprueba (cada línea sale como «ok» o «FALLO»; el código de salida es 1 si algo falla):
- *   - la imagen: usuario `node`, `/data` de 1000:1000, sin `IARK_WORKSPACE` fijado y con HEALTHCHECK (que consulta `/healthz`, el «vivo»
+ *   - la imagen: usuario `node`, `/data` de 1000:1000, sin `IARK_WORKSPACE` fijado, con `IARK_ACCOUNTS_STORE=sqlite` y con HEALTHCHECK (que consulta `/healthz`, el «vivo»
  *     que no depende del disco; `/readyz` es el «listo» para un balanceador o un monitor);
  *   - sin variables arranca la demo (API y sitio, sin proyectos ni cuentas); con `IARK_WORKSPACE` y sin autenticación se niega;
  *   - con cuentas, un volumen con nombre y el secreto por archivo (Docker secrets), con las mismas opciones de seguridad que
  *     `deploy/docker-compose.yml` (`--read-only --cap-drop ALL …`): el HEALTHCHECK sigue sano, inicio de sesión completo, crear un
  *     proyecto, que quede en el volumen con el dueño y el modo correctos, que la sesión y el proyecto sobrevivan a
- *     `docker restart` y a sustituir el contenedor por otro (actualizar la imagen), una copia de `/data` con el servicio en marcha
- *     restaurada en un volumen nuevo, y que `docker stop` salga con código 0;
+ *     `docker restart` y a sustituir el contenedor por otro (actualizar la imagen), una copia con el servicio en marcha (la base con
+ *     `iark accounts backup` y el resto de `/data` con tar) restaurada en un volumen nuevo, y que `docker stop` salga con código 0.
+ *     Las cuentas van en la base SQLite (`/data/accounts.db`), el almacén por omisión de la imagen;
+ *   - actualizar desde cuentas en JSON: con `IARK_ACCOUNTS_IMPORT` el arranque importa el JSON de antes a la base (la sesión y los
+ *     proyectos siguen, el JSON no se toca, queda una copia de seguridad) y reiniciar no repite nada;
  *   - `IARK_SIGNUP=invite` deja fuera a quien no es administrador (`#iark_error=not_invited`);
  *   - `--cors` deja volver al sitio de GitHub Pages tras entrar y no a otro origen; `--trust-proxy` da a cada cliente su freno;
  *   - un bind mount con el dueño 1000:1000 funciona (y con el de root el servicio dice por qué no arranca); con el disco de root,
@@ -19,7 +22,7 @@
  *   - el secreto por archivo ilegible o vacío, el Client secret equivocado (`#iark_error=login_failed`, sin nada en el registro) y
  *     las variables que faltan dan lo que la guía de despliegue dice;
  *   - `/healthz` y `/readyz` responden sin sesión (también con la autenticación activa) y con `X-Request-Id`; `/metrics` no existe si no se
- *     activó (`--metrics`); y ni el secreto, ni las sesiones, ni los códigos de un solo uso aparecen en `docker logs` ni en el archivo de cuentas.
+ *     activó (`--metrics`); y ni el secreto, ni las sesiones, ni los códigos de un solo uso aparecen en `docker logs` ni en la base de cuentas.
  *
  * Uso (desde la raíz del repositorio; hace falta Docker y Linux, por `--network host`):
  *   npx tsx scripts/docker-smoke-cuentas.ts                          # construye la imagen y la prueba
@@ -206,7 +209,8 @@ function secretFile(content: string, owner: '1000:1000' | 'root'): string {
 function accountsEnv(fake: FakeGithub, port: number, extra: Record<string, string> = {}): Record<string, string> {
   return {
     IARK_WORKSPACE: '/data/workspace',
-    IARK_ACCOUNTS: '/data/accounts.json',
+    // El almacén (IARK_ACCOUNTS_STORE) no se pone a propósito: la imagen trae `sqlite` por omisión, y eso es lo que se prueba.
+    IARK_ACCOUNTS: '/data/accounts.db',
     IARK_GITHUB_CLIENT_ID: FAKE_CLIENT_ID,
     IARK_GITHUB_URL: fake.url,
     IARK_GITHUB_API_URL: fake.url,
@@ -274,6 +278,7 @@ async function main(): Promise<number> {
       const config = JSON.parse(dockerOut(['image', 'inspect', image, '--format', '{{json .Config}}'])) as { User?: string; Env?: string[]; Healthcheck?: { Test?: string[] } };
       check(config.User === 'node', 'corre como el usuario «node» (no root)', `Config.User = ${config.User}`);
       check(!(config.Env ?? []).some((e) => e.startsWith('IARK_WORKSPACE=')), 'no fija IARK_WORKSPACE (la red de seguridad de escuchar sin autenticación sigue puesta)');
+      check((config.Env ?? []).includes('IARK_ACCOUNTS_STORE=sqlite'), 'fija IARK_ACCOUNTS_STORE=sqlite (las cuentas van en una base transaccional; sin IARK_ACCOUNTS no activa nada)');
       check(Boolean(config.Healthcheck?.Test?.length), 'declara un HEALTHCHECK');
       check((config.Healthcheck?.Test ?? []).join(' ').includes('/healthz'), 'y el HEALTHCHECK consulta /healthz (vivo, sin tocar el disco), no una ruta de la API', JSON.stringify(config.Healthcheck?.Test));
       check(asRoot('/tmp', 'stat -c "%u:%g %a" /data') === '1000:1000 755', '/data existe y es de 1000:1000 (node)');
@@ -396,12 +401,16 @@ async function main(): Promise<number> {
       check((await exchange('198.51.100.9')).status === 400, 'otra dirección detrás del proxy no queda frenada');
       check((await exchange('198.51.100.9, 203.0.113.7')).status === 429, 'y se usa la última entrada: anteponer otra dirección no sirve para esquivar el freno');
 
-      const files = asRoot(`${volume}`, 'cd /d && stat -c "%u:%g %a %n" . accounts.json workspace && ls workspace/tienda').split('\n');
+      const files = asRoot(`${volume}`, 'cd /d && stat -c "%u:%g %a %n" . accounts.db workspace && ls workspace/tienda').split('\n');
       check(files[0] === '1000:1000 755 .', 'el volumen con nombre heredó /data de la imagen: dueño 1000:1000', files.join('\n'));
-      check(files[1] === '1000:1000 600 accounts.json', 'accounts.json existe, es de node y su modo es 0600', files.join('\n'));
+      check(files[1] === '1000:1000 600 accounts.db', 'accounts.db (la base SQLite de cuentas, el almacén por omisión de la imagen) existe, es de node y su modo es 0600', files.join('\n'));
+      check(/almacén sqlite/.test(startup), 'el arranque dice que las cuentas están en el almacén sqlite', startup);
       check(files[2]?.startsWith('1000:1000') && files.length > 3, 'el proyecto está en el volumen (workspace/tienda con sus archivos)', files.join('\n'));
-      const accounts = asRoot(volume, 'cat /d/accounts.json');
-      check(!accounts.includes(token) && !accounts.includes(FAKE_CLIENT_SECRET) && /"hash"/.test(accounts), 'el archivo de cuentas guarda solo el hash de la sesión, ni la sesión ni el secreto');
+      // la base y su diario WAL (lo último escrito puede estar aún en el -wal): ni la sesión ni el secreto en ninguno de los dos
+      const accounts = asRoot(volume, 'cat /d/accounts.db*');
+      check(!accounts.includes(token) && !accounts.includes(FAKE_CLIENT_SECRET) && /CREATE TABLE sessions/.test(accounts), 'la base de cuentas guarda solo el hash de la sesión, ni la sesión ni el secreto');
+      const info = dockerOut(['exec', svc.name, 'node', 'dist/cli/index.js', 'accounts', 'info']);
+      check(/diario: wal/.test(info) && /integridad: ok/.test(info), '`iark accounts info` dentro del contenedor (con el servicio en marcha) dice que la base está en WAL y sana', info);
       console.log(`  info  ${dockerOut(['exec', svc.name, 'sh', '-c', 'grep -E "VmRSS|Threads" /proc/1/status']).replace(/\s+/g, ' ')}`);
 
       // reiniciar: la sesión y el proyecto siguen
@@ -424,12 +433,15 @@ async function main(): Promise<number> {
       check(dockerOut(['exec', svc.name, 'sh', '-c', 'grep ^Uid: /proc/1/status']).split(/\s+/).slice(1, 5).every((u) => u === '1000'), 'sigue corriendo con uid 1000 (node), con el sistema de archivos de solo lectura y sin capacidades');
       // copia de seguridad con el servicio en marcha (lo que explica la guía) y restauración en un volumen nuevo, como en otra máquina
       const backups = newHostDir('copias', 'root');
-      const tarball = dockerOut(['run', '--rm', '--user', '0', '-v', `${volume}:/data:ro`, '-v', `${backups}:/backup`, '--entrypoint', 'sh', image, '-c', 'tar czf /backup/iark-data.tar.gz -C /data . && ls -l /backup/iark-data.tar.gz']);
-      check(/iark-data\.tar\.gz/.test(tarball), 'la copia de /data con el servicio en marcha se hace (tar en un contenedor aparte, con el volumen en solo lectura)', tarball);
+      // la base se copia con `iark accounts backup` (una copia coherente de la base viva; un tar de accounts.db con su -wal no lo es) y el resto de /data con tar
+      const dump = dockerOut(['exec', svc.name, 'node', 'dist/cli/index.js', 'accounts', 'backup', '/data/accounts-copia.db']);
+      check(/integridad: ok/.test(dump), '`iark accounts backup` hace la copia de la base con el servicio en marcha y comprueba su integridad', dump);
+      const tarball = dockerOut(['run', '--rm', '--user', '0', '-v', `${volume}:/data:ro`, '-v', `${backups}:/backup`, '--entrypoint', 'sh', image, '-c', 'tar czf /backup/iark-data.tar.gz -C /data --exclude=./accounts.db --exclude=./accounts.db-wal --exclude=./accounts.db-shm . && ls -l /backup/iark-data.tar.gz']);
+      check(/iark-data\.tar\.gz/.test(tarball), 'la copia del resto de /data con el servicio en marcha se hace (tar en un contenedor aparte, con el volumen en solo lectura)', tarball);
       check(docker(['stop', svc.name]).status === 0, 'se detiene el servicio');
       dockerOut(['rm', svc.name]);
       const restored = newVolume();
-      dockerOut(['run', '--rm', '--user', '0', '-v', `${restored}:/data`, '-v', `${backups}:/backup:ro`, '--entrypoint', 'sh', image, '-c', 'tar xzf /backup/iark-data.tar.gz -C /data && chown -R 1000:1000 /data']);
+      dockerOut(['run', '--rm', '--user', '0', '-v', `${restored}:/data`, '-v', `${backups}:/backup:ro`, '--entrypoint', 'sh', image, '-c', 'tar xzf /backup/iark-data.tar.gz -C /data && rm -f /data/accounts.db-wal /data/accounts.db-shm && mv /data/accounts-copia.db /data/accounts.db && chown -R 1000:1000 /data']);
       const fresh = await startService({ kind: 'restaurado', port, flags: HARDENED, env: accountsEnv(fake, port, { IARK_GITHUB_CLIENT_SECRET_FILE: SECRET_PATH }), mounts: [`${restored}:/data`, `${secret}:${SECRET_PATH}:ro`], args: ['--trust-proxy', `--cors=${PAGES_ORIGIN}`] });
       await waitHealthy(fresh.name);
       const back = await get(fresh.base, '/api/projects', token);
@@ -443,6 +455,54 @@ async function main(): Promise<number> {
       noLeaks(svc.name, { 'la sesión': token });
     });
 
+    // ── actualizar un servicio que guardaba las cuentas en JSON (la imagen de antes) a la imagen con SQLite ──
+    await scenario('Actualizar desde cuentas en JSON: IARK_ACCOUNTS_IMPORT las pasa a SQLite sin perder la sesión ni los proyectos', async () => {
+      const volume = newVolume();
+      const secret = secretFile(FAKE_CLIENT_SECRET, '1000:1000');
+      const port = await freePort();
+      const run = async (extra: Record<string, string>): Promise<{ name: string; base: string }> => {
+        const svc = await startService({
+          kind: 'migracion',
+          port,
+          flags: HARDENED,
+          env: accountsEnv(fake, port, { IARK_GITHUB_CLIENT_SECRET_FILE: SECRET_PATH, ...extra }),
+          mounts: [`${volume}:/data`, `${secret}:${SECRET_PATH}:ro`],
+          args: ['--trust-proxy'],
+        });
+        await waitHealthy(svc.name);
+        return svc;
+      };
+      // antes: como guardaba las cuentas la imagen anterior (un JSON)
+      let svc = await run({ IARK_ACCOUNTS: '/data/accounts.json', IARK_ACCOUNTS_STORE: 'json' });
+      check(/almacén json/.test(logs(svc.name)), 'con IARK_ACCOUNTS_STORE=json el servicio sigue guardando las cuentas en JSON (el almacén de antes)', logs(svc.name));
+      const login = await loginWithGithub(svc.base, fake, ADMIN);
+      const token = login.token;
+      if (!token) throw new Error('sin sesión no se puede seguir');
+      const created = await fetch(`${svc.base}/api/projects`, { method: 'POST', headers: json(token), body: JSON.stringify({ name: 'Heredado' }) });
+      check(created.status === 201, 'se crea un proyecto en el servicio de antes', await created.text());
+      const before = asRoot(volume, 'sha256sum /d/accounts.json');
+      check(docker(['stop', svc.name]).status === 0, 'se detiene el servicio de antes');
+      dockerOut(['rm', svc.name]);
+
+      // después: la imagen nueva, con la base SQLite en el mismo volumen y el JSON de antes por importar (como deja el docker-compose)
+      svc = await run({ IARK_ACCOUNTS: '/data/accounts.db', IARK_ACCOUNTS_STORE: 'sqlite', IARK_ACCOUNTS_IMPORT: '/data/accounts.json' });
+      const startup = logs(svc.name);
+      check(/Cuentas importadas de «\/data\/accounts\.json»: 1 cuenta, 1 sesión y 1 pertenencia a 1 proyecto/.test(startup) && /almacén sqlite/.test(startup), 'el arranque cuenta que importó el JSON y que usa el almacén sqlite', startup);
+      const kept = await get(svc.base, '/api/projects', token);
+      check(kept.status === 200 && kept.body.some?.((p: { id: string; role: string }) => p.id === 'heredado' && p.role === 'admin'), 'la sesión de antes sigue valiendo y el proyecto sigue siendo suyo', JSON.stringify(kept));
+      const listing = asRoot(volume, 'cd /d && sha256sum accounts.json && stat -c "%u:%g %a %n" accounts.db && ls accounts.json.bak-* | wc -l && stat -c "%a" accounts.json.bak-*').split('\n');
+      check(listing[0] === before, 'el JSON original no se modificó', `${before}\n${listing[0]}`);
+      check(listing[1] === '1000:1000 600 accounts.db' && listing[2]?.trim() === '1' && listing[3] === '600', 'la base es de node (0600) y hay una sola copia de seguridad del JSON, también 0600', listing.join('\n'));
+      // reiniciar con la importación todavía puesta no repite nada
+      check(docker(['restart', svc.name]).status === 0, '`docker restart` con IARK_ACCOUNTS_IMPORT todavía puesto termina bien');
+      await waitHealthy(svc.name);
+      const all = logs(svc.name); // el registro conserva los dos arranques: la importación sale una sola vez y no hay avisos
+      check((all.match(/Cuentas importadas/g) ?? []).length === 1 && !/aviso:/.test(all), 'y no vuelve a importar ni avisa de nada', all);
+      check(asRoot(volume, 'ls /d/accounts.json.bak-* | wc -l').trim() === '1', 'ni hace otra copia de seguridad');
+      check((await get(svc.base, '/api/whoami', token)).status === 200, 'y la sesión sigue valiendo');
+      check(docker(['stop', svc.name]).status === 0 && state(svc.name, '{{.State.ExitCode}}') === '0', '`docker stop` lo detiene con código 0');
+    });
+
     // ── bind mount: el dueño de la carpeta del anfitrión decide ──
     await scenario('Bind mount de una carpeta del anfitrión (secreto por variable, entrada abierta, sin --cors)', async () => {
       const port = await freePort();
@@ -451,7 +511,7 @@ async function main(): Promise<number> {
       const rootDir = newHostDir('bind-root', 'root');
       const denied = await startService({ kind: 'bind-root', port, env: env(), mounts: [`${rootDir}:/data`] });
       const refused = await waitExit(denied.name);
-      check(refused.code !== 0 && /No se pudo escribir el archivo de cuentas «\/data\/accounts\.json» \(EACCES\)/.test(refused.output), 'con una carpeta de root el servicio no arranca y dice que no puede escribir el archivo de cuentas (EACCES)', `código ${refused.code}\n${refused.output}`);
+      check(refused.code !== 0 && /No se pudo crear la base de cuentas «\/data\/accounts\.db» \(EACCES\)/.test(refused.output), 'con una carpeta de root el servicio no arranca y dice que no puede crear la base de cuentas (EACCES)', `código ${refused.code}\n${refused.output}`);
 
       const dir = newHostDir('bind-1000', '1000:1000');
       const svc = await startService({ kind: 'bind', port, env: env({ IARK_SIGNUP: 'open' }), mounts: [`${dir}:/data`], args: ['--trust-proxy', '--cors='] });
@@ -465,7 +525,7 @@ async function main(): Promise<number> {
       check(created.status === 201, 'crea un proyecto', await created.text());
       const preflight = await fetch(`${svc.base}/api/projects`, { method: 'OPTIONS', headers: { Origin: PAGES_ORIGIN, 'Access-Control-Request-Method': 'GET' } });
       check(!preflight.headers.get('access-control-allow-origin'), 'sin --cors, ningún origen ajeno recibe Access-Control-Allow-Origin');
-      const listing = asRoot(dir, 'cd /d && stat -c "%u:%g %a %n" accounts.json workspace workspace/* && ls workspace/mi-proyecto').split('\n');
+      const listing = asRoot(dir, 'cd /d && stat -c "%u:%g %a %n" accounts.db workspace workspace/* && ls workspace/mi-proyecto').split('\n');
       check(listing.slice(0, 3).every((l) => l.startsWith('1000:1000')) && listing.length > 3, 'los archivos quedan en la carpeta del anfitrión, de 1000:1000', listing.join('\n'));
       console.log(`  info  el secreto por variable se ve con «docker inspect» (por eso el compose usa Docker secrets): ${state(svc.name, '{{json .Config.Env}}').includes(FAKE_CLIENT_SECRET) ? 'sí se ve' : 'no se ve'}`);
       noLeaks(svc.name, { 'el secreto de la OAuth App': FAKE_CLIENT_SECRET, 'la sesión': login.token, 'el código de un solo uso': login.fragment.get('iark_code') ?? undefined });
@@ -482,7 +542,7 @@ async function main(): Promise<number> {
       if (!login.token) throw new Error('sin sesión no se puede seguir');
       const created = await fetch(`${svc.base}/api/projects`, { method: 'POST', headers: json(login.token), body: JSON.stringify({ name: 'En disco de root' }) });
       check(created.status === 201, 'y guarda proyectos en él', await created.text());
-      check(asRoot(dir, 'stat -c "%u:%g" /d/accounts.json') === '0:0', 'los archivos son de root (por eso es el último recurso: solo cuando la plataforma no deja cambiar el dueño del disco)');
+      check(asRoot(dir, 'stat -c "%u:%g" /d/accounts.db') === '0:0', 'los archivos son de root (por eso es el último recurso: solo cuando la plataforma no deja cambiar el dueño del disco)');
     });
   } finally {
     await fake.stop();

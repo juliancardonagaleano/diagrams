@@ -6,7 +6,7 @@ El proyecto está en español: documentación, comentarios del código, mensajes
 
 ## Requisitos
 
-- **Node 22** (el repositorio trae un `.nvmrc`; `nvm use` lo selecciona). `package.json` exige `>=22.12.0` en `engines` porque lo piden de verdad `commander` 15 (el CLI), Vitest 5 y Mermaid 12.
+- **Node 22** (el repositorio trae un `.nvmrc`; `nvm use` lo selecciona). `package.json` exige `>=22.13.0` en `engines` porque lo piden de verdad `commander` 15 (el CLI), Vitest 5, Mermaid 12 y el almacén SQLite de las cuentas (`node:sqlite`, disponible sin banderas desde la 22.13).
 - **npm**, que viene con Node. Instala las dependencias con `npm ci` (respeta `package-lock.json`; no uses `npm install` salvo que cambies dependencias a propósito).
 - Para las pruebas de extremo a extremo, un Chromium: `playwright.config.ts` usa `CHROMIUM_PATH` o, si no existe, `/opt/pw-browsers/chromium`, y no descarga ninguno.
 - Docker solo si tocas el `Dockerfile`, `deploy/` o quieres ejecutar `npm run docker:smoke` (no forma parte de `npm test`).
@@ -26,7 +26,7 @@ Monorepo con workspaces de npm (`packages/*`). Los paquetes internos se consumen
 | `packages/kernel/` | `@iark/kernel`: lo común a todas las especialidades. Contrato `DomainModule`, registro de módulos, URN, manifiesto de federación, IA estructurada, sintaxis Mermaid, layout y SVG de grafos, diff, proyectos. No toca el DOM ni el sistema de archivos. |
 | `packages/domain-c4/`, `domain-integration/`, `domain-data/`, `domain-enterprise/`, `domain-platform/`, `domain-security/` | Un módulo de dominio por especialidad: esquema, validación, vistas, importadores y exportadores, prompts de IA y editor. Sin DOM. |
 | `src/cli/` | El CLI `iark` (commander), `iark serve` y su API, almacenes de proyectos y cuentas. |
-| `src/app/` | El editor C4 (React, Vite, React Flow, Semi UI, Tailwind). |
+| `src/app/` | El editor C4 clásico (React, Vite, React Flow, Semi UI, Tailwind). El banco de trabajo (`src/modules-app/`) abre C4 en su lienzo común, descrito por `packages/domain-c4/src/editor.ts`. |
 | `src/modules-app/`, `src/trace-app/`, `src/shell/`, `src/projects/` | Banco de trabajo de módulos, trazabilidad, shell de la suite y proyectos guardados en el navegador. |
 | `src/embed/` | Protocolo `postMessage`, SDK de anfitrión y Web Component `<iark-module>`. |
 | `tests/` | Pruebas de integración (`tests/*.test.ts`), los datos de prueba (`tests/fixtures/`) y los e2e de Playwright (`tests/e2e/`). Las pruebas unitarias viven junto al código (`*.test.ts(x)`). |

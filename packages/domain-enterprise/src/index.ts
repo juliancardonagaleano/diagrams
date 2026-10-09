@@ -10,6 +10,7 @@ export { toDrawio } from './export/drawio';
 export { fromMermaid, looksLikeMatrixBlock, EnterpriseImportError, type EnterpriseImportOptions, type EnterpriseImportResult } from './import/fromMermaid';
 export { fromIntegrationJson } from './import/fromIntegration';
 export { fromArchimate, looksLikeArchimate, type ArchimateImportOptions } from './import/fromArchimate';
+export { fromBpmn, looksLikeBpmn } from './import/fromBpmn';
 export { enterpriseAiSpec, generatedEnterpriseSchema, type GeneratedEnterprise } from './ai/generation';
 export { enterpriseCommands } from './commands';
 export { enterpriseEditor } from './editor';

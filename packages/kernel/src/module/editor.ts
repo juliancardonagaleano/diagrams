@@ -38,6 +38,11 @@ export interface NodeNotation {
 export interface EdgeNotation {
   kind: string;
   label: string;
+  /**
+   * Si el tipo se ofrece en el selector de relaciones de la barra (por defecto sí). `false` para un tipo derivado que el módulo
+   * dibuja pero no se crea a mano (la relación implícita de C4, que sube hasta el ancestro visible).
+   */
+  addable?: boolean;
   stroke: string;
   line?: LineKind;
   width?: number;
@@ -54,6 +59,8 @@ export interface EditorNode {
   id: string;
   kind: string;
   label: string;
+  /** Figura propia del nodo, en lugar de la de su tipo (un contenedor C4 que es una base de datos o un navegador). */
+  shape?: ShapeKind;
   /** Segunda línea: tecnología, responsable… */
   sublabel?: string;
   /** Nodo contenedor: si también está en el grafo, este se dibuja como grupo. */
@@ -146,7 +153,12 @@ export interface EditorTarget {
   target?: string;
 }
 
-export type EditResult<TDoc> = { ok: true; document: TDoc; id?: string } | { ok: false; reason: string };
+/**
+ * Resultado de una operación. `id` es el elemento que queda seleccionado; `view` pide al lienzo que abra esa vista (bajar al
+ * detalle de un sistema C4, subir de nivel…). Una operación que solo navega devuelve el mismo `document` que recibió: el lienzo
+ * no lo registra como edición (no ensucia el historial de deshacer).
+ */
+export type EditResult<TDoc> = { ok: true; document: TDoc; id?: string; view?: string } | { ok: false; reason: string };
 
 /**
  * Operación del módulo sobre la selección actual (p. ej. «Agrupar en dominio»). El lienzo las ofrece en su barra de
@@ -158,11 +170,19 @@ export interface EditorAction<TDoc> {
   hint?: string;
   /** `none`: no usa la selección; `one`: exactamente un elemento; `many`: uno o más. */
   needs: 'none' | 'one' | 'many';
-  /** Si se pide un texto antes de ejecutarla (el nombre del dominio); `suggestions` propone valores ya usados. */
-  prompt?: { label: string; placeholder?: string; initial?(document: TDoc, ids: string[]): string; suggestions?(document: TDoc): string[] };
+  /**
+   * Si se pide un texto antes de ejecutarla (el nombre del dominio); `suggestions` propone valores ya usados. `viewId` es la vista
+   * abierta, por si lo propuesto depende de ella (los elementos del modelo que aún no están en la vista).
+   */
+  prompt?: { label: string; placeholder?: string; initial?(document: TDoc, ids: string[], viewId?: string): string; suggestions?(document: TDoc, viewId?: string): string[] };
   /** Motivo por el que no se puede ejecutar con esta selección, o `undefined` si se puede. */
-  disabled?(document: TDoc, ids: string[]): string | undefined;
-  run(document: TDoc, ids: string[], input?: string): EditResult<TDoc>;
+  disabled?(document: TDoc, ids: string[], viewId?: string): string | undefined;
+  run(document: TDoc, ids: string[], input?: string, viewId?: string): EditResult<TDoc>;
+  /**
+   * Atajo de teclado cuando no hay otro significado para él: `alt+down` (Alt+↓) la lanza si el elemento seleccionado no enlaza con
+   * otro módulo (si enlaza, Alt+↓ sigue el enlace); `alt+up` (Alt+↑), si no hay un diagrama al que volver. Es como C4 baja y sube de nivel.
+   */
+  shortcut?: 'alt+down' | 'alt+up';
 }
 
 export type AttachmentLanguage = 'json' | 'yaml' | 'proto' | 'graphql' | 'xml' | 'text';
@@ -265,13 +285,21 @@ export interface EditorSpec<TDoc> {
   update(document: TDoc, id: string, patch: Record<string, unknown>): EditResult<TDoc>;
   /** Borra un nodo o relación y lo que dependa de él. */
   remove(document: TDoc, id: string): EditResult<TDoc>;
-  /** Explica por qué no se puede unir ese origen con ese destino con ese tipo de relación; `undefined` si se puede. */
-  canConnect?(document: TDoc, kind: string, sourceId: string, targetId: string): string | undefined;
+  /** Explica por qué no se puede unir ese origen con ese destino con ese tipo de relación en la vista `viewId`; `undefined` si se puede. */
+  canConnect?(document: TDoc, kind: string, sourceId: string, targetId: string, viewId?: string): string | undefined;
   /**
    * Colocación propia de una vista (p. ej. la cuadrícula anidada de un mapa de capacidades). Si devuelve `undefined`, el
-   * lienzo aplica el autolayout común por capas.
+   * lienzo aplica el autolayout común por capas. `options.fresh` lo pide el botón Autolayout: recalcular la colocación
+   * aunque el documento ya guarde posiciones (C4 las guarda en cada vista y, sin él, las respeta). `options.signal` corta el
+   * cálculo si el lienzo ya no lo necesita (cambió de vista o la persona pulsó «Cancelar»): hay que rechazar con un `AbortError`.
    */
-  layout?(document: TDoc, viewId?: string): GraphLayout | undefined | Promise<GraphLayout | undefined>;
+  layout?(document: TDoc, viewId?: string, options?: { fresh?: boolean; signal?: AbortSignal }): GraphLayout | undefined | Promise<GraphLayout | undefined>;
+  /**
+   * Camino de vistas que lleva hasta `viewId`, de la más general a la abierta (C4: «C1 Contexto › C2 Contenedores › C3
+   * Componentes»). Si tiene más de una, el lienzo la muestra sobre el diagrama y cada tramo abre su vista. Sin él, o con una
+   * sola, no se muestra nada.
+   */
+  breadcrumb?(document: TDoc, viewId?: string): Array<{ id: string; label: string }>;
   /**
    * Doble clic sobre el nodo `id`: operación propia del módulo (p. ej. marcar o desmarcar una celda de una matriz). `undefined`
    * si no significa nada: entonces el doble clic sigue el enlace del elemento, si lo tiene.

@@ -1,0 +1,36 @@
+apiVersion: v2
+name: tienda
+description: Tienda en línea con su base de datos, caché y cola de mensajes
+type: application
+version: 0.4.2
+appVersion: "2.7.0"
+kubeVersion: ">=1.27.0-0"
+sources:
+  - https://git.example.com/comercio/tienda
+maintainers:
+  - name: equipo-tienda
+    email: tienda@example.com
+dependencies:
+  - name: postgresql
+    version: 13.2.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: 18.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: rabbitmq
+    version: 12.x.x
+    repository: oci://registry-1.docker.io/bitnamicharts
+    condition: rabbitmq.enabled
+  - name: common
+    version: 2.x.x
+    repository: https://charts.bitnami.com/bitnami
+  - name: pagos
+    version: 1.1.0
+    repository: file://../pagos
+    alias: pasarela
+  - name: kube-prometheus-stack
+    version: 55.0.0
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: monitoring.enabled

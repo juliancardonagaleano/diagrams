@@ -100,15 +100,15 @@ export function ComparePanel({ accept, analysis, compare, onLoad, onClear, onFoc
             if (entries.length === 0) return null;
             return (
               <section key={kind} className="wb-compare-section" aria-label={title} data-testid={`compare-${kind}`}>
-                <h3>
+                <h2>
                   <span className={`wb-compare-sign ${kind}`} aria-hidden="true">
                     {sign}
                   </span>{' '}
                   {title} ({entries.length})
-                </h3>
+                </h2>
                 {byCollection(entries).map(([collection, group]) => (
                   <div key={collection} className="wb-compare-group">
-                    <h4>{collection}</h4>
+                    <h3>{collection}</h3>
                     <ul>
                       {group.map((e) => (
                         <ChangeRow key={`${e.collection}/${e.id}`} entry={e} kind={kind} onFocus={onFocus} />

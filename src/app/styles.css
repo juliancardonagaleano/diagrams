@@ -45,7 +45,7 @@ body {
   color: var(--semi-color-text-2);
 }
 .text-color-3 {
-  color: var(--semi-color-text-3);
+  color: var(--c4-text-muted);
 }
 .segmented-item-active {
   background-color: var(--semi-color-bg-2);
@@ -74,7 +74,10 @@ body {
 }
 .react-flow__attribution {
   background: transparent;
-  color: var(--semi-color-text-3);
+  color: var(--c4-text-muted);
+}
+.react-flow__attribution a {
+  color: var(--c4-text-muted);
 }
 .react-flow__node {
   cursor: grab;
@@ -396,9 +399,34 @@ body {
 }
 .c4-menu-item {
   padding: 4px 12px;
+  border: 0;
   border-radius: 4px;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
+  font: inherit;
   font-size: 14px;
+}
+/* Cabeceras de tarjeta: el botón ocupa la fila y se ve igual que antes. */
+.c4-card-main,
+.c4-card-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.c4-card-main {
+  flex: 1;
+}
+.c4-card-toggle {
+  flex: none;
 }
 
 .semi-tabs-bar-card .semi-tabs-tab {
@@ -406,4 +434,73 @@ body {
 }
 .semi-tabs-content {
   padding: 0;
+}
+
+/* ───────────── Accesibilidad ───────────── */
+/* Foco visible en todo lo que se pueda operar con teclado (WCAG 2.4.7); el anillo cumple 3:1 con la superficie (1.4.11). */
+:focus-visible {
+  outline: 2px solid var(--c4-focus);
+  outline-offset: 2px;
+}
+/* El lienzo es siempre claro en el modo claro y oscuro en el oscuro; los nodos llevan su propio anillo, de alto contraste. */
+.react-flow__node:focus-visible {
+  outline: none;
+}
+.react-flow__node:focus-visible > * {
+  outline: 3px solid var(--c4-focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.c4-skip {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 2000;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: var(--c4-primary);
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.c4-skip:focus {
+  top: 8px;
+}
+main:focus {
+  outline: none;
+}
+.c4-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* Movimiento reducido (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.c4-title-button {
+  max-width: 100%;
+  padding-block: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Sin los botones de desplazamiento de Semi (`collapsible`), que dejaban dentro del `tablist` hijos que no son pestañas, las pestañas se desplazan. */
+.c4-tabbar .semi-tabs-bar {
+  overflow-x: auto;
 }

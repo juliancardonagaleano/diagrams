@@ -27,7 +27,7 @@ npm run evals      # evals de prompts de la IA, offline con respuestas grabadas 
 npm run evals:live # los mismos casos contra el modelo REAL configurado: gasta tokens, exige --yes (ver ia.md, «Evals de prompts»)
 ```
 
-Requisitos: **Node 22.12 o superior** (el que usan la imagen Docker y el CI; `@types/node` es la 22; lo fijan `.nvmrc` y `engines` de `package.json`, que llegan en la PR de gobernanza). Las dependencias de ejecución (`commander` 15, `vitest` 5, `mermaid` 12) no admiten Node 20.
+Requisitos: **Node 22.13 o superior** (el que usan la imagen Docker y el CI; `@types/node` es la 22; lo fijan `.nvmrc` y `engines` de `package.json`, que llegan en la PR de gobernanza). Las dependencias de ejecución (`commander` 15, `vitest` 5, `mermaid` 12) no admiten Node 20.
 
 ## Estructura del proyecto
 
@@ -45,11 +45,11 @@ src/cli/               comandos de iark (commander): módulos, `trace`, `diff`, 
 src/cli/plugins/       módulos de terceros: `config.ts` (iark.config.json y qué configuración se elige), `resolve.ts` (especificadores) y `load.ts` (import y comprobación de la forma)
 src/embed/             protocolo postMessage (C4 y de módulos), SDK de anfitrión y Web Component <iark-module>
 src/projects/          proyectos guardados en la app web: almacén en IndexedDB y almacén remoto (servidor), su configuración, la sesión con autoguardado y el gestor
-src/modules-app/       banco de trabajo genérico de módulos (controlador sin React, editor, protocolo del puente)
+src/modules-app/       banco de trabajo genérico de módulos (controlador sin React, lienzo común de los seis módulos —C4 incluido—, protocolo del puente)
 src/shell/             shell de la suite (descubrimiento por manifiesto)
 src/trace-app/         vista web de trazabilidad entre módulos (tablero sin DOM + página)
 src/mermaid-preview/   vista previa de Mermaid (la librería `mermaid` se carga solo al pedirla)
-src/app/               editor React (Vite, React Flow, Semi UI, Tailwind)
+src/app/               editor C4 clásico (React, Vite, React Flow, Semi UI, Tailwind); el banco de trabajo ya no lo incrusta
 schema/                JSON Schema del documento y del formato de generación
 examples/              documentos de ejemplo por módulo, páginas anfitrionas de demostración y `plugin-riesgos/` (un módulo de terceros completo; ver docs/plugins.md)
 public/.well-known/    manifiesto de federación publicado con el sitio (iark.json)
@@ -86,9 +86,11 @@ Los siete paquetes de `packages/` se pueden publicar en npm (comparten la versi�
   [Trampas conocidas](#trampas-conocidas).
 - **Rendimiento** (ver [rendimiento.md](rendimiento.md)): `npm test` y el CI **no** fallan por tiempo (el reloj de un CI varía demasiado). Fijan lo estructural: cuántos nodos se montan de verdad con 1000 en el DOM (`DiagramCanvas.scale.test.tsx`), que el cálculo se pide al hilo de trabajo y cae al hilo actual si no hay (`packages/kernel/src/graph/elk.test.ts`), el tamaño por trozo y por página de `dist/app` (`tests/e2e/tamano-trozos.spec.ts`, topes en `scripts/perf/limites.ts`) y un e2e con un diagrama grande (`tests/e2e/rendimiento-lienzo.spec.ts`). Los tiempos se miden a mano con `npm run perf` y se anotan en `docs/rendimiento.md`.
 - **Módulos de terceros** (`tests/plugins-cli.test.ts`): el CLI empaquetado de verdad contra `examples/plugin-riesgos` con un `@iark/kernel` compilado como se publica (`tests/helpers/pluginProject.ts`): cargar, descubrir la configuración, los fallos con código 2, que no se cargue de `--from-repo` ni de `--workspace`, y `iark serve --config` con su hilo de cálculo. Las unidades están en `src/cli/plugins/*.test.ts` y `src/cli/registry.test.ts`; `tests/paquetes.test.ts` vigila la declaración de los paquetes publicables.
+- **Accesibilidad** (`tests/e2e/accesibilidad.spec.ts`, axe-core): audita con menús y diálogos abiertos el editor clásico, el banco, la suite y la trazabilidad en los dos temas, y falla si encuentra violaciones críticas, serias o moderadas (salvo dos exclusiones nominales); con `A11Y_MODO=informe` solo mide y `npx tsx scripts/accesibilidad-resumen.ts` lo resume. Qué cubre, qué no y cómo repetirlo a mano: [accesibilidad.md](accesibilidad.md).
+- **Almacén de cuentas** (`src/cli/accounts/`): `tests/helpers/accountStoreContract.ts` es la batería común del contrato `AccountStore` y la corren el almacén JSON (`jsonStore.test.ts`) y el SQLite (`sqliteStore.test.ts`, que añade lo propio: ajustes, migraciones del esquema, rollback, dos conexiones, reinicio); `storeEquivalence.test.ts` los compara paso a paso con el mismo guion; `migrate.test.ts` prueba la importación del JSON; `sqliteProcesses.test.ts` lanza procesos de verdad (`tests/helpers/sqliteWorker.ts`) sobre una misma base (topes, cuentas duplicadas, `SIGKILL`); `serveAccountsSqlite.test.ts` pone dos servidores HTTP sobre una base, y `tests/accounts-cli.test.ts` prueba `iark serve` y `iark accounts` empaquetados. Para correr **toda** la API de cuentas contra SQLite en vez de JSON: `IARK_TEST_ACCOUNTS_STORE=sqlite npx vitest run src/cli/serve*.test.ts` (y lo mismo con Playwright: `IARK_TEST_ACCOUNTS_STORE=sqlite npx playwright test tests/e2e/projects-cloud-github.spec.ts`).
 - **Imagen Docker** (`npm run docker:smoke`, `scripts/docker-smoke-cuentas.ts`): construye la imagen (o usa una con `--image`), la ejecuta de verdad
   y recorre el servicio gestionado contra un GitHub de mentira (`tests/helpers/fakeGithub.ts`): inicio de sesión, un proyecto en el volumen, reiniciar y
-  sustituir el contenedor, copia de seguridad y restauración, bind mount, secreto por archivo, que `/healthz` y `/readyz` respondan (el `HEALTHCHECK` consulta `/healthz`), que `/metrics` no exista por omisión y que nada secreto salga en `docker logs`. Necesita Docker y Linux
+  sustituir el contenedor, copia de seguridad (`iark accounts backup`) y restauración, actualizar desde cuentas en JSON, bind mount, secreto por archivo, que `/healthz` y `/readyz` respondan (el `HEALTHCHECK` consulta `/healthz`), que `/metrics` no exista por omisión y que nada secreto salga en `docker logs`. Necesita Docker y Linux
   (`--network host`); sin ellos se salta con un mensaje. No forma parte de `npm test`.
 - **IA** (ver [ia.md](ia.md)): los clientes de modelo se simulan (`tests/helpers/modeloSimulado.ts`: un Chat Completions de mentira y un entorno hermético sin las `AI_*` de la sesión), así que `npm test` nunca llama a un modelo ni usa la red. `tests/evals.test.ts` corre los evals offline y comprueba que el ejecutor detecta lo que debe; `tests/ai-live.test.ts` es la única prueba que llamaría a un modelo real y **se salta** salvo con `IARK_LIVE_AI=1` y credenciales.
 

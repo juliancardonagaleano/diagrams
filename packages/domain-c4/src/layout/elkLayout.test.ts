@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isAbortError } from '@iark/kernel';
 import { sampleDocument } from '../model/sample';
 import { deriveView } from '../model/viewDerivation';
 import { toDrawio } from '../export/drawio/toDrawio';
@@ -7,6 +8,27 @@ import { autoLayoutDocument, layoutView } from './elkLayout';
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
+
+describe('layoutView: cancelar con una señal', () => {
+  it('con la señal ya abortada rechaza con AbortError: no se cae a la cuadrícula de reserva', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(layoutView(sampleDocument, 'contenedores', { force: true, signal: controller.signal })).rejects.toSatisfy(isAbortError);
+    await expect(layoutView(sampleDocument, 'contenedores', { force: true, fast: true, signal: controller.signal })).rejects.toSatisfy(isAbortError);
+  });
+
+  it('abortar a mitad de la estrategia inteligente corta el cálculo (no sigue con los demás candidatos)', async () => {
+    const controller = new AbortController();
+    const pending = layoutView(sampleDocument, 'contenedores', { force: true, signal: controller.signal });
+    controller.abort();
+    await expect(pending).rejects.toSatisfy(isAbortError);
+  });
+
+  it('sin señal calcula como siempre', async () => {
+    const r = await layoutView(sampleDocument, 'contexto', { force: true });
+    expect(r.positions).toHaveLength(4);
+  });
+});
 
 describe('layoutView (ELK)', () => {
   it('posiciona todos los nodos de la vista de contexto sin solapes', async () => {

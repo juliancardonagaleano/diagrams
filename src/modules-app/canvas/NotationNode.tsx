@@ -2,6 +2,7 @@ import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { memo } from 'react';
 import type { PortSide } from '@iark/kernel';
 import type { DiffMark, FlowNodeData } from './flow';
+import { oscurecerHasta } from '../a11y/contraste';
 import { ShapeSvg, textColorFor } from './shapes';
 
 export type NotationNodeType = Node<FlowNodeData, 'notation'>;
@@ -19,6 +20,17 @@ function DiffBadge({ id, diff }: { id: string; diff: DiffMark }) {
       {DIFF_TEXT[diff].text}
     </span>
   );
+}
+
+/** Fondo claro del lienzo (en los dos temas el dibujo va sobre claro): sobre él se mide el título de una zona. */
+const LIENZO = '#f4f5f7';
+
+/**
+ * Color del título de una zona: el de su borde, oscurecido lo justo para llegar a 4,5:1 (WCAG 1.4.3). El título lleva su propio fondo
+ * (`LIENZO`, ver `.cv-group-title`), así que se mide contra él y no contra la mezcla de teñidos de la zona y de las zonas que la contienen.
+ */
+function inkOfZone(line: string): string {
+  return oscurecerHasta(line, LIENZO);
 }
 
 const POSITIONS: Record<PortSide, Position> = { top: Position.Top, right: Position.Right, bottom: Position.Bottom, left: Position.Left };
@@ -45,6 +57,8 @@ function NotationNodeImpl({ data, selected }: NodeProps<NotationNodeType>) {
   // El icono propio del nodo (el servicio de una nube) sustituye al de su tipo; con color de acento es una ficha de proveedor.
   const provider = node.icon && node.icon.length > 0 && node.iconColor ? node.icon : undefined;
   const icon = node.icon ?? notation.icon;
+  // La figura propia del nodo (un contenedor C4 que es una base de datos) sustituye a la de su tipo.
+  const shape = node.shape ?? notation.shape;
 
   if (group) {
     const line = node.stroke ?? fill;
@@ -53,7 +67,7 @@ function NotationNodeImpl({ data, selected }: NodeProps<NotationNodeType>) {
       <div className="cv-group" style={{ width, height, borderColor: line, ...(node.border ? { borderStyle: node.border } : {}), ...tint }} data-selected={selected || undefined} data-diff={diff} data-testid={`node-${node.id}`} data-kind={node.kind}>
         <Handle type="target" position={Position.Left} />
         {provider && <ProviderIcon id={node.id} paths={provider} color={node.iconColor!} zone />}
-        <span className="cv-group-title" style={{ color: line }}>
+        <span className="cv-group-title" style={{ color: inkOfZone(line) }}>
           {notation.glyph} {notation.label}: {node.label}
           {node.ref && (
             <span className="cv-link cv-link-inline" title={`Enlaza con ${node.ref} (doble clic o Alt+↓ para ir)`} data-testid={`link-${node.id}`}>
@@ -68,8 +82,8 @@ function NotationNodeImpl({ data, selected }: NodeProps<NotationNodeType>) {
   }
 
   return (
-    <div className="cv-node" style={{ width, height, color: ink }} data-selected={selected || undefined} data-diff={diff} data-testid={`node-${node.id}`} data-kind={node.kind} data-shape={notation.shape}>
-      <ShapeSvg shape={notation.shape} width={width} height={height} fill={fill} stroke={node.stroke ?? notation.stroke} dashed={node.dashed} />
+    <div className="cv-node" style={{ width, height, color: ink }} data-selected={selected || undefined} data-diff={diff} data-testid={`node-${node.id}`} data-kind={node.kind} data-shape={shape}>
+      <ShapeSvg shape={shape} width={width} height={height} fill={fill} stroke={node.stroke ?? notation.stroke} dashed={node.dashed} />
       {!notation.bare && <Handle type="target" position={Position.Left} />}
       {provider ? (
         <ProviderIcon id={node.id} paths={provider} color={node.iconColor!} />

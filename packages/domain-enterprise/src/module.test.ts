@@ -608,9 +608,9 @@ describe('módulo', () => {
     const registry = new ModuleRegistry().register(enterpriseModule);
     expect(registry.require('enterprise')).toBe(enterpriseModule);
     expect(enterpriseModule.exporters.map((e) => e.id)).toEqual(['mermaid', 'svg', 'drawio']);
-    expect(enterpriseModule.importers.map((i) => i.id)).toEqual(['mermaid', 'archimate']);
+    expect(enterpriseModule.importers.map((i) => i.id)).toEqual(['mermaid', 'archimate', 'bpmn']);
     const manifest = buildManifest(registry, { name: 'Prueba', version: '0.0.0' });
-    expect(manifest.modules[0]).toMatchObject({ id: 'enterprise', importFormats: ['mermaid', 'archimate'], exportFormats: ['mermaid', 'svg', 'drawio'] });
+    expect(manifest.modules[0]).toMatchObject({ id: 'enterprise', importFormats: ['mermaid', 'archimate', 'bpmn'], exportFormats: ['mermaid', 'svg', 'drawio'] });
     expect(enterpriseModule.entities!(doc).map((e) => e.kind)).toEqual(expect.arrayContaining(['unit', 'capability', 'process', 'application', 'technology']));
     expect(enterpriseModule.validate(doc)).toEqual([]);
     expect((enterpriseModule.jsonSchema() as { type: string }).type).toBe('object');

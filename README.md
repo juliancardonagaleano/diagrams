@@ -2,7 +2,7 @@
 
 **Suite de diagramación de arquitectura**: seis especialidades (C4, integración, datos, empresarial, plataforma y seguridad) sobre un núcleo común, **federada y embebible**, con un CLI (`iark`) que dibuja y refina diagramas con IA. Antes «Diagramador C4»; el comando `c4diagram` se mantiene como alias de `iark`.
 
-- **Un JSON limpio y estable por módulo**, con esquema publicado ([`schema/`](schema/)) y sin coordenadas: la IA produce el modelo y el autolayout (ELK) produce la geometría. Se convierte a **`.drawio`**, **SVG** y **Mermaid**, y se importa desde `.drawio`, DSL de Structurizr, Mermaid, Terraform, Kubernetes, DDL de SQL, dbt y ArchiMate, según el módulo.
+- **Un JSON limpio y estable por módulo**, con esquema publicado ([`schema/`](schema/)) y sin coordenadas: la IA produce el modelo y el autolayout (ELK) produce la geometría. Se convierte a **`.drawio`**, **SVG** y **Mermaid**, y se importa desde `.drawio`, DSL de Structurizr, Mermaid, OpenAPI, AsyncAPI, Threat Dragon, Terraform, Kubernetes, CloudFormation, Helm, DDL de SQL, dbt, OpenLineage, ArchiMate y BPMN, según el módulo.
 - **Editor web interactivo** del modelo C4 (con la estética de [drawdb.app](https://www.drawdb.app/)) y un **banco de trabajo** con lienzo propio para las otras cinco especialidades.
 - **CLI `iark`**: genera con IA a partir de lenguaje natural (o leyendo un repositorio), valida, aplica autolayout, convierte, importa, compara versiones y traza entre módulos. Sin clave de API sirve con cualquier IA o agente (`iark prompt`).
 - **Federada y embebible**: cada instancia publica un manifiesto (`/.well-known/iark.json`) y se embebe por `<iframe>` + `postMessage`, con un SDK de anfitrión y el Web Component `<iark-module>`.
@@ -12,7 +12,7 @@
 
 ## Inicio rápido
 
-Requisitos: **Node 22.12 o superior** (el que usan la imagen Docker y el CI; lo fijan `.nvmrc` y `engines` de `package.json`).
+Requisitos: **Node 22.13 o superior** (el que usan la imagen Docker y el CI; lo fijan `.nvmrc` y `engines` de `package.json`; la 22.13 es la primera que trae `node:sqlite` sin banderas, que usa el almacén de cuentas del servicio gestionado).
 
 ```bash
 npm install
@@ -107,7 +107,7 @@ Una especialidad propia no necesita tocar este repositorio: un **módulo de terc
 
 | Superficie | Dónde | Para qué | Más |
 |---|---|---|---|
-| Editor C4 | `index.html` | Editar diagramas C4 con lienzo interactivo, deshacer/rehacer, minimapa y panel de problemas | [docs/modulos/c4.md](docs/modulos/c4.md) |
+| Editor C4 (clásico) | `index.html` | Editar diagramas C4 con lienzo interactivo, deshacer/rehacer, minimapa y panel de problemas (C4 también se edita en el lienzo común del banco de trabajo, `modulos.html?module=c4`) | [docs/modulos/c4.md](docs/modulos/c4.md) |
 | Banco de trabajo | `modulos.html?module=<id>` | Editar cualquier módulo: lienzo, JSON con validación, vistas, exportar, importar, informes y comparar versiones | [docs/suite-web.md](docs/suite-web.md) |
 | Suite (shell) | `suite.html` | Descubre los módulos de una instancia leyendo su manifiesto y monta el editor o el widget elegido | [docs/suite-web.md](docs/suite-web.md) |
 | Trazabilidad | `trazabilidad.html` | Enlaces `urn:iark:…` entre documentos de varios módulos, referencias sin resolver y alcance de un elemento | [docs/trazabilidad.md](docs/trazabilidad.md) |
@@ -127,7 +127,7 @@ Lo imprescindible antes de exponer algo (el detalle está en cada documento y la
 - **`iark serve` solo habla HTTP**: para usarlo por internet va detrás de un proxy con HTTPS (`--trust-proxy`); ver [docs/servicio.md](docs/servicio.md).
 - **Con una carpeta de trabajo (`--workspace`) y fuera de loopback exige autenticación** (`--tokens` o `--accounts`); sin ella, no arranca. La imagen Docker no fija ningún espacio de trabajo a propósito.
 - **Registros y métricas: apagados por omisión.** El registro de accesos (`--access-log`) y la auditoría (`--audit-log`) llevan el usuario de GitHub y la dirección IP, nunca credenciales ni contenido; `/metrics` (`--metrics`) exige un token o solo atiende a loopback, y el servicio se niega a arrancar con métricas abiertas fuera de loopback. `/healthz` y `/readyz` son públicos y sin detalles ([docs/observabilidad.md](docs/observabilidad.md)).
-- **Los tokens y las sesiones se guardan solo como hash** en disco; el secreto de la OAuth App de GitHub no tiene opción de línea de comandos (entorno o archivo).
+- **Los tokens y las sesiones se guardan solo como hash** en disco (las cuentas, en una base SQLite 0600 con transacciones); el secreto de la OAuth App de GitHub no tiene opción de línea de comandos (entorno o archivo).
 - **`--from-repo` solo lee una lista blanca** de archivos y redacta los secretos antes de enviar nada al modelo; `--dry-run` enseña exactamente qué se enviaría ([docs/ia.md](docs/ia.md)).
 - **Cargar un módulo de terceros ejecuta su código** con los permisos del proceso: solo se carga la configuración que señalas tú (`--config`, `IARK_CONFIG` o el `iark.config.json` del directorio actual), nunca la de un proyecto clonado (`--from-repo`) ni la de una carpeta de trabajo (`--workspace`); `--no-config` lo desactiva ([docs/plugins.md](docs/plugins.md)).
 - **Al embeber, fija el origen del anfitrión** (`&origin=https://mi-host`): sin él las respuestas de `postMessage` van a `*` ([docs/embebido.md](docs/embebido.md)).
@@ -146,7 +146,7 @@ Todo lo que antes vivía en este README está en [`docs/`](docs/indice.md), con 
 Las seis especialidades, el banco de trabajo, la federación, los proyectos y el servicio gestionado están hechos; el proyecto está en la **Fase 1 «Endurecer»** de su plan de robustecimiento (seguridad, compuerta de CI, documentos de proyecto). Qué está hecho, qué falta y los límites conocidos: [docs/roadmap.md](docs/roadmap.md). Los que conviene saber desde el principio:
 
 - No hay colaboración en tiempo real ni trabajo sin conexión: dos personas sobre el mismo diagrama no se mezclan, el segundo guardado pregunta qué versión conservar.
-- El servicio gestionado es de una sola réplica (las cuentas son un archivo JSON con un único escritor).
+- El servicio gestionado es de una sola máquina (las cuentas van en una base SQLite del disco local: varios procesos sobre ella son seguros, pero no hay réplicas en máquinas distintas; el camino a Postgres es una decisión pendiente, ver [docs/cuentas-github.md](docs/cuentas-github.md#camino-a-postgres-y-réplicas-una-decisión-pendiente-no-tomada)) y no tiene pantalla de administración de cuentas, solo la API.
 - La generación con IA solo se ha probado de verdad con un modelo (DeepSeek-V4-Pro por Foundry, 28-09-2026): ver [docs/ia.md](docs/ia.md#prueba-real-de-generate).
 - Quedan fuera de alcance el servidor MCP, las vistas de despliegue y de código de C4 y exportar a DSL de Structurizr.
 

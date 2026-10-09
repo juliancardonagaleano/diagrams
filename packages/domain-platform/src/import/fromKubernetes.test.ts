@@ -400,6 +400,51 @@ describe('Kubernetes: reconocimiento del formato', () => {
   });
 });
 
+describe('Kubernetes: la salida de helm template (el chart da nombre a lo importado)', () => {
+  const rendered = readFileSync('tests/fixtures/importar/helm/tienda-renderizado.yaml', 'utf8');
+
+  it('sin un nombre de archivo que diga algo (entrada estándar), el chart de la etiqueta helm.sh/chart nombra el espacio de trabajo y el entorno', () => {
+    const { document: doc, warnings } = fromKubernetes(rendered);
+    expect(doc.workspace.name).toBe('tienda');
+    expect(doc.environments).toEqual([{ id: 'tienda', name: 'tienda', description: 'Entorno deducido del chart de Helm «tienda».', provider: 'kubernetes' }]);
+    expect(warnings[0]).toBe('No se pudo deducir el entorno de las etiquetas ni de los namespaces: se crea el entorno «tienda» a partir del chart de Helm «tienda».');
+  });
+
+  it('un nombre de archivo descriptivo manda sobre el chart; uno genérico (rendered.yaml, stdin, helm) no', () => {
+    expect(fromKubernetes(rendered, { file: '/tmp/tienda-renderizado.yaml' }).document.workspace.name).toBe('tienda-renderizado');
+    expect(fromKubernetes(rendered, { fallbackName: 'tienda-renderizado.yaml' }).document.workspace.name).toBe('tienda-renderizado');
+    for (const file of ['rendered.yaml', 'stdin', 'helm.yaml', '/charts/manifests/all.yaml']) {
+      expect(fromKubernetes(rendered, { file }).document.workspace.name, file).toBe('tienda');
+    }
+  });
+
+  it('options.chart manda sobre lo deducido de los manifiestos; options.name sobre todo', () => {
+    expect(fromKubernetes(rendered, { chart: 'mi-chart' }).document.workspace.name).toBe('mi-chart');
+    expect(fromKubernetes(rendered, { chart: 'mi-chart', name: 'Mi tienda' }).document.workspace.name).toBe('Mi tienda');
+  });
+
+  it('sin la etiqueta, el comentario «# Source:» que escribe Helm da el chart; una etiqueta con versión se recorta', () => {
+    const sinEtiqueta = rendered.replace(/^ {4}helm\.sh\/chart: .*\n/gm, '');
+    expect(sinEtiqueta).not.toContain('helm.sh/chart');
+    expect(fromKubernetes(sinEtiqueta).document.workspace.name).toBe('tienda');
+    const sinNada = sinEtiqueta.replace(/^# Source: .*\n/gm, '');
+    expect(fromKubernetes(sinNada).document.workspace.name).toBe('Arquitectura de plataforma');
+    const versiones: Array<[string, string]> = [['tienda-0.4.2', 'tienda'], ['mi-app-v1.2', 'mi-app'], ['web-2.0.0-rc.1', 'web'], ['sin-version', 'sin-version']];
+    for (const [label, name] of versiones) {
+      const text = `apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: x\n  labels:\n    helm.sh/chart: ${label}\nspec:\n  template:\n    spec:\n      containers:\n        - name: c\n          image: i:1\n`;
+      expect(fromKubernetes(text).document.workspace.name, label).toBe(name);
+    }
+  });
+
+  it('el Secret del chart no se lee y sus valores no salen; el resto del chart se importa entero', () => {
+    const { document: doc, warnings } = fromKubernetes(rendered);
+    expect(JSON.stringify({ doc, warnings })).not.toContain('no-copiar-esta-clave');
+    expect(doc.services.map((s) => s.id)).toEqual(['deployment-tienda']);
+    expect(doc.resources.map((r) => r.id)).toEqual(['kubernetes', 'tienda-postgresql', 'tienda-redis-master', 'tienda-datos', 'secret-tienda-postgresql', 'ingress-tienda']);
+    expect(validatePlatformDocument(doc).ok).toBe(true);
+  });
+});
+
 describe('Kubernetes: entradas rotas', () => {
   const fails = (text: string, message: RegExp): void => {
     expect(() => fromKubernetes(text)).toThrow(PlatformImportError);
@@ -428,6 +473,13 @@ describe('Kubernetes: entradas rotas', () => {
   it('manifiestos sin nada que dibujar explican por qué', () => {
     fails('apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: a\n', /no definen ninguna carga de trabajo ni recurso/);
     fails('apiVersion: v1\nkind: Service\nmetadata:\n  name: a\nspec:\n  selector:\n    app: a\n', /no definen ninguna carga de trabajo ni recurso/);
+  });
+
+  it('un texto de más de 32 MiB, un anidamiento de miles de niveles y una bomba de alias se rechazan con un error', () => {
+    fails(`apiVersion: v1\nkind: Namespace\nmetadata:\n  name: x\n  annotations:\n    a: ${'x'.repeat(33 * 1024 * 1024)}\n`, /demasiado grande/);
+    fails(`apiVersion: v1\nkind: Namespace\nmetadata:\n  name: x\n  labels: ${'['.repeat(20_000)}${']'.repeat(20_000)}\n`, /demasiado anidado|no es válido/);
+    const bomb = ['a: &a [x, x, x, x, x, x, x, x, x]', ...'bcdefghij'.split('').map((k, i) => `${k}: &${k} [${Array.from({ length: 9 }, () => `*${'abcdefghi'[i]}`).join(', ')}]`), 'apiVersion: v1', 'kind: Namespace', 'metadata:', '  name: x', '  annotations: *j'].join('\n');
+    fails(bomb, /demasiados alias YAML|demasiado anidado/);
   });
 
   it('no desborda con un documento enorme', () => {

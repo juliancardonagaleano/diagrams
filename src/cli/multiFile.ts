@@ -76,7 +76,7 @@ export function readMultiInput(module: AnyModule, inputs: string[], format: stri
     const matching = (i: (typeof joinable)[number]): string[] => names.filter((n) => hasExtension(n, i.multiFile!.extensions));
     const candidates = (wanted ? [wanted] : joinable).filter((i) => matching(i).length > 0);
     if (candidates.length === 0) {
-      const listed = (wanted ? [wanted] : joinable).flatMap((i) => i.multiFile!.extensions).join(', ');
+      const listed = (wanted ? [wanted] : joinable).map((i) => i.multiFile!.extensions.join(', ')).join(' o ');
       throw new CliError(`La carpeta "${dir}" no tiene ningún archivo que se pueda importar junto con otros (${listed}).`, 2);
     }
     if (candidates.length > 1) {
@@ -92,7 +92,7 @@ export function readMultiInput(module: AnyModule, inputs: string[], format: stri
   for (const input of inputs) if (!isFile(input)) throw new CliError(`No se pudo leer "${input}": no existe o no es un archivo.`);
   const importer = multiFileImporter(module, inputs, wanted?.id);
   if (!importer) {
-    const exts = (wanted ? [wanted] : joinable).flatMap((i) => i.multiFile!.extensions).join(', ');
+    const exts = (wanted ? [wanted] : joinable).map((i) => i.multiFile!.extensions.join(', ')).join(' o los ');
     throw new CliError(`Los archivos no son todos del mismo formato: solo se leen juntos los ${exts}.`, 2);
   }
   const files = inputs.map((path) => ({ name: path, text: readText(path) }));

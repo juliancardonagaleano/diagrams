@@ -1,3 +1,4 @@
+import { isAbortError } from '@iark/kernel';
 import type { DerivedView } from '../model/viewDerivation';
 import { BOUNDARY_PADDING, type LayoutDirection } from '../model/types';
 import { distributeCentered } from './distribute';
@@ -147,7 +148,7 @@ export async function runCandidate(derived: DerivedView, params: ResolvedLayoutP
   try {
     base = await runElkLayout(derived, p, candidate.variant);
   } catch (error) {
-    if (candidate.variant.noLayerConstraints) throw error;
+    if (isAbortError(error) || candidate.variant.noLayerConstraints) throw error;
     base = await runElkLayout(derived, p, { ...candidate.variant, noLayerConstraints: true });
   }
   if (candidate.distribution === 'elk') {
@@ -176,7 +177,9 @@ export async function smartLayout(derived: DerivedView, params: ResolvedLayoutPa
     let result: LayoutResult;
     try {
       result = await runCandidate(derived, params, candidate);
-    } catch {
+    } catch (error) {
+      // Cancelar no es un fallo del candidato: se propaga y termina todo el layout.
+      if (isAbortError(error)) throw error;
       // Un candidato puede hacer fallar a ELK (p. ej. UnsupportedGraphException en grafos jerárquicos):
       // se descarta y se sigue con los demás en vez de abortar todo el layout.
       return false;

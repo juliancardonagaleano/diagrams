@@ -86,11 +86,11 @@ export interface ActionAvailability {
 const NEEDS_HINT = { none: undefined, one: 'Selecciona un único elemento.', many: 'Selecciona al menos un elemento.' } as const;
 
 /** Si la acción se puede lanzar con esta selección, y el texto de ayuda del botón. */
-export function actionAvailability(action: EditorAction<unknown>, document: unknown, ids: readonly string[], readOnly: boolean): ActionAvailability {
+export function actionAvailability(action: EditorAction<unknown>, document: unknown, ids: readonly string[], readOnly: boolean, viewId?: string): ActionAvailability {
   const help = action.hint ?? action.label;
   if (readOnly) return { enabled: false, title: 'El documento es de solo lectura.' };
   const needs = action.needs === 'one' ? ids.length === 1 : action.needs === 'many' ? ids.length >= 1 : true;
   if (!needs) return { enabled: false, title: NEEDS_HINT[action.needs] ?? help };
-  const why = action.disabled?.(document, [...ids]);
+  const why = action.disabled?.(document, [...ids], viewId);
   return why ? { enabled: false, title: why } : { enabled: true, title: help };
 }

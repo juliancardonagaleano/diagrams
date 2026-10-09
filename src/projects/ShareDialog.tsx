@@ -156,12 +156,12 @@ export function ShareDialog({ session, project, onClose, notify, onLeft }: Share
   return (
     <div className="pj-overlay pj-share-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="pj-dialog pj-share" role="dialog" aria-modal="true" aria-labelledby="pj-share-title" ref={dialog} tabIndex={-1} onKeyDown={onKeyDown} data-testid="share-dialog">
-        <header className="pj-head">
+        <div className="pj-head">
           <h2 id="pj-share-title">Compartir «{project.name}»</h2>
           <button type="button" onClick={onClose} aria-label="Cerrar">
             ✕
           </button>
-        </header>
+        </div>
         {error && (
           <p className="pj-error" role="alert" data-testid="share-error">
             {error}

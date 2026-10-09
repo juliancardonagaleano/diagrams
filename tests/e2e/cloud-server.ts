@@ -84,7 +84,11 @@ export interface ManagedCloud {
   /** `http://127.0.0.1:<puerto>`: la dirección pública del servicio y la que se escribe en «Dirección del servidor». */
   url: string;
   workspace: string;
+  /** El archivo donde el servicio guarda las cuentas (`cuentas.json` o, con el almacén `sqlite`, `cuentas.db`). */
+  accounts: string;
   github: FakeGithub;
+  /** Apaga el servicio y lo vuelve a arrancar en el mismo puerto, con las mismas cuentas y carpetas: lo que se guardó tiene que seguir ahí. */
+  restart(): Promise<void>;
   /** La próxima persona que «acepte» en GitHub (el que inicie sesión a continuación entra como ella). */
   signInAs(profile: FakeProfile): void;
   stop(): Promise<void>;
@@ -100,46 +104,74 @@ async function freePort(): Promise<number> {
   });
 }
 
-export async function startManagedCloud(options: { cors: string; admins?: FakeProfile[]; signup?: 'open' | 'invite' }): Promise<ManagedCloud> {
+/**
+ * Qué almacén guarda las cuentas del servicio gestionado de las pruebas: el que pida la prueba o, si no, `json` (el de siempre);
+ * con `IARK_TEST_ACCOUNTS_STORE=sqlite` en el entorno, todas las pruebas que no piden otro corren con SQLite.
+ */
+const defaultStore = (): 'json' | 'sqlite' => (process.env.IARK_TEST_ACCOUNTS_STORE === 'sqlite' ? 'sqlite' : 'json');
+
+export async function startManagedCloud(options: { cors: string; admins?: FakeProfile[]; signup?: 'open' | 'invite'; store?: 'json' | 'sqlite' }): Promise<ManagedCloud> {
   const github = await startFakeGithub();
   const dir = mkdtempSync(join(tmpdir(), 'iark-e2e-gestionada-'));
   const workspace = join(dir, 'espacio');
+  const store = options.store ?? defaultStore();
+  const accounts = join(dir, store === 'sqlite' ? 'cuentas.db' : 'cuentas.json');
   const port = await freePort();
   const url = `http://127.0.0.1:${port}`;
   const admins = (options.admins ?? []).map((admin) => String(admin.id)).join(',');
   const args = [
     'node_modules/tsx/dist/cli.mjs', 'src/cli/index.ts', 'serve',
-    '--workspace', workspace, '--accounts', join(dir, 'cuentas.json'),
+    '--workspace', workspace, '--accounts', accounts, '--accounts-store', store,
     '--github-client-id', FAKE_CLIENT_ID, '--public-url', url, '--cors', options.cors,
     '--signup', options.signup ?? 'invite', '--host', '127.0.0.1', '-p', String(port),
   ];
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     // lo de la suite que pudiera haber en el entorno de quien corre las pruebas no debe colarse
-    IARK_TOKENS: '', IARK_WORKSPACE: '', IARK_ACCOUNTS: '', IARK_GITHUB_CLIENT_ID: '', IARK_PUBLIC_URL: '', IARK_SIGNUP: '', IARK_GITHUB_CLIENT_SECRET_FILE: '',
+    IARK_TOKENS: '', IARK_WORKSPACE: '', IARK_ACCOUNTS: '', IARK_ACCOUNTS_STORE: '', IARK_ACCOUNTS_IMPORT: '', IARK_GITHUB_CLIENT_ID: '', IARK_PUBLIC_URL: '', IARK_SIGNUP: '', IARK_GITHUB_CLIENT_SECRET_FILE: '',
     IARK_GITHUB_URL: github.url, IARK_GITHUB_API_URL: github.url, IARK_GITHUB_CLIENT_SECRET: FAKE_CLIENT_SECRET, IARK_ADMINS: admins,
   };
-  const child: ChildProcess = spawn(process.execPath, args, { cwd: process.cwd(), env, stdio: ['ignore', 'pipe', 'pipe'] });
-  let output = '';
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`El servidor no arrancó en 30 s:\n${output}`)), 30_000);
-      const onData = (chunk: Buffer): void => {
-        output += chunk.toString();
-        if (/escuchando en http:\/\//.test(output)) {
+
+  /** Arranca el servicio y espera a que escuche. */
+  async function launch(): Promise<ChildProcess> {
+    const child: ChildProcess = spawn(process.execPath, args, { cwd: process.cwd(), env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`El servidor no arrancó en 30 s:\n${output}`)), 30_000);
+        const onData = (chunk: Buffer): void => {
+          output += chunk.toString();
+          if (/escuchando en http:\/\//.test(output)) {
+            clearTimeout(timer);
+            resolve();
+          }
+        };
+        child.stdout!.on('data', onData);
+        child.stderr!.on('data', onData);
+        child.once('exit', (code) => {
           clearTimeout(timer);
-          resolve();
-        }
-      };
-      child.stdout!.on('data', onData);
-      child.stderr!.on('data', onData);
-      child.once('exit', (code) => {
-        clearTimeout(timer);
-        reject(new Error(`El servidor terminó (código ${code}) antes de escuchar:\n${output}`));
+          reject(new Error(`El servidor terminó (código ${code}) antes de escuchar:\n${output}`));
+        });
       });
+    } catch (error) {
+      child.kill('SIGKILL');
+      throw error;
+    }
+    return child;
+  }
+  const halt = async (child: ChildProcess): Promise<void> => {
+    if (child.exitCode !== null) return;
+    await new Promise<void>((resolve) => {
+      child.once('exit', () => resolve());
+      child.kill('SIGTERM');
+      setTimeout(() => child.kill('SIGKILL'), 5000).unref();
     });
+  };
+
+  let child: ChildProcess;
+  try {
+    child = await launch();
   } catch (error) {
-    child.kill('SIGKILL');
     await github.stop();
     rmSync(dir, { recursive: true, force: true });
     throw error;
@@ -147,16 +179,15 @@ export async function startManagedCloud(options: { cors: string; admins?: FakePr
   return {
     url,
     workspace,
+    accounts,
     github,
     signInAs: (profile) => github.signInAs(profile),
+    async restart() {
+      await halt(child);
+      child = await launch();
+    },
     async stop() {
-      if (child.exitCode === null) {
-        await new Promise<void>((resolve) => {
-          child.once('exit', () => resolve());
-          child.kill('SIGTERM');
-          setTimeout(() => child.kill('SIGKILL'), 5000).unref();
-        });
-      }
+      await halt(child);
       await github.stop();
       rmSync(dir, { recursive: true, force: true });
     },

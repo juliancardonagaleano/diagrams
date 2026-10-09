@@ -2,7 +2,7 @@ import type { ModuleSource } from './controller';
 
 /**
  * Ejemplos del repositorio (`examples/*.json`), cargados bajo demanda: solo se descarga el de la especialidad que se abre.
- * C4 es una especialidad más: su lienzo es el editor principal (`index.html`) embebido en el banco de trabajo.
+ * C4 es una especialidad más: su lienzo es el común (`DomainModule.editor`, `packages/domain-c4/src/editor.ts`); el editor clásico (`index.html`) ya no se incrusta aquí.
  */
 const examples = import.meta.glob('../../examples/*.json', { query: '?raw', import: 'default' }) as Record<string, () => Promise<string>>;
 

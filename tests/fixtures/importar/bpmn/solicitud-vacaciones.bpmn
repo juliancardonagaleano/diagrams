@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Vacaciones" targetNamespace="http://rrhh.example.com/bpmn">
+  <process id="Process_Vacaciones" name="Solicitud de vacaciones" isExecutable="false">
+    <laneSet id="LaneSet_1">
+      <lane id="Lane_Empleado" name="Empleado">
+        <flowNodeRef>Start_Necesita</flowNodeRef>
+        <flowNodeRef>Task_Solicitar</flowNodeRef>
+        <flowNodeRef>End_Disfruta</flowNodeRef>
+      </lane>
+      <lane id="Lane_Responsable" name="Responsable de equipo">
+        <flowNodeRef>Task_Revisar</flowNodeRef>
+        <flowNodeRef>Gateway_Aprobada</flowNodeRef>
+        <flowNodeRef>Task_Rechazo</flowNodeRef>
+        <flowNodeRef>End_Rechazada</flowNodeRef>
+      </lane>
+      <lane id="Lane_RRHH" name="Recursos humanos">
+        <flowNodeRef>Task_Registrar</flowNodeRef>
+      </lane>
+    </laneSet>
+    <startEvent id="Start_Necesita" name="Quiere descansar" />
+    <userTask id="Task_Solicitar" name="Solicitar vacaciones" />
+    <userTask id="Task_Revisar" name="Revisar la solicitud" />
+    <inclusiveGateway id="Gateway_Aprobada" name="¿Se aprueba?" />
+    <serviceTask id="Task_Registrar" name="Registrar la ausencia en el calendario" />
+    <sendTask id="Task_Rechazo" name="Notificar el rechazo" />
+    <endEvent id="End_Disfruta" name="Vacaciones concedidas" />
+    <endEvent id="End_Rechazada" name="Solicitud rechazada" />
+    <sequenceFlow id="Flow_1" sourceRef="Start_Necesita" targetRef="Task_Solicitar" />
+    <sequenceFlow id="Flow_2" sourceRef="Task_Solicitar" targetRef="Task_Revisar" />
+    <sequenceFlow id="Flow_3" sourceRef="Task_Revisar" targetRef="Gateway_Aprobada" />
+    <sequenceFlow id="Flow_4" name="Sí" sourceRef="Gateway_Aprobada" targetRef="Task_Registrar" />
+    <sequenceFlow id="Flow_5" name="No" sourceRef="Gateway_Aprobada" targetRef="Task_Rechazo" />
+    <sequenceFlow id="Flow_6" sourceRef="Task_Registrar" targetRef="End_Disfruta" />
+    <sequenceFlow id="Flow_7" sourceRef="Task_Rechazo" targetRef="End_Rechazada" />
+  </process>
+</definitions>

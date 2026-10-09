@@ -15,10 +15,17 @@
 #     dist/cli/index.js auth create <nombre> --role admin --tokens /tokens/tokens.json`.
 #
 #  3. Servicio gestionado con inicio de sesión de GitHub (`iark serve --accounts`): un volumen en /data con los proyectos
-#     (IARK_WORKSPACE=/data/workspace) y las cuentas (IARK_ACCOUNTS=/data/accounts.json), la OAuth App por IARK_GITHUB_CLIENT_ID
+#     (IARK_WORKSPACE=/data/workspace) y las cuentas (IARK_ACCOUNTS=/data/accounts.db: una base SQLite, el almacén por omisión de
+#     esta imagen; ver IARK_ACCOUNTS_STORE abajo), la OAuth App por IARK_GITHUB_CLIENT_ID
 #     e IARK_GITHUB_CLIENT_SECRET_FILE (Docker secrets) o IARK_GITHUB_CLIENT_SECRET, IARK_PUBLIC_URL, IARK_ADMINS…, y un proxy
 #     con HTTPS delante (con `--trust-proxy`). El `deploy/docker-compose.yml` lo deja montado con Caddy y
 #     docs/despliegue-nube.md lo explica paso a paso.
+#
+# Las cuentas van en una base SQLite (`IARK_ACCOUNTS_STORE=sqlite`, que esta imagen fija; el CLI, fuera de la imagen, sigue
+# usando `json` por omisión): transaccional y segura con varias instancias sobre el mismo disco. Si un servicio ya tenía las
+# cuentas en un JSON, `IARK_ACCOUNTS_IMPORT=/data/accounts.json` las pasa a la base en el primer arranque (el JSON no se toca y
+# queda una copia de seguridad), o a mano con `iark accounts migrate`; para seguir con el JSON, `IARK_ACCOUNTS_STORE=json`.
+# Fijar el almacén no activa nada por sí solo: sin `IARK_ACCOUNTS` no hay cuentas.
 #
 # Esta imagen NO fija IARK_WORKSPACE a propósito: escucha en 0.0.0.0 y, con un espacio de trabajo y sin autenticación (--tokens
 # o --accounts), `iark serve` se niega a arrancar. Es la red de seguridad: un contenedor sin configurar nunca deja los proyectos
@@ -50,7 +57,8 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:22-alpine
 ENV NODE_ENV=production \
-    PORT=8787
+    PORT=8787 \
+    IARK_ACCOUNTS_STORE=sqlite
 WORKDIR /app
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBundle, MemoryProjectStore, bundleToText } from '@iark/kernel';
 import { GithubOAuth } from './accounts/github';
 import { Accounts } from './accounts/service';
-import { AccountStore } from './accounts/store';
+import { AccountError, JsonAccountStore } from './accounts/store';
 import { createDefaultRegistry } from './registry';
 import { createSuiteServer } from './serve';
 import { challengeOf, FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, newVerifier, startFakeGithub, type FakeProfile } from '../../tests/helpers/fakeGithub';
@@ -173,7 +173,7 @@ describe('iark serve --accounts: el inicio de sesión', () => {
     const dir = mkdtempSync(join(tmpdir(), 'iark-cuentas-secure-'));
     folders.push(dir);
     const accounts = new Accounts({
-      store: AccountStore.open(join(dir, 'c.json')),
+      store: JsonAccountStore.open(join(dir, 'c.json')),
       github: new GithubOAuth({ clientId: FAKE_CLIENT_ID, clientSecret: FAKE_CLIENT_SECRET, baseUrl: fake.url, apiUrl: fake.url }),
       publicUrl: 'https://iark.example.org/herramientas',
       admins: ['1'],
@@ -455,7 +455,7 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     expect((await call(cloud.base, beto).get('/api/projects/tienda')).status).toBe(200);
     expect((await call(cloud.base, ana).del('/api/projects/tienda')).status).toBe(200);
     expect(cloud.accounts.store.membersOf('tienda')).toEqual([]);
-    expect(JSON.parse(readFileSync(cloud.file, 'utf8')).projects).toEqual({});
+    expect(cloud.accounts.store.snapshot().projects).toEqual({});
     await create(cloud, ana, 'Tienda');
     expect((await call(cloud.base, beto).get('/api/projects/tienda')).status).toBe(404);
   });
@@ -490,9 +490,10 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
   it('si no se pueden guardar las cuentas, el proyecto recién creado no se queda huérfano en la carpeta', async () => {
     const cloud = await startCloud({ signup: 'open' });
     const beto = await signIn(cloud, BETO);
-    rmSync(cloud.file);
-    mkdirSync(cloud.file);
-    writeFileSync(join(cloud.file, 'x'), '');
+    // el almacén no puede guardar (disco lleno, permisos…): sea cual sea el almacén, así lo cuenta `AccountError('unavailable')`
+    vi.spyOn(cloud.accounts.store, 'registerProject').mockImplementation(() => {
+      throw new AccountError('unavailable', 'No se pudo escribir las cuentas.');
+    });
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const res = await call(cloud.base, beto).post('/api/projects', { name: 'Tienda' });
     stderr.mockRestore();
@@ -551,9 +552,12 @@ describe('iark serve --accounts: CORS y secretos', () => {
     }
     cloud.fake.failNext('token', 500);
     await loginWithGithub(cloud.base, cloud.fake, ANA);
-    const everything = [...probes, readFileSync(cloud.file, 'utf8'), ...stderr.mock.calls.map((c) => String(c[0]))].join('\n');
+    // lo que hay en disco: el archivo de cuentas (y, con SQLite, su diario `-wal`, donde están las escrituras recientes)
+    const onDisk = [cloud.file, `${cloud.file}-wal`].filter((f) => existsSync(f)).map((f) => readFileSync(f, 'latin1'));
+    const everything = [...probes, ...onDisk, ...stderr.mock.calls.map((c) => String(c[0]))].join('\n');
     stderr.mockRestore();
     for (const secret of [result.token!, FAKE_CLIENT_SECRET, verifier, result.fragment.get('iark_code') ?? 'sin-codigo']) expect(everything).not.toContain(secret);
-    expect(readFileSync(cloud.file, 'utf8')).toContain('"hash"');
+    expect(cloud.accounts.store.snapshot().sessions.length).toBeGreaterThan(0); // hay sesiones guardadas, y solo como hash
+    expect(cloud.accounts.store.snapshot().sessions[0].hash).toMatch(/^[0-9a-f]{64}$/);
   });
 });

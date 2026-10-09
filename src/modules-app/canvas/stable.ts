@@ -65,11 +65,21 @@ export function sameEdge(previous: FlowEdge, built: FlowEdge): boolean {
   );
 }
 
+/**
+ * El nombre accesible (`ariaLabel`) de un elemento. `key` identifica lo que el nombre consulta además del propio elemento (el índice
+ * de relaciones del grafo): mientras no cambie, el nombre de un elemento que no cambió tampoco, y su objeto se conserva.
+ */
+export interface Labels<T> {
+  key: unknown;
+  of(item: T, diff: Applied | undefined): string;
+}
+
 /** Lo que ya se entregó de cada nodo: el objeto de `buildFlow` del que salió, lo que se le añadió y el resultado. */
 export interface NodeCache {
   base: FlowNode;
   selected: boolean;
   diff: Applied | undefined;
+  labels: unknown;
   out: FlowNode;
 }
 
@@ -78,18 +88,18 @@ export interface NodeCache {
  * que la vez anterior (misma posición, mismo tamaño, mismos datos, misma selección, misma marca) conserva su objeto. `cache` se
  * actualiza con lo que se entrega.
  */
-export function decorateNodes(built: readonly FlowNode[], selected: ReadonlySet<string>, marks: ReadonlyMap<string, Applied> | undefined, cache: Map<string, NodeCache>): FlowNode[] {
+export function decorateNodes(built: readonly FlowNode[], selected: ReadonlySet<string>, marks: ReadonlyMap<string, Applied> | undefined, cache: Map<string, NodeCache>, labels?: Labels<FlowNode>): FlowNode[] {
   const kept = new Map<string, NodeCache>();
   const out = built.map((node) => {
     const isSelected = selected.has(node.id);
     const diff = marks?.get(node.id);
     const previous = cache.get(node.id);
-    if (previous && previous.selected === isSelected && previous.diff === diff && sameNode(previous.base, node)) {
+    if (previous && previous.selected === isSelected && previous.diff === diff && previous.labels === labels?.key && sameNode(previous.base, node)) {
       kept.set(node.id, previous);
       return previous.out;
     }
-    const decorated: FlowNode = { ...node, selected: isSelected, ...(diff ? { data: { ...node.data, diff } } : {}) };
-    kept.set(node.id, { base: node, selected: isSelected, diff, out: decorated });
+    const decorated: FlowNode = { ...node, selected: isSelected, ...(labels ? { ariaLabel: labels.of(node, diff) } : {}), ...(diff ? { data: { ...node.data, diff } } : {}) };
+    kept.set(node.id, { base: node, selected: isSelected, diff, labels: labels?.key, out: decorated });
     return decorated;
   });
   cache.clear();
@@ -102,28 +112,30 @@ export interface EdgeCache {
   selected: boolean;
   diff: Applied | undefined;
   pick: unknown;
+  labels: unknown;
   out: FlowEdge;
 }
 
-/** Igual que `decorateNodes`, para las aristas: añade la selección, la función de elegir desde la etiqueta y la marca de comparación. */
+/** Igual que `decorateNodes`, para las aristas: añade la selección, la función de elegir desde la etiqueta, la marca de comparación y el nombre accesible. */
 export function decorateEdges(
   built: readonly FlowEdge[],
   selected: ReadonlySet<string>,
   pick: (id: string, additive: boolean) => void,
   marks: ReadonlyMap<string, Applied> | undefined,
   cache: Map<string, EdgeCache>,
+  labels?: Labels<FlowEdge>,
 ): FlowEdge[] {
   const kept = new Map<string, EdgeCache>();
   const out = built.map((edge) => {
     const isSelected = selected.has(edge.id);
     const diff = marks?.get(edge.id);
     const previous = cache.get(edge.id);
-    if (previous && previous.selected === isSelected && previous.diff === diff && previous.pick === pick && sameEdge(previous.base, edge)) {
+    if (previous && previous.selected === isSelected && previous.diff === diff && previous.pick === pick && previous.labels === labels?.key && sameEdge(previous.base, edge)) {
       kept.set(edge.id, previous);
       return previous.out;
     }
-    const decorated: FlowEdge = { ...edge, selected: isSelected, data: { ...edge.data, onPick: pick, ...(diff ? { diff } : {}) } };
-    kept.set(edge.id, { base: edge, selected: isSelected, diff, pick, out: decorated });
+    const decorated: FlowEdge = { ...edge, selected: isSelected, ...(labels ? { ariaLabel: labels.of(edge, diff) } : {}), data: { ...edge.data, onPick: pick, ...(diff ? { diff } : {}) } };
+    kept.set(edge.id, { base: edge, selected: isSelected, diff, pick, labels: labels?.key, out: decorated });
     return decorated;
   });
   cache.clear();

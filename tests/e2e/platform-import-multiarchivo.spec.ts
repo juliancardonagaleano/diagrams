@@ -84,7 +84,7 @@ test.describe('plataforma: importar varios .tf a la vez', () => {
       ...upload(['red.tf']),
       { name: 'tienda.yaml', mimeType: 'text/plain', buffer: Buffer.from(readFileSync('tests/fixtures/importar/kubernetes/tienda/manifests.yaml')) },
     ]);
-    await expect(page.getByRole('alert')).toContainText('Los archivos (red.tf, tienda.yaml) no son todos del mismo formato: solo se leen juntos los .tf.');
+    await expect(page.getByRole('alert')).toContainText('Los archivos (red.tf, tienda.yaml) no son todos del mismo formato: solo se leen juntos los .tf o los .yaml, .yml.');
     await expect(page.getByTestId('import-files')).toHaveCount(0);
     await expect(page.getByLabel('Texto a importar')).toHaveValue('');
     expect(await page.getByLabel('Documento JSON').inputValue()).toBe(before);

@@ -73,3 +73,54 @@ iark integration cloudevents payload.json --type com.tienda.pedido.creado --sour
 ```
 
 **Mermaid**: cada tipo tiene su forma (API `{{ }}`, pasarela `>" "]`, broker como `subgraph`, cola y tópico `([ ])`, almacén `[( )]`, conector `( )`, tarea programada `((( )))`, usuario `(( ))`, servidor MCP `[/ /]` y patrón `{ }`). Un sistema o un broker con hijos es un `subgraph`, una zona es un `subgraph` titulado «Dominio: X» que contiene a sus miembros, y las líneas con `order` llevan su número y las que tienen patrón, su nombre entre « ». Cuando la forma no basta para deducir el tipo (un tópico comparte forma con la cola) el texto lleva la marca «Tópico»; con ellas, la ida y vuelta por `iark import` conserva tipo, dominio, orden y patrón. Los contratos y su contenido no viajan por Mermaid: están en el documento JSON.
+
+## Importar OpenAPI y AsyncAPI
+
+`--format openapi|asyncapi|auto` (también en la pestaña «Importar» y con «Abrir archivo…» del banco de trabajo). Los dos son el formato real de este mundo: el contrato de una API REST y el de una API de mensajería. Se leen en YAML o JSON y `auto` los distingue por su campo raíz (`openapi` o `swagger`; `asyncapi`), aunque compartan la extensión `.yaml` o `.json`.
+
+**OpenAPI** (cualquier 3.x, y Swagger 2.0 con un aviso). El modelo de integración no tiene un tipo «operación», así que la API se lee como lo que es para este módulo: quién la publica, en cuántos grupos de operaciones se divide y cuál es su contrato.
+
+| OpenAPI | Documento de integración |
+|---|---|
+| `info` (título, versión, descripción, contacto) | un sistema con el título; `owner` = el contacto |
+| operaciones de `paths`, agrupadas por su primera etiqueta (`tags`) o, sin ella, por el primer segmento de la ruta que no sea `api`/`v1` | un nodo `api` por grupo, hijo del sistema, que cuenta cuántas operaciones tiene |
+| `servers` (o `host`, `basePath` y `schemes` en Swagger 2.0) | la URL en la descripción del sistema y el protocolo (`REST (HTTPS)`) de las interacciones; el usuario y la clave de una URL se quitan |
+| esquemas que alcanzan las operaciones (`#/components/schemas`, `#/definitions`), también a través de otros esquemas | `dataObjects` de la interacción del grupo (hasta 15; el resto sigue en el contrato) |
+| `components.securitySchemes` | el tipo de cada esquema, en la descripción del sistema |
+| el documento entero | un contrato `openapi` con el texto original, enlazado a cada API |
+| quien llama (OpenAPI no lo dice) | un sistema externo «Cliente de la API» con una interacción de petición-respuesta hacia cada API (se avisa) |
+
+Lo que **no** se importa y se avisa: `webhooks` y `callbacks` (la API que llama al cliente), los `$ref` a otros archivos o URL (**nunca se siguen**: no hay red ni disco), los `$ref` internos rotos o circulares, y las rutas que no son un objeto. Sin aviso, porque siguen completos en el contrato: el detalle de cada operación (parámetros, cuerpos, respuestas, ejemplos), las extensiones `x-` y los enlaces.
+
+**AsyncAPI** (2.x y 3.x). Aquí sí hay un modelo equivalente: los servidores son brokers, los canales son tópicos o colas y las operaciones son interacciones asíncronas.
+
+| AsyncAPI | Documento de integración |
+|---|---|
+| `info` | un sistema con el título: la aplicación que describe el contrato |
+| `servers` | un nodo `broker` por servidor, con el protocolo como tecnología (Kafka, MQTT, AMQP, NATS, WebSocket…) |
+| `channels` | un `topic` (o una `queue` si su binding de AMQP lo dice o el protocolo es SQS), dentro del broker del primer servidor que lo declara |
+| operaciones | una interacción asíncrona entre el sistema y el canal; sus mensajes, los `dataObjects` |
+| el documento entero | un contrato `asyncapi` con el texto original, enlazado a cada canal e interacción |
+
+Quién publica y quién consume sale del punto de vista de la **aplicación**: `send` (3.x) y `subscribe` (2.x) publican; `receive` (3.x) y `publish` (2.x) consumen. En AsyncAPI 2.x los verbos se escriben desde el punto de vista del cliente, no de la aplicación, y el importador lo tiene en cuenta. Se avisa de: los `$ref` externos o rotos, las operaciones que apuntan a un canal que no existe, `reply` (solo se importa el mensaje de ida), los canales sin servidor cuando hay varios (van al primero), y, agrupados, `bindings`, `traits` y seguridad, que siguen completos en el contrato. Como el contrato describe solo a esta aplicación, `validate` avisará después de tópicos sin productor o sin consumidor: es verdad, y es lo que el archivo dice.
+
+```console
+$ iark import petstore.yaml --module integration --format openapi --out petstore.json
+aviso: OpenAPI no dice quién llama a la API: se añadió el sistema externo «Cliente de la API» con una interacción hacia cada grupo de operaciones.
+aviso: 1 URL de servidor con usuario y clave: se quitaron de las descripciones, pero el contrato conserva el texto original.
+Importado "Tienda de mascotas" en el módulo integration: 5 elementos, 2 aviso(s).
+Documento del módulo integration escrito en petstore.json
+$ iark validate petstore.json --module integration
+Documento válido (módulo integration). 0 error(es), 0 aviso(s), 0 nota(s).
+
+$ iark import pagos.yaml --module integration --format asyncapi --out pagos.json
+aviso: 2 canal(es) no dicen en qué servidor están y hay 2 servidores: se colocan en el primero («kafka-produccion»).
+aviso: 1 operación(es) apuntan a un canal que no existe o no declaran «action» válida (send o receive): se omiten.
+aviso: AsyncAPI describe solo a esta aplicación: quien consume lo que publica y quien publica lo que consume (3 canal(es)) no está en el contrato, así que la validación del módulo avisará de canales sin productor o sin consumidor.
+aviso: 1 operación(es) declaran «reply» (petición-respuesta): solo se importa el mensaje de ida.
+aviso: No se importa el detalle por protocolo de servidores, canales y operaciones, que sigue completo en el contrato: bindings (1).
+Importado "Servicio de pagos" en el módulo integration: 6 elementos, 5 aviso(s).
+Documento del módulo integration escrito en pagos.json
+```
+
+Los archivos de estos ejemplos son [`petstore.yaml`](../../tests/fixtures/importar/openapi/petstore.yaml) y [`pagos-v3.yaml`](../../tests/fixtures/importar/asyncapi/pagos-v3.yaml), escritos para las pruebas; el resultado se exporta a Mermaid, SVG y `.drawio` con `iark convert`, igual que cualquier documento del módulo.

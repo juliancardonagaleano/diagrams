@@ -152,12 +152,12 @@ describe('iark import con varios archivos .tf', () => {
 
   it('rechaza con un mensaje claro lo que no se puede juntar', () => {
     const dir = folder('mezcla', { 'a.tf': QUEUE, 'b.yaml': 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: x\n' });
-    expect(importFails([join(dir, 'a.tf'), join(dir, 'b.yaml')])).toMatch(/Los archivos no son todos del mismo formato: solo se leen juntos los \.tf\./);
-    expect(importFails(['--format', 'kubernetes', FOLDER])).toMatch(/El formato «kubernetes» no se puede leer repartido en varios archivos ni desde una carpeta: indique un solo archivo \(los formatos que sí: terraform\)\./);
+    expect(importFails([join(dir, 'a.tf'), join(dir, 'b.yaml')])).toMatch(/Los archivos no son todos del mismo formato: solo se leen juntos los \.tf o los \.yaml, \.yml\./);
+    expect(importFails(['--format', 'kubernetes', FOLDER])).toMatch(/El formato «kubernetes» no se puede leer repartido en varios archivos ni desde una carpeta: indique un solo archivo \(los formatos que sí: terraform, helm\)\./);
     expect(importFails(['--format', 'nada', FOLDER])).toMatch(/Formato inválido «nada»/);
     expect(importFails([FOLDER, join(dir, 'a.tf')])).toMatch(/Indique una carpeta o varios archivos, no las dos cosas a la vez\./);
     expect(importFails(['-', join(dir, 'a.tf')])).toMatch(/«-» \(la entrada estándar\) no se puede combinar con otros archivos\./);
-    expect(importFails([folder('sin-tf', { 'LEEME.md': 'nada' })])).toMatch(/no tiene ningún archivo que se pueda importar junto con otros \(\.tf\)/);
+    expect(importFails([folder('sin-tf', { 'LEEME.md': 'nada' })])).toMatch(/no tiene ningún archivo que se pueda importar junto con otros \(\.tf o \.yaml, \.yml\)/);
     expect(importFails([join(dir, 'a.tf'), join(dir, 'no-existe.tf')], 1)).toMatch(/No se pudo leer ".*no-existe\.tf"/);
   });
 

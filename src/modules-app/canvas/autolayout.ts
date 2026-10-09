@@ -9,6 +9,8 @@ export interface AutolayoutOptions {
   signal?: AbortSignal;
   /** Fuerza el esfuerzo del cálculo; por omisión depende del tamaño (`effortFor`). */
   effort?: 'normal' | 'fast';
+  /** Lo pide el botón Autolayout: recalcular aunque el documento ya guarde posiciones (ver `EditorSpec.layout`). */
+  fresh?: boolean;
 }
 
 /** Desde cuántos nodos el autolayout pasa al modo rápido de ELK. Por debajo, la colocación es la de siempre. Ver docs/rendimiento.md. */
@@ -26,7 +28,7 @@ export const effortFor = (nodeCount: number): 'normal' | 'fast' => (nodeCount >=
 export async function autolayoutGraph(spec: EditorSpec<unknown>, document: unknown | undefined, graph: EditorGraph, viewId: string | undefined, options: AutolayoutOptions = {}): Promise<GraphLayout> {
   const start = performance.now();
   try {
-    const own = spec.layout && document !== undefined ? await spec.layout(document, viewId) : undefined;
+    const own = spec.layout && document !== undefined ? await spec.layout(document, viewId, { ...(options.fresh ? { fresh: true } : {}), ...(options.signal ? { signal: options.signal } : {}) }) : undefined;
     if (own) return own;
     const kinds = new Map(spec.nodeKinds.map((k) => [k.kind, k]));
     const parents = new Set(graph.nodes.filter((n) => n.parentId).map((n) => n.parentId as string));

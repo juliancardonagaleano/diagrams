@@ -74,6 +74,39 @@ describe('decorateNodes', () => {
   });
 });
 
+describe('nombres accesibles', () => {
+  it('cada nodo lleva su ariaLabel y, mientras no cambie el índice del que sale, conserva su objeto', () => {
+    const cache = new Map<string, NodeCache>();
+    const key = {};
+    const labels = { key, of: (n: { id: string }, diff: string | undefined) => `nodo ${n.id}${diff ? ` (${diff})` : ''}` };
+    const first = decorateNodes(flow().nodes, new Set(), undefined, cache, labels);
+    expect(first.map((n) => n.ariaLabel)).toEqual(first.map((n) => `nodo ${n.id}`));
+    const again = decorateNodes(flow().nodes, new Set(), undefined, cache, labels);
+    again.forEach((node, i) => expect(node).toBe(first[i]));
+    // Si cambia el índice (el grafo cambió), se rehacen todos con el nombre nuevo.
+    const other = decorateNodes(flow().nodes, new Set(), undefined, cache, { ...labels, key: {} });
+    expect(other.every((n, i) => n !== first[i])).toBe(true);
+  });
+
+  it('la marca de comparación entra en el nombre solo del nodo marcado', () => {
+    const cache = new Map<string, NodeCache>();
+    const labels = { key: {}, of: (n: { id: string }, diff: string | undefined) => `nodo ${n.id}${diff ? ` (${diff})` : ''}` };
+    const plain = decorateNodes(flow().nodes, new Set(), undefined, cache, labels);
+    const marked = decorateNodes(flow().nodes, new Set(), new Map([['a', 'added' as const]]), cache, labels);
+    expect(marked.filter((n, i) => n !== plain[i]).map((n) => n.id)).toEqual(['a']);
+    expect(marked.find((n) => n.id === 'a')!.ariaLabel).toBe('nodo a (added)');
+  });
+
+  it('las aristas también llevan su ariaLabel y lo conservan', () => {
+    const cache = new Map<string, EdgeCache>();
+    const labels = { key: {}, of: (e: { id: string }) => `relación ${e.id}` };
+    const first = decorateEdges(flow().edges, new Set(), pick, undefined, cache, labels);
+    expect(first.map((e) => e.ariaLabel)).toEqual(first.map((e) => `relación ${e.id}`));
+    const again = decorateEdges(flow().edges, new Set(), pick, undefined, cache, labels);
+    again.forEach((edge, i) => expect(edge).toBe(first[i]));
+  });
+});
+
 describe('decorateEdges', () => {
   it('sin cambios, entrega los mismos objetos; al seleccionar una arista, solo esa cambia', () => {
     const cache = new Map<string, EdgeCache>();

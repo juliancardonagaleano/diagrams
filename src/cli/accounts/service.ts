@@ -1,5 +1,5 @@
 import type { GithubOAuth } from './github';
-import { AccountStore, isGithubLogin, loginKey, type AccountUser, type GithubProfile, type SiteRole } from './store';
+import { isGithubLogin, loginKey, type AccountStore, type AccountUser, type GithubProfile, type SiteRole } from './store';
 
 /**
  * Las cuentas de una instancia de `iark serve` con inicio de sesión de GitHub: el almacén (`store.ts`), el cliente de GitHub
