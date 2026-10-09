@@ -32,6 +32,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | [embebido.md](embebido.md) | Embeber en otra aplicación: iframe + `postMessage`, SDK de anfitrión, protocolo de módulos, Web Component `<iark-module>` y federación por manifiesto. |
 | [servicio.md](servicio.md) | `iark serve`: rutas de la API, imagen Docker y servidor para varias personas con tokens (roles, CORS, HTTPS, límites). |
 | [cuentas-github.md](cuentas-github.md) | Servicio gestionado con inicio de sesión de GitHub: flujo, quién ve qué, compartir proyectos y administrar cuentas. |
+| [observabilidad.md](observabilidad.md) | Operar `iark serve`: `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz` y `/readyz`, métricas de Prometheus, rotación de registros y datos personales. |
 
 ## Despliegue
 
@@ -39,7 +40,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 |---|---|
 | [despliegue-pages.md](despliegue-pages.md) | El sitio estático en GitHub Pages (workflow, rama `gh-pages`, URL). |
 | [despliegue-nube.md](despliegue-nube.md) | Guía paso a paso del servicio con servidor: OAuth App de GitHub, DNS, primer arranque, copias de seguridad y actualización. |
-| [`deploy/`](../deploy/README.md) | Los archivos de esa guía: `docker-compose.yml` con Caddy, `Caddyfile` y `.env.example`. |
+| [`deploy/`](../deploy/README.md) | Los archivos de esa guía: `docker-compose.yml` con Caddy (registros a la salida estándar y `HEALTHCHECK` en `/healthz`), `Caddyfile` y `.env.example`. |
 
 ## Desarrollo y proyecto
 

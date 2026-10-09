@@ -78,11 +78,35 @@ export interface ComputeRunOptions {
   signal?: AbortSignal;
 }
 
+/** Los recuentos de un `ComputePool` para las métricas (`GET /metrics`): solo números, nada de lo que se calcula. */
+export interface ComputeStats {
+  /** Hilos como máximo a la vez. */
+  size: number;
+  /** Hilos creados ahora mismo (ocupados o libres). */
+  workers: number;
+  /** Operaciones en curso. */
+  active: number;
+  /** Operaciones esperando un hilo libre. */
+  queued: number;
+  /** Operaciones que terminaron con su respuesta (acierten o no) desde que arrancó el pool. */
+  completed: number;
+  /** Operaciones canceladas por pasar del tiempo límite. */
+  timeouts: number;
+  /** Operaciones rechazadas al instante por tener la cola llena. */
+  rejected: number;
+  /** Hilos que se cayeron (error no capturado, memoria agotada). */
+  crashes: number;
+}
+
 /** Dónde se ejecutan los trabajos: en este mismo proceso o en un `ComputePool`. `run` nunca rechaza: los fallos son `ComputeOutcome`. */
 export interface ComputeExecutor {
   run(job: ComputeJob, options?: ComputeRunOptions): Promise<ComputeOutcome>;
   /** Libera lo que tenga (hilos); lo que esté en curso o en cola se responde con 503. */
   close(): Promise<void>;
+  /** Recuentos para las métricas. El ejecutor en el propio hilo no tiene pool y no los ofrece. */
+  stats?(): ComputeStats;
+  /** ¿Puede atender trabajos? (`/readyz`.) Un pool cerrado, sin su archivo de hilo o con hilos que se caen sin contestar nunca, no. */
+  healthy?(): boolean;
 }
 
 /** Las acciones de `/api/<módulo>/…` que son cálculo (más `POST /api/trace`). Las demás (capabilities, schema) son lecturas baratas. */

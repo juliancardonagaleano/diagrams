@@ -1,0 +1,18 @@
+{
+  "module": "platform",
+  "cases": [
+    {
+      "id": "checkout-kubernetes",
+      "kind": "generate",
+      "instruction": "El servicio checkout (Node.js, crítico, SLO de 99,9 %) se despliega en Kubernetes sobre AWS: un clúster EKS en staging (1 réplica) y otro en producción (3 réplicas), cada uno en su VPC privada, y una base de datos RDS PostgreSQL en producción. Todo con infraestructura como código. Un pipeline CI/CD con GitHub Actions despliega primero a staging y, con aprobación manual, a producción.",
+      "notes": "Dos entornos, redes privadas, un clúster por entorno, una base de datos, despliegues con réplicas y un pipeline con aprobación manual antes de producción.",
+      "expect": {
+        "kinds": { "environment": 2, "network": 2, "resource": 3, "service": 1, "pipeline": 1 },
+        "mentions": ["EKS", "RDS", "GitHub Actions"],
+        "maxWarnings": 0,
+        "loop": { "attempts": 1, "repaired": false, "verification": "passed" },
+        "prompt": { "systemContains": ["arquitecto de plataforma", "NO produces coordenadas"], "userContains": ["checkout"], "maxInputTokens": 9000 }
+      }
+    }
+  ]
+}

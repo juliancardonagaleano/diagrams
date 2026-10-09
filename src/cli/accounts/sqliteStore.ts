@@ -18,6 +18,7 @@ import {
   ROLE_RANK,
   SITE_ROLES,
   type AccountsFile,
+  type AccountStats,
   type AccountStore,
   type AccountStoreOptions,
   type AccountUser,
@@ -519,6 +520,29 @@ export class SqliteAccountStore implements AccountStore {
 
   get userCount(): number {
     return this.read(() => this.count('SELECT count(*) AS n FROM users'));
+  }
+
+  stats(): AccountStats {
+    return this.snapshotRead(() => {
+      const row = this.get(
+        "SELECT count(*) AS users, coalesce(sum(disabled = 1), 0) AS disabled, coalesce(sum(disabled = 0 AND github_id IS NULL), 0) AS pending FROM users",
+      ) as Row;
+      const users = Number(row.users);
+      const disabled = Number(row.disabled);
+      const pending = Number(row.pending);
+      return { users, active: users - disabled - pending, disabled, pending, sessions: this.count('SELECT count(*) AS n FROM sessions WHERE expires_at > ?', this.iso()) };
+    });
+  }
+
+  readable(): boolean {
+    try {
+      // Una lectura de verdad de la base (no del archivo): comprueba que la conexión y el esquema responden.
+      this.get('SELECT 1 AS n FROM meta LIMIT 1');
+      this.get('SELECT 1 AS n FROM users LIMIT 1');
+      return this.db.isOpen;
+    } catch {
+      return false;
+    }
   }
 
   users(): AccountUser[] {

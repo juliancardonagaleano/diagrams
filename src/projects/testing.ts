@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { MemoryProjectStore, ProjectError, type ProjectErrorCode, type ProjectRole, type ProjectStore } from '@iark/kernel';
+import { MemoryProjectStore, ProjectError, type ProjectErrorCode, type ProjectRole, type ProjectStore, type SiteRole } from '@iark/kernel';
 
 /**
  * Apoyo de las pruebas: un `fetch` simulado que se comporta como la API `/api/projects` de `iark serve --workspace` (rutas,
@@ -9,7 +9,8 @@ import { MemoryProjectStore, ProjectError, type ProjectErrorCode, type ProjectRo
  *
  * Con `accounts: true` se comporta además como un servidor con inicio de sesión de GitHub (`iark serve --accounts`): `/api/auth/…`
  * (providers, exchange con PKCE, logout), sesiones de persona (`iark_s_…`), proyectos por pertenencia con su `role` (lo ajeno es 404) y
- * compartir (`/api/projects/<p>/members`). Sin `accounts`, esas rutas dan 404 como en un servidor anterior a las cuentas.
+ * compartir (`/api/projects/<p>/members`) y la administración de la instancia (`/api/admin/users`: cuentas, invitaciones, roles y desactivar, con los
+ * mismos 403, 409 `self` y `listed-admin` y 404 que el servidor de verdad). Sin `accounts`, esas rutas dan 404 como en un servidor anterior a las cuentas.
  */
 export interface FakeServer {
   fetch: typeof fetch;
@@ -45,6 +46,30 @@ export interface FakeServer {
   share(projectId: string, person: FakePerson | string, role: ProjectRole): void;
   /** Lo que respondió cada llamada a `exchange`, en orden (para comprobar que no se reintenta un código). */
   exchanges: number;
+  /** Las cuentas de la instancia, por orden de creación: las personas que entraron (con `openSession` o `issueCode`) y las invitaciones. */
+  directory: FakeAccount[];
+  /** Cuántas invitaciones sin reclamar admite la instancia (el servidor responde 409 `limit` al pasarse). */
+  maxPending: number;
+  /** Añade una cuenta ya existente (que entró, o una invitación con `pending: true`) sin pasar por GitHub. */
+  addAccount(account: Partial<FakeAccount> & { login: string }): FakeAccount;
+  /** Responde con ese estado y cuerpo a las próximas `times` peticiones que coincidan (`MÉTODO /ruta`), sin llegar a la lógica del servidor. */
+  inject(match: RegExp, status: number, body: unknown, times?: number): void;
+}
+
+/** Una cuenta de la instancia en el servidor simulado (lo que `GET /api/admin/users` cuenta de ella, menos el número de proyectos, que se deduce de `members`). */
+export interface FakeAccount {
+  id: string;
+  login: string;
+  name?: string;
+  avatarUrl?: string;
+  siteRole: SiteRole;
+  disabled: boolean;
+  /** Invitación sin reclamar: esa persona aún no ha entrado. */
+  pending: boolean;
+  /** Figura en `--admins`: su rol y su acceso los manda esa lista. */
+  listed?: boolean;
+  createdAt: string;
+  lastLoginAt?: string;
 }
 
 /** Una persona con cuenta en el servidor simulado. */
@@ -67,11 +92,15 @@ export interface FakeMember {
 const STATUS: Record<ProjectErrorCode, number> = { 'not-found': 404, exists: 409, conflict: 409, invalid: 400, unavailable: 500, unauthorized: 401, forbidden: 403 };
 
 const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+/** El nombre de usuario que acepta la administración de cuentas del servidor (`src/cli/accounts/store.ts`). */
+const INSTANCE_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9_]|-(?=[A-Za-z0-9_])){0,38}$/;
 const sameLogin = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
-export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 'name' | 'noProjects' | 'accounts' | 'maxMembers' | 'maxProjects'>> & { store?: ProjectStore } = {}): FakeServer {
+export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 'name' | 'noProjects' | 'accounts' | 'maxMembers' | 'maxProjects' | 'maxPending'>> & { store?: ProjectStore } = {}): FakeServer {
   const people = new Map<string, FakePerson>();
   const codes = new Map<string, { person: FakePerson; challenge: string }>();
+  const injected: Array<{ match: RegExp; status: number; body: unknown; times: number }> = [];
+  let accountSeq = 0;
   const server: FakeServer = {
     store: options.store ?? new MemoryProjectStore(),
     log: [],
@@ -86,9 +115,23 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
     members: new Map(),
     maxMembers: options.maxMembers ?? 50,
     maxProjects: options.maxProjects ?? Infinity,
+    maxPending: options.maxPending ?? 500,
     exchanges: 0,
+    directory: [],
     fetch: undefined as unknown as typeof fetch,
+    addAccount(account) {
+      const existing = server.directory.find((a) => sameLogin(a.login, account.login));
+      if (existing) return Object.assign(existing, account);
+      const created: FakeAccount = { id: `u_fake${++accountSeq}`, siteRole: 'member', disabled: false, pending: false, createdAt: new Date().toISOString(), ...account };
+      if (!created.pending && !created.lastLoginAt) created.lastLoginAt = created.createdAt;
+      server.directory.push(created);
+      return created;
+    },
+    inject(match, status, body, times = 1) {
+      injected.push({ match, status, body, times });
+    },
     openSession(person) {
+      signIn(person);
       people.set(person.login.toLowerCase(), person);
       const token = `iark_s_${randomBytes(16).toString('hex')}`;
       server.sessions.set(token, person);
@@ -107,7 +150,20 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
       server.members.set(projectId, [...list, { login, role, pending: false }]);
     },
   };
-  const publicUser = (person: FakePerson): Record<string, unknown> => ({ id: person.id, login: person.login, ...(person.name ? { name: person.name } : {}), ...(person.avatarUrl ? { avatarUrl: person.avatarUrl } : {}), siteRole: person.siteRole ?? 'member' });
+  /** Una persona entra: su cuenta existe (o reclama la invitación hecha a su nombre, con el rol de la invitación) y queda como la última vez que entró. */
+  const signIn = (person: FakePerson): void => {
+    const found = server.directory.find((a) => sameLogin(a.login, person.login));
+    const account = found ?? server.addAccount({ login: person.login, siteRole: person.siteRole ?? 'member' });
+    if (!found || found.pending || found.id.startsWith('u_fake')) account.id = person.id;
+    account.login = person.login;
+    account.pending = false;
+    account.lastLoginAt = new Date().toISOString();
+    if (person.name) account.name = person.name;
+    if (person.avatarUrl) account.avatarUrl = person.avatarUrl;
+  };
+  /** El rol de la instancia que tiene ahora una persona: el de su cuenta (un administrador pudo cambiarlo) y, si no tiene, el que traía. */
+  const siteRoleOf = (person: FakePerson): SiteRole => server.directory.find((a) => sameLogin(a.login, person.login))?.siteRole ?? person.siteRole ?? 'member';
+  const publicUser = (person: FakePerson): Record<string, unknown> => ({ id: person.id, login: person.login, ...(person.name ? { name: person.name } : {}), ...(person.avatarUrl ? { avatarUrl: person.avatarUrl } : {}), siteRole: siteRoleOf(person) });
   const memberView = (member: FakeMember, caller: FakePerson): Record<string, unknown> => {
     const person = people.get(member.login.toLowerCase());
     return { login: member.login, ...(person?.name ? { name: person.name } : {}), ...(person?.avatarUrl ? { avatarUrl: person.avatarUrl } : {}), role: member.role, pending: member.pending && !person, ...(sameLogin(member.login, caller.login) ? { you: true } : {}) };
@@ -116,11 +172,74 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
   const json = (status: number, body: unknown, headers: Record<string, string> = {}): Response =>
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
+  const adminJson = (account: FakeAccount): Record<string, unknown> => ({
+    id: account.id,
+    login: account.login,
+    ...(account.name ? { name: account.name } : {}),
+    ...(account.avatarUrl ? { avatarUrl: account.avatarUrl } : {}),
+    siteRole: account.siteRole,
+    disabled: account.disabled,
+    pending: account.pending,
+    ...(account.listed ? { listed: true } : {}),
+    createdAt: account.createdAt,
+    ...(account.lastLoginAt ? { lastLoginAt: account.lastLoginAt } : {}),
+    projects: [...server.members.values()].filter((list) => list.some((m) => sameLogin(m.login, account.login))).length,
+  });
+  const SITE_ROLES: readonly string[] = ['admin', 'member', 'guest'];
+
+  /** `/api/admin/users` con las mismas reglas que el servidor de verdad (`src/cli/accounts/admin.ts`). */
+  const adminUsers = (method: string, parts: string[], body: Record<string, unknown>, caller: FakePerson | undefined): Response => {
+    if (parts[0] !== 'users' || parts.length > 2) return json(404, { error: 'Ruta de administración desconocida: use /api/admin/users o /api/admin/users/<usuario de GitHub>.' });
+    if (parts.length === 1) {
+      if (method !== 'GET') return json(405, { error: 'Método no permitido: use GET.' });
+      return json(200, [...server.directory].sort((a, b) => a.login.localeCompare(b.login, undefined, { sensitivity: 'base' })).map(adminJson));
+    }
+    const login = parts[1];
+    const existing = server.directory.find((a) => sameLogin(a.login, login));
+    if (method === 'PUT') {
+      if (body.siteRole !== undefined && (typeof body.siteRole !== 'string' || !SITE_ROLES.includes(body.siteRole))) return json(400, { error: `"siteRole" debe ser ${SITE_ROLES.join(', ')}.`, code: 'invalid' });
+      if (body.disabled !== undefined && typeof body.disabled !== 'boolean') return json(400, { error: '"disabled" debe ser verdadero o falso.', code: 'invalid' });
+      if (!INSTANCE_LOGIN.test(login)) return json(400, { error: `«${login.slice(0, 60)}» no es un nombre de usuario de GitHub (letras, números y guiones, hasta 39 caracteres).`, code: 'invalid' });
+      const siteRole = body.siteRole as SiteRole | undefined;
+      if (existing) {
+        const lowers = (siteRole !== undefined && siteRole !== 'admin') || body.disabled === true;
+        if (existing.listed && lowers) return json(409, { error: `«${existing.login}» figura en la lista de administradores de la instancia (--admins): su rol y su acceso los manda esa lista.`, code: 'listed-admin' });
+        if (caller && sameLogin(existing.login, caller.login) && (body.disabled === true || (siteRole !== undefined && siteRole !== existing.siteRole))) {
+          return json(409, { error: 'No puedes cambiar tu propio rol ni desactivar tu propia cuenta: que lo haga otra persona administradora.', code: 'self' });
+        }
+      } else if (server.directory.filter((a) => a.pending).length >= server.maxPending) {
+        return json(409, { error: `Hay ${server.maxPending} invitaciones sin aceptar: hace falta que alguien entre o que un administrador las cancele.`, code: 'limit' });
+      }
+      const account = existing ?? server.addAccount({ login, pending: true, siteRole: 'member' });
+      if (siteRole !== undefined) account.siteRole = siteRole;
+      if (typeof body.disabled === 'boolean') {
+        account.disabled = body.disabled;
+        // desactivar una cuenta cierra sus sesiones
+        if (body.disabled) for (const [token, person] of [...server.sessions]) if (sameLogin(person.login, account.login)) server.sessions.delete(token);
+      }
+      return json(existing ? 200 : 201, adminJson(account), existing ? {} : { Location: `/api/admin/users/${encodeURIComponent(account.login)}` });
+    }
+    if (method === 'DELETE') {
+      if (!existing) return json(404, { error: `No existe la cuenta «${login.slice(0, 60)}».`, code: 'not-found' });
+      if (!existing.pending) return json(409, { error: 'Esa persona ya entró: para quitarle el acceso, desactiva su cuenta.', code: 'conflict' });
+      server.directory.splice(server.directory.indexOf(existing), 1);
+      for (const [projectId, list] of server.members) server.members.set(projectId, list.filter((m) => !sameLogin(m.login, existing.login)));
+      return json(200, { removed: existing.login });
+    }
+    return json(405, { error: 'Método no permitido: use PUT, DELETE.' });
+  };
+
   server.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     const method = (init.method ?? 'GET').toUpperCase();
     server.log.push(`${method} ${url.pathname}`);
     if (server.down) throw new TypeError('Failed to fetch');
+    const forced = injected.find((entry) => entry.match.test(`${method} ${url.pathname}`));
+    if (forced) {
+      forced.times -= 1;
+      if (forced.times <= 0) injected.splice(injected.indexOf(forced), 1);
+      return json(forced.status, forced.body);
+    }
     if (init.mode === 'no-cors') return new Response(null, { status: 200 }); // llega, pero opaca: no se puede leer
     if (server.corsBlocked) throw new TypeError('Failed to fetch');
 
@@ -158,10 +277,17 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
 
     if (path === '/api/whoami') {
       if (server.noProjects) return json(404, { error: 'No existe esa ruta.' });
-      if (caller) return json(200, { auth: true, name: caller.name ?? caller.login, role: caller.siteRole ?? 'member', user: publicUser(caller) });
+      if (caller) return json(200, { auth: true, name: caller.name ?? caller.login, role: siteRoleOf(caller), user: publicUser(caller) });
       if (server.token === undefined && !server.accounts) return json(200, { auth: false });
       if (!authorized) return unauthorized();
       return json(200, { auth: true, name: server.name, role: server.role });
+    }
+    if (path.startsWith('/api/admin/')) {
+      if (!server.accounts) return json(404, { error: 'Este servicio no tiene cuentas de GitHub: la administración de cuentas solo existe con --accounts.' });
+      if (!authorized) return unauthorized();
+      // Quien administra la instancia: una persona con rol `admin` o el token de `--tokens` con rol `admin`.
+      if (!(caller ? siteRoleOf(caller) === 'admin' : server.role === 'admin')) return json(403, { error: 'Solo quien administra la instancia puede ver y cambiar las cuentas.', code: 'forbidden' });
+      return adminUsers(method, path.split('/').slice(3).map(decodeURIComponent), bodyOf(), caller);
     }
     if (!path.startsWith('/api/projects')) return json(404, { error: 'No existe esa ruta.' });
     if (server.noProjects) return json(404, { error: 'Este servicio no tiene espacio de trabajo (use --workspace <carpeta>).' });
@@ -193,9 +319,9 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
         }
         if (method === 'POST') {
           if (caller) {
-            if (caller.siteRole === 'guest') return forbidden('Tu cuenta no puede crear proyectos en esta instancia.');
+            if (siteRoleOf(caller) === 'guest') return forbidden('Tu cuenta no puede crear proyectos en esta instancia.');
             const administered = [...server.members.values()].filter((list) => list.some((m) => sameLogin(m.login, caller.login) && m.role === 'admin')).length;
-            if (caller.siteRole !== 'admin' && administered >= server.maxProjects) return json(403, { error: `Ya administras ${server.maxProjects} proyectos, el máximo por persona en esta instancia.`, code: 'limit' });
+            if (siteRoleOf(caller) !== 'admin' && administered >= server.maxProjects) return json(403, { error: `Ya administras ${server.maxProjects} proyectos, el máximo por persona en esta instancia.`, code: 'limit' });
           }
           const created = await store.createProject({ name: String(body.name), description: body.description as string | undefined });
           if (caller) server.members.set(created.id, [{ login: caller.login, role: 'admin', pending: false }]);

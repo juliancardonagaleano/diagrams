@@ -1,6 +1,7 @@
 import { extname } from 'node:path';
 import { generateStructured, migrateDocument, moduleStandalonePrompt, parseModuleDocument, type DocumentMigrated, type DomainModule, type ModuleRegistry } from '@iark/kernel';
 import { DEFAULT_AI_MODEL } from '@core/ai/generate';
+import { reportGeneration, tokenLimitOptions, withAiErrors, type RepoHint } from './ai';
 import { CliError, extractJson, info, noteMigration, readInput, writeOutput } from './io';
 
 /**
@@ -10,13 +11,17 @@ import { CliError, extractJson, info, noteMigration, readInput, writeOutput } fr
 
 const jsonOut = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 
-function readJson(file: string | undefined, useStdin: boolean): unknown {
-  const raw = readInput(file, useStdin);
+/** Interpreta un texto (JSON, también envuelto en un bloque ```json). */
+function parseJsonText(raw: string): unknown {
   try {
     return JSON.parse(extractJson(raw));
   } catch (error) {
     throw new CliError(`La entrada no es JSON válido: ${(error as Error).message}`);
   }
+}
+
+function readJson(file: string | undefined, useStdin: boolean): unknown {
+  return parseJsonText(readInput(file, useStdin));
 }
 
 /** El documento ya parseado (con los problemas de esquema como `CliError` de código 2) y, si venía de una versión anterior, de dónde. */
@@ -40,6 +45,13 @@ export function readModuleDocumentInfo(module: DomainModule<any>, file: string |
 /** Como `readModuleDocumentInfo`, avisando por stderr si hubo que migrar el documento. */
 export function readModuleDocument(module: DomainModule<any>, file: string | undefined, useStdin: boolean): unknown {
   const { document, migrated } = readModuleDocumentInfo(module, file, useStdin);
+  noteMigration(migrated);
+  return document;
+}
+
+/** Interpreta un texto ya leído como documento del módulo: lo migra si hace falta y lo valida con su esquema, igual que `readModuleDocument`. */
+export function parseModuleDocumentText(module: DomainModule<unknown>, raw: string): unknown {
+  const { document, migrated } = parseDocumentJson(module, parseJsonText(raw));
   noteMigration(migrated);
   return document;
 }
@@ -90,9 +102,14 @@ export function genericSchema(module: DomainModule<any>, generation: boolean): v
   } else process.stdout.write(jsonOut(module.jsonSchema()));
 }
 
-export function genericPrompt(module: DomainModule<any>, instruction: string, base: unknown): void {
+/** El prompt autocontenido del módulo (el que imprime `prompt`), para escribirlo o para estimar su tamaño. */
+export function genericPromptText(module: DomainModule<unknown>, instruction: string, base: unknown): string {
   if (!module.ai) throw new CliError(`El módulo «${module.id}» no genera con IA.`, 2);
-  process.stdout.write(moduleStandalonePrompt(module.ai, instruction, base));
+  return moduleStandalonePrompt(module.ai, instruction, base);
+}
+
+export function genericPrompt(module: DomainModule<any>, instruction: string, base: unknown): void {
+  process.stdout.write(genericPromptText(module, instruction, base));
 }
 
 /** Exporta un documento con el exportador del módulo indicado por id (o por extensión del archivo de salida). */
@@ -111,21 +128,52 @@ export async function genericExport(module: DomainModule<any>, document: unknown
 export async function genericGenerate(
   module: DomainModule<any>,
   instruction: string,
-  opts: { base?: unknown; provider?: string; model?: string; effort?: string; retries: number; json?: string; out?: string; viewId?: string },
+  opts: {
+    base?: unknown;
+    provider?: string;
+    model?: string;
+    effort?: string;
+    retries: number;
+    json?: string;
+    out?: string;
+    viewId?: string;
+    maxTokens?: number;
+    budgetTokens?: number;
+    maxInputTokens?: number;
+    /** `false` (`--no-verify`): no pasar el resultado por `validate()` del módulo. */
+    verify?: boolean;
+    /** `--allow-invalid`: aceptar un documento con errores de reglas tras agotar los reintentos. */
+    allowInvalid?: boolean;
+    /** `--strict`: los avisos de `validate()` también se devuelven al modelo. */
+    strict?: boolean;
+    /** Con `--from-repo`: para que un prompt demasiado grande diga qué recortar. */
+    repo?: RepoHint;
+  },
 ): Promise<void> {
   if (!module.ai) throw new CliError(`El módulo «${module.id}» no genera con IA.`, 2);
-  const result = await generateStructured(module.ai, {
-    instruction,
-    base: opts.base,
-    defaultModel: DEFAULT_AI_MODEL,
-    provider: opts.provider as never,
-    model: opts.model,
-    effort: opts.effort as never,
-    maxRetries: opts.retries,
-    onProgress: info,
-  });
-  const document = module.ai.finish ? await module.ai.finish(result.document) : result.document;
+  const ai = module.ai;
+  const result = await withAiErrors(
+    () =>
+      generateStructured(ai, {
+        instruction,
+        base: opts.base,
+        defaultModel: DEFAULT_AI_MODEL,
+        provider: opts.provider as never,
+        model: opts.model,
+        effort: opts.effort as never,
+        maxRetries: opts.retries,
+        ...tokenLimitOptions(opts),
+        validate: module.validate,
+        verify: opts.verify,
+        allowInvalid: opts.allowInvalid,
+        retryOn: opts.strict ? 'warning' : 'error',
+        onProgress: info,
+      }),
+    opts.repo,
+  );
+  const document = ai.finish ? await ai.finish(result.document) : result.document;
   info(`Modelo generado con ${result.model} (${result.provider}) en ${result.attempts} intento(s) (${result.usage.inputTokens} tokens de entrada, ${result.usage.outputTokens} de salida).`);
+  reportGeneration(result);
   if (opts.json) {
     writeOutput(opts.json, jsonOut(document));
     info(`JSON escrito en ${opts.json}`);

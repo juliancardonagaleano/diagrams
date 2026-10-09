@@ -18,6 +18,7 @@ import {
   ROLE_RANK,
   SITE_ROLES,
   type AccountsFile,
+  type AccountStats,
   type AccountStore,
   type AccountStoreOptions,
   type AccountUser,
@@ -247,6 +248,22 @@ export class JsonAccountStore implements AccountStore {
 
   get userCount(): number {
     return this.state.users.length;
+  }
+
+  stats(): AccountStats {
+    const now = this.now().getTime();
+    let disabled = 0;
+    let pending = 0;
+    for (const user of this.state.users) {
+      if (user.disabled) disabled += 1;
+      else if (user.githubId === undefined) pending += 1;
+    }
+    const sessions = this.state.sessions.filter((s) => Date.parse(s.expiresAt) > now).length;
+    return { users: this.state.users.length, active: this.state.users.length - disabled - pending, disabled, pending, sessions };
+  }
+
+  readable(): boolean {
+    return true; // el estado está en memoria; que el archivo se pueda leer y escribir lo comprueba `/readyz` aparte
   }
 
   users(): AccountUser[] {

@@ -222,4 +222,10 @@ export const enterpriseAiSpec: AiSpec<EnterpriseDocument> = {
   },
   retry: (issues) => `El modelo devuelto no pasó la validación. Corrige estos problemas y devuelve el modelo completo de nuevo:\n${issues}`,
   toDocument: (generated) => generatedToEnterprise(generated as GeneratedEnterprise),
+  // Para `iark explain` y `iark review`: la proyección compacta del documento y qué destacar y qué mirar en este módulo.
+  serialize: toGenerated,
+  explainGuide:
+    'Narra por capas, de negocio a tecnología: las capacidades de la empresa (y cuáles son diferenciadoras o de apoyo), los procesos que las realizan, las aplicaciones que los soportan y la tecnología sobre la que corren; menciona el ciclo de vida (planificada, activa, en retirada) y la criticidad de las aplicaciones y quién es responsable de cada pieza.',
+  reviewGuide:
+    'Mira: capacidades hoja sin ninguna aplicación que las soporte; aplicaciones que no soportan nada o sin responsable; varias aplicaciones para la misma capacidad (solapamiento); tecnología en retirada o con fin de soporte vencido bajo aplicaciones críticas; aplicaciones críticas sin estrategia de evolución; procesos sin responsable; capacidades diferenciadoras con poca madurez; flujos de valor con etapas sin capacidad que las habilite.',
 };

@@ -1,0 +1,121 @@
+{
+  "case": "tienda-en-linea",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Camino feliz: una sola respuesta que cumple el esquema y las reglas.",
+  "promptSha256": "ab3668119e953e6097c5ee30ef38c74b8da04b07d05457009bfebc4add56aaa5",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "Tienda en línea",
+          "description": null
+        },
+        "elements": [
+          {
+            "id": "cliente",
+            "type": "person",
+            "name": "Cliente",
+            "description": "Compra en la tienda",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "tienda",
+            "type": "softwareSystem",
+            "name": "Tienda en línea",
+            "description": "Vende productos por internet",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "web",
+            "type": "container",
+            "name": "Aplicación web",
+            "description": "Interfaz de la tienda para el navegador",
+            "technology": "React",
+            "external": false,
+            "parentId": "tienda",
+            "shape": "browser"
+          },
+          {
+            "id": "api",
+            "type": "container",
+            "name": "API",
+            "description": "Reglas de negocio de los pedidos",
+            "technology": "Node.js",
+            "external": false,
+            "parentId": "tienda",
+            "shape": null
+          },
+          {
+            "id": "db",
+            "type": "container",
+            "name": "Base de datos",
+            "description": "Guarda los pedidos",
+            "technology": "PostgreSQL",
+            "external": false,
+            "parentId": "tienda",
+            "shape": "database"
+          }
+        ],
+        "relationships": [
+          {
+            "id": "r1",
+            "sourceId": "cliente",
+            "targetId": "tienda",
+            "description": "Compra en",
+            "technology": "HTTPS"
+          },
+          {
+            "id": "r2",
+            "sourceId": "cliente",
+            "targetId": "web",
+            "description": "Usa",
+            "technology": "HTTPS"
+          },
+          {
+            "id": "r3",
+            "sourceId": "web",
+            "targetId": "api",
+            "description": "Llama a",
+            "technology": "JSON/HTTPS"
+          },
+          {
+            "id": "r4",
+            "sourceId": "api",
+            "targetId": "db",
+            "description": "Lee y escribe pedidos en",
+            "technology": "SQL"
+          }
+        ],
+        "views": [
+          {
+            "id": "contexto",
+            "type": "systemContext",
+            "scopeId": "tienda",
+            "title": "Contexto de la tienda",
+            "elementIds": [
+              "cliente",
+              "tienda"
+            ]
+          },
+          {
+            "id": "contenedores",
+            "type": "container",
+            "scopeId": "tienda",
+            "title": "Contenedores de la tienda",
+            "elementIds": [
+              "cliente",
+              "web",
+              "api",
+              "db"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

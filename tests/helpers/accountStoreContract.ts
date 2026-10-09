@@ -431,6 +431,38 @@ export function accountStoreContract(kind: AccountStoreKind, harness: AccountSto
       });
     });
 
+    describe('recuentos para las métricas y lectura', () => {
+      it('stats() cuenta cuentas activas, desactivadas y pendientes, y solo las sesiones vigentes; nada más', () => {
+        let now = Date.parse('2026-10-01T00:00:00Z');
+        const store = open({ now: () => new Date(now) });
+        expect(store.stats()).toEqual({ users: 0, active: 0, disabled: 0, pending: 0, sessions: 0 });
+        const a = store.signIn(ana, OPEN);
+        const b = store.signIn(beto, OPEN);
+        store.invite('carla', 'guest'); // pendiente
+        store.invite('dani', 'guest'); // pendiente que luego se desactiva: cuenta como desactivada, no como pendiente
+        store.updateUser(store.findByLogin('dani')!.id, { disabled: true });
+        store.updateUser(b.id, { disabled: true });
+        store.createSession(a.id, 3600_000);
+        store.createSession(a.id, 3 * 3600_000);
+        expect(store.stats()).toEqual({ users: 4, active: 1, disabled: 2, pending: 1, sessions: 2 });
+        now += 2 * 3600_000; // la primera sesión caduca
+        expect(store.stats()).toEqual({ users: 4, active: 1, disabled: 2, pending: 1, sessions: 1 });
+        // son solo números
+        expect(Object.values(store.stats()).every((value) => typeof value === 'number')).toBe(true);
+        store.updateUser(b.id, { disabled: false });
+        expect(store.stats()).toEqual({ users: 4, active: 2, disabled: 1, pending: 1, sessions: 1 });
+      });
+
+      it('readable() dice que sí con el almacén abierto y no lanza nunca, tampoco cerrado', () => {
+        const harness = make();
+        expect(harness.store.readable()).toBe(true);
+        harness.store.signIn(ana, OPEN);
+        expect(harness.store.readable()).toBe(true);
+        harness.store.close();
+        expect(() => harness.store.readable()).not.toThrow();
+      });
+    });
+
     describe('reinicio', () => {
       it('al volver a abrir, todo sigue: cuentas, invitaciones, sesiones y pertenencias', () => {
         const harnessed = make();

@@ -22,10 +22,11 @@ Lo que ya está hecho, para que sepas qué te ahorras:
 | Ya está hecho (imagen y `deploy/`) | Lo haces tú |
 |---|---|
 | La imagen corre como usuario `node` (no root), con la carpeta de datos `/data` lista | Elegir la dirección y crear el registro DNS |
-| `HEALTHCHECK` que sigue sirviendo con el inicio de sesión activo | Registrar la OAuth App en GitHub y copiar su Client ID y su Client secret |
+| `HEALTHCHECK` (`/healthz`) que sigue sirviendo con el inicio de sesión activo | Registrar la OAuth App en GitHub y copiar su Client ID y su Client secret |
 | Caddy con HTTPS automático y renovación de certificados | Contratar la máquina, abrir los puertos 80 y 443 |
 | `IARK_TRUST_PROXY=true` (`--trust-proxy`), sin publicar el puerto de IArk, sistema de archivos de solo lectura, sin capacidades, reinicio automático, límites de memoria y de CPU, registros con rotación | Rellenar `deploy/.env` y guardar el secreto en `deploy/secrets/` |
 | Volumen `iark-data` para proyectos y cuentas; el secreto como Docker secret | `docker compose up -d --build`, las copias de seguridad y las actualizaciones |
+| Registro de accesos (a `docker compose logs iark`), auditoría de cambios (`/data/audit.jsonl`) y `/healthz`, `/readyz` y `/metrics` (esta apagada): [observabilidad](observabilidad.md) | Rotar la auditoría, decidir cuánto tiempo guardas los registros (llevan usuario e IP) y, si quieres, enchufar un monitor o Prometheus |
 | Se niega a arrancar sin autenticación si hay proyectos (nunca los deja abiertos) | Decidir quién entra (`invite` u `open`) |
 
 **La dirección pública** es la que elijas aquí, una sola vez, y se repite en todas partes: `https://iark.tudominio.org` (sin barra final ni ruta). En esta guía, `iark.tudominio.org` es tu dominio.
@@ -95,7 +96,7 @@ Sirve cualquiera que cumpla **todos** estos requisitos. **No he probado ninguna 
 1. **Una sola instancia (réplica) en una sola máquina**. Las cuentas están en una base SQLite en el disco local: dos copias sobre el mismo disco **local** no la corrompen (cada cambio es una transacción), pero la base no sirve entre máquinas distintas ni sobre un disco de red (NFS, SMB), y el inicio de sesión necesita que sus tres peticiones lleguen a la misma instancia (ver [Límites](#9-límites-honestos)). Desactiva el escalado automático; un despliegue que arranque la versión nueva *antes* de parar la vieja sobre el mismo disco local es tolerable (la base lo admite), pero no entre máquinas.
 2. **Un disco persistente montado en `/data`**, para que `IARK_WORKSPACE=/data/workspace` e `IARK_ACCOUNTS=/data/accounts.db` sobrevivan a cada despliegue. Sin disco, se pierde todo al actualizar. Debe ser un disco **local** de bloque (el de Docker, el de la VPS, el volumen persistente de la plataforma): SQLite en modo WAL no funciona bien sobre sistemas de archivos de red.
 3. **HTTPS en la dirección pública**: la que te dé la plataforma o tu dominio. Esa misma es `IARK_PUBLIC_URL` y la base de la *callback URL* de la OAuth App (paso 1).
-4. **Construir la imagen desde el `Dockerfile` del repositorio** (no hay una imagen publicada en un registro). El puerto sale de la variable `PORT` (8787 por omisión): si la plataforma la define, funciona sin más; si no, apunta su puerto interno al 8787. La comprobación de salud puede ser `GET /api/modules` (público).
+4. **Construir la imagen desde el `Dockerfile` del repositorio** (no hay una imagen publicada en un registro). El puerto sale de la variable `PORT` (8787 por omisión): si la plataforma la define, funciona sin más; si no, apunta su puerto interno al 8787. La comprobación de salud es `GET /healthz` (público y sin tocar el disco; la imagen ya la trae); si la plataforma puede sacar la instancia de rotación sin reiniciarla, `GET /readyz` dice además si puede trabajar (`503` si no puede escribir en el disco): ver [Observabilidad](observabilidad.md#salud-healthz-y-readyz). Los registros (`IARK_ACCESS_LOG=-` para la salida estándar, `IARK_AUDIT_LOG=/data/audit.jsonl`) se encienden con variables, como todo.
 5. **Detrás de un proxy**: `IARK_TRUST_PROXY=true` (equivale a `--trust-proxy`) y, si lo necesitas, `IARK_CORS=https://juliancardonagaleano.github.io` (equivale a `--cors`; ver el apartado 5). `IARK_TRUST_PROXY` solo vale si la plataforma deja la dirección real del cliente en la **última** entrada de `X-Forwarded-For`; si no lo tienes claro (Fly.io, por ejemplo, documenta la dirección del cliente en otra cabecera, `Fly-Client-IP`, que IArk no lee), déjalo sin activar: todas las personas compartirán entonces el freno de intentos fallidos. Si la plataforma solo deja poner argumentos, `--trust-proxy` y `--cors=…` valen igual: deben añadirse a los de la imagen (como los que van detrás del nombre de la imagen en `docker run`), no sustituir su `ENTRYPOINT`.
 6. **Variables de entorno** (el Client secret, en el almacén de secretos de la plataforma, no en un archivo del repositorio):
 
@@ -127,6 +128,9 @@ El registro de `iark` debe parecerse a esto (con tus valores):
 ```
 IArk - DIAgrams escuchando en http://0.0.0.0:8787 (sitio: dist/app)
   manifiesto: /.well-known/iark.json · módulos: /api/modules
+  registro de accesos: stdout (JSON por línea; sin query string, cuerpos ni credenciales)
+  auditoría: /data/audit.jsonl (JSON por línea, solo se añade; modo 0600)
+  salud: /healthz (vivo) · /readyz (listo)
   cálculo: hasta 1 hilo(s) de trabajo · tiempo límite 30 s por operación · cola de 16
   las rutas de cálculo (validar, exportar, importar, informes, trazas) exigen credencial; /api/modules, capabilities y schema siguen públicos
   espacio de trabajo: /data/workspace · proyectos: /api/projects
@@ -143,9 +147,11 @@ curl https://iark.tudominio.org/api/auth/providers     # {"providers":[{"id":"gi
 curl https://iark.tudominio.org/.well-known/iark.json  # el manifiesto: debe traer "projects": "../api/projects" y "projectsAuth": "bearer"
 curl -i https://iark.tudominio.org/api/projects        # 401 sin sesión: es lo correcto; los proyectos no son públicos
 curl -sI http://iark.tudominio.org/ | head -1          # 308: el puerto 80 redirige a HTTPS
+curl https://iark.tudominio.org/healthz                # {"status":"ok"}: vivo (es lo que mira el HEALTHCHECK)
+curl https://iark.tudominio.org/readyz                 # {"status":"ok","checks":{"workspace":"ok","accounts":"ok","compute":"ok"}}: puede trabajar; 503 si no
 ```
 
-Si `providers` sale vacío (`"providers":[]`), IArk arrancó sin inicio de sesión: revisa `.env` y el secreto. El `HEALTHCHECK` de la imagen consulta `/api/modules` (público) cada 30 s; `docker inspect --format '{{.State.Health.Status}}' iark-iark-1` dice `healthy`.
+Si `providers` sale vacío (`"providers":[]`), IArk arrancó sin inicio de sesión: revisa `.env` y el secreto. El `HEALTHCHECK` de la imagen consulta `/healthz` (público) cada 30 s; `docker inspect --format '{{.State.Health.Status}}' iark-iark-1` dice `healthy`.
 
 ## 4. Entrar por primera vez como administradora — *Lo haces tú*
 
@@ -166,7 +172,7 @@ Ponlo en `deploy/.env` (`IARK_ADMINS=583231`; varias personas, separadas por com
 | `invite` (por omisión) | Solo las personas de `IARK_ADMINS` y las que invites por su nombre de GitHub | Un equipo conocido. Recomendado |
 | `open` | Cualquiera con cuenta de GitHub, como miembro (puede crear hasta `IARK_MAX_PROJECTS` proyectos) | Una comunidad abierta. IArk no impone una cuota de disco por persona: vigila el espacio libre |
 
-**Invitar** a alguien es compartir un proyecto con su nombre de usuario de GitHub (*Compartir…* en el gestor de proyectos): queda como invitación y, al entrar con esa cuenta, tiene el proyecto con el rol que le diste (como invitado: no crea proyectos propios). Invitar a la instancia sin compartir un proyecto, desactivar una cuenta o cambiar su rol **todavía no tiene pantalla**: se hace con la API de administración ([Administrar las cuentas de la instancia](cuentas-github.md#administrar-las-cuentas-de-la-instancia)), con la sesión de una persona de `IARK_ADMINS` en `Authorization: Bearer`. Quien no esté invitado vuelve a la página con `#iark_error=not_invited` (el sitio lo explica). Cambiar `IARK_SIGNUP`: edita `.env` y `docker compose up -d` (recrea el contenedor; las sesiones se conservan, están en el disco).
+**Invitar** a alguien es compartir un proyecto con su nombre de usuario de GitHub (*Compartir…* en el gestor de proyectos): queda como invitación y, al entrar con esa cuenta, tiene el proyecto con el rol que le diste (como invitado: no crea proyectos propios). Invitar a la instancia sin compartir un proyecto, desactivar una cuenta o cambiar su rol se hace en **Administrar cuentas…** (en «Dónde se guardan», para quien administra la instancia: [Pantalla de administración](cuentas-github.md#pantalla-de-administración)) o con la API ([Administrar las cuentas de la instancia](cuentas-github.md#administrar-las-cuentas-de-la-instancia)). Quien no esté invitado vuelve a la página con `#iark_error=not_invited` (el sitio lo explica). Cambiar `IARK_SIGNUP`: edita `.env` y `docker compose up -d` (recrea el contenedor; las sesiones se conservan, están en el disco).
 
 ## 5. El sitio de GitHub Pages también puede usar esta instancia — *Lo haces tú*
 
@@ -184,7 +190,7 @@ y `docker compose up -d`. Es el **origen** (esquema y dominio, **sin ruta ni bar
 
 ## 6. Copias de seguridad y restaurar — *Lo haces tú*
 
-**Qué copiar: `/data` entero**, el volumen `iark-data`: `accounts.db` (la base de cuentas, sesiones y quién pertenece a qué proyecto; con sus `accounts.db-wal` y `accounts.db-shm` mientras el servicio corre) y `workspace/` (los proyectos). Guarda además `deploy/.env` (no es secreto). El Client secret no está en el volumen: si lo pierdes, genera otro en GitHub. Los certificados de Caddy no hace falta copiarlos: se vuelven a pedir.
+**Qué copiar: `/data` entero**, el volumen `iark-data`: `accounts.db` (la base de cuentas, sesiones y quién pertenece a qué proyecto; con sus `accounts.db-wal` y `accounts.db-shm` mientras el servicio corre) y `workspace/` (los proyectos). Guarda además `deploy/.env` (no es secreto). El Client secret no está en el volumen: si lo pierdes, genera otro en GitHub. Los certificados de Caddy no hace falta copiarlos: se vuelven a pedir. La auditoría (`audit.jsonl`) está en el mismo volumen y se copia con él; el registro de accesos va a la salida estándar de Docker y no forma parte de la copia.
 
 **La base no se copia con `tar` ni `cp` mientras el servicio corre**: en modo WAL, lo último escrito puede estar aún en `accounts.db-wal`, y una copia de `accounts.db` sola, o tomada a la vez que el `-wal`, puede salir incoherente. La copia correcta es `iark accounts backup`, que hace una copia coherente de la base viva (sin parar el servicio), con modo 0600, y comprueba su integridad:
 
@@ -256,6 +262,8 @@ Siempre empieza por `docker compose ps` y `docker compose logs iark` (y `caddy`)
 | `external volume "iark-data" not found` | Falta crear el volumen: `docker volume create iark-data` |
 | `bind source path does not exist: …/secrets/github_client_secret` | Falta el archivo del secreto (paso 2.6) |
 | `dependency failed to start: container iark-iark-1 is unhealthy` | **IArk no arranca**: mira `docker compose logs iark` (siguientes filas) |
+| `/readyz` responde **503** | Mira qué comprobación dice `fail` (`curl https://…/readyz`): `workspace` (disco lleno, volumen de solo lectura o sin permisos), `accounts` (la base de cuentas `accounts.db` no se lee —falta el archivo, está dañada o la consulta falla— o su carpeta `/data` no admite escribir, donde SQLite crea su diario) o `compute` (el pool de cálculo está parado). `docker compose logs iark` avisa cada vez que una cambia de estado. El servicio no se reinicia por esto (el `HEALTHCHECK` es `/healthz`) |
+| Un error inesperado (500) y quieres saber qué pasó | La respuesta lleva la cabecera `X-Request-Id`: `docker compose logs iark \| grep <ese id>` da el acceso y, junto al `error interno`, la línea `petición: <id>` |
 | El registro dice `El inicio de sesión con GitHub necesita todo esto y falta: …` | Falta alguna variable (la lista dice cuál). Todo va por `deploy/.env` y el secreto |
 | El registro dice `Con un espacio de trabajo, escuchar en 0.0.0.0 sin autenticación … el servicio no arranca así` | Hay `IARK_WORKSPACE` y no hay cuentas activas: es la red de seguridad. En otra plataforma, define las variables de GitHub |
 | `No se pudo leer el secreto de GitHub de «/run/secrets/github_client_secret» (EACCES)` | El usuario del contenedor (1000) no puede leer el archivo: `chown 1000:1000 secrets/github_client_secret && chmod 400 …`. Si dice `está vacío`, el archivo no tiene el secreto |
@@ -278,8 +286,9 @@ Siempre empieza por `docker compose ps` y `docker compose logs iark` (y `caddy`)
 - **Solo GitHub**: no hay SSO de empresa (SAML, OIDC) ni otros proveedores. Con GitHub Enterprise Server se puede apuntar `IARK_GITHUB_URL` y `IARK_GITHUB_API_URL` a su servidor.
 - **Sin permisos por organización o equipo de GitHub.** IArk no pide permisos, así que no lee a qué organizaciones perteneces: entra quien tiene cuenta (según `invite` u `open`) y los permisos se reparten por proyecto, por invitación.
 - **El token de sesión vive en el navegador** (en la pestaña, o en el equipo si se marca «Mantener la sesión en este equipo»): cualquier script que se ejecute en el sitio, una extensión o quien use ese equipo podría leerlo. Cierra la sesión en equipos ajenos; una cuenta desactivada pierde sus sesiones.
-- **No hay pantalla de administración de cuentas**: ver la lista de personas, invitar sin un proyecto, desactivar o cambiar un rol se hace con la API (`/api/admin/users`).
-- **Sin registro de accesos ni de quién cambió qué**, y sin edición simultánea en tiempo real ([límites reales de guardar en la nube](proyectos.md#guardar-en-la-nube-servidor-propio-desde-el-navegador)).
+- **La pantalla de administración es para personas**: la ve quien entra con GitHub y es administrador. Las cuentas de servicio con token (`--tokens`) administran por la API (`/api/admin/users`). Los cambios de cuentas quedan en la auditoría si la activas ([Observabilidad](observabilidad.md)); la pantalla en sí no guarda ningún historial.
+- **Registros sencillos, y con datos personales.** El compose enciende el registro de accesos (a `docker compose logs iark`, con la rotación de Docker: unos 30 MB) y la auditoría de quién intentó cambiar qué (`/data/audit.jsonl`, que **no se rota sola**): ver [Observabilidad](observabilidad.md#rotar-los-registros). Llevan el usuario de GitHub y la dirección IP ([qué hacer con eso](observabilidad.md#datos-personales)), no hay alertas propias (las métricas, apagadas, son para un Prometheus que montes tú) y son de una sola instancia. Sigue sin haber edición simultánea en tiempo real ([límites reales de guardar en la nube](proyectos.md#guardar-en-la-nube-servidor-propio-desde-el-navegador)).
+- **Sin edición simultánea en tiempo real** ([límites reales de guardar en la nube](proyectos.md#guardar-en-la-nube-servidor-propio-desde-el-navegador)).
 - **Módulos de terceros: opcionales, solo API y bajo tu responsabilidad.** La imagen no trae ninguno. Si quieres servir uno, monta una carpeta con el módulo y su `node_modules` (con `@iark/kernel` y `zod`) en solo lectura —por ejemplo `/plugins`, **fuera de `/data` y del espacio de trabajo**— y define `IARK_CONFIG=/plugins/iark.config.json` en el servicio `iark` del compose (`volumes:` y `environment:`; `deploy/docker-compose.yml` no lo trae). Cargar un módulo ejecuta su código con los permisos del contenedor: instala solo módulos de autores en los que confías. Salen en `/api/modules`, en el manifiesto y en la API (con la autenticación y los límites de siempre), pero **el sitio web no los muestra** y los hilos de cálculo cargan los mismos módulos (cada hilo consume algo más de memoria). Un plugin que no carga impide arrancar. Ver [Módulos de terceros](plugins.md).
 - **Cálculo pesado, acotado.** Validar, ver, exportar, importar, comparar, pedir informes (`run`) y trazar (`/api/trace`) pueden tardar mucho con un diagrama grande: en una prueba nuestra, en una máquina compartida, exportar a SVG un diagrama de 300 contenedores y 600 relaciones tardó unos 90 s. Por eso ese cálculo ya no corre en el hilo que atiende las conexiones, sino en **hilos de trabajo** (`worker_threads`) del mismo proceso, con tres topes. Guardar proyectos no calcula distribuciones y no pasa por ahí. Mientras un cálculo largo corre, el inicio de sesión, los proyectos y el `HEALTHCHECK` siguen respondiendo.
 

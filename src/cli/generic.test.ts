@@ -14,7 +14,19 @@ vi.mock('@iark/kernel', async (importOriginal) => {
     ...actual,
     generateStructured: async (_spec: unknown, options: StructuredOptions<unknown>) => {
       llamadas.push({ defaultModel: options.defaultModel, model: options.model });
-      return { document: { generado: true }, model: options.model ?? options.defaultModel, provider: 'anthropic', attempts: 1, usage: { inputTokens: 1, outputTokens: 1 } };
+      return {
+        document: { generado: true },
+        model: options.model ?? options.defaultModel,
+        provider: 'anthropic',
+        attempts: 1,
+        usage: { inputTokens: 1, outputTokens: 1 },
+        issues: [],
+        repaired: false,
+        retries: { schema: 0, rules: 0 },
+        attemptLog: [{ attempt: 1, trigger: 'initial', outcome: 'valid', inputTokens: 1, outputTokens: 1 }],
+        verification: 'passed',
+        limits: { maxTokens: 16000, budgetTokens: 200000, maxInputTokens: 100000 },
+      };
     },
   };
 });

@@ -155,6 +155,15 @@ export interface UserChange {
   disabled?: boolean;
 }
 
+/** Los recuentos de `AccountStore.stats()`. */
+export interface AccountStats {
+  users: number;
+  active: number;
+  disabled: number;
+  pending: number;
+  sessions: number;
+}
+
 export interface SignInPolicy {
   /** `open`: cualquiera con cuenta de GitHub entra como `member`. `invite`: solo quien ya tiene cuenta (invitada) o es administrador. */
   signup: 'open' | 'invite';
@@ -176,6 +185,17 @@ export interface AccountStore {
   readonly path: string;
   /** Cuántas cuentas hay (personas que entraron e invitaciones). */
   readonly userCount: number;
+  /**
+   * Solo recuentos, para las métricas (`/metrics`): cuántas cuentas hay (activas, desactivadas, pendientes de entrar) y cuántas sesiones
+   * vigentes. Nunca datos de las personas. Una cuenta desactivada cuenta como desactivada aunque aún no hubiera entrado.
+   */
+  stats(): AccountStats;
+  /**
+   * ¿Se puede leer el almacén ahora mismo? Es la lectura de verdad que hace la comprobación `accounts` de `/readyz`: el JSON vive en
+   * memoria (lo que puede fallar es el archivo, y eso lo mira `/readyz` aparte), así que responde que sí; SQLite hace una consulta a la
+   * base. No lanza: devuelve `false`.
+   */
+  readable(): boolean;
 
   // ───── personas ─────
   users(): AccountUser[];

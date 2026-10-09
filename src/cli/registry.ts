@@ -18,7 +18,7 @@ export const DEFAULT_MODULE = 'c4';
  * comandos (`iark <módulo> …`) encima de un comando existente. Una prueba (`registry.test.ts`) comprueba que la lista no se queda
  * atrás cuando se añade un comando.
  */
-export const RESERVED_COMMAND_NAMES: readonly string[] = ['generate', 'layout', 'convert', 'import', 'validate', 'migrate', 'schema', 'prompt', 'example', 'modules', 'serve', 'trace', 'diff', 'project', 'auth', 'accounts', 'help'];
+export const RESERVED_COMMAND_NAMES: readonly string[] = ['generate', 'explain', 'review', 'layout', 'convert', 'import', 'validate', 'migrate', 'schema', 'prompt', 'example', 'modules', 'serve', 'trace', 'diff', 'project', 'auth', 'accounts', 'help'];
 
 /** Módulos que trae esta instalación del CLI. Las demás especialidades se añaden aquí al incorporarse a la suite. */
 export function createDefaultRegistry(): ModuleRegistry {

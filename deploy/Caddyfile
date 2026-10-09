@@ -18,6 +18,11 @@
 	header >Strict-Transport-Security "max-age=15552000"
 	# `iark` es el nombre del servicio en el compose; su puerto no se publica fuera. Caddy añade X-Forwarded-For con la dirección
 	# del cliente, y por eso IArk arranca con --trust-proxy (el freno de intentos fallidos distingue a cada cliente).
-	# No se activa el registro de accesos (es lo normal en Caddy): la dirección de vuelta de GitHub lleva un código de un solo uso.
+	# Caddy no activa su propio registro de accesos (es lo normal en Caddy): la dirección de vuelta de GitHub lleva un código de un solo uso en la
+	# query string. El registro de accesos es el de IArk (IARK_ACCESS_LOG, en el compose), que nunca anota la query string; ver docs/observabilidad.md.
+	# /metrics (si se activa con IARK_METRICS) lo lee Prometheus por la red interna, en iark:8787; IArk lo protege con token, y para que ni
+	# siquiera llegue desde internet se puede cerrar aquí, antes del proxy (no está puesto por omisión):
+	#   @metricas path /metrics
+	#   respond @metricas 404
 	reverse_proxy iark:8787
 }

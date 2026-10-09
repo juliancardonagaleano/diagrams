@@ -157,6 +157,7 @@ describe('JSON y SQLite se comportan igual', () => {
       const b = outcome(sqlite);
       expect(b, `resultado de «${label}»`).toEqual(a);
       expect(view(sqlite.store.snapshot()), `estado después de «${label}»`).toEqual(view(json.store.snapshot()));
+      expect(sqlite.store.stats(), `recuentos después de «${label}»`).toEqual(json.store.stats());
     }
     // y la prueba no es vacía: pasaron cosas de verdad
     const dump = json.store.snapshot();

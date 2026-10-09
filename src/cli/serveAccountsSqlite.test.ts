@@ -1,4 +1,6 @@
+import { rmSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
+import { Observability } from './observability';
 import { loadSqlite, SqliteAccountStore } from './accounts/sqliteStore';
 import { hashSessionToken } from './accounts/store';
 import { ANA, BETO, call, CARLA, cleanupCloud, signIn, startCloud } from '../../tests/helpers/cloud';
@@ -10,7 +12,11 @@ import { ANA, BETO, call, CARLA, cleanupCloud, signIn, startCloud } from '../../
  * `sqliteProcesses.test.ts` y `tests/accounts-cli.test.ts`.
  */
 
-afterEach(cleanupCloud);
+const closers: Array<() => Promise<void>> = [];
+afterEach(async () => {
+  await cleanupCloud();
+  for (const close of closers.splice(0)) await close();
+});
 
 async function replicas() {
   const a = await startCloud({ store: 'sqlite', signup: 'open' });
@@ -102,5 +108,42 @@ describe('iark serve con el almacén sqlite: dos servidores sobre la misma base'
     } finally {
       db.close();
     }
+  });
+  it('/readyz comprueba la base de verdad: ok con la base sana, fail si la base no responde o su archivo desaparece, y /metrics sigue saliendo', async () => {
+    const obs = new Observability({ metrics: true, version: 'prueba' });
+    closers.push(() => obs.close());
+    const cloud = await startCloud({ store: 'sqlite', signup: 'open', serve: { observability: obs, metricsToken: 'x'.repeat(24), readyCacheMs: 0 } });
+    await signIn(cloud, ANA);
+    await signIn(cloud, BETO);
+    const ready = async () => ({ status: (await fetch(`${cloud.base}/readyz`)).status, checks: ((await (await fetch(`${cloud.base}/readyz`)).json()) as { checks: Record<string, string> }).checks });
+    const metrics = async () => {
+      const res = await fetch(`${cloud.base}/metrics`, { headers: { Authorization: `Bearer ${'x'.repeat(24)}` } });
+      return { status: res.status, text: await res.text() };
+    };
+
+    expect(await ready()).toEqual({ status: 200, checks: expect.objectContaining({ accounts: 'ok' }) });
+    const before = await metrics();
+    expect(before.text).toMatch(/^iark_accounts\{state="active"\} 2$/m);
+    expect(before.text).toMatch(/^iark_sessions_active 2$/m);
+    expect(before.text).toContain('iark_accounts{state="pending"} 0');
+
+    // con la conexión a la base cerrada, el archivo sigue ahí pero no se puede leer: /readyz lo dice, y /metrics no se cae
+    cloud.accounts.store.close();
+    expect(await ready()).toEqual({ status: 503, checks: expect.objectContaining({ accounts: 'fail' }) });
+    const during = await metrics();
+    expect(during.status).toBe(200);
+    expect(during.text).not.toContain('iark_accounts{');
+    expect(during.text).toContain('iark_http_requests_total');
+  });
+
+  it('/readyz de un servidor con SQLite falla si el archivo de la base desaparece', async () => {
+    const obs = new Observability({ version: 'prueba' });
+    closers.push(() => obs.close());
+    const cloud = await startCloud({ store: 'sqlite', signup: 'open', serve: { observability: obs, readyCacheMs: 0 } });
+    expect((await fetch(`${cloud.base}/readyz`)).status).toBe(200);
+    rmSync(cloud.file);
+    const res = await fetch(`${cloud.base}/readyz`);
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { checks: Record<string, string> }).checks.accounts).toBe('fail');
   });
 });
