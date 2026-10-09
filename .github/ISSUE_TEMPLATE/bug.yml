@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Gracias por avisar. **Si crees que es una vulnerabilidad de seguridad, no uses este formulario**: sigue [SECURITY.md](https://github.com/juliancardonagaleano/iark-diagrams/blob/master/SECURITY.md).
+        Gracias por avisar. **Si crees que es una vulnerabilidad de seguridad, no uses este formulario**: sigue [SECURITY.md](https://github.com/juliancardonagaleano/DIAgrams/blob/master/SECURITY.md).
 
         Cuanto más fácil sea reproducirlo, más rápido se arregla. Si puedes, adjunta el documento (JSON, `.drawio`, `.dsl`, Mermaid…) mínimo que lo provoca, sin datos privados.
   - type: dropdown

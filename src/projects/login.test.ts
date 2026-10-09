@@ -325,7 +325,7 @@ describe('instancia gestionada de la que viene la página', () => {
   });
 
   it('en GitHub Pages (404), con una página que no es JSON, sin GitHub, sin red o fuera de http no hay nada que proponer, y sin lanzar', async () => {
-    const location = { href: 'https://usuario.github.io/iark-diagrams/modulos.html' };
+    const location = { href: 'https://usuario.github.io/DIAgrams/modulos.html' };
     expect(await detectManagedServer({ fetch: fakeServer().fetch, location })).toBeUndefined(); // 404 de un sitio estático
     expect(await detectManagedServer({ fetch: (async () => new Response('<!doctype html><title>app</title>')) as typeof fetch, location })).toBeUndefined();
     expect(await detectManagedServer({ fetch: (async () => Response.json({ providers: [], tokens: true })) as typeof fetch, location })).toBeUndefined();

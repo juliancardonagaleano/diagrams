@@ -1,7 +1,7 @@
 /**
  * API pública del núcleo (sin DOM): válida en navegador y Node.
  *
- *   import { generateDocument, autoLayoutDocument, toDrawio, validateDocument } from 'iark-diagrams/core';
+ *   import { generateDocument, autoLayoutDocument, toDrawio, validateDocument } from 'diagrams/core';
  */
 export * from './model/types';
 export {

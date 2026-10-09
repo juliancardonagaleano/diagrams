@@ -118,7 +118,7 @@ Es **solo JSON** (la configuración no ejecuta código):
 
 ```json
 {
-  "$schema": "https://github.com/juliancardonagaleano/iark-diagrams/schema/iark-config.schema.json",
+  "$schema": "https://github.com/juliancardonagaleano/DIAgrams/schema/iark-config.schema.json",
   "modules": ["./index.mjs", "@acme/iark-module-riesgos"],
   "defaultModule": "risk"
 }
@@ -183,7 +183,7 @@ iark serve --config ./iark.config.json --port 8787
 # en el anfitrión: ./plugins/{iark.config.json, mi-modulo/…, node_modules/…}
 docker run --rm -p 8787:8787 \
   -v "$PWD/plugins:/plugins:ro" -e IARK_CONFIG=/plugins/iark.config.json \
-  iark-diagrams
+  diagrams
 ```
 
 La carpeta de plugins va fuera del espacio de trabajo (`IARK_WORKSPACE`, `/data`) a propósito: los proyectos no son de fiar (ver arriba). Ver también [Servicio HTTP](servicio.md#servicio-http-iark-serve) y [Despliegue en la nube](despliegue-nube.md).

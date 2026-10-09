@@ -67,8 +67,8 @@ No cambies nada más de la aplicación. DIAgrams no pide permisos a GitHub, lee 
 5. **Traer el código y configurarlo**:
 
 ```bash
-git clone https://github.com/juliancardonagaleano/iark-diagrams.git
-cd iark-diagrams/deploy
+git clone https://github.com/juliancardonagaleano/DIAgrams.git
+cd DIAgrams/deploy
 cp .env.example .env
 nano .env            # rellena IARK_DOMAIN (iark.tudominio.org, sin https://), IARK_GITHUB_CLIENT_ID e IARK_ADMINS (paso 4)
 ```
@@ -176,7 +176,7 @@ Ponlo en `deploy/.env` (`IARK_ADMINS=583231`; varias personas, separadas por com
 
 ## 5. El sitio de GitHub Pages también puede usar esta instancia — *Lo haces tú*
 
-El sitio ya publicado (`https://juliancardonagaleano.github.io/iark-diagrams/`) puede guardar sus proyectos en tu instancia: en `deploy/.env` pon
+El sitio ya publicado (`https://juliancardonagaleano.github.io/DIAgrams/`) puede guardar sus proyectos en tu instancia: en `deploy/.env` pon
 
 ```
 IARK_CORS=https://juliancardonagaleano.github.io
@@ -201,7 +201,7 @@ docker compose exec iark node dist/cli/index.js accounts backup /data/accounts-$
 Esa copia queda en el volumen. Para llevarte **todo** fuera de la máquina (la base copiada y los proyectos), un contenedor aparte lee el volumen en solo lectura y escribe un `.tar.gz` en la carpeta actual, **sin la base viva ni su diario** (solo la copia coherente de arriba):
 
 ```bash
-docker run --rm --user 0 -v iark-data:/data:ro -v "$PWD":/backup --entrypoint tar iark-diagrams \
+docker run --rm --user 0 -v iark-data:/data:ro -v "$PWD":/backup --entrypoint tar diagrams \
   czf /backup/iark-data-$(date +%F).tar.gz -C /data \
   --exclude=./accounts.db --exclude=./accounts.db-wal --exclude=./accounts.db-shm .
 ```
@@ -214,7 +214,7 @@ Los proyectos se guardan archivo a archivo de forma atómica, así que esa parte
 docker compose down                       # no borra el volumen
 docker volume rm iark-data                # solo si vas a sustituir lo que haya: BORRA los datos actuales
 docker volume create iark-data
-docker run --rm --user 0 -v iark-data:/data -v "$PWD":/backup:ro --entrypoint sh iark-diagrams \
+docker run --rm --user 0 -v iark-data:/data -v "$PWD":/backup:ro --entrypoint sh diagrams \
   -c 'tar xzf /backup/iark-data-2026-10-06.tar.gz -C /data && rm -f /data/accounts.db-wal /data/accounts.db-shm && mv /data/accounts-2026-10-06.db /data/accounts.db && chown -R 1000:1000 /data'
 docker compose up -d
 ```
@@ -224,7 +224,7 @@ Las sesiones de la copia siguen valiendo; las abiertas después de la copia cadu
 ## 7. Actualizar la imagen — *Lo haces tú*
 
 ```bash
-cd iark-diagrams && git pull
+cd DIAgrams && git pull
 cd deploy
 docker compose build --pull        # reconstruye DIAgrams con la última base de Node
 docker compose pull caddy          # y trae la última versión de Caddy

@@ -5,12 +5,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/juliancardonagaleano/iark-diagrams.git",
+    "url": "git+https://github.com/juliancardonagaleano/DIAgrams.git",
     "directory": "packages/kernel"
   },
-  "homepage": "https://github.com/juliancardonagaleano/iark-diagrams#readme",
+  "homepage": "https://github.com/juliancardonagaleano/DIAgrams#readme",
   "bugs": {
-    "url": "https://github.com/juliancardonagaleano/iark-diagrams/issues"
+    "url": "https://github.com/juliancardonagaleano/DIAgrams/issues"
   },
   "keywords": [
     "iark",
