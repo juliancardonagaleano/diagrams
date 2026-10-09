@@ -55,6 +55,16 @@ export interface EdgeNotation {
   head?: 'open';
 }
 
+/**
+ * Marca discreta de un nodo: un texto corto que se ve (`text`, p. ej. «≈ Producción») y la frase completa que la describe
+ * (`title`), que es su nombre accesible, su ayuda al pasar el ratón y parte de lo que lee el lector de pantalla al llegar al nodo.
+ * A diferencia de `badges`, que son solo texto, cada marca se anuncia con su frase y no con el texto abreviado.
+ */
+export interface NodeMark {
+  text: string;
+  title: string;
+}
+
 export interface EditorNode {
   id: string;
   kind: string;
@@ -69,6 +79,8 @@ export interface EditorNode {
   ref?: string;
   /** Insignias pequeñas sobre el nodo (patrón, criticidad, clasificación…). */
   badges?: string[];
+  /** Marcas con nombre accesible propio, en la esquina inferior izquierda del nodo (Plataforma: «≈ Producción» para el equivalente en otro entorno). */
+  marks?: NodeMark[];
   /** Borde discontinuo (p. ej. un sistema externo). */
   dashed?: boolean;
   /** Trazo del borde de un nodo que se dibuja como zona (por defecto discontinuo): una red pública, continua; una aislada, punteada. */

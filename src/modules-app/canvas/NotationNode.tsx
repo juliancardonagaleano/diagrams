@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import { memo } from 'react';
-import type { PortSide } from '@iark/kernel';
+import type { NodeMark, PortSide } from '@iark/kernel';
 import type { DiffMark, FlowNodeData } from './flow';
 import { oscurecerHasta } from '../a11y/contraste';
 import { ShapeSvg, textColorFor } from './shapes';
@@ -19,6 +19,22 @@ function DiffBadge({ id, diff }: { id: string; diff: DiffMark }) {
     <span className="cv-diff" data-diff={diff} title={DIFF_TEXT[diff].title} data-testid={`diff-${id}`}>
       {DIFF_TEXT[diff].text}
     </span>
+  );
+}
+
+/**
+ * Marcas del nodo (`EditorNode.marks`; Plataforma: «≈ Producción», el equivalente en otro entorno): píldoras blancas en la esquina inferior
+ * izquierda. Cada una es una imagen con su frase completa por nombre accesible y por ayuda (`title`); el texto corto es solo lo que se ve.
+ */
+function NodeMarks({ id, marks }: { id: string; marks: readonly NodeMark[] }) {
+  return (
+    <div className="cv-node-marks" data-testid={`marks-${id}`}>
+      {marks.map((m, i) => (
+        <span key={i} className="cv-node-mark" role="img" aria-label={m.title} title={m.title} data-testid={`mark-${id}-${i}`}>
+          {m.text}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -75,6 +91,7 @@ function NotationNodeImpl({ data, selected }: NodeProps<NotationNodeType>) {
             </span>
           )}
         </span>
+        {node.marks && node.marks.length > 0 && <NodeMarks id={node.id} marks={node.marks} />}
         {diff && <DiffBadge id={node.id} diff={diff} />}
         <Handle type="source" position={Position.Right} />
       </div>
@@ -129,6 +146,7 @@ function NotationNodeImpl({ data, selected }: NodeProps<NotationNodeType>) {
           ))}
         </div>
       )}
+      {node.marks && node.marks.length > 0 && <NodeMarks id={node.id} marks={node.marks} />}
       {diff && <DiffBadge id={node.id} diff={diff} />}
       {!notation.bare && <Handle type="source" position={Position.Right} />}
       {data.handles?.map((h) => (

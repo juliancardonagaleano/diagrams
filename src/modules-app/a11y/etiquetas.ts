@@ -55,6 +55,7 @@ const plural = (n: number, uno: string, varios: string): string => (n === 1 ? un
 /**
  * Frase que lee un lector de pantalla al llegar a un nodo: «Contenedor: API de pedidos, Node.js. Dentro de «Sistema de pedidos».
  * Sale hacia 2: Base de datos y Cola. Recibe de 1: Web. Enlaza con otro módulo. Modificado respecto a la versión con la que se compara.»
+ * Las marcas del nodo (`EditorNode.marks`) se leen con su frase completa, p. ej. «Equivalente en Producción: Base de pedidos.»
  */
 export function describirNodo(node: EditorNode, notation: Pick<NodeNotation, 'label'>, indice: IndiceRelaciones, diff?: MarcaCambio): string {
   const partes = [`${notation.label}: ${node.label}${node.sublabel ? `, ${node.sublabel}` : ''}`];
@@ -68,6 +69,7 @@ export function describirNodo(node: EditorNode, notation: Pick<NodeNotation, 'la
   if (entrantes.length > 0) partes.push(`Recibe de ${entrantes.length}: ${enumerar(entrantes)}`);
   if (node.ref) partes.push('Enlaza con otro módulo (Alt+flecha abajo para ir)');
   if (node.badges && node.badges.length > 0) partes.push(`Etiquetas: ${node.badges.join(', ')}`);
+  for (const marca of node.marks ?? []) partes.push(marca.title);
   if (diff) partes.push(textoCambio(diff));
   return `${partes.join('. ')}.`;
 }

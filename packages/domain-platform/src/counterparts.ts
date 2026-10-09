@@ -1,4 +1,5 @@
-import { ELEMENT_LABELS, indexElements, statusOf, type PlatformDocument, type Resource } from './types';
+import type { NodeMark } from '@iark/kernel';
+import { ELEMENT_LABELS, STATUS_LABELS, indexElements, statusOf, type PlatformDocument, type Resource } from './types';
 
 /**
  * Equivalencias declaradas entre recursos de entornos distintos (`Resource.counterpartOf`). Basta que lo declare uno de los dos y la
@@ -41,6 +42,27 @@ export function counterpartsOf(doc: PlatformDocument): Counterparts {
     },
     same: (a, b) => mates(a).some((m) => m.id === b.id),
   };
+}
+
+/**
+ * La marca que el lienzo pone en cada recurso que tiene equivalente declarado: una por cada recurso equivalente de otro entorno (también uno dado de baja, y
+ * entonces lo dice), con el texto corto «≈ Producción» y la frase «Equivalente en Producción: Base de pedidos» como nombre accesible. Los recursos sin
+ * equivalencia no aparecen. Solo lee lo declarado (`counterpartOf`), nunca la deducción por nombre de la comparación, para que la
+ * marca diga lo mismo que el selector del panel de propiedades. Va en el orden del documento.
+ */
+export function counterpartMarks(doc: PlatformDocument): Map<string, NodeMark[]> {
+  const environmentName = (id: string): string => doc.environments.find((e) => e.id === id)?.name ?? id;
+  const { mates } = counterpartsOf(doc);
+  const marks = new Map<string, NodeMark[]>();
+  for (const r of doc.resources) {
+    const found = mates(r);
+    if (found.length === 0) continue;
+    marks.set(
+      r.id,
+      found.map((m) => ({ text: `≈ ${environmentName(m.environmentId)}`, title: `Equivalente en ${environmentName(m.environmentId)}: ${m.name}${statusOf(m) === 'decommissioned' ? ` (${STATUS_LABELS.decommissioned})` : ''}` })),
+    );
+  }
+  return marks;
 }
 
 export interface CounterpartError {

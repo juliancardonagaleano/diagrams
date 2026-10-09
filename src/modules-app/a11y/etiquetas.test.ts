@@ -65,6 +65,13 @@ describe('describirNodo', () => {
     expect(describirNodo({ id: 'x', kind: 'k', label: 'X' } as EditorGraph['nodes'][number], { label: 'Cosa' }, solo)).toBe('Cosa: X.');
   });
 
+  it('lee cada marca del nodo con su frase completa, antes de la marca de la comparación', () => {
+    const marcado = { ...nodo('db'), marks: [{ text: '≈ Producción', title: 'Equivalente en Producción: Base de pedidos' }, { text: '≈ Staging', title: 'Equivalente en Staging: Base de pedidos' }] };
+    const texto = describirNodo(marcado, { label: 'Base' }, indice, 'modified');
+    expect(texto).toContain('Equivalente en Producción: Base de pedidos. Equivalente en Staging: Base de pedidos. Modificado respecto');
+    expect(texto).not.toContain('≈');
+  });
+
   it('añade la marca de la comparación de versiones', () => {
     expect(describirNodo(nodo('cola'), { label: 'Cola' }, indice, 'added')).toContain(textoCambio('added'));
     expect(describirNodo(nodo('cola'), { label: 'Cola' }, indice, 'removed')).toContain('Quitado respecto');

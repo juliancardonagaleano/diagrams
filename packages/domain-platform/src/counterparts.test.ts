@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { platformCommands } from './commands';
 import { compareEnvironments, compareMatrix, compareReport, matrixReport, MATCH_NOTES, type EnvironmentComparison } from './compare';
-import { counterpartErrors, counterpartsOf, dropCounterparts } from './counterparts';
+import { counterpartErrors, counterpartMarks, counterpartsOf, dropCounterparts } from './counterparts';
+import { platformEditor } from './editor';
 import { analyzePlatform } from './issues';
 import { formatPlatformIssues, validatePlatformDocument } from './schema';
 import type { PlatformDocument, Resource } from './types';
@@ -323,5 +324,76 @@ describe('quitar recursos con counterpartOf', () => {
 
   it('al quitar varios a la vez sigue la cadena hasta el que queda', () => {
     expect(links(dropCounterparts(resources, new Set(['a', 'b'])))).toEqual(['c→-']);
+  });
+});
+
+describe('marcas del lienzo: el equivalente declarado en otro entorno', () => {
+  const chain = parse(
+    make([
+      { id: 'a', name: 'Colas de pedidos', kind: 'queue', environmentId: 'dev' },
+      { id: 'b', name: 'Mensajería', kind: 'queue', environmentId: 'stg', counterpartOf: 'a' },
+      { id: 'c', name: 'Broker', kind: 'queue', environmentId: 'prd', counterpartOf: 'b' },
+      { id: 'suelto', name: 'Caché', kind: 'cache', environmentId: 'dev' },
+    ]),
+  );
+
+  it('cada recurso lleva una marca por cada equivalente de otro entorno, con su frase como nombre accesible, y esto vale en los dos sentidos', () => {
+    const marks = counterpartMarks(chain);
+    expect(marks.get('a')).toEqual([
+      { text: '≈ Preproducción', title: 'Equivalente en Preproducción: Mensajería' },
+      { text: '≈ Producción', title: 'Equivalente en Producción: Broker' },
+    ]);
+    expect(marks.get('b')?.map((m) => m.title)).toEqual(['Equivalente en Desarrollo: Colas de pedidos', 'Equivalente en Producción: Broker']);
+    expect(marks.get('c')?.map((m) => m.title)).toEqual(['Equivalente en Desarrollo: Colas de pedidos', 'Equivalente en Preproducción: Mensajería']);
+  });
+
+  it('un recurso sin equivalencia no lleva marca, ni cuenta la deducción por nombre', () => {
+    const byName = parse(make([{ id: 'x', name: 'Kafka (dev)', kind: 'queue', environmentId: 'dev' }, { id: 'y', name: 'Kafka (prd)', kind: 'queue', environmentId: 'prd' }]));
+    expect([...counterpartMarks(byName).keys()]).toEqual([]);
+    expect(counterpartMarks(chain).has('suelto')).toBe(false);
+  });
+
+  it('un equivalente dado de baja se dice en la frase', () => {
+    const doc = parse(make([{ id: 'a', name: 'Cola', kind: 'queue', environmentId: 'dev' }, { id: 'viejo', name: 'Cola retirada', kind: 'queue', environmentId: 'prd', status: 'decommissioned', counterpartOf: 'a' }]));
+    expect(counterpartMarks(doc).get('a')?.map((m) => m.title)).toEqual(['Equivalente en Producción: Cola retirada (dado de baja)']);
+  });
+
+  it('el lienzo las pone en los nodos de la vista de un entorno y en las zonas (anfitriones), y no en los servicios ni en las instancias', () => {
+    const doc = parse(
+      make(
+        [
+          { id: 'k-dev', name: 'Clúster dev', kind: 'cluster', environmentId: 'dev' },
+          { id: 'k-prd', name: 'Clúster prod', kind: 'cluster', environmentId: 'prd', counterpartOf: 'k-dev' },
+          { id: 'db-dev', name: 'Base', kind: 'database', environmentId: 'dev' },
+          { id: 'db-prd', name: 'Base de producción', kind: 'database', environmentId: 'prd', counterpartOf: 'db-dev' },
+        ],
+        {
+          services: [{ id: 'web', name: 'Web' }],
+          deployments: [
+            { id: 'web-dev', serviceId: 'web', environmentId: 'dev', hostId: 'k-dev' },
+            { id: 'web-prd', serviceId: 'web', environmentId: 'prd', hostId: 'k-prd' },
+          ],
+        },
+      ),
+    );
+    const graph = platformEditor.project(doc, 'env:prd');
+    const node = (id: string) => graph.nodes.find((n) => n.id === id)!;
+    expect(node('db-prd').marks).toEqual([{ text: '≈ Desarrollo', title: 'Equivalente en Desarrollo: Base' }]);
+    // El clúster tiene un servicio dentro, así que se dibuja como zona; su marca va igual.
+    expect(graph.nodes.some((n) => n.parentId === 'k-prd')).toBe(true);
+    expect(node('k-prd').marks).toEqual([{ text: '≈ Desarrollo', title: 'Equivalente en Desarrollo: Clúster dev' }]);
+    expect(node('i:web-prd').marks).toBeUndefined();
+    expect(graph.nodes.filter((n) => n.marks).map((n) => n.id).sort()).toEqual(['db-prd', 'k-prd']);
+    // Y no se mezclan los entornos: la vista de desarrollo marca hacia producción.
+    expect(platformEditor.project(doc, 'env:dev').nodes.find((n) => n.id === 'db-dev')!.marks).toEqual([{ text: '≈ Producción', title: 'Equivalente en Producción: Base de producción' }]);
+  });
+
+  it('la vista de comparación ya empareja los dos lados y no repite la marca; el documento no cambia', () => {
+    const before = JSON.stringify(chain);
+    const graph = platformEditor.project(chain, 'compare:dev:prd');
+    expect(graph.nodes.length).toBeGreaterThan(0);
+    expect(graph.nodes.every((n) => n.marks === undefined)).toBe(true);
+    expect(platformEditor.project(chain, 'compare:all').nodes.every((n) => n.marks === undefined)).toBe(true);
+    expect(JSON.stringify(chain)).toBe(before);
   });
 });
