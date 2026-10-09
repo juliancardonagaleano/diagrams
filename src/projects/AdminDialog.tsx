@@ -46,6 +46,19 @@ const COMPARE: Record<SortKey, (a: AdminAccount, b: AdminAccount) => number> = {
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
+/** La foto de la cuenta (solo si es https) o, si no hay o no carga (sin red, bloqueada por la política de contenido del sitio), su inicial. */
+function Avatar({ account }: { account: AdminAccount }) {
+  const [broken, setBroken] = useState(false);
+  const src = safeAvatarUrl(account.avatarUrl);
+  return src && !broken ? (
+    <img className="pj-avatar" src={src} alt="" width={32} height={32} referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+  ) : (
+    <span className="pj-avatar pj-avatar-empty" aria-hidden="true">
+      {account.login.slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
 /** Cuándo entró por última vez, en una frase corta; con la fecha completa aparte (para el `title`). */
 function lastAccess(account: AdminAccount): { text: string; full?: string } {
   if (!account.lastLoginAt) return { text: account.pending ? 'Aún no ha entrado' : '—' };
@@ -331,23 +344,24 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
     const reasonId = `pj-admin-reason-${account.id}`;
     const draft = drafts[account.id];
     const edited = draft !== undefined && draft !== account.siteRole;
-    const avatar = safeAvatarUrl(account.avatarUrl);
     const seen = lastAccess(account);
     const asking = confirming?.id === account.id ? confirming.kind : undefined;
     return (
       <tr key={account.id} role="row" data-testid="admin-row" data-account={account.id} data-login={account.login} data-role={account.siteRole} data-pending={account.pending ? 'true' : undefined} data-disabled={account.disabled ? 'true' : undefined}>
         <th scope="row" role="rowheader" className="pj-admin-who">
-          {avatar ? <img className="pj-avatar" src={avatar} alt="" width={32} height={32} referrerPolicy="no-referrer" /> : <span className="pj-avatar pj-avatar-empty" aria-hidden="true">{account.login.slice(0, 1).toUpperCase()}</span>}
-          <span className="pj-admin-name">
-            <strong>@{account.login}</strong>
-            {mine && <span className="pj-chip"> tú</span>}
-            {account.listed && (
-              <span className="pj-chip" title="Figura en la lista de administradores del servicio (--admins): su rol y su acceso los manda esa lista">
-                en --admins
-              </span>
-            )}
-            {account.name && account.name !== account.login && <small>{account.name}</small>}
-          </span>
+          <div className="pj-admin-id">
+            <Avatar account={account} />
+            <span className="pj-admin-name">
+              <strong>@{account.login}</strong>
+              {mine && <span className="pj-chip"> tú</span>}
+              {account.listed && (
+                <span className="pj-chip" title="Figura en la lista de administradores del servicio (--admins): su rol y su acceso los manda esa lista">
+                  en --admins
+                </span>
+              )}
+              {account.name && account.name !== account.login && <small>{account.name}</small>}
+            </span>
+          </div>
         </th>
         <td role="cell" data-label="Rol">
           <div className="pj-admin-role">
@@ -517,8 +531,18 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
                       </button>
                     </div>
                     <small id="pj-admin-invite-help" className="pj-hint">
-                      {SITE_ROLES.map((r) => `${SITE_ROLE_TITLE[r]}: ${SITE_ROLE_HELP[r]}`).join(' · ')}. La invitación la reclama quien entre con esa cuenta de GitHub; hasta entonces figura como «pendiente» y puedes cancelarla.
+                      La invitación la reclama quien entre con esa cuenta de GitHub; hasta entonces figura como «pendiente» y puedes cancelarla.
                     </small>
+                    <details className="pj-admin-roles">
+                      <summary>Qué puede hacer cada rol</summary>
+                      <ul>
+                        {SITE_ROLES.map((r) => (
+                          <li key={r}>
+                            <strong>{SITE_ROLE_TITLE[r]}</strong>: {SITE_ROLE_HELP[r]}.
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                     {inviteError && (
                       <p className="pj-error pj-admin-field-error" id="pj-admin-invite-error" role="alert" data-testid="admin-invite-error">
                         {inviteError}

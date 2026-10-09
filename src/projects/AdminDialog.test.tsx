@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminDialog, type AdminDialogProps } from './AdminDialog';
@@ -177,6 +177,17 @@ describe('administración de la instancia (pantalla de cuentas)', () => {
       await loaded();
       expect(rowOf('beto').querySelector('img')).toBeNull();
       expect(rowOf('beto').querySelector('.pj-avatar-empty')).toHaveTextContent('B');
+    });
+
+    it('una foto que no carga (sin red, o bloqueada por el sitio) se sustituye por la inicial', async () => {
+      const { session } = await setup();
+      renderAdmin(session);
+      await loaded();
+      const photo = rowOf('ana').querySelector('img.pj-avatar')!;
+      expect(photo).toBeInTheDocument();
+      fireEvent.error(photo);
+      await waitFor(() => expect(rowOf('ana').querySelector('img')).toBeNull());
+      expect(rowOf('ana').querySelector('.pj-avatar-empty')).toHaveTextContent('A');
     });
   });
 
@@ -615,6 +626,10 @@ describe('administración de la instancia (pantalla de cuentas)', () => {
         expect(control, control.outerHTML).toHaveAccessibleName();
       }
       expect(screen.getByRole('form', { name: 'Invitar a una persona' })).toBeInTheDocument();
+      // qué puede hacer cada rol está a un clic, sin ocupar la pantalla
+      const help = screen.getByText('Qué puede hacer cada rol');
+      expect(help.closest('details')).not.toHaveAttribute('open');
+      expect(help.closest('details')).toHaveTextContent('Invitado: solo entra a los proyectos que le comparten');
     });
   });
 });

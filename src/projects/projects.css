@@ -566,17 +566,11 @@ td.pj-actions > * {
   color: var(--pj-text);
   font-weight: inherit;
 }
-.pj-admin-who {
+.pj-admin-id {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 170px;
-}
-.pj-admin-table th.pj-admin-who {
-  display: table-cell;
-}
-.pj-admin-table th.pj-admin-who > * {
-  vertical-align: middle;
 }
 .pj-admin-name {
   display: inline-flex;
@@ -588,10 +582,6 @@ td.pj-actions > * {
 .pj-admin-name small {
   flex-basis: 100%;
   color: var(--pj-text-2);
-}
-.pj-admin-table .pj-avatar {
-  display: inline-flex;
-  margin-right: 8px;
 }
 .pj-admin-role {
   display: flex;
@@ -609,6 +599,21 @@ td.pj-actions > * {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+.pj-admin-states .pj-chip {
+  white-space: nowrap;
+}
+.pj-admin-roles {
+  color: var(--pj-text-2);
+  font-size: 12px;
+}
+.pj-admin-roles summary {
+  width: fit-content;
+  cursor: pointer;
+}
+.pj-admin-roles ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
 }
 .pj-chip.pj-on {
   color: var(--pj-ok);
@@ -646,6 +651,9 @@ td.pj-admin-actions {
   .pj-admin-table th.pj-admin-who {
     display: block;
   }
+  .pj-admin-id {
+    min-width: 0;
+  }
   .pj-admin-table thead {
     position: absolute;
     width: 1px;
@@ -665,7 +673,6 @@ td.pj-admin-actions {
     padding: 4px 0;
   }
   .pj-admin-table th.pj-admin-who {
-    display: flex;
     padding-bottom: 6px;
     border-bottom: 1px solid var(--pj-border);
   }
