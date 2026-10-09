@@ -53,7 +53,8 @@ import type { ImportCounts, ImportProvenance } from './sqliteStore';
  *   seguridad por filas sin políticas y sin permisos para `anon`/`authenticated` (lo hace `migrate`). Los instantes son `timestamptz`; el reloj es
  *   el del proceso (`options.now`), no el de la base, para que las pruebas lo controlen y todos los almacenes midan igual.
  * - **Errores.** Nunca sale un error de `pg` con su consulta o su cadena de conexión: la red o la base caída son `AccountError('unreachable')`
- *   (503 por HTTP), una base más nueva que este IArk es `corrupt`, y un choque que ni el reintento resuelve, `unreachable` también.
+ *   (503 por HTTP), una base más nueva que este IArk es `corrupt`, y un choque que ni el reintento resuelve, `unreachable` también. Cualquier otro
+ *   rechazo de la base (un disparador, un permiso) es `unavailable` (500 por HTTP, sin detallar a quien llama).
  */
 
 const NAMESPACE = 'cuentas';
@@ -220,6 +221,8 @@ export class PostgresAccountStore implements AccountStore {
     // Un choque que el candado no evitó (otro proceso con otra versión de IArk, una restricción de unicidad): se cuenta, no se esconde.
     if (state === '23505') return new AccountError('conflict', 'Otra petición cambió lo mismo a la vez: vuelva a intentarlo.');
     if (state === '23503') return new AccountError('not-found', 'No existe esa cuenta.');
+    // Cualquier otro fallo de la base (un disparador, un disco lleno, un permiso): es del servicio, no de quien llama; por HTTP, un 500 que no lo detalla.
+    if (state) return new AccountError('unavailable', `La base de cuentas rechazó la operación (${state}): ${(error as Error).message}`);
     return error;
   }
 

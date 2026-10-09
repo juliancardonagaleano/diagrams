@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { describeImport, importAccounts } from './migrate';
 import { loadSqlite, MIGRATIONS } from './sqliteStore';
+import { OPEN, INVITE, realJson } from '../../../tests/helpers/realAccounts';
 import { JsonAccountStore, SqliteAccountStore, type AccountsFile } from './store';
 
 const folders: string[] = [];
@@ -25,44 +26,6 @@ const openSqlite = (path: string, now?: () => Date): SqliteAccountStore => {
   return store;
 };
 const sha = (path: string): string => createHash('sha256').update(readFileSync(path)).digest('hex');
-
-const OPEN = { signup: 'open', admin: false } as const;
-const INVITE = { signup: 'invite', admin: false } as const;
-
-/**
- * Un JSON de cuentas de verdad, escrito por el almacén JSON a lo largo de una vida de la instancia: personas que entraron, un cambio de nombre
- * de usuario, invitaciones (de instancia y de proyecto), una cuenta desactivada, proyectos con todos los roles y sesiones vigentes y caducadas.
- */
-function realJson(dir: string) {
-  let now = Date.parse('2026-09-01T10:00:00Z');
-  const tick = (): void => void (now += 3600_000);
-  const file = join(dir, 'cuentas.json');
-  const store = JsonAccountStore.open(file, { now: () => new Date(now) });
-  const ana = store.signIn({ id: 583231, login: 'ana', name: 'Ana Pérez', avatarUrl: 'https://avatars.example.test/583231' }, OPEN);
-  tick();
-  const beto = store.signIn({ id: 202, login: 'Beto' }, OPEN);
-  tick();
-  const dani = store.signIn({ id: 303, login: 'dani' }, OPEN);
-  store.updateUser(dani.id, { disabled: true });
-  tick();
-  store.registerProject('tienda', ana.id);
-  store.registerProject('banca', beto.id);
-  store.setMember('tienda', beto.id, 'editor');
-  store.setMember('banca', ana.id, 'viewer');
-  store.shareProject('tienda', 'carla', 'viewer', 'guest'); // invitación de proyecto: guest, pendiente
-  store.shareProject('banca', 'eva', 'editor', 'member'); // invitación de proyecto en una instancia abierta
-  store.invite('fede', 'guest'); // invitación de instancia, sin proyectos
-  store.signIn({ id: 404, login: 'ana' }, OPEN); // alguien toma «ana»: la cuenta antigua pasa a «ana~583231»
-  const sessions: Record<string, string> = {};
-  sessions.ana = store.createSession(ana.id, 30 * 24 * 3600_000).token;
-  tick();
-  sessions.beto = store.createSession(beto.id, 3600_000).token;
-  sessions.betoOtra = store.createSession(beto.id, 30 * 24 * 3600_000).token;
-  const snapshot = store.snapshot();
-  // «ahora» para la base nueva: dos días después, cuando la sesión de una hora ya caducó y la de 30 días no
-  const later = new Date(now + 2 * 24 * 3600_000);
-  return { file, snapshot, sessions, now: () => later, counts: { users: snapshot.users.length, sessions: snapshot.sessions.length } };
-}
 
 describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
   it('no se pierde nada: cuentas, invitaciones, sesiones (los tokens siguen valiendo) y pertenencias, idénticas al JSON', async () => {
