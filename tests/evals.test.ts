@@ -6,7 +6,7 @@ import { ModuleRegistry, type AiSpec, type DomainModule, type Env } from '@iark/
 import { sampleDocument } from '@core/model/sample';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { formatReport, liveSetupProblem, loadCaseFiles, main, recordedFetch, recordingPath, runEvals, type CaseFile, type EvalCase } from '../scripts/evals';
+import { formatReport, liveSetupProblem, loadCaseFiles, main, recordingPath, runEvals, type CaseFile, type EvalCase } from '../scripts/evals';
 import { C4_RESPUESTA_BUENA, C4_RESPUESTA_SIN_ALCANCE, simulateChat, withModelEnv } from './helpers/modeloSimulado';
 
 // Los evals de prompts, en su modo offline (respuestas grabadas a mano en evals/recorded/): este archivo los corre dentro de

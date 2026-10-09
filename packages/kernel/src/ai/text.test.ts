@@ -23,7 +23,7 @@ async function withEnv<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 function fakeClaude(text: string, stop = 'end_turn') {
-  const create = vi.fn(async () => ({ model: 'claude-x', stop_reason: stop, content: [{ type: 'text', text }], usage: { input_tokens: 11, output_tokens: 22 } }));
+  const create = vi.fn(async (_params: Record<string, unknown>) => ({ model: 'claude-x', stop_reason: stop, content: [{ type: 'text', text }], usage: { input_tokens: 11, output_tokens: 22 } }));
   return { client: { beta: { messages: { create } } } as unknown as Anthropic, create };
 }
 
