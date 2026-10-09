@@ -39,7 +39,7 @@ const SECTIONS = [
 ] as const;
 
 /**
- * Pestaña «Comparar»: se abre (o pega) otra versión del documento y se ve, agrupado, qué se añadió, qué se quitó y qué se
+ * Pestaña «Versiones»: se abre (o pega) otra versión del documento y se ve, agrupado, qué se añadió, qué se quitó y qué se
  * modificó (con cada campo antes → después). Un clic en un cambio lleva al lienzo con el elemento seleccionado. Todo se calcula
  * en el navegador.
  */
@@ -64,7 +64,7 @@ export function ComparePanel({ accept, analysis, compare, onLoad, onClear, onFoc
   const hasCurrent = analysis.status === 'ok';
 
   return (
-    <div className="wb-panel wb-compare" role="tabpanel" aria-label="Comparar" data-testid="compare-panel">
+    <div className="wb-panel wb-compare" role="tabpanel" aria-label="Versiones" data-testid="compare-panel">
       <p className="wb-hint">
         Compara el documento actual con otra versión y mira qué se añadió, qué se quitó y qué cambió. La maquetación guardada (coordenadas, tamaños) y el orden de las listas no cuentan como cambios. Todo se calcula aquí, sin servidor.
       </p>

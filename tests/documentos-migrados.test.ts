@@ -103,7 +103,7 @@ describe('banco de trabajo: borradores y puente postMessage', () => {
 });
 
 describe('comparar y servicio HTTP', () => {
-  it('«Comparar» lee la versión base antigua ya migrada: se compara versión 2.0 contra versión 2.0', async () => {
+  it('«Versiones» lee la versión base antigua ya migrada: se compara versión 2.0 contra versión 2.0', async () => {
     const result = await readComparable(module, texto(DOC_V10), 'antes.json');
     expect(result).toEqual({ ok: true, document: DOC_V20 });
   });
