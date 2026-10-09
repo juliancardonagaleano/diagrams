@@ -315,7 +315,7 @@ El canal de cambios en tiempo real (`GET /api/events`) es una conexión larga: e
 
 ## Límites
 
-- **Registros y métricas por proceso**: son del proceso, no de la instancia. Con varias instancias sobre una misma base SQLite de cuentas (ver [Dónde se guardan las cuentas](cuentas-github.md#dónde-se-guardan-las-cuentas-json-o-sqlite)) habría que reunirlos fuera, y `iark_accounts` e `iark_sessions_active` salen iguales en todas porque leen la base compartida. Si la base no responde, esas dos métricas no salen en esa lectura (el resto de `/metrics` sigue) y `/readyz` da 503 en `accounts`.
+- **Registros y métricas por proceso**: son del proceso, no de la instancia. Con varias instancias sobre una misma base de cuentas, SQLite o Postgres (ver [Dónde se guardan las cuentas](cuentas-github.md#dónde-se-guardan-las-cuentas-json-sqlite-o-postgres)) habría que reunirlos fuera, y `iark_accounts` e `iark_sessions_active` salen iguales en todas porque leen la base compartida. Si la base no responde, esas dos métricas no salen en esa lectura (el resto de `/metrics` sigue) y `/readyz` da 503 en `accounts`.
 - **Sin trazas distribuidas ni niveles de registro**: no hay OpenTelemetry ni líneas de depuración; los avisos y errores siguen siendo texto libre en stderr.
 - **El registro de accesos anota el final de la petición**: una caída del proceso a mitad de una petición no deja línea de ella (la auditoría tampoco: se escribe al terminar).
 - **No se mide la sobrecarga**: es una línea JSON por petición y unas pocas sumas en memoria; no se hizo una prueba de carga.

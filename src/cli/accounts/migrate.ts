@@ -207,7 +207,7 @@ export function describeImport(report: ImportReport, destination: 'sqlite' | 'po
       return `Nada que hacer: la base ya se importó de «${source}» (mismo contenido).`;
     case 'target-not-empty':
       return destination === 'postgres'
-        ? `La base ya tiene cuentas que no salen de «${source}»: no se mezclan. Para rehacerla, vacíe las tablas cuentas_* del esquema de IArk (o borre ese esquema) con el servicio parado y repita la importación.`
+        ? `La base ya tiene cuentas que no salen de «${source}»: no se mezclan. Para rehacerla, vacíe las tablas cuentas_* del esquema de IArk (truncate, docs/cuentas-github.md) con el servicio parado y repita la importación.`
         : `La base ya tiene cuentas que no salen de «${source}»: no se mezclan. Para rehacerla, borre el archivo de la base (y su -wal y -shm) con el servicio parado y repita la importación.`;
     case 'no-source':
       return `No existe «${source}».`;

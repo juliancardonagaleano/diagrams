@@ -8,11 +8,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { buildCliBundle, BUNDLE_TIMEOUT, PROCESS_TEST_TIMEOUT, type CliBundle } from './helpers/cliBundle';
 import { FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, startFakeGithub, type FakeGithub } from './helpers/fakeGithub';
 import { loginWithGithub } from './helpers/githubLogin';
+import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from './helpers/postgres';
+import { PostgresDatabase } from '../src/cli/postgres/pool';
 import { JsonAccountStore } from '../src/cli/accounts/jsonStore';
 import { SqliteAccountStore } from '../src/cli/accounts/sqliteStore';
 
 // `iark serve` con el inicio de sesión de GitHub, lanzado como proceso con el CLI empaquetado (las opciones y las variables de entorno
 // de verdad) y hablando con un GitHub de mentira.
+requirePostgresIfCi();
 vi.setConfig({ testTimeout: PROCESS_TEST_TIMEOUT, hookTimeout: BUNDLE_TIMEOUT });
 
 const ANA = { id: 583231, login: 'ana', name: 'Ana' };
@@ -427,4 +430,212 @@ describe('iark serve con inicio de sesión de GitHub (CLI empaquetado)', () => {
       expect(none.stderr).toMatch(/--accounts/);
     });
   });
+  // ───── el almacén Postgres (proceso de verdad contra un Postgres de verdad) ─────
+
+  describe.skipIf(!postgresAvailable())('--accounts-store postgres', () => {
+    let pg: TestPostgres;
+    const schemas: string[] = [];
+    beforeAll(async () => {
+      pg = await startTestPostgres();
+    }, 120_000);
+    afterAll(async () => {
+      if (pg) {
+        const admin = await PostgresDatabase.connect(testConfig(pg.url));
+        try {
+          for (const schema of schemas) await admin.query(`drop schema if exists "${schema}" cascade`);
+        } finally {
+          await admin.close();
+        }
+      }
+      await pg?.stop();
+    });
+
+    /** La conexión del entorno de un contenedor (con una contraseña que NO debe salir en ningún mensaje; el Postgres de prueba no la pide). */
+    const PASSWORD = 'Cl4ve-que-no-debe-salir';
+    const database = (schema: string): Record<string, string> => ({
+      IARK_ACCOUNTS_STORE: 'postgres',
+      IARK_DATABASE_URL: pg.url.replace('postgres@', `postgres:${PASSWORD}@`),
+      IARK_DATABASE_SCHEMA: schema,
+      IARK_DATABASE_POOL: '3',
+    });
+    const newSchema = (): string => {
+      const schema = uniqueSchema();
+      schemas.push(schema);
+      return schema;
+    };
+    const count = async (schema: string, table: string): Promise<number> => {
+      const db = await PostgresDatabase.connect(testConfig(pg.url, schema));
+      try {
+        return Number((await db.query<{ n: string }>(`select count(*) as n from ${db.table(table)}`))[0]!.n);
+      } finally {
+        await db.close();
+      }
+    };
+    const listenOn = (port: number): string[] => ['--port', String(port), '--host', '127.0.0.1'];
+    const cloud = (dir: string, port: number, fake: FakeGithub, extra: Record<string, string>): Record<string, string> => ({
+      IARK_WORKSPACE: join(dir, 'espacio'),
+      IARK_GITHUB_CLIENT_ID: FAKE_CLIENT_ID,
+      IARK_GITHUB_CLIENT_SECRET: FAKE_CLIENT_SECRET,
+      IARK_GITHUB_URL: fake.url,
+      IARK_GITHUB_API_URL: fake.url,
+      IARK_PUBLIC_URL: `http://127.0.0.1:${port}`,
+      IARK_ADMINS: String(ANA.id),
+      ...extra,
+    });
+    const api = (base: string, token: string, path: string, init: RequestInit = {}) => fetch(`${base}${path}`, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+
+    it('arranca sin --accounts con la conexión del entorno, guarda las cuentas en la base (solo el hash), no dice la contraseña y tras reiniciar la sesión y los proyectos siguen', async () => {
+      const fake = await startFakeGithub();
+      fakes.push(fake);
+      const dir = tmp();
+      mkdirSync(join(dir, 'espacio'));
+      const port = await freePort();
+      const schema = newSchema();
+      const vars = cloud(dir, port, fake, database(schema));
+
+      const first = await start(listenOn(port), vars);
+      expect(first.output()).toMatch(/cuentas: postgres:\/\/postgres@127\.0\.0\.1:\d+\/postgres \(esquema .*\) \(.*almacén postgres\)/);
+      expect(first.output()).not.toContain(PASSWORD);
+      const result = await loginWithGithub(first.base, fake, ANA);
+      expect(result.token).toMatch(/^iark_s_/);
+      expect((await createProject(first.base, result.token!, 'Tienda')).status).toBe(201);
+      expect(await count(schema, 'cuentas_users')).toBe(1);
+      const db = await PostgresDatabase.connect(testConfig(pg.url, schema));
+      try {
+        const hashes = (await db.query<{ hash: string }>(`select hash from ${db.table('cuentas_sessions')}`)).map((r) => r.hash);
+        expect(hashes).toEqual([createHash('sha256').update(result.token!, 'utf8').digest('hex')]);
+      } finally {
+        await db.close();
+      }
+      await stop(first.child);
+      expect(first.child.exitCode).toBe(0); // se apaga limpio: suelta la conexión y sale
+
+      const second = await start(listenOn(port), vars);
+      expect(second.output()).not.toContain(PASSWORD);
+      expect((await whoami(second.base, result.token!)).status).toBe(200);
+      expect(await projects(second.base, result.token!)).toEqual([expect.objectContaining({ id: 'tienda', role: 'admin' })]);
+    });
+
+    it('dos servidores sobre la misma base a la vez: la sesión que abre uno vale en el otro y cerrarla en uno la cierra en los dos', async () => {
+      const fake = await startFakeGithub();
+      fakes.push(fake);
+      const dir = tmp();
+      mkdirSync(join(dir, 'espacio'));
+      const portA = await freePort();
+      const portB = await freePort();
+      const shared = database(newSchema());
+      const a = await start(listenOn(portA), cloud(dir, portA, fake, shared));
+      const b = await start(listenOn(portB), cloud(dir, portB, fake, shared));
+      const result = await loginWithGithub(a.base, fake, ANA);
+      expect((await whoami(b.base, result.token!)).status).toBe(200);
+      expect((await createProject(b.base, result.token!, 'Tienda')).status).toBe(201);
+      expect(await projects(a.base, result.token!)).toEqual([expect.objectContaining({ id: 'tienda' })]);
+      expect((await api(b.base, result.token!, '/api/auth/logout', { method: 'POST' })).status).toBe(200);
+      expect((await whoami(a.base, result.token!)).status).toBe(401);
+    });
+
+    it('sin IARK_DATABASE_URL no arranca (código 2) y la conexión no se acepta por la línea de comandos; una base inalcanzable sale con un error que no dice la contraseña', () => {
+      const dir = tmp();
+      const common = cloud(dir, 1, { url: 'http://127.0.0.1:1' } as FakeGithub, { IARK_ACCOUNTS_STORE: 'postgres' });
+      const missing = serve([], common);
+      expect(missing.status).toBe(2);
+      expect(missing.stderr).toMatch(/IARK_DATABASE_URL/);
+      const flag = serve(['--database-url', 'postgres://x:y@h/b'], common);
+      expect(flag.status).not.toBe(0);
+      expect(flag.stderr).toMatch(/unknown option/i);
+      const unreachable = serve([], { ...common, IARK_DATABASE_URL: `postgres://iark:${PASSWORD}@127.0.0.1:1/iark`, IARK_DATABASE_SSL: 'off' });
+      expect(unreachable.status).toBe(1);
+      expect(unreachable.stderr).toMatch(/No se puede usar Postgres/);
+      expect(unreachable.stderr).not.toContain(PASSWORD);
+    });
+
+    it('--accounts-import: la primera arrancada importa el JSON de antes a Postgres (la sesión sigue valiendo) y las siguientes no repiten nada', async () => {
+      const fake = await startFakeGithub();
+      fakes.push(fake);
+      const dir = tmp();
+      mkdirSync(join(dir, 'espacio'));
+      const port = await freePort();
+      const json = join(dir, 'cuentas.json');
+      const before = await start(listenOn(port), cloud(dir, port, fake, { IARK_ACCOUNTS: json }));
+      const result = await loginWithGithub(before.base, fake, ANA);
+      expect((await createProject(before.base, result.token!, 'Tienda')).status).toBe(201);
+      await stop(before.child);
+      const jsonHash = sha(json);
+
+      const schema = newSchema();
+      const upgraded = cloud(dir, port, fake, { ...database(schema), IARK_ACCOUNTS_IMPORT: json });
+      const after = await start(listenOn(port), upgraded);
+      expect(after.output()).toMatch(/Cuentas importadas de .*cuentas\.json»: 1 cuenta, 1 sesión y 1 pertenencia a 1 proyecto\./);
+      expect(after.output()).toMatch(/almacén postgres/);
+      expect((await whoami(after.base, result.token!)).status).toBe(200);
+      expect(await projects(after.base, result.token!)).toEqual([expect.objectContaining({ id: 'tienda', role: 'admin' })]);
+      await stop(after.child);
+      expect(sha(json)).toBe(jsonHash);
+      expect(readdirSync(dir).filter((name) => name.startsWith('cuentas.json.bak-'))).toHaveLength(1);
+
+      const again = await start(listenOn(port), upgraded);
+      expect(again.output()).not.toMatch(/Cuentas importadas|aviso:/);
+      expect((await whoami(again.base, result.token!)).status).toBe(200);
+      expect(readdirSync(dir).filter((name) => name.startsWith('cuentas.json.bak-'))).toHaveLength(1);
+    });
+
+    it('iark accounts migrate --accounts-store postgres: simulacro sin conectar, importación con copia, repetirla no hace nada y no mezcla con otras cuentas', () => {
+      const dir = tmp();
+      const json = join(dir, 'cuentas.json');
+      const store = JsonAccountStore.open(json);
+      const ana = store.signIn({ id: 583231, login: 'ana', name: 'Ana Pérez' }, { signup: 'open', admin: true });
+      store.registerProject('tienda', ana.id);
+      store.shareProject('tienda', 'carla', 'editor', 'guest');
+      store.createSession(ana.id, 30 * 24 * 3600 * 1000);
+      const jsonHash = sha(json);
+      const schema = newSchema();
+      const vars = database(schema);
+
+      // el simulacro solo mira el origen: ni siquiera necesita la conexión
+      const dry = iark(['accounts', 'migrate', '--from', json, '--accounts-store', 'postgres', '--dry-run']);
+      expect(dry.status, dry.stderr).toBe(0);
+      expect(dry.stdout).toMatch(/Simulacro: .*se importarían 2 cuentas, 1 sesión y 2 pertenencias a 1 proyecto\./);
+      expect(readdirSync(dir).some((name) => name.includes('.bak-'))).toBe(false);
+
+      const run = iark(['accounts', 'migrate', '--from', json, '--accounts-store', 'postgres'], vars);
+      expect(run.status, run.stderr).toBe(0);
+      expect(run.stderr).toBe('');
+      expect(run.stdout).toMatch(/Cuentas importadas de .*: 2 cuentas, 1 sesión y 2 pertenencias a 1 proyecto\./);
+      expect(run.stdout).not.toContain(PASSWORD);
+      expect(sha(json)).toBe(jsonHash);
+      expect(readdirSync(dir).filter((name) => name.startsWith('cuentas.json.bak-'))).toHaveLength(1);
+
+      const again = iark(['accounts', 'migrate', '--from', json], vars); // el destino sale de IARK_ACCOUNTS_STORE=postgres
+      expect(again.status, again.stderr).toBe(0);
+      expect(again.stdout).toMatch(/Nada que hacer/);
+      expect(readdirSync(dir).filter((name) => name.startsWith('cuentas.json.bak-'))).toHaveLength(1);
+
+      const other = join(dir, 'otro.json');
+      JsonAccountStore.open(other).signIn({ id: 9, login: 'otro' }, { signup: 'open', admin: false });
+      const mixed = iark(['accounts', 'migrate', '--from', other, '--accounts-store', 'postgres'], vars);
+      expect(mixed.status).toBe(1);
+      expect(mixed.stderr).toMatch(/ya tiene cuentas que no salen de/);
+    });
+
+    it('migrate a postgres: sin IARK_DATABASE_URL pide la variable (2), con --accounts avisa de que sobra, y backup/info explican que son de SQLite', () => {
+      const dir = tmp();
+      const json = join(dir, 'cuentas.json');
+      JsonAccountStore.open(json).signIn({ id: 1, login: 'ana' }, { signup: 'open', admin: false });
+      const noUrl = iark(['accounts', 'migrate', '--from', json, '--accounts-store', 'postgres']);
+      expect(noUrl.status).toBe(2);
+      expect(noUrl.stderr).toMatch(/IARK_DATABASE_URL/);
+      const both = iark(['accounts', 'migrate', '--from', json, '--accounts-store', 'postgres', '--accounts', join(dir, 'x.db')], database(newSchema()));
+      expect(both.status).toBe(2);
+      expect(both.stderr).toMatch(/--accounts es la base SQLite de destino/);
+      const mysql = iark(['accounts', 'migrate', '--from', json, '--accounts-store', 'mysql']);
+      expect(mysql.status).toBe(2);
+      expect(mysql.stderr).toMatch(/«sqlite» o «postgres»/);
+      for (const args of [['info'], ['backup', join(dir, 'copia.db')]]) {
+        const run = iark(['accounts', ...args]);
+        expect(run.status, args.join(' ')).toBe(2);
+        expect(run.stderr).toMatch(/Postgres/);
+      }
+    });
+  });
+
 });
