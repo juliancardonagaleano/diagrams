@@ -145,7 +145,7 @@ Todo lo que antes vivía en este README está en [`docs/`](docs/indice.md), con 
 Las seis especialidades, el banco de trabajo, la federación, los proyectos y el servicio gestionado están hechos; el proyecto está en la **Fase 1 «Endurecer»** de su plan de robustecimiento (seguridad, compuerta de CI, documentos de proyecto). Qué está hecho, qué falta y los límites conocidos: [docs/roadmap.md](docs/roadmap.md). Los que conviene saber desde el principio:
 
 - No hay colaboración en tiempo real ni trabajo sin conexión: dos personas sobre el mismo diagrama no se mezclan, el segundo guardado pregunta qué versión conservar.
-- El servicio gestionado es de una sola réplica (las cuentas son un archivo JSON con un único escritor) y no tiene pantalla de administración de cuentas, solo la API.
+- El servicio gestionado es de una sola réplica (las cuentas son un archivo JSON con un único escritor).
 - La generación con IA solo se ha probado de verdad con un modelo (DeepSeek-V4-Pro por Foundry, 28-09-2026): ver [docs/ia.md](docs/ia.md#prueba-real-de-generate).
 - Quedan fuera de alcance el servidor MCP, las vistas de despliegue y de código de C4 y exportar a DSL de Structurizr.
 

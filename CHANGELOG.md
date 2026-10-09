@@ -5,6 +5,7 @@ Todos los cambios relevantes de IArk - DIAgrams se anotan aquí. El formato sigu
 ## [Unreleased]
 
 - Cambios de la fase 1 del plan de robustecimiento en curso.
+- Pantalla «Administración de la instancia» para quien administra un servicio con cuentas (`siteRole: admin`): lista, busca y filtra las cuentas, invita por usuario de GitHub, cambia el rol, desactiva y reactiva, y cancela invitaciones, con confirmación y los errores del servidor a la vista. Se abre con «Administrar cuentas…» en «Dónde se guardan» y a los demás no les aparece; el cliente HTTP gana `listAccounts`, `setAccount` y `cancelInvitation`. Ver [`docs/cuentas-github.md`](docs/cuentas-github.md#pantalla-de-administración).
 
 ### Añadido
 
