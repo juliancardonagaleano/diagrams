@@ -1,0 +1,68 @@
+# Blueprint de Render para el servicio de DIAgrams (solo el BACKEND). Guía paso a paso: docs/despliegue-render-supabase.md.
+#
+# Arquitectura: el sitio va en GitHub Pages, la base en Supabase (Postgres) y esto es lo único que corre en Render: un servicio web
+# Docker propio, aparte de cualquier otro servicio que ya tengas (cada servicio de Render elige su propia instancia y sus propios
+# recursos; este no comparte memoria ni CPU con los demás).
+#
+# NO PROBADO CONTRA RENDER: el archivo sigue la sintaxis documentada de los Blueprints, pero no se ha desplegado de verdad. Si Render
+# rechaza algún campo, crea el servicio a mano con los mismos valores (la guía los lista en una tabla). Los precios y los límites de
+# cada tipo de instancia, y si la gratuita se duerme por inactividad, se comprueban en la documentación y el panel de Render.
+#
+# Los valores marcados `sync: false` no se guardan aquí: Render los pide al crear el Blueprint (son secretos o dependen de tu cuenta).
+services:
+  - type: web
+    name: diagrams-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Elige la región más cercana a tu proyecto de Supabase (menos latencia en cada consulta). Ejemplo: Frankfurt.
+    region: frankfurt
+    # `starter` es una instancia de pago pequeña y siempre encendida. La gratuita (`free`) se duerme tras un rato sin visitas: el primer
+    # acceso tarda y el inicio de sesión de GitHub, que guarda su estado en memoria, se pierde si el servicio se reinicia a mitad.
+    plan: starter
+    healthCheckPath: /healthz
+    # Redespliega con cada cambio de master, salvo si solo cambian documentación, pruebas o flujos de CI.
+    autoDeployTrigger: commit
+    buildFilter:
+      ignoredPaths:
+        - docs/**
+        - tests/**
+        - .github/**
+        - '**/*.md'
+    envVars:
+      # --- Dónde viven los datos: Supabase, no el disco de Render (que es efímero) ---
+      - key: IARK_ACCOUNTS_STORE
+        value: postgres
+      - key: IARK_WORKSPACE_STORE
+        value: postgres
+      - key: IARK_DATABASE_URL
+        # La cadena del «Transaction pooler» de Supabase (puerto 6543). Lleva la contraseña: es un secreto.
+        sync: false
+      - key: IARK_DATABASE_POOL
+        # Conexiones por proceso. Pocas bastan; las de Supabase son limitadas.
+        value: '5'
+      # - key: IARK_DATABASE_CA_FILE
+      #   value: /etc/secrets/supabase-ca.crt   # tras subir el certificado de Supabase como «Secret File» (guía, paso 4)
+      # --- Dirección pública y sitio de Pages ---
+      - key: IARK_PUBLIC_URL
+        # La dirección https que te da Render al crear el servicio, sin barra final (se rellena tras el primer despliegue).
+        sync: false
+      - key: IARK_CORS
+        value: https://juliancardonagaleano.github.io
+      # --- Inicio de sesión con GitHub (OAuth App; guía, paso 3) ---
+      - key: IARK_GITHUB_CLIENT_ID
+        sync: false
+      - key: IARK_GITHUB_CLIENT_SECRET
+        sync: false
+      - key: IARK_ADMINS
+        # Tu identificador numérico de GitHub (no el nombre de usuario).
+        sync: false
+      - key: IARK_SIGNUP
+        value: invite
+      # --- Ajustes para una instancia pequeña ---
+      - key: IARK_WORKERS
+        value: '1'
+      - key: IARK_ACCESS_LOG
+        value: '-'
+      # `IARK_TRUST_PROXY=true` solo si la dirección real de cada visita llega en la ÚLTIMA entrada de X-Forwarded-For; sin activarlo, todas
+      # las personas comparten el freno de intentos fallidos (más estricto, pero seguro). La guía explica cómo comprobarlo.

@@ -4,6 +4,8 @@ Esta carpeta deja a DIAgrams listo para una máquina con Docker: `docker-compose
 
 **La guía, paso a paso, está en [`docs/despliegue-nube.md`](../docs/despliegue-nube.md)**: registrar la OAuth App en GitHub, elegir dónde alojar, el primer arranque, entrar como administrador, copias de seguridad, actualizar y solución de problemas.
 
+**¿Sin máquina propia?** [`render.yaml`](render.yaml) es un Blueprint de Render para el servicio solo (sitio en GitHub Pages, datos en Supabase); la guía está en [`docs/despliegue-render-supabase.md`](../docs/despliegue-render-supabase.md). No se ha probado contra Render.
+
 Resumen, desde esta carpeta, con la OAuth App ya creada y el dominio apuntando a la máquina:
 
 ```bash
