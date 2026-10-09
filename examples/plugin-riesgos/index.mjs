@@ -1,8 +1,8 @@
-// Módulo de terceros de ejemplo para IArk - DIAgrams: un registro de riesgos (`risk`).
+// Módulo de terceros de ejemplo para DIAgrams: un registro de riesgos (`risk`).
 //
 // Es un paquete mínimo y completo: esquema, reglas de validación, un exportador a Markdown, un importador de CSV, un comando
 // propio (`iark risk top`) y `entities` para que sus riesgos entren en la trazabilidad. SOLO importa de la API pública
-// (`@iark/kernel` y `zod`, declarados como peerDependencies en el package.json): nada del repositorio de IArk.
+// (`@iark/kernel` y `zod`, declarados como peerDependencies en el package.json): nada del repositorio de DIAgrams.
 //
 // Se escribe en JavaScript con JSDoc para cargarse tal cual, sin compilar; en TypeScript es igual y se compila a ESM antes de
 // publicarlo. Guía paso a paso: docs/plugins.md.

@@ -1,7 +1,7 @@
 {
   "name": "iark-diagrams",
   "version": "0.1.0",
-  "description": "IArk - DIAgrams: suite de diagramación de arquitectura (hoy modelo C4) con autolayout, exportación a .drawio, CLI con IA y modo embebido por iframe",
+  "description": "DIAgrams: suite de diagramación de arquitectura (hoy modelo C4) con autolayout, exportación a .drawio, CLI con IA y modo embebido por iframe",
   "type": "module",
   "license": "MIT",
   "engines": {

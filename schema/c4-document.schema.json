@@ -1,6 +1,6 @@
 {
   "$id": "https://github.com/juliancardonagaleano/iark-diagrams/schema/c4-document.schema.json",
-  "title": "Documento C4 (IArk - DIAgrams)",
+  "title": "Documento C4 (DIAgrams)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {

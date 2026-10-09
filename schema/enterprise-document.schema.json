@@ -1,6 +1,6 @@
 {
   "$id": "https://github.com/juliancardonagaleano/iark-diagrams/schema/enterprise-document.schema.json",
-  "title": "Documento empresarial (IArk - DIAgrams)",
+  "title": "Documento empresarial (DIAgrams)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {

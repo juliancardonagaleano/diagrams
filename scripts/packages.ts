@@ -143,7 +143,7 @@ function readmeFor(manifest: SourceManifest): string {
     '',
     manifest.description ?? '',
     '',
-    'Parte de [IArk - DIAgrams](https://github.com/juliancardonagaleano/iark-diagrams): arquitectura como datos (C4, integración, datos, empresarial, plataforma y seguridad) con documentos JSON versionables, autolayout, exportación y CLI.',
+    'Parte de [DIAgrams](https://github.com/juliancardonagaleano/iark-diagrams): arquitectura como datos (C4, integración, datos, empresarial, plataforma y seguridad) con documentos JSON versionables, autolayout, exportación y CLI.',
     '',
     '```bash',
     `npm install ${manifest.name}`,

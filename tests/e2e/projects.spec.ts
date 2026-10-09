@@ -130,7 +130,7 @@ test.describe('proyectos en el banco de trabajo', () => {
 
     // un archivo que no es un proyecto se rechaza con el motivo
     await dialog(page).getByLabel('Importar proyecto desde un archivo').setInputFiles({ name: 'x.json', mimeType: 'application/json', buffer: Buffer.from(example('seguridad-ejemplo.json')) });
-    await expect(dialog(page).getByTestId('projects-error')).toContainText('No es un proyecto de IArk');
+    await expect(dialog(page).getByTestId('projects-error')).toContainText('No es un proyecto de DIAgrams');
   });
 
   test('renombrar, duplicar y borrar diagramas y proyectos desde el gestor', async ({ page }) => {

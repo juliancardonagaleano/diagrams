@@ -1,7 +1,7 @@
 {
   "name": "@iark/domain-enterprise",
   "version": "0.1.0",
-  "description": "IArk - DIAgrams: módulo de arquitectura empresarial (capacidades, procesos, aplicaciones y tecnología)",
+  "description": "DIAgrams: módulo de arquitectura empresarial (capacidades, procesos, aplicaciones y tecnología)",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -9,7 +9,7 @@ const respond = (body: string, status = 200): typeof fetch => (async () => new R
 describe('descubrimiento de módulos por manifiesto', () => {
   it('resuelve los endpoints relativos al manifiesto, bajo cualquier ruta base', async () => {
     const manifest = await loadManifest('https://juliancardonagaleano.github.io/iark-diagrams/.well-known/iark.json', respond(published));
-    expect(manifest.name).toBe('IArk - DIAgrams');
+    expect(manifest.name).toBe('DIAgrams');
     expect(manifest.modules.map((m) => m.id)).toEqual(['c4', 'integration', 'data', 'enterprise', 'platform', 'security']);
     const c4 = manifest.modules.find((m) => m.id === 'c4')!;
     expect(c4.embedUrl).toBe('https://juliancardonagaleano.github.io/iark-diagrams/');
@@ -116,7 +116,7 @@ describe('versiones del manifiesto: esquema, protocolo y contrato de los módulo
   it('un manifiesto de esquema de versión MAYOR se rechaza entero con un mensaje claro (no con un «Invalid input»)', async () => {
     const attempt = loadManifest(URL_REMOTA, respond(manifiesto({ schema: 'iark.manifest/2' })));
     await expect(attempt).rejects.toBeInstanceOf(ManifestError);
-    await expect(attempt).rejects.toThrow(/versión más nueva del formato \(iark\.manifest\/2\).*Actualiza IArk/);
+    await expect(attempt).rejects.toThrow(/versión más nueva del formato \(iark\.manifest\/2\).*Actualiza DIAgrams/);
     await expect(attempt).rejects.not.toThrow(/Invalid input/);
   });
 

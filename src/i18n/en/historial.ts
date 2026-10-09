@@ -4,7 +4,7 @@ export const historial: Record<keyof typeof origen, string> = {
   'hist.title': 'Version history',
   'hist.subtitle': '“{name}” · project “{project}”',
   'hist.subtitleHost': '“{name}” · project “{project}” · server {host}',
-  'hist.unsupportedHint': 'Diagrams are still saved normally; only the history is missing. Update IArk on the server to have it.',
+  'hist.unsupportedHint': 'Diagrams are still saved normally; only the history is missing. Update DIAgrams on the server to have it.',
   'hist.loading': 'Loading the history…',
   'hist.empty': 'This diagram has no versions yet: they will appear with the next save.',
   'hist.list': 'Versions',

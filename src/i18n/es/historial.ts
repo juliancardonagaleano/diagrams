@@ -3,7 +3,7 @@ export const historial = {
   'hist.title': 'Historial de versiones',
   'hist.subtitle': '«{name}» · proyecto «{project}»',
   'hist.subtitleHost': '«{name}» · proyecto «{project}» · servidor {host}',
-  'hist.unsupportedHint': 'Los diagramas se siguen guardando con normalidad; solo falta el historial. Actualiza IArk en el servidor para tenerlo.',
+  'hist.unsupportedHint': 'Los diagramas se siguen guardando con normalidad; solo falta el historial. Actualiza DIAgrams en el servidor para tenerlo.',
   'hist.loading': 'Cargando el historial…',
   'hist.empty': 'Este diagrama todavía no tiene versiones: aparecerán con el próximo guardado.',
   'hist.list': 'Versiones',

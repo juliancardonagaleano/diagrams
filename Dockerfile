@@ -1,4 +1,4 @@
-# IArk - DIAgrams como servicio: API por módulo, manifiesto de federación y el sitio (editor C4, banco de trabajo de
+# DIAgrams como servicio: API por módulo, manifiesto de federación y el sitio (editor C4, banco de trabajo de
 # módulos y shell) en un solo proceso Node, sin servidor web aparte.
 #
 # Tres usos (docs/servicio.md: «Imagen Docker» y «Servidor para varias personas»; docs/cuentas-github.md: «Servicio gestionado»;

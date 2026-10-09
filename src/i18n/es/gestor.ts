@@ -36,14 +36,14 @@ export const gestor = {
   'backend.noTokenTab': 'El navegador no deja guardar el token ni siquiera para esta pestaña (¿datos del sitio bloqueados?).',
   'backend.noConfig': 'El navegador no deja guardar la configuración (¿datos del sitio bloqueados?): al recargar volverían los proyectos de este navegador.',
   // Probar la conexión
-  'conn.mixed': 'Esta página se abrió por https y esa dirección es http: el navegador bloqueará las peticiones (contenido mixto). Pon el servidor detrás de un proxy con https, o abre IArk por http.',
+  'conn.mixed': 'Esta página se abrió por https y esa dirección es http: el navegador bloqueará las peticiones (contenido mixto). Pon el servidor detrás de un proxy con https, o abre DIAgrams por http.',
   'conn.unexpected': 'Falló algo inesperado al hablar con el servidor.',
   'conn.forbidden': 'El servidor reconoce el token, pero no te da permiso para esto.',
   'conn.unauthorized': 'El servidor no aceptó el token: falta o no es válido.',
   'conn.cors': 'El servidor responde, pero el navegador no deja leer su respuesta porque no autoriza a esta página ({origin}). Arráncalo con --cors {origin}.',
   'conn.unreachable': 'No se llega a {host}: comprueba que el servidor está en marcha, que la dirección y el puerto son los correctos y que hay conexión.',
   'conn.rateLimited': 'Demasiados intentos fallidos: espera un momento y vuelve a probar.',
-  'conn.noProjects': 'Ese servidor no ofrece proyectos: arráncalo con --workspace <carpeta> (o comprueba que la dirección es la de IArk).',
+  'conn.noProjects': 'Ese servidor no ofrece proyectos: arráncalo con --workspace <carpeta> (o comprueba que la dirección es la de DIAgrams).',
   'conn.serverError': 'El servidor respondió con un error.',
   // Inicio de sesión con GitHub: lo que vuelve a la página
   'login.reason.access_denied': 'No aceptaste el acceso en GitHub, así que no se inició la sesión. Puedes volver a intentarlo cuando quieras.',

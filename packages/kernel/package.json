@@ -1,7 +1,7 @@
 {
   "name": "@iark/kernel",
   "version": "0.1.0",
-  "description": "IArk - DIAgrams: núcleo común de la suite (contrato de módulo, registro, manifiesto federado, utilidades de importación e IA)",
+  "description": "DIAgrams: núcleo común de la suite (contrato de módulo, registro, manifiesto federado, utilidades de importación e IA)",
   "license": "MIT",
   "repository": {
     "type": "git",

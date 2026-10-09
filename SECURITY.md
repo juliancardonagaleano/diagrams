@@ -1,10 +1,10 @@
 # Política de seguridad
 
-Gracias por ayudar a mantener seguro IArk - DIAgrams. Este documento explica qué versiones reciben arreglos de seguridad, cómo informar de una vulnerabilidad y qué puedes esperar a cambio.
+Gracias por ayudar a mantener seguro DIAgrams. Este documento explica qué versiones reciben arreglos de seguridad, cómo informar de una vulnerabilidad y qué puedes esperar a cambio.
 
 ## Versiones soportadas
 
-IArk - DIAgrams aún no tiene una línea de versiones estable: el paquete está en la serie `0.x`. Los arreglos de seguridad se hacen sobre:
+DIAgrams aún no tiene una línea de versiones estable: el paquete está en la serie `0.x`. Los arreglos de seguridad se hacen sobre:
 
 | Versión | Soporte |
 |---|---|
@@ -30,7 +30,7 @@ Solo las personas que mantienen el repositorio ven el aviso. Si no ves el botón
 
 Cuanto más concreto sea, más rápido se puede reproducir y arreglar:
 
-- Qué parte de IArk afecta (CLI, `iark serve`, imagen Docker, widget embebible, app web) y la versión o el commit.
+- Qué parte de DIAgrams afecta (CLI, `iark serve`, imagen Docker, widget embebible, app web) y la versión o el commit.
 - Qué ocurre y qué impacto tiene (lectura o escritura de archivos fuera de la carpeta de trabajo, saltarse la autenticación, ejecución de código en el navegador de otra persona, denegación de servicio…).
 - Pasos exactos para reproducirlo: comando, petición HTTP, documento o archivo que lo dispara. Un caso mínimo es lo ideal.
 - Cómo lo desplegaste: opciones de `iark serve` (`--tokens`, `--accounts`, `--workspace`, `--cors`, `--trust-proxy`), variables `IARK_*`, si hay proxy con HTTPS delante.
@@ -62,7 +62,7 @@ Pedimos que no hagas pública la vulnerabilidad hasta que haya un arreglo public
 ## Qué queda fuera de alcance
 
 - **Despliegues mal configurados**: un `iark serve` publicado sin proxy HTTPS (no habla TLS, está documentado), `--trust-proxy` sin proxy, tokens que se comparten o se guardan sin cuidado, volúmenes con permisos abiertos, `--cors` demasiado permisivo, un Client secret de GitHub en el repositorio. El endurecimiento del despliegue está en [`docs/despliegue-nube.md`](docs/despliegue-nube.md) y en los apartados «Servidor para varias personas» y «Servicio gestionado» del README.
-- **Fallos de dependencias sin explotación en IArk**: un aviso de `npm audit` sobre una librería de terceros cuyo código vulnerable IArk no ejecuta o no expone. Si puedes demostrar que sí se explota a través de IArk, entonces sí es relevante: incluye la prueba.
+- **Fallos de dependencias sin explotación en DIAgrams**: un aviso de `npm audit` sobre una librería de terceros cuyo código vulnerable DIAgrams no ejecuta o no expone. Si puedes demostrar que sí se explota a través de DIAgrams, entonces sí es relevante: incluye la prueba.
 - **Los límites que la documentación ya reconoce** (por ejemplo «Límites» en el README, «Límites honestos» en la guía de despliegue: registros de accesos y de auditoría apagados por omisión (y, encendidos, con usuario y dirección IP: ver [`docs/observabilidad.md`](docs/observabilidad.md)), un token guardado en el navegador expuesto a un XSS del sitio que lo use, una sola réplica…). No cuentan como vulnerabilidad por sí solos; si encuentras una forma de aprovecharlos más allá de lo descrito, infórmalo.
 - Ataques que exigen acceso previo al equipo de la víctima, a su navegador o al disco del servidor, ingeniería social, y pruebas de denegación de servicio masivas contra instancias que no son tuyas.
 - Vulnerabilidades del modelo de IA, del proveedor de IA o de GitHub: se informan a ellos.
