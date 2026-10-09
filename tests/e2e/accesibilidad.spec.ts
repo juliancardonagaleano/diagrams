@@ -15,7 +15,7 @@ import { canvasReady, c4Ready } from './canvas-helpers';
  * arregla; la lista completa está en `docs/accesibilidad.md`). Nunca se desactiva una regla entera.
  *
  * Modo informe (`A11Y_MODO=informe`): no falla, solo escribe un JSON por superficie en `A11Y_SALIDA`
- * (por omisión `test-results/a11y`) para contar los hallazgos: `npx tsx scripts/accesibilidad-resumen.ts [carpeta]`.
+ * (por omisión `a11y-informe`; no va dentro de `test-results`, que Playwright vacía en cada ejecución) para contar los hallazgos: `npx tsx scripts/accesibilidad-resumen.ts [carpeta]`.
  * Con `A11Y_SIN_EXCLUSIONES=1` ignora las exclusiones (para medir el «antes» o comprobar que siguen haciendo falta).
  *
  * Qué NO sustituye: axe detecta, según su propia documentación, solo una parte de los problemas (alrededor de un tercio
@@ -28,7 +28,7 @@ const TEMAS: Tema[] = ['light', 'dark'];
 const MODULOS = ['c4', 'integration', 'data', 'enterprise', 'platform', 'security'] as const;
 
 const MODO_INFORME = process.env.A11Y_MODO === 'informe';
-const SALIDA = process.env.A11Y_SALIDA ?? 'test-results/a11y';
+const SALIDA = process.env.A11Y_SALIDA ?? 'a11y-informe';
 const BLOQUEANTES = new Set(['critical', 'serious', 'moderate']);
 
 /** Exclusión NOMINAL: una regla en un selector concreto, con el motivo y cuándo se arregla. Nunca una regla entera. */
@@ -38,7 +38,22 @@ interface Exclusion {
   motivo: string;
   cuando: string;
 }
-const EXCLUSIONES: Exclusion[] = [];
+const EXCLUSIONES: Exclusion[] = [
+  {
+    regla: 'region',
+    selector: '.semi-portal',
+    motivo:
+      'Semi UI monta los menús desplegables y los diálogos en un portal al final del <body>, fuera de los landmarks de la página. Es una regla de buenas prácticas (no un criterio WCAG A/AA); el diálogo es role="dialog" con nombre y aria-modal, y el menú es role="menu" junto a su disparador.',
+    cuando: 'Al sustituir el menú y los diálogos de Semi UI por componentes propios, o si Semi permite montar el portal dentro de un landmark.',
+  },
+  {
+    regla: 'heading-order',
+    selector: '#semi-modal-title',
+    motivo:
+      'Semi UI pinta el título de todo diálogo como <h5> (no se puede cambiar el nivel); en el editor clásico el diálogo se abre sobre una página cuyo último encabezado es el <h1>, y axe pide que el nivel no salte. Es una regla de buenas prácticas (no un criterio WCAG A/AA); el diálogo está rotulado por ese título con aria-labelledby.',
+    cuando: 'Al sustituir los diálogos de Semi UI por componentes propios con el nivel de título configurable.',
+  },
+];
 
 const SLUG = (texto: string): string =>
   texto
@@ -67,10 +82,14 @@ async function asentar(page: Page): Promise<void> {
 /** Analiza la página tal como está ahora (incluidos los iframes) y devuelve/valida los hallazgos. */
 async function auditar(page: Page, superficie: string, tema: Tema): Promise<void> {
   await asentar(page);
-  let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']);
+  const builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']);
   const exclusiones = process.env.A11Y_SIN_EXCLUSIONES ? [] : EXCLUSIONES;
-  for (const e of exclusiones) builder = builder.exclude(e.selector);
-  const { violations } = await builder.analyze();
+  const resultado = await builder.analyze();
+  const { incomplete } = resultado;
+  // Una exclusión descarta SOLO los nodos de esa regla cuyo selector coincide (no se excluye el selector para todas las reglas, como haría `exclude`).
+  const violations = resultado.violations
+    .map((v) => ({ ...v, nodes: v.nodes.filter((n) => !exclusiones.some((e) => e.regla === v.id && n.target.some((t) => t === e.selector || (typeof t === 'string' && t.startsWith(`${e.selector}:`))))) }))
+    .filter((v) => v.nodes.length > 0);
   const hallazgos: Hallazgo[] = violations.map((v) => ({
     superficie,
     tema,
@@ -82,7 +101,9 @@ async function auditar(page: Page, superficie: string, tema: Tema): Promise<void
   }));
   if (MODO_INFORME) {
     mkdirSync(SALIDA, { recursive: true });
-    writeFileSync(join(SALIDA, `${tema}__${SLUG(superficie)}.json`), JSON.stringify(hallazgos, null, 2));
+    // `incomplete` son los casos que axe no pudo decidir y pide revisar a mano (p. ej. un fondo tapado por otro elemento): no cuentan como violaciones.
+    const revision = incomplete.map((v) => ({ regla: v.id, nodos: v.nodes.length }));
+    writeFileSync(join(SALIDA, `${tema}__${SLUG(superficie)}.json`), JSON.stringify({ hallazgos, revision }, null, 2));
     return;
   }
   // Las exclusiones nominales no pueden ser una regla entera: si algún selector es global, la prueba lo rechaza.
@@ -268,3 +289,28 @@ for (const tema of TEMAS) {
     });
   });
 }
+
+/**
+ * Reflujo (WCAG 1.4.10) y zoom: con la ventana a 640 px de ancho (200 % de zoom sobre 1280 px) y a 320 px (400 %) la página no se desplaza en
+ * horizontal. El diagrama en sí queda exento (necesita un plano de dos dimensiones), pero el resto de la interfaz debe caber.
+ */
+test.describe('reflujo con zoom', () => {
+  const PAGINAS: Array<[string, string]> = [
+    ['editor clásico', '/?theme=light'],
+    ['banco de trabajo', '/modulos.html?module=c4&theme=light'],
+    ['suite', '/suite.html?theme=light'],
+    ['trazabilidad', '/trazabilidad.html?examples=1&theme=light'],
+  ];
+  for (const ancho of [640, 320]) {
+    for (const [nombre, url] of PAGINAS) {
+      test(`${nombre} a ${ancho} px no se desplaza en horizontal`, async ({ page }) => {
+        await page.setViewportSize({ width: ancho, height: ancho === 640 ? 512 : 640 });
+        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('h1').first()).toBeAttached({ timeout: TIMEOUT_ARRANQUE });
+        await page.waitForTimeout(1500);
+        const { scroll, client } = await page.evaluate(() => ({ scroll: document.scrollingElement?.scrollWidth ?? 0, client: document.scrollingElement?.clientWidth ?? 0 }));
+        expect(scroll, `scrollWidth ${scroll} > clientWidth ${client}`).toBeLessThanOrEqual(client);
+      });
+    }
+  }
+});
