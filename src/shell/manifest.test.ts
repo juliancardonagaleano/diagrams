@@ -8,14 +8,14 @@ const respond = (body: string, status = 200): typeof fetch => (async () => new R
 
 describe('descubrimiento de módulos por manifiesto', () => {
   it('resuelve los endpoints relativos al manifiesto, bajo cualquier ruta base', async () => {
-    const manifest = await loadManifest('https://juliancardonagaleano.github.io/iark-diagrams/.well-known/iark.json', respond(published));
-    expect(manifest.name).toBe('IArk - DIAgrams');
+    const manifest = await loadManifest('https://juliancardonagaleano.github.io/diagrams/.well-known/iark.json', respond(published));
+    expect(manifest.name).toBe('DIAgrams');
     expect(manifest.modules.map((m) => m.id)).toEqual(['c4', 'integration', 'data', 'enterprise', 'platform', 'security']);
     const c4 = manifest.modules.find((m) => m.id === 'c4')!;
-    expect(c4.embedUrl).toBe('https://juliancardonagaleano.github.io/iark-diagrams/');
+    expect(c4.embedUrl).toBe('https://juliancardonagaleano.github.io/diagrams/');
     const security = manifest.modules.find((m) => m.id === 'security')!;
-    expect(security.embedUrl).toBe('https://juliancardonagaleano.github.io/iark-diagrams/modulos.html?module=security');
-    expect(security.schemaUrl).toBe('https://juliancardonagaleano.github.io/iark-diagrams/schema/security-document.schema.json');
+    expect(security.embedUrl).toBe('https://juliancardonagaleano.github.io/diagrams/modulos.html?module=security');
+    expect(security.schemaUrl).toBe('https://juliancardonagaleano.github.io/diagrams/schema/security-document.schema.json');
     expect(security.apiUrl).toBeUndefined();
   });
 
@@ -99,7 +99,7 @@ describe('versiones del manifiesto: esquema, protocolo y contrato de los módulo
   const manifiesto = (extra: Record<string, unknown>, modules: unknown[] = [modulo('data')]): string => JSON.stringify({ schema: 'iark.manifest/1', name: 'Otra instancia', version: '2.0.0', modules, ...extra });
 
   it('el manifiesto publicado lleva el protocolo y el contrato de cada módulo, y se carga sin módulos apartados', async () => {
-    const manifest = await loadManifest('https://juliancardonagaleano.github.io/iark-diagrams/.well-known/iark.json', respond(published));
+    const manifest = await loadManifest('https://juliancardonagaleano.github.io/diagrams/.well-known/iark.json', respond(published));
     expect(manifest.protocol).toBe(EMBED_PROTOCOL_VERSION);
     expect(manifest.modules.every((m) => m.contractVersion === 1)).toBe(true);
     expect(manifest.rejected).toEqual([]);
@@ -116,7 +116,7 @@ describe('versiones del manifiesto: esquema, protocolo y contrato de los módulo
   it('un manifiesto de esquema de versión MAYOR se rechaza entero con un mensaje claro (no con un «Invalid input»)', async () => {
     const attempt = loadManifest(URL_REMOTA, respond(manifiesto({ schema: 'iark.manifest/2' })));
     await expect(attempt).rejects.toBeInstanceOf(ManifestError);
-    await expect(attempt).rejects.toThrow(/versión más nueva del formato \(iark\.manifest\/2\).*Actualiza IArk/);
+    await expect(attempt).rejects.toThrow(/versión más nueva del formato \(iark\.manifest\/2\).*Actualiza DIAgrams/);
     await expect(attempt).rejects.not.toThrow(/Invalid input/);
   });
 

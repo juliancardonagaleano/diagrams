@@ -37,7 +37,7 @@ import { FolderProjectStore } from './workspace';
 /** Carpeta de trabajo por omisión (relativa al directorio actual). */
 const DEFAULT_WORKSPACE = './iark-workspace';
 const WORKSPACE_HELP = `carpeta de trabajo con los proyectos (o la variable IARK_WORKSPACE; por defecto ${DEFAULT_WORKSPACE})`;
-const GENERATOR = 'IArk - DIAgrams';
+const GENERATOR = 'DIAgrams';
 
 interface WorkspaceOptions {
   workspace?: string;

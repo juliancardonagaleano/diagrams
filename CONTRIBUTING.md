@@ -1,4 +1,4 @@
-# Cómo contribuir a IArk - DIAgrams
+# Cómo contribuir a DIAgrams
 
 Gracias por querer mejorar el proyecto. Esta guía resume cómo preparar el entorno, qué comprobar antes de abrir una pull request y las convenciones que ya sigue el código. Para entender el producto, empieza por el [README](README.md) y la [hoja de ruta](docs/roadmap.md).
 

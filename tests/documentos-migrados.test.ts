@@ -44,7 +44,7 @@ describe('proyectos guardados con documentos antiguos', () => {
     const check = checkProject(snapshot, registry);
     expect(check.ok).toBe(false);
     expect(check.diagrams.map((d) => d.status)).toEqual(['ok', 'schema']);
-    expect(check.diagrams[1].detail).toMatch(/version: Este documento se creó con una versión más nueva \(3\.0\).*Actualiza IArk/);
+    expect(check.diagrams[1].detail).toMatch(/version: Este documento se creó con una versión más nueva \(3\.0\).*Actualiza DIAgrams/);
   });
 });
 

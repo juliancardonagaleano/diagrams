@@ -53,7 +53,7 @@ iark migrate antiguo.json --module data --out nuevo.json
 iark migrate --check diagrama.json                  # no escribe nada: código 1 si necesita migración, 0 si ya está al día
 ```
 
-El documento de entrada no se modifica nunca; el migrado sale validado con el esquema del módulo. Un documento de una versión más nueva que la que entiende esta instalación (`Actualiza IArk para abrirlo`) o anterior a la primera migración declarada termina con código 2, también con `--check`. `--check` sirve para la integración continua: falla mientras queden documentos del repositorio por reescribir.
+El documento de entrada no se modifica nunca; el migrado sale validado con el esquema del módulo. Un documento de una versión más nueva que la que entiende esta instalación (`Actualiza DIAgrams para abrirlo`) o anterior a la primera migración declarada termina con código 2, también con `--check`. `--check` sirve para la integración continua: falla mientras queden documentos del repositorio por reescribir.
 
 ## Comparar versiones de un diagrama (`iark diff`)
 
@@ -71,7 +71,7 @@ Los elementos se emparejan por `id` (o por `name`, o por similitud si la lista n
 ## Uso programático
 
 ```ts
-import { generateDocument, autoLayoutDocument, toDrawio, fromDrawio, fromStructurizrDsl, validateDocument, deriveView } from 'iark-diagrams/core';
+import { generateDocument, autoLayoutDocument, toDrawio, fromDrawio, fromStructurizrDsl, validateDocument, deriveView } from 'diagrams/core';
 
 const { document } = await generateDocument({ instruction: 'Un sistema de tickets…' }); // Claude + autolayout
 const laid = await autoLayoutDocument(validateDocument(json).document, { direction: 'RIGHT', force: true });

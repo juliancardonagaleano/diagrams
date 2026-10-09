@@ -4,6 +4,7 @@ import { projectErrorText } from '../i18n/errores';
 import { useT } from '../i18n/react';
 import { browserAreas, chooseLocalBackend, forgetBackend, hostOf, loadBackend, saveBackend, type StorageAreas } from './backend';
 import { currentPage, loadProviders, mixedContentWarning, testConnection, type ConnectionResult, type PageInfo } from './connection';
+import { defaultServerUrl } from './defaultServer';
 import { detectManagedServer, getLoginNotice, isSessionToken, setLoginNotice, startGithubLogin, subscribeLoginNotice, type ManagedServer } from './login';
 import { PROJECT_ROLE_LABEL, safeAvatarUrl, SITE_ROLE_LABEL } from './people';
 import type { ProjectSession } from './session';
@@ -64,7 +65,7 @@ export function StoragePanel({ session, open, onToggle, copyFor, onCopy, onChang
   const active = session.backend.kind === 'remote' ? session.backend : undefined;
 
   const loginNotice = useSyncExternalStore(subscribeLoginNotice, getLoginNotice);
-  const [url, setUrl] = useState(known?.url ?? (loginNotice?.kind === 'error' ? loginNotice.url : undefined) ?? '');
+  const [url, setUrl] = useState(known?.url ?? (loginNotice?.kind === 'error' ? loginNotice.url : undefined) ?? defaultServerUrl() ?? '');
   const [token, setToken] = useState('');
   const [label, setLabel] = useState(known?.label ?? '');
   const [remember, setRemember] = useState(known?.remembered ?? false);

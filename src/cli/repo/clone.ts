@@ -22,7 +22,7 @@ import { isValidRepoRef, REF_ERROR } from './source';
  *  - `GIT_TERMINAL_PROMPT=0`: git falla en lugar de quedarse pidiendo una contraseña; y el proceso va en una sesión propia, sin
  *    terminal de control, así que ssh tampoco puede preguntar nada (falla). No se desactivan las credenciales de git (gestor de
  *    credenciales, `credential.helper`) ni la configuración de ssh (claves, ssh-agent, `~/.ssh/config`): son las del usuario y
- *    por eso funcionan los repositorios privados. IArk no las lee, no las guarda y no las muestra.
+ *    por eso funcionan los repositorios privados. DIAgrams no las lee, no las guarda y no las muestra.
  *  - `GIT_LFS_SKIP_SMUDGE=1`: los archivos de Git LFS se quedan como punteros (no se descargan).
  *
  * Después del clonado NO se ejecuta nada más dentro del clon (ni git ni nada del repositorio): se lee con el escáner de
@@ -202,11 +202,11 @@ export function describeCloneFailure(result: Pick<RunResult, 'code' | 'signal' |
     return `git no encuentra el cliente ssh (OpenSSH) para clonar «${what}»: instálalo, o usa una URL https:// (con el gestor de credenciales de git si el repositorio es privado).`;
   }
   if (/Host key verification failed/i.test(log)) {
-    return `La clave del servidor ssh de «${what}» no está en tu known_hosts (o ha cambiado): conéctate una vez con ssh para aceptarla o añádela con ssh-keyscan; IArk no responde a esa pregunta por ti.`;
+    return `La clave del servidor ssh de «${what}» no está en tu known_hosts (o ha cambiado): conéctate una vez con ssh para aceptarla o añádela con ssh-keyscan; DIAgrams no responde a esa pregunta por ti.`;
   }
   if (/Authentication failed|could not read (?:Username|Password)|terminal prompts disabled|Permission denied|returned error: 40[13]|HTTP 40[13]|publickey|Access denied|invalid credentials|requested URL returned error: 401|SSL certificate problem|self[- ]signed/i.test(log)) {
     if (/SSL certificate problem|self[- ]signed/i.test(log)) return `No se pudo verificar el certificado TLS de «${what}» (certificado caducado, autofirmado o de una autoridad desconocida).`;
-    return `No se pudo autenticar en «${what}»: el repositorio es privado o no tienes acceso. IArk usa las credenciales que ya tengas en git (gestor de credenciales) o en ssh (claves, ssh-agent) y nunca pregunta contraseñas: configúralas, prueba \`git ls-remote\` con esa URL, o usa otra forma de la URL (ssh en vez de https).`;
+    return `No se pudo autenticar en «${what}»: el repositorio es privado o no tienes acceso. DIAgrams usa las credenciales que ya tengas en git (gestor de credenciales) o en ssh (claves, ssh-agent) y nunca pregunta contraseñas: configúralas, prueba \`git ls-remote\` con esa URL, o usa otra forma de la URL (ssh en vez de https).`;
   }
   if (/Repository not found|repository .* not found|does not appear to be a git repository|returned error: 404|HTTP 404/i.test(log)) {
     return `El repositorio «${what}» no existe o no tienes acceso (si es privado, git necesita tus credenciales: ver --help).`;

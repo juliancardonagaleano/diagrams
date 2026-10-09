@@ -38,5 +38,5 @@ export async function toDrawio(doc: SecurityDocument): Promise<string> {
       `<diagram id="${esc(view.id)}" name="${esc(view.title.slice(0, 60))}"><mxGraphModel dx="0" dy="0" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" math="0" shadow="0"><root>${cells.join('')}</root></mxGraphModel></diagram>`,
     );
   }
-  return `<mxfile host="iark-diagrams" agent="iark-diagrams" version="24.0.0" type="device">\n${pages.join('\n')}\n</mxfile>\n`;
+  return `<mxfile host="DIAgrams" agent="DIAgrams" version="24.0.0" type="device">\n${pages.join('\n')}\n</mxfile>\n`;
 }

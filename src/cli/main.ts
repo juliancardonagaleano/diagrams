@@ -229,7 +229,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
   const program = new Command();
   program
     .name('iark')
-    .description('IArk - DIAgrams: genera modelos con IA, aplica autolayout y exporta a .drawio, sin navegador.')
+    .description('DIAgrams: genera modelos con IA, aplica autolayout y exporta a .drawio, sin navegador.')
     .version(CLI_VERSION)
     .configureOutput({ writeErr: (s) => process.stderr.write(s) })
     // La configuración se decide en `run`, antes de construir los comandos (los de un módulo de terceros salen de ella); estas dos
@@ -556,7 +556,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
     .option('--json', 'imprime el manifiesto (`iark.manifest/1`) en JSON', false)
     .action((opts) => {
       if (opts.json) {
-        process.stdout.write(jsonOut(buildManifest(registry, { name: 'IArk - DIAgrams', version: CLI_VERSION })));
+        process.stdout.write(jsonOut(buildManifest(registry, { name: 'DIAgrams', version: CLI_VERSION })));
         return;
       }
       for (const m of registry.list()) {
@@ -663,7 +663,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       }
       const address = server.address();
       const port = typeof address === 'object' && address ? address.port : opts.port;
-      info(`IArk - DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port}${opts.static ? ` (sitio: ${opts.static})` : ' (solo API)'}`);
+      info(`DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port}${opts.static ? ` (sitio: ${opts.static})` : ' (solo API)'}`);
       info(`  manifiesto: /.well-known/iark.json · módulos: /api/modules`);
       for (const line of observed.lines) info(line);
       const thirdParty = registry.ids().filter((id) => registry.originOf(id) !== undefined);

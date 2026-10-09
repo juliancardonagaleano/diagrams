@@ -82,7 +82,7 @@ describe('HttpProjectStore contra iark serve', () => {
     cleanups.push(() => new Promise<void>((resolve) => bare.close(() => resolve())));
     const url = `http://127.0.0.1:${(bare.address() as AddressInfo).port}`;
     const bareClient = new HttpProjectStore({ baseUrl: url });
-    expect((await bareClient.whoami()).auth).toBe(false); // `whoami` lo responde cualquier servidor de IArk…
+    expect((await bareClient.whoami()).auth).toBe(false); // `whoami` lo responde cualquier servidor de DIAgrams…
     const error = await bareClient.listProjects().catch((e: unknown) => e); // …pero los proyectos solo si hay espacio de trabajo
     expect(error).toBeInstanceOf(ProjectError);
     expect(error).toMatchObject({ code: 'unavailable', message: expect.stringContaining('espacio de trabajo'), info: { status: 404 } });

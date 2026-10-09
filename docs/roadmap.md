@@ -1,4 +1,4 @@
-# Hoja de ruta de IArk - DIAgrams
+# Hoja de ruta de DIAgrams
 
 [← Índice de la documentación](indice.md)
 
@@ -12,7 +12,7 @@ Qué es la suite hoy, adónde va y qué falta. Lo que ya está hecho, fase por f
 
 ## Visión TO-BE
 
-IArk - DIAgrams quiere ser la forma abierta, auditable y ligera de dibujar arquitectura como datos: seis especialidades sobre un núcleo común, con documentos JSON estables que se versionan en git, se generan y verifican con IA y se enlazan entre sí por URN. Se usa de tres maneras que comparten contrato: en el navegador (sitio estático), en la línea de comandos y la integración continua (`iark`), y como servicio o widget embebido en otra aplicación.
+DIAgrams quiere ser la forma abierta, auditable y ligera de dibujar arquitectura como datos: seis especialidades sobre un núcleo común, con documentos JSON estables que se versionan en git, se generan y verifican con IA y se enlazan entre sí por URN. Se usa de tres maneras que comparten contrato: en el navegador (sitio estático), en la línea de comandos y la integración continua (`iark`), y como servicio o widget embebido en otra aplicación.
 
 El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 

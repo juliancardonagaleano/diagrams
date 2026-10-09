@@ -1,16 +1,16 @@
 {
   "name": "@iark/kernel",
   "version": "0.1.0",
-  "description": "IArk - DIAgrams: núcleo común de la suite (contrato de módulo, registro, manifiesto federado, utilidades de importación e IA)",
+  "description": "DIAgrams: núcleo común de la suite (contrato de módulo, registro, manifiesto federado, utilidades de importación e IA)",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/juliancardonagaleano/iark-diagrams.git",
+    "url": "git+https://github.com/juliancardonagaleano/diagrams.git",
     "directory": "packages/kernel"
   },
-  "homepage": "https://github.com/juliancardonagaleano/iark-diagrams#readme",
+  "homepage": "https://github.com/juliancardonagaleano/diagrams#readme",
   "bugs": {
-    "url": "https://github.com/juliancardonagaleano/iark-diagrams/issues"
+    "url": "https://github.com/juliancardonagaleano/diagrams/issues"
   },
   "keywords": [
     "iark",

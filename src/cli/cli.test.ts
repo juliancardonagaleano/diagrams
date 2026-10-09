@@ -383,7 +383,7 @@ describe('iark: módulos de la suite', () => {
     expect(list.stdout).toMatch(/^c4 {2}Arquitectura de soluciones \(C4\) {2}v1\.0\.0/);
     expect(list.stdout).toMatch(/importa: drawio, mermaid, dsl {2}·/);
     const manifest = JSON.parse(run(['modules', '--json']).stdout);
-    expect(manifest).toMatchObject({ schema: 'iark.manifest/1', name: 'IArk - DIAgrams' });
+    expect(manifest).toMatchObject({ schema: 'iark.manifest/1', name: 'DIAgrams' });
     expect(manifest.modules[0]).toMatchObject({ id: 'c4', importFormats: ['drawio', 'mermaid', 'dsl'], exportFormats: ['drawio', 'svg', 'mermaid'] });
   });
 

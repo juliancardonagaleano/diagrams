@@ -23,7 +23,7 @@ export class ConfigError extends Error {
 
 export const iarkConfigSchema = z
   .object({
-    $schema: z.string().optional().describe('Dirección del JSON Schema de este archivo (para el editor); IArk la ignora.'),
+    $schema: z.string().optional().describe('Dirección del JSON Schema de este archivo (para el editor); DIAgrams la ignora.'),
     modules: z
       .array(z.string().min(1))
       .default([])
@@ -45,8 +45,8 @@ export type IarkConfigFile = z.infer<typeof iarkConfigSchema>;
 /** El JSON Schema publicado en `schema/iark-config.schema.json` (lo escribe `npm run schema` y una prueba comprueba que está al día). */
 export function iarkConfigJsonSchema(): Record<string, unknown> {
   return {
-    $id: 'https://github.com/juliancardonagaleano/iark-diagrams/schema/iark-config.schema.json',
-    title: 'Configuración de IArk - DIAgrams (iark.config.json)',
+    $id: 'https://github.com/juliancardonagaleano/diagrams/schema/iark-config.schema.json',
+    title: 'Configuración de DIAgrams (iark.config.json)',
     ...(z.toJSONSchema(iarkConfigSchema, { target: 'draft-2020-12', io: 'input' }) as Record<string, unknown>),
   };
 }

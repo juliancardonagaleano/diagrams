@@ -270,7 +270,7 @@ describe('iark project: archivo único, comprobación y trazabilidad', () => {
     await suite(ark);
     const stdout = (await ok(ark('project', 'export', 'tienda'))).out;
     const bundle = JSON.parse(stdout);
-    expect(bundle).toMatchObject({ format: 'iark.project', version: 1, generator: 'IArk - DIAgrams', project: { name: 'Tienda' } });
+    expect(bundle).toMatchObject({ format: 'iark.project', version: 1, generator: 'DIAgrams', project: { name: 'Tienda' } });
     expect(bundle.diagrams.map((d: { module: string }) => d.module).sort()).toEqual(['data', 'enterprise', 'integration', 'platform', 'security']);
 
     const dir = tmp();
@@ -296,7 +296,7 @@ describe('iark project: archivo único, comprobación y trazabilidad', () => {
     expect((await ok(other('project', 'check', 'tienda'))).out).toContain('Comprobación correcta.');
     await fails(other('project', 'import', join(dir, 'no-existe.json')), 2, /No se pudo leer/);
     writeFileSync(join(dir, 'raro.json'), '{"a":1}');
-    await fails(other('project', 'import', join(dir, 'raro.json')), 2, /No es un proyecto de IArk/);
+    await fails(other('project', 'import', join(dir, 'raro.json')), 2, /No es un proyecto de DIAgrams/);
     writeFileSync(join(dir, 'roto.json'), '{ roto');
     await fails(other('project', 'import', join(dir, 'roto.json')), 2, /no es JSON válido/);
   });

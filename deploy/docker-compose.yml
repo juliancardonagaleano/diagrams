@@ -1,4 +1,4 @@
-# IArk - DIAgrams como servicio gestionado, con inicio de sesión de GitHub y HTTPS automático: una máquina con Docker y un dominio.
+# DIAgrams como servicio gestionado, con inicio de sesión de GitHub y HTTPS automático: una máquina con Docker y un dominio.
 #
 # Guía completa, paso a paso (OAuth App de GitHub, DNS, primer arranque, copias de seguridad, actualizar):
 #   docs/despliegue-nube.md
@@ -6,7 +6,7 @@
 # Lo mínimo, desde esta carpeta (deploy/):
 #   cp .env.example .env                       # y rellena el dominio, el Client ID de GitHub y los administradores
 #   nano secrets/github_client_secret          # pega el Client secret de la OAuth App (solo eso) y guarda
-#   chown 1000:1000 secrets/github_client_secret && chmod 400 secrets/github_client_secret    # (con sudo si no eres root) que lo lea el usuario de IArk
+#   chown 1000:1000 secrets/github_client_secret && chmod 400 secrets/github_client_secret    # (con sudo si no eres root) que lo lea el usuario de DIAgrams
 #   docker volume create iark-data             # donde viven los proyectos y las cuentas (una base SQLite) (ver el volumen, abajo)
 #   docker compose up -d --build
 #
@@ -19,7 +19,7 @@ services:
   iark:
     build:
       context: ..
-    image: iark-diagrams
+    image: diagrams
     restart: unless-stopped
     environment:
       # IARK_TRUST_PROXY (= --trust-proxy): hay un proxy de confianza delante (Caddy). El freno de intentos fallidos usa la dirección real
@@ -90,7 +90,7 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    # Límites de partida para una máquina pequeña (elegidos aquí, no impuestos por IArk): en pruebas el servicio usa unos 100 MB en
+    # Límites de partida para una máquina pequeña (elegidos aquí, no impuestos por DIAgrams): en pruebas el servicio usa unos 100 MB en
     # reposo y llegó a unos 330 MB exportando un diagrama de 300 contenedores. Súbelos si la máquina da para más.
     mem_limit: 768m
     cpus: 1.5
@@ -143,7 +143,7 @@ volumes:
 secrets:
   # El Client secret de la OAuth App: un archivo con solo el secreto (el servicio recorta los espacios y saltos de línea).
   # Está en deploy/secrets/, que git ignora. Compose lo monta tal cual, con el dueño y el modo que tenga en la máquina: lo lee el usuario
-  # node (uid 1000) del contenedor, así que el archivo debe ser de 1000:1000 (modo 400) o legible por todos; si no, IArk no arranca
+  # node (uid 1000) del contenedor, así que el archivo debe ser de 1000:1000 (modo 400) o legible por todos; si no, DIAgrams no arranca
   # y dice «No se pudo leer el secreto de GitHub … (EACCES)». (`uid`, `gid` y `mode` de compose no se aplican a los secretos de archivo.)
   github_client_secret:
     file: ./secrets/github_client_secret

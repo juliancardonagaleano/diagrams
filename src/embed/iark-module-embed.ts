@@ -110,7 +110,7 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
   iframe.style.border = '0';
   iframe.style.width = '100%';
   iframe.style.height = '100%';
-  iframe.setAttribute('title', options.title ?? 'IArk - DIAgrams');
+  iframe.setAttribute('title', options.title ?? 'DIAgrams');
   for (const [k, v] of Object.entries(options.iframeAttributes ?? {})) iframe.setAttribute(k, v);
   container.appendChild(iframe);
 

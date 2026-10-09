@@ -743,7 +743,7 @@ export class ProjectSession {
   async exportProject(id: string): Promise<{ fileName: string; text: string }> {
     await this.flush();
     const snapshot = await snapshotProject(this.store, id);
-    return { fileName: bundleFileName(snapshot.name), text: bundleToText(createBundle(snapshot, { generator: 'IArk - DIAgrams' })) };
+    return { fileName: bundleFileName(snapshot.name), text: bundleToText(createBundle(snapshot, { generator: 'DIAgrams' })) };
   }
 
   /** Crea un proyecto nuevo con el contenido del archivo y lo abre. Nunca pisa uno existente. */

@@ -567,7 +567,7 @@ export class WorkbenchController {
     const modules = await Promise.all(wanted.map((id) => this.loadModule(id)));
     return {
       protocol: this.options.protocol ?? EMBED_PROTOCOL_VERSION,
-      suite: this.options.suite ?? 'IArk - DIAgrams',
+      suite: this.options.suite ?? 'DIAgrams',
       available: this.moduleIds,
       modules: modules.map(moduleCapabilities),
     };

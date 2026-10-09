@@ -1,17 +1,17 @@
-# IArk - DIAgrams como servicio: API por módulo, manifiesto de federación y el sitio (editor C4, banco de trabajo de
+# DIAgrams como servicio: API por módulo, manifiesto de federación y el sitio (editor C4, banco de trabajo de
 # módulos y shell) en un solo proceso Node, sin servidor web aparte.
 #
 # Tres usos (docs/servicio.md: «Imagen Docker» y «Servidor para varias personas»; docs/cuentas-github.md: «Servicio gestionado»;
 # guía de despliegue en docs/despliegue-nube.md):
 #
 #  1. Demo, solo API y sitio, sin guardar nada ni pedir nada (es lo que hace la imagen sin variables):
-#       docker build -t iark-diagrams .
-#       docker run --rm -p 8787:8787 iark-diagrams
+#       docker build -t diagrams .
+#       docker run --rm -p 8787:8787 diagrams
 #       curl http://localhost:8787/api/modules
 #     Para llamar a la API desde el navegador desde otro origen: añade --cors https://mi-app.example al comando.
 #
 #  2. Servidor autoalojable con un token por persona: IARK_WORKSPACE (carpeta de proyectos) e IARK_TOKENS (archivo de
-#     tokens), en volúmenes. Los tokens se crean con `docker run --rm -v <carpeta>:/tokens --entrypoint node iark-diagrams
+#     tokens), en volúmenes. Los tokens se crean con `docker run --rm -v <carpeta>:/tokens --entrypoint node diagrams
 #     dist/cli/index.js auth create <nombre> --role admin --tokens /tokens/tokens.json`.
 #
 #  3. Servicio gestionado con inicio de sesión de GitHub (`iark serve --accounts`): un volumen en /data con los proyectos
