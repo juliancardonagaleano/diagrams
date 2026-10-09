@@ -90,6 +90,8 @@ export interface CloudOptions extends Partial<Omit<AccountsOptions, 'store' | 'g
   store?: AccountStoreKind;
   /** Una base, archivo o (con `postgres`) esquema de cuentas que ya existe (otra instancia sobre las mismas cuentas) en vez de uno nuevo: es el `file` de otra nube. */
   accountsFile?: string;
+  /** Con `store: 'postgres'`: la base a usar (por omisión, el Postgres compartido del archivo de pruebas); para una prueba que necesita tirar la suya. */
+  postgresUrl?: string;
   /** Un espacio de trabajo que ya existe (otra instancia sobre las mismas carpetas) en vez de uno nuevo y vacío. */
   root?: string;
   tokens?: boolean;
@@ -102,7 +104,7 @@ export async function startCloud(options: CloudOptions = {}): Promise<Cloud> {
   fakes.push(fake);
   const dir = mkdtempSync(join(tmpdir(), 'iark-cuentas-api-'));
   folders.push(dir);
-  const { tokens: withTokens, cors, serve, store: storeKind = defaultStoreKind(), accountsFile, root: sharedRoot, ...rest } = options;
+  const { tokens: withTokens, cors, serve, store: storeKind = defaultStoreKind(), accountsFile, root: sharedRoot, postgresUrl, ...rest } = options;
   const root = sharedRoot ?? join(dir, 'espacio');
   if (!sharedRoot) mkdirSync(root);
   const file = accountsFile ?? (storeKind === 'postgres' ? uniqueSchema() : join(dir, storeKind === 'sqlite' ? 'cuentas.db' : 'cuentas.json'));
@@ -110,7 +112,7 @@ export async function startCloud(options: CloudOptions = {}): Promise<Cloud> {
   let store: AccountStore;
   if (storeKind === 'postgres') {
     // Cada nube abre su propia conexión (su propio pool): dos nubes sobre el mismo esquema son dos procesos distintos contra la misma base.
-    const db = await PostgresDatabase.connect(testConfig((await cloudPostgres()).url, file));
+    const db = await PostgresDatabase.connect(testConfig(postgresUrl ?? (await cloudPostgres()).url, file));
     if (!schemas.includes(file)) schemas.push(file);
     store = await PostgresAccountStore.open(db, { release: () => db.close() });
   } else store = await openAccountStore(storeKind, file);

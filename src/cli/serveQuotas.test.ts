@@ -7,11 +7,16 @@ import { Observability } from './observability';
 import { FolderProjectStore } from './workspace';
 import { ANA, BETO, call, CARLA, cleanupCloud, JSON_TYPE, signIn, startCloud, tracked, type Cloud, type CloudOptions } from '../../tests/helpers/cloud';
 import type { AccountStoreKind } from './accounts/store';
+import { postgresAvailable, requirePostgresIfCi } from '../../tests/helpers/postgres';
+
+requirePostgresIfCi();
+// Con Postgres disponible (o exigido en el CI), las mismas pruebas corren también contra el almacén postgres.
+const STORES: AccountStoreKind[] = ['json', 'sqlite', ...(postgresAvailable() ? (['postgres'] as const) : [])];
 
 /**
  * Cuotas de uso de `iark serve --accounts` (ver `accounts/usage.ts`): bytes por persona (documentos + historial de versiones), proyectos por
  * persona y diagramas por proyecto; con topes de la instancia y topes personales fijados por un administrador. El servidor es el de verdad
- * (`createSuiteServer`) con el almacén de cuentas JSON y con SQLite; lo único falso es GitHub.
+ * (`createSuiteServer`) con el almacén de cuentas JSON, con SQLite y con Postgres; lo único falso es GitHub.
  *
  * Los documentos son texto cualquiera (un borrador puede no ser válido): `'x'.repeat(n)` pesa justo n bytes. Guardar un documento de n bytes cuesta
  * a lo sumo 2n (el documento y la versión que se anota), por eso los números de estas pruebas van de 2 en 2.
@@ -43,7 +48,7 @@ const usageOf = async (cloud: Cloud, token: string) => (await (await call(cloud.
 };
 const filesIn = (cloud: Cloud, project: string): string[] => readdirSync(join(cloud.root, project)).filter((f) => f.endsWith('.json') && f !== 'project.json').sort();
 
-describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de cuentas %s', (store) => {
+describe.each<AccountStoreKind>(STORES)('cuotas con el almacén de cuentas %s', (store) => {
   describe('diagramas por proyecto', () => {
     it('rechaza el diagrama que pasa del tope con 409 limit y no escribe nada; guardar uno que ya existe, borrar y volver a crear siguen valiendo', async () => {
       const cloud = await quotaCloud(store, { quotas: { diagramsPerProject: 2, bytes: 0 } });
