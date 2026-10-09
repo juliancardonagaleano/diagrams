@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { accountStoreContract, ana, beto, OPEN } from '../../../tests/helpers/accountStoreContract';
-import { hashSessionToken, JsonAccountStore, MAX_SESSIONS_PER_USER, parseAccountsFile, SESSION_PREFIX } from './store';
+import { asAsync, hashSessionToken, JsonAccountStore, MAX_SESSIONS_PER_USER, parseAccountsFile, SESSION_PREFIX } from './store';
 
-accountStoreContract('json', { fileName: 'cuentas.json', open: (path, options) => JsonAccountStore.open(path, options) });
+accountStoreContract('json', { fileName: 'cuentas.json', open: (path, options) => asAsync(JsonAccountStore.open(path, options)) });
 
 const folders: string[] = [];
 afterEach(() => {

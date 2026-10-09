@@ -50,7 +50,7 @@ describe('iark serve con inicio de sesión de GitHub (CLI empaquetado)', () => {
   /** Las variables de la suite, vacías, salvo las que cada prueba pone. */
   const env = (extra: Record<string, string> = {}): NodeJS.ProcessEnv => ({
     ...process.env,
-    IARK_TOKENS: '', IARK_WORKSPACE: '', IARK_ACCOUNTS: '', IARK_ACCOUNTS_STORE: '', IARK_ACCOUNTS_IMPORT: '', IARK_GITHUB_CLIENT_ID: '', IARK_GITHUB_CLIENT_SECRET: '', IARK_GITHUB_CLIENT_SECRET_FILE: '', IARK_PUBLIC_URL: '', IARK_ADMINS: '', IARK_SIGNUP: '',
+    IARK_TOKENS: '', IARK_WORKSPACE: '', IARK_ACCOUNTS: '', IARK_ACCOUNTS_STORE: '', IARK_ACCOUNTS_IMPORT: '', IARK_DATABASE_URL: '', IARK_DATABASE_URL_FILE: '', IARK_GITHUB_CLIENT_ID: '', IARK_GITHUB_CLIENT_SECRET: '', IARK_GITHUB_CLIENT_SECRET_FILE: '', IARK_PUBLIC_URL: '', IARK_ADMINS: '', IARK_SIGNUP: '',
     ...extra,
   });
   const serve = (args: string[], extra: Record<string, string>) => spawnSync(process.execPath, [bundle.cli, 'serve', ...args], { encoding: 'utf8', env: env(extra), timeout: 30_000 });
@@ -254,12 +254,17 @@ describe('iark serve con inicio de sesión de GitHub (CLI empaquetado)', () => {
   it('opciones de almacén inválidas: lo dice y sale con 2, sin crear nada', () => {
     const dir = tmp();
     const base = { IARK_WORKSPACE: join(dir, 'espacio'), IARK_ACCOUNTS: join(dir, 'cuentas.db'), IARK_GITHUB_CLIENT_ID: FAKE_CLIENT_ID, IARK_GITHUB_CLIENT_SECRET: FAKE_CLIENT_SECRET, IARK_PUBLIC_URL: 'http://127.0.0.1:1', IARK_ADMINS: '1' };
-    const unknown = serve(['--accounts-store', 'postgres'], base);
+    const unknown = serve(['--accounts-store', 'mysql'], base);
     expect(unknown.status).toBe(2);
-    expect(unknown.stderr).toMatch(/--accounts-store debe ser .*json.*sqlite/);
+    expect(unknown.stderr).toMatch(/--accounts-store debe ser .*json.*sqlite.*postgres.*mysql/);
+    // postgres es un almacén válido, pero la conexión solo sale del entorno: sin ella no arranca y lo dice
+    const noUrl = serve(['--accounts-store', 'postgres'], base);
+    expect(noUrl.status).toBe(2);
+    expect(noUrl.stderr).toMatch(/IARK_DATABASE_URL/);
+    expect(noUrl.stderr).toMatch(/no se acepta por la línea de comandos/);
     const mixed = serve(['--accounts-store', 'json', '--accounts-import', join(dir, 'x.json')], base);
     expect(mixed.status).toBe(2);
-    expect(mixed.stderr).toMatch(/--accounts-import.*solo vale con --accounts-store sqlite/);
+    expect(mixed.stderr).toMatch(/--accounts-import.*solo vale con --accounts-store sqlite o postgres/);
     const fromEnv = serve([], { ...base, IARK_ACCOUNTS_STORE: 'mysql' });
     expect(fromEnv.status).toBe(2);
     expect(existsSync(join(dir, 'cuentas.db'))).toBe(false);

@@ -152,7 +152,7 @@ export class Metrics {
   readonly authFailures = new Counter('iark_auth_failures_total', 'Autenticaciones fallidas, por motivo (missing, invalid, rate_limited, unavailable, login_failed).', ['reason']);
   readonly auditEvents = new Counter('iark_audit_events_total', 'Filas de auditoría, por acción y resultado.', ['action', 'result']);
   inFlight = 0;
-  private readonly collectors: Array<() => MetricFamily[]> = [];
+  private readonly collectors: Array<() => MetricFamily[] | Promise<MetricFamily[]>> = [];
   private loop: IntervalHistogram | undefined;
   private readonly startedAt = Date.now() / 1000;
 
@@ -170,8 +170,8 @@ export class Metrics {
     this.loop = undefined;
   }
 
-  /** Añade una familia que se calcula al leer (recuentos del pool, de las cuentas…). */
-  addCollector(collector: () => MetricFamily[]): void {
+  /** Añade una familia que se calcula al leer (recuentos del pool, de las cuentas…); puede consultar algo y por eso devolver una promesa. */
+  addCollector(collector: () => MetricFamily[] | Promise<MetricFamily[]>): void {
     this.collectors.push(collector);
   }
 
@@ -210,13 +210,13 @@ export class Metrics {
   }
 
   /** Todas las métricas en el formato de texto de Prometheus. */
-  render(): string {
+  async render(): Promise<string> {
     const lines: string[] = [];
     for (const family of [this.requests, this.duration, this.rateLimited, this.authFailures, this.auditEvents]) lines.push(...family.render());
     lines.push(...renderFamily({ name: 'iark_http_requests_in_flight', help: 'Peticiones en curso ahora mismo.', type: 'gauge', samples: [{ value: this.inFlight }] }));
     for (const family of this.processFamilies()) lines.push(...renderFamily(family));
     for (const collector of this.collectors) {
-      for (const family of collector()) lines.push(...renderFamily(family));
+      for (const family of await collector()) lines.push(...renderFamily(family));
     }
     return `${lines.join('\n')}\n`;
   }

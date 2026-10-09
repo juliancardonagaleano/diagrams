@@ -22,7 +22,7 @@ import {
   SITE_ROLES,
   type AccountsFile,
   type AccountStats,
-  type AccountStore,
+  type SyncAccountStore,
   type AccountStoreOptions,
   type AccountUser,
   type GithubProfile,
@@ -217,7 +217,7 @@ function writeFileAtomic(path: string, file: AccountsFile): void {
 
 // ───────────── el almacén ─────────────
 
-export class JsonAccountStore implements AccountStore {
+export class JsonAccountStore implements SyncAccountStore {
   readonly kind = 'json' as const;
   private state: AccountsFile;
   private sessionsByHash = new Map<string, SessionRecord>();

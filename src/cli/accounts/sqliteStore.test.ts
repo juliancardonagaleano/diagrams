@@ -5,9 +5,9 @@ import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { accountStoreContract, ana, beto, INVITE, OPEN } from '../../../tests/helpers/accountStoreContract';
 import { loadSqlite, MIGRATIONS, SQLITE_APPLICATION_ID, SqliteAccountStore, type SqliteMigration } from './sqliteStore';
-import { AccountError, hashSessionToken, MAX_PENDING_USERS } from './store';
+import { AccountError, asAsync, hashSessionToken, MAX_PENDING_USERS } from './store';
 
-accountStoreContract('sqlite', { fileName: 'cuentas.db', open: (path, options) => SqliteAccountStore.open(path, options) });
+accountStoreContract('sqlite', { fileName: 'cuentas.db', open: (path, options) => asAsync(SqliteAccountStore.open(path, options)) });
 
 const folders: string[] = [];
 const stores: SqliteAccountStore[] = [];

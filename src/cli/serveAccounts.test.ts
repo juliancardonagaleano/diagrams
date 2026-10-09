@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBundle, MemoryProjectStore, bundleToText } from '@iark/kernel';
 import { GithubOAuth } from './accounts/github';
 import { Accounts } from './accounts/service';
-import { AccountError, JsonAccountStore } from './accounts/store';
+import { AccountError, asAsync, JsonAccountStore } from './accounts/store';
 import { createDefaultRegistry } from './registry';
 import { createSuiteServer } from './serve';
 import { challengeOf, FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, newVerifier, startFakeGithub, type FakeProfile } from '../../tests/helpers/fakeGithub';
@@ -84,10 +84,10 @@ describe('iark serve --accounts: el inicio de sesión', () => {
     const result = await loginWithGithub(cloud.base, cloud.fake, BETO);
     expect(result.fragment.get('iark_error')).toBe('not_invited');
     expect(result.fragment.has('iark_code')).toBe(false);
-    expect(cloud.accounts.store.userCount).toBe(0);
+    expect(await cloud.accounts.store.userCount()).toBe(0);
     await vi.waitFor(() => expect(cloud.fake.revoked).toHaveLength(1)); // aun así no se queda con el token de GitHub (se revoca sin hacer esperar a la persona)
     // invitada por su nombre de usuario, entra como invitada
-    cloud.accounts.store.invite('Beto', 'guest');
+    await cloud.accounts.store.invite('Beto', 'guest');
     const invited = await loginWithGithub(cloud.base, cloud.fake, BETO);
     expect(invited.user).toMatchObject({ login: 'beto', siteRole: 'guest' });
   });
@@ -95,8 +95,8 @@ describe('iark serve --accounts: el inicio de sesión', () => {
   it('una cuenta desactivada no entra, y si ya tenía sesión deja de valer', async () => {
     const cloud = await startCloud({ signup: 'open' });
     const token = await signIn(cloud, BETO);
-    const user = cloud.accounts.store.findByLogin('beto')!;
-    cloud.accounts.store.updateUser(user.id, { disabled: true });
+    const user = (await cloud.accounts.store.findByLogin('beto'))!;
+    await cloud.accounts.store.updateUser(user.id, { disabled: true });
     expect((await call(cloud.base, token).get('/api/whoami')).status).toBe(401);
     expect((await loginWithGithub(cloud.base, cloud.fake, BETO)).fragment.get('iark_error')).toBe('disabled');
   });
@@ -173,7 +173,7 @@ describe('iark serve --accounts: el inicio de sesión', () => {
     const dir = mkdtempSync(join(tmpdir(), 'iark-cuentas-secure-'));
     folders.push(dir);
     const accounts = new Accounts({
-      store: JsonAccountStore.open(join(dir, 'c.json')),
+      store: asAsync(JsonAccountStore.open(join(dir, 'c.json'))),
       github: new GithubOAuth({ clientId: FAKE_CLIENT_ID, clientSecret: FAKE_CLIENT_SECRET, baseUrl: fake.url, apiUrl: fake.url }),
       publicUrl: 'https://iark.example.org/herramientas',
       admins: ['1'],
@@ -205,7 +205,7 @@ describe('iark serve --accounts: el state liga la vuelta de GitHub con quien la 
     expect(res.headers.get('content-type')).toMatch(/text\/html/);
     expect(res.headers.get('location')).toBeNull();
     expect(await res.text()).toMatch(/caducó o no se empezó desde este navegador/);
-    expect(cloud.accounts.store.userCount).toBe(0);
+    expect(await cloud.accounts.store.userCount()).toBe(0);
     expect(cloud.fake.calls['POST /login/oauth/access_token']).toBeUndefined(); // ni siquiera se gasta el código en GitHub
   });
 
@@ -277,7 +277,7 @@ describe('iark serve --accounts: el código se cambia por una sesión (PKCE)', (
     expect(await stolen.json()).toMatchObject({ code: 'invalid-grant' });
     // el código ya está gastado: ni con el verifier bueno
     expect((await exchange(cloud, { code, verifier })).status).toBe(400);
-    expect(cloud.accounts.store.sessionCount(cloud.accounts.store.findByLogin('ana')!.id)).toBe(0); // nadie consiguió una sesión
+    expect(await cloud.accounts.store.sessionCount((await cloud.accounts.store.findByLogin('ana'))!.id)).toBe(0); // nadie consiguió una sesión
   });
 
   it('el código vale una sola vez y caduca a los 60 segundos', async () => {
@@ -405,7 +405,7 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     const cloud = await startCloud();
     const ana = await signIn(cloud, ANA);
     await create(cloud, ana, 'Tienda');
-    const guest = cloud.accounts.store.invite('carla', 'guest');
+    const guest = await cloud.accounts.store.invite('carla', 'guest');
     const carla = await signIn(cloud, CARLA);
     const api = call(cloud.base, carla);
     expect((await api.get('/api/projects')).status).toBe(200);
@@ -416,7 +416,7 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     }
     expect(readdirSync(cloud.root)).toEqual(['tienda']);
 
-    cloud.accounts.store.setMember('tienda', guest.id, 'viewer');
+    await cloud.accounts.store.setMember('tienda', guest.id, 'viewer');
     expect((await api.get('/api/projects/tienda')).status).toBe(200);
     expect(await (await api.get('/api/projects')).json()).toEqual([expect.objectContaining({ id: 'tienda', role: 'viewer' })]);
     const denied = await api.post('/api/projects/tienda/diagrams', { module: 'data', text: example('ventas-datos.json') });
@@ -425,11 +425,11 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     expect((await api.del('/api/projects/tienda')).status).toBe(403);
     expect((await api.patch('/api/projects/tienda', { name: 'Otro' })).status).toBe(403);
 
-    cloud.accounts.store.setMember('tienda', guest.id, 'editor');
+    await cloud.accounts.store.setMember('tienda', guest.id, 'editor');
     expect((await api.post('/api/projects/tienda/diagrams', { module: 'data', name: 'Ventas', text: example('ventas-datos.json') })).status).toBe(201);
     expect((await api.patch('/api/projects/tienda', { name: 'Tienda web' })).status).toBe(200);
     expect((await api.del('/api/projects/tienda')).status).toBe(403); // borrar el proyecto es del admin
-    cloud.accounts.store.setMember('tienda', guest.id, 'admin');
+    await cloud.accounts.store.setMember('tienda', guest.id, 'admin');
     expect((await api.del('/api/projects/tienda')).status).toBe(200);
   });
 
@@ -437,8 +437,8 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     const cloud = await startCloud();
     const ana = await signIn(cloud, ANA);
     await create(cloud, ana, 'Tienda');
-    const viewer = cloud.accounts.store.invite('carla', 'guest');
-    cloud.accounts.store.setMember('tienda', viewer.id, 'viewer');
+    const viewer = await cloud.accounts.store.invite('carla', 'guest');
+    await cloud.accounts.store.setMember('tienda', viewer.id, 'viewer');
     const carla = await signIn(cloud, CARLA);
     const res = await fetch(`${cloud.base}/api/projects/tienda/diagrams/x`, { method: 'PUT', headers: { Authorization: `Bearer ${carla}`, 'Content-Type': 'text/plain' }, body: '¿?' });
     expect(res.status).toBe(403); // y no 415 ni 400
@@ -449,13 +449,13 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     const cloud = await startCloud({ signup: 'open' });
     const ana = await signIn(cloud, ANA);
     const beto = await signIn(cloud, BETO);
-    const betoId = cloud.accounts.store.findByLogin('beto')!.id;
+    const betoId = (await cloud.accounts.store.findByLogin('beto'))!.id;
     await create(cloud, ana, 'Tienda');
-    cloud.accounts.store.setMember('tienda', betoId, 'editor');
+    await cloud.accounts.store.setMember('tienda', betoId, 'editor');
     expect((await call(cloud.base, beto).get('/api/projects/tienda')).status).toBe(200);
     expect((await call(cloud.base, ana).del('/api/projects/tienda')).status).toBe(200);
-    expect(cloud.accounts.store.membersOf('tienda')).toEqual([]);
-    expect(cloud.accounts.store.snapshot().projects).toEqual({});
+    expect(await cloud.accounts.store.membersOf('tienda')).toEqual([]);
+    expect((await cloud.accounts.store.snapshot()).projects).toEqual({});
     await create(cloud, ana, 'Tienda');
     expect((await call(cloud.base, beto).get('/api/projects/tienda')).status).toBe(404);
   });
@@ -468,7 +468,7 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     expect(res.status).toBe(201);
     const imported = await res.json();
     expect(imported.project).toMatchObject({ name: 'Importado', role: 'admin' });
-    expect(cloud.accounts.store.roleOf(cloud.accounts.store.findByLogin('beto')!.id, imported.project.id)).toBe('admin');
+    expect(await cloud.accounts.store.roleOf((await cloud.accounts.store.findByLogin('beto'))!.id, imported.project.id)).toBe('admin');
   });
 
   it('hay un tope de proyectos por persona; los administradores de la instancia no lo tienen', async () => {
@@ -491,9 +491,7 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     const cloud = await startCloud({ signup: 'open' });
     const beto = await signIn(cloud, BETO);
     // el almacén no puede guardar (disco lleno, permisos…): sea cual sea el almacén, así lo cuenta `AccountError('unavailable')`
-    vi.spyOn(cloud.accounts.store, 'registerProject').mockImplementation(() => {
-      throw new AccountError('unavailable', 'No se pudo escribir las cuentas.');
-    });
+    vi.spyOn(cloud.accounts.store, 'registerProject').mockRejectedValue(new AccountError('unavailable', 'No se pudo escribir las cuentas.'));
     const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const res = await call(cloud.base, beto).post('/api/projects', { name: 'Tienda' });
     stderr.mockRestore();
@@ -557,7 +555,7 @@ describe('iark serve --accounts: CORS y secretos', () => {
     const everything = [...probes, ...onDisk, ...stderr.mock.calls.map((c) => String(c[0]))].join('\n');
     stderr.mockRestore();
     for (const secret of [result.token!, FAKE_CLIENT_SECRET, verifier, result.fragment.get('iark_code') ?? 'sin-codigo']) expect(everything).not.toContain(secret);
-    expect(cloud.accounts.store.snapshot().sessions.length).toBeGreaterThan(0); // hay sesiones guardadas, y solo como hash
-    expect(cloud.accounts.store.snapshot().sessions[0].hash).toMatch(/^[0-9a-f]{64}$/);
+    expect((await cloud.accounts.store.snapshot()).sessions.length).toBeGreaterThan(0); // hay sesiones guardadas, y solo como hash
+    expect((await cloud.accounts.store.snapshot()).sessions[0].hash).toMatch(/^[0-9a-f]{64}$/);
   });
 });

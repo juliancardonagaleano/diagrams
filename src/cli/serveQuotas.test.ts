@@ -152,7 +152,7 @@ describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de c
       const beto = await signIn(cloud, BETO);
       const carla = await signIn(cloud, CARLA);
       const p = await newProject(cloud, beto, 'Compartido');
-      cloud.accounts.store.setMember(p, cloud.accounts.store.findByLogin('carla')!.id, 'editor');
+      await cloud.accounts.store.setMember(p, (await cloud.accounts.store.findByLogin('carla'))!.id, 'editor');
       expect((await newDiagram(cloud, carla, p, 'a', 1000)).status).toBe(201);
       expect((await newDiagram(cloud, carla, p, 'b', 1000)).status).toBe(201);
       const refused = await newDiagram(cloud, carla, p, 'c', 1000);
@@ -211,9 +211,9 @@ describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de c
       const ana = await signIn(cloud, ANA);
       const beto = await signIn(cloud, BETO);
       const carla = await signIn(cloud, CARLA);
-      const betoId = cloud.accounts.store.findByLogin('beto')!.id;
+      const betoId = (await cloud.accounts.store.findByLogin('beto'))!.id;
       const mine = await newProject(cloud, carla, 'Mio');
-      cloud.accounts.store.setMember(mine, betoId, 'admin'); // administrar el de otra persona no cuenta
+      await cloud.accounts.store.setMember(mine, betoId, 'admin'); // administrar el de otra persona no cuenta
       const a = await newProject(cloud, beto, 'Uno');
       await newProject(cloud, beto, 'Dos');
       const third = await call(cloud.base, beto).post('/api/projects', { name: 'Tres' });
@@ -269,7 +269,7 @@ describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de c
       expect(await set.json()).toMatchObject({ login: 'beto', quota: { diagramsPerProject: 5, projects: 3, bytes: 100_000 }, limits: { diagramsPerProject: 5, projects: 3, bytes: 100_000 } });
       expect((await newDiagram(cloud, beto, p, 'b', 1000)).status).toBe(201);
       expect((await call(cloud.base, beto).post('/api/projects', { name: 'Otro' })).status).toBe(201);
-      expect(cloud.accounts.store.findByLogin('beto')?.quota).toEqual({ diagramsPerProject: 5, projects: 3, bytes: 100_000 });
+      expect((await cloud.accounts.store.findByLogin('beto'))?.quota).toEqual({ diagramsPerProject: 5, projects: 3, bytes: 100_000 });
 
       const list = (await (await call(cloud.base, ana).get('/api/admin/users')).json()) as Array<Record<string, unknown>>;
       expect(list.find((u) => u.login === 'beto')).toMatchObject({ quota: { bytes: 100_000 }, limits: { bytes: 100_000 }, usage: { bytes: 4000, documentBytes: 2000, versionBytes: 2000, versions: 2, projects: 2 } });
@@ -281,7 +281,7 @@ describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de c
       expect(await back.json()).toMatchObject({ quota: { projects: 3, diagramsPerProject: 0 }, limits: { bytes: 4000, projects: 3, diagramsPerProject: 0 } });
       expect((await newDiagram(cloud, beto, p, 'c', 1000)).status).toBe(409); // otra vez los 4000 de la instancia
       expect((await call(cloud.base, ana).put('/api/admin/users/beto', { quota: { projects: null, diagramsPerProject: null } })).status).toBe(200);
-      expect(cloud.accounts.store.findByLogin('beto')?.quota).toBeUndefined();
+      expect((await cloud.accounts.store.findByLogin('beto'))?.quota).toBeUndefined();
     });
 
     it('si le bajan el tope por debajo de lo que ya usa, no pierde nada: lo que tiene se queda, puede ver, borrar y guardar lo que libera, pero no crecer', async () => {
@@ -314,8 +314,8 @@ describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de c
       const p = await newProject(cloud, beto, 'Tienda');
       expect((await newDiagram(cloud, beto, p, 'a', 1000)).status).toBe(201);
       expect((await newDiagram(cloud, beto, p, 'b', 1000)).status).toBe(409);
-      expect(cloud.accounts.store.findByLogin('beto')).toMatchObject({ siteRole: 'member' });
-      expect(cloud.accounts.store.findByLogin('beto')?.disabled).toBeUndefined();
+      expect(await cloud.accounts.store.findByLogin('beto')).toMatchObject({ siteRole: 'member' });
+      expect((await cloud.accounts.store.findByLogin('beto'))?.disabled).toBeUndefined();
       expect((await usageOf(cloud, beto)).limits.bytes).toBe(2000);
     });
 
@@ -328,7 +328,7 @@ describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de c
       const carla = await signIn(cloud, CARLA);
       for (const name of ['A', 'B', 'C', 'D']) await newProject(cloud, carla, name);
       expect((await call(cloud.base, carla).post('/api/projects', { name: 'E' })).status).toBe(409);
-      expect(cloud.accounts.store.snapshot().users.find((u) => u.login === 'carla')?.quota).toEqual({ projects: 4 });
+      expect((await cloud.accounts.store.snapshot()).users.find((u) => u.login === 'carla')?.quota).toEqual({ projects: 4 });
     });
 
     it('solo quien administra la instancia la cambia; lo inválido se rechaza con 400 sin cambiar nada', async () => {
@@ -336,16 +336,16 @@ describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de c
       const ana = await signIn(cloud, ANA);
       const beto = await signIn(cloud, BETO);
       expect((await call(cloud.base, beto).put('/api/admin/users/beto', { quota: { bytes: 0 } })).status).toBe(403);
-      expect(cloud.accounts.store.findByLogin('beto')?.quota).toBeUndefined();
+      expect((await cloud.accounts.store.findByLogin('beto'))?.quota).toBeUndefined();
       for (const quota of [{ bytes: -1 }, { bytes: 1.5 }, { bytes: '10' }, { bytes: 9e99 }, { discos: 2 }, [], 'mucho', null]) {
         const res = await call(cloud.base, ana).put('/api/admin/users/beto', { quota });
         expect(res.status, JSON.stringify(quota)).toBe(400);
         expect(await res.json()).toMatchObject({ code: 'invalid' });
       }
-      expect(cloud.accounts.store.findByLogin('beto')?.quota).toBeUndefined();
+      expect((await cloud.accounts.store.findByLogin('beto'))?.quota).toBeUndefined();
       // no crea la invitación de una cuenta nueva si la cuota no vale
       expect((await call(cloud.base, ana).put('/api/admin/users/dani', { quota: { bytes: -1 } })).status).toBe(400);
-      expect(cloud.accounts.store.findByLogin('dani')).toBeUndefined();
+      expect(await cloud.accounts.store.findByLogin('dani')).toBeUndefined();
     });
   });
 
@@ -363,7 +363,7 @@ describe.each<AccountStoreKind>(['json', 'sqlite'])('cuotas con el almacén de c
       await newDiagram(cloud, beto, small, 'a', 100);
       const d = (await (await newDiagram(cloud, beto, big, 'b', 1000)).json()).id as string;
       await call(cloud.base, beto).put(`/api/projects/${big}/diagrams/${d}`, { text: BODY(700, 'y') });
-      cloud.accounts.store.setMember(small, cloud.accounts.store.findByLogin('carla')!.id, 'admin'); // administrar el de otra persona no suma a Carla
+      await cloud.accounts.store.setMember(small, (await cloud.accounts.store.findByLogin('carla'))!.id, 'admin'); // administrar el de otra persona no suma a Carla
 
       const usage = await usageOf(cloud, beto);
       expect(usage.usage).toEqual({ bytes: 200 + 700 + 1700, documentBytes: 800, versionBytes: 1800, versions: 3, projects: 2 });

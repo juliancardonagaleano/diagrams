@@ -97,6 +97,9 @@ function quotaChange(value: unknown): UserQuotaChange {
 /** ¿Administra la instancia? Un token con rol `admin` o una persona con rol `admin`. */
 const isInstanceAdmin = (identity: Identity): boolean => (identity.kind === 'token' ? identity.role === 'admin' : identity.siteRole === 'admin');
 
+/** Cuántas cuentas se miden a la vez al listarlas. */
+const USAGE_PARALLEL = 8;
+
 export function createAdminApi(ctx: AdminApiContext): (req: IncomingMessage, res: ServerResponse, url: URL, parts: string[]) => Promise<void> {
   const { sendJson } = ctx;
 
@@ -107,10 +110,13 @@ export function createAdminApi(ctx: AdminApiContext): (req: IncomingMessage, res
 
     if (parts.length === 1) {
       if (method !== 'GET') return allow('GET');
-      const counts = store.membershipCounts();
-      const users = store.users().sort((a, b) => a.login.localeCompare(b.login, undefined, { sensitivity: 'base' }));
+      const counts = await store.membershipCounts();
+      const users = (await store.users()).sort((a, b) => a.login.localeCompare(b.login, undefined, { sensitivity: 'base' }));
+      // Medir el uso de cada cuenta son varias consultas al almacén: de ocho en ocho, para que con una base de red no se sumen los viajes de todas.
       const rows: AdminUserJson[] = [];
-      for (const u of users) rows.push(await adminUserJson(accounts, ctx.quotas, u, counts.get(u.id) ?? 0));
+      for (let from = 0; from < users.length; from += USAGE_PARALLEL) {
+        rows.push(...(await Promise.all(users.slice(from, from + USAGE_PARALLEL).map((u) => adminUserJson(accounts, ctx.quotas, u, counts.get(u.id) ?? 0)))));
+      }
       return sendJson(res, 200, rows);
     }
 
@@ -127,7 +133,7 @@ export function createAdminApi(ctx: AdminApiContext): (req: IncomingMessage, res
         change.disabled = body.disabled;
       }
       if (body.quota !== undefined) change.quota = quotaChange(body.quota);
-      const existing = store.findByLogin(parseLogin(login));
+      const existing = await store.findByLogin(parseLogin(login));
       if (existing) {
         const stored = existing.siteRole;
         const lowers = (change.siteRole !== undefined && change.siteRole !== 'admin') || change.disabled === true;
@@ -138,14 +144,14 @@ export function createAdminApi(ctx: AdminApiContext): (req: IncomingMessage, res
           throw new HttpError(409, 'No puedes cambiar tu propio rol ni desactivar tu propia cuenta: que lo haga otra persona administradora.', { code: 'self' });
         }
       }
-      const { user, created } = store.upsertUser(login, change);
-      const projects = store.membershipCounts().get(user.id) ?? 0;
+      const { user, created } = await store.upsertUser(login, change);
+      const projects = (await store.membershipCounts()).get(user.id) ?? 0;
       return sendJson(res, created ? 201 : 200, await adminUserJson(accounts, ctx.quotas, user, projects), created ? { Location: `/api/admin/users/${encodeURIComponent(user.login)}` } : {});
     }
     if (method === 'DELETE') {
-      const user = store.findByLogin(parseLogin(login));
+      const user = await store.findByLogin(parseLogin(login));
       if (!user) throw new HttpError(404, `No existe la cuenta «${login.slice(0, 60)}».`, { code: 'not-found' });
-      store.removePending(user.id);
+      await store.removePending(user.id);
       return sendJson(res, 200, { removed: user.login });
     }
     return allow('PUT, DELETE');
@@ -154,7 +160,7 @@ export function createAdminApi(ctx: AdminApiContext): (req: IncomingMessage, res
   return async (req, res, _url, parts) => {
     const { accounts, auth } = ctx;
     if (!accounts || !auth) throw new HttpError(404, 'Este servicio no tiene cuentas de GitHub: la administración de cuentas solo existe con --accounts.');
-    const identity = auth.identify(req);
+    const identity = await auth.identify(req);
     if (!isInstanceAdmin(identity)) throw new HttpError(403, 'Solo quien administra la instancia puede ver y cambiar las cuentas.', { code: 'forbidden' });
     if (req.method !== 'GET' && req.method !== 'HEAD' && !isJson(req)) throw new HttpError(415, 'Las operaciones que modifican cuentas exigen Content-Type: application/json.');
     try {

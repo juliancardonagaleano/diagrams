@@ -178,10 +178,10 @@ export function createSuiteServer(options: ServeOptions): Server {
   const rawAuth = options.tokens || options.accounts ? createAuthenticator({ tokens: options.tokens, accounts: options.accounts, trustProxy: options.trustProxy, limits: options.authLimits }) : undefined;
   /** Quién identifica a quien llama; anota en el contexto de la petición quién es (o por qué no pudo ser nadie) para el registro de accesos y la auditoría. */
   const auth: Authenticator | undefined = rawAuth && {
-    identify(req) {
+    async identify(req) {
       const context = obs.contextOf(req);
       try {
-        const identity = rawAuth.identify(req);
+        const identity = await rawAuth.identify(req);
         context?.identified(identity);
         return identity;
       } catch (error) {
@@ -219,13 +219,13 @@ export function createSuiteServer(options: ServeOptions): Server {
   if (options.accounts) {
     const store = options.accounts.store;
     // El archivo (JSON o base SQLite) se puede leer, el almacén responde a una lectura de verdad y la carpeta admite escribir (el JSON se
-    // reemplaza por renombrado; SQLite crea su diario `-wal` y `-shm` al lado).
-    checks.accounts = async () => (await fileReadable(store.path)) && store.readable() && (await directoryWritable(dirname(store.path)));
+    // reemplaza por renombrado; SQLite crea su diario `-wal` y `-shm` al lado). Con Postgres no hay archivo: basta con que la base responda.
+    checks.accounts = async () => (store.kind === 'postgres' ? store.readable() : (await fileReadable(store.path)) && (await store.readable()) && (await directoryWritable(dirname(store.path))));
   }
   if (executor.healthy) checks.compute = () => executor.healthy!();
   const readiness = new Readiness(checks, { cacheMs: options.readyCacheMs, warn: obs.warn });
   const metricsEndpoint = obs.metrics ? createMetricsEndpoint({ metrics: obs.metrics, token: options.metricsToken, trustProxy: options.trustProxy }) : undefined;
-  obs.metrics?.addCollector((): MetricFamily[] => {
+  obs.metrics?.addCollector(async (): Promise<MetricFamily[]> => {
     const families: MetricFamily[] = [];
     const compute = executor.stats?.();
     if (compute) {
@@ -241,9 +241,9 @@ export function createSuiteServer(options: ServeOptions): Server {
       );
     }
     if (options.accounts) {
-      let stats: ReturnType<typeof options.accounts.store.stats> | undefined;
+      let stats: Awaited<ReturnType<typeof options.accounts.store.stats>> | undefined;
       try {
-        stats = options.accounts.store.stats();
+        stats = await options.accounts.store.stats();
       } catch {
         stats = undefined; // la base de cuentas no responde: /readyz lo dice; las demás métricas deben seguir saliendo
       }
@@ -364,7 +364,7 @@ export function createSuiteServer(options: ServeOptions): Server {
    * Las rutas de cálculo piden credencial (de cualquier rol) cuando hay autenticación y no se abrieron con `publicCompute`. Se decide
    * antes de leer el cuerpo y antes de saber si el módulo existe: quien no entra no cuesta ni memoria ni CPU, y no averigua nada.
    */
-  const requireComputeAccess = (req: IncomingMessage): void => void computeAuth?.identify(req);
+  const requireComputeAccess = async (req: IncomingMessage): Promise<void> => void (await computeAuth?.identify(req));
 
   /**
    * Entrega el trabajo al ejecutor (el pool de hilos de `iark serve`) y responde con su resultado: la misma semántica de errores que
@@ -392,7 +392,7 @@ export function createSuiteServer(options: ServeOptions): Server {
     if (parts.length === 1 && parts[0] === 'whoami') {
       requireMethod(req, 'GET');
       if (!auth) return sendJson(res, 200, { auth: false });
-      const who = auth.identify(req);
+      const who = await auth.identify(req);
       if (who.kind === 'token') return sendJson(res, 200, { auth: true, name: who.name, role: who.role });
       return sendJson(res, 200, { auth: true, name: who.user.name ?? who.user.login, role: who.siteRole, user: who.user });
     }
@@ -401,13 +401,13 @@ export function createSuiteServer(options: ServeOptions): Server {
       return sendJson(res, 200, options.registry.list().map(moduleCapabilities));
     }
     if (parts.length === 1 && parts[0] === 'trace') {
-      requireComputeAccess(req);
+      await requireComputeAccess(req);
       requireMethod(req, 'POST');
       return runCompute(res, { op: 'trace', body: await readBody(req) });
     }
     const [id, action, command] = parts;
     if (!id || !action) throw new HttpError(404, 'Ruta de la API desconocida. Ver /api/modules.');
-    if (COMPUTE_ACTIONS.has(action)) requireComputeAccess(req);
+    if (COMPUTE_ACTIONS.has(action)) await requireComputeAccess(req);
     const module = moduleOf(id);
 
     switch (action) {

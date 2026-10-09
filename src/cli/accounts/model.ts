@@ -3,9 +3,10 @@ import { createHash, randomBytes } from 'node:crypto';
 /**
  * El modelo de las cuentas de `iark serve` con inicio de sesión de GitHub y el contrato que cumple cualquier almacén (`AccountStore`):
  * las personas que han entrado, sus sesiones y a qué proyectos pertenecen. Aquí no hay disco ni bases de datos: solo tipos, reglas
- * y las funciones puras que comparten todos los almacenes. Hoy hay dos (`jsonStore.ts`, un archivo para una sola instancia, y
- * `sqliteStore.ts`, una base transaccional que varias instancias pueden compartir) y se eligen con `--accounts-store`
- * (ver `store.ts`). Solo usa `node:` (nada de dependencias).
+ * y las funciones puras que comparten todos los almacenes. Hay tres (`jsonStore.ts`, un archivo para una sola instancia; `sqliteStore.ts`, una
+ * base transaccional en disco local que varias instancias de una máquina pueden compartir; y `postgresStore.ts`, una base Postgres de red
+ * —Supabase, Neon, RDS…— que comparten todas las réplicas que se quiera) y se eligen con `--accounts-store` (ver `store.ts`). Solo usa `node:`
+ * (nada de dependencias).
  *
  * Reglas que valen para todos los almacenes:
  * - El token de una sesión nunca se guarda: solo su hash (sha256), como en el archivo de tokens. Quien lea el almacén no puede usarlas.
@@ -122,7 +123,9 @@ export type AccountErrorCode =
   /** El archivo o la base existen pero no son un almacén de cuentas válido (o son de una versión más nueva). */
   | 'corrupt'
   /** No se puede leer o escribir (permisos, disco, no es un archivo, base ocupada). */
-  | 'unavailable';
+  | 'unavailable'
+  /** La base de la red no responde o está saturada (conexión, credenciales, demasiadas conexiones, choques sin resolver): pasajero, se responde 503. */
+  | 'unreachable';
 
 export class AccountError extends Error {
   constructor(
@@ -178,10 +181,16 @@ export const hashSessionToken = (token: string): string => createHash('sha256').
 
 // ───────────── el contrato de un almacén ─────────────
 
-/** Los almacenes que existen: `json` (un archivo, una sola instancia) y `sqlite` (una base transaccional, varias instancias). */
-export const ACCOUNT_STORE_KINDS = ['json', 'sqlite'] as const;
+/**
+ * Los almacenes que existen: `json` (un archivo, una sola instancia), `sqlite` (una base transaccional en disco local) y `postgres` (una base de
+ * red que comparten todas las réplicas; la conexión sale del entorno, ver `postgres/config.ts`).
+ */
+export const ACCOUNT_STORE_KINDS = ['json', 'sqlite', 'postgres'] as const;
 export type AccountStoreKind = (typeof ACCOUNT_STORE_KINDS)[number];
 export const isAccountStoreKind = (value: unknown): value is AccountStoreKind => typeof value === 'string' && (ACCOUNT_STORE_KINDS as readonly string[]).includes(value);
+
+/** Los almacenes que viven en un archivo del disco y son síncronos por dentro (ver `SyncAccountStore`). */
+export type FileAccountStoreKind = Exclude<AccountStoreKind, 'postgres'>;
 
 export interface AccountStoreOptions {
   /** El reloj (en las pruebas, uno falso). */
@@ -213,101 +222,117 @@ export interface SignInPolicy {
 }
 
 /**
- * Lo que el servicio necesita de un almacén de cuentas. Todo es síncrono (el almacén JSON vive en memoria y `node:sqlite` es síncrono):
- * un almacén de red (Postgres) obligaría a volver estas operaciones asíncronas (ver «Camino a Postgres» en `docs/cuentas-github.md`).
+ * Lo que el servicio necesita de un almacén de cuentas. Todo es asíncrono: un almacén de red (Postgres) no puede responder de otra forma,
+ * y el servicio (`Accounts`, `Authenticator`, las rutas) consume SOLO este contrato. Los almacenes de archivo (JSON y SQLite) son síncronos
+ * por dentro (`SyncAccountStore`) y se presentan con este contrato mediante `asAsync` (ver `asyncStore.ts`).
  *
  * Cada método que escribe es una sola transacción: o se aplica entero o no deja rastro, y los topes (`limit`) y la regla de la última
- * persona administradora (`last-admin`) se comprueban dentro de ella, así que dos peticiones simultáneas no pueden saltárselos. Con el
- * almacén SQLite eso vale también entre procesos distintos sobre la misma base; el JSON solo admite un proceso.
+ * persona administradora (`last-admin`) se comprueban dentro de ella, así que dos peticiones simultáneas no pueden saltárselos. Con SQLite
+ * y con Postgres eso vale también entre procesos distintos sobre la misma base; el JSON solo admite un proceso. Un fallo del almacén (disco,
+ * red, base) es siempre un `AccountError` (`unavailable`, `unreachable`, `corrupt`…), nunca un error del motor con su cadena de conexión.
  */
 export interface AccountStore {
   readonly kind: AccountStoreKind;
-  /** Dónde vive: la ruta del archivo (JSON) o de la base (SQLite). */
+  /** Dónde vive, para mostrar: la ruta del archivo (JSON) o de la base (SQLite), o la base de Postgres sin contraseña (`postgres://usuario@host:puerto/base`). */
   readonly path: string;
   /** Cuántas cuentas hay (personas que entraron e invitaciones). */
-  readonly userCount: number;
+  userCount(): Promise<number>;
   /**
    * Solo recuentos, para las métricas (`/metrics`): cuántas cuentas hay (activas, desactivadas, pendientes de entrar) y cuántas sesiones
    * vigentes. Nunca datos de las personas. Una cuenta desactivada cuenta como desactivada aunque aún no hubiera entrado.
    */
-  stats(): AccountStats;
+  stats(): Promise<AccountStats>;
   /**
    * ¿Se puede leer el almacén ahora mismo? Es la lectura de verdad que hace la comprobación `accounts` de `/readyz`: el JSON vive en
-   * memoria (lo que puede fallar es el archivo, y eso lo mira `/readyz` aparte), así que responde que sí; SQLite hace una consulta a la
-   * base. No lanza: devuelve `false`.
+   * memoria (lo que puede fallar es el archivo, y eso lo mira `/readyz` aparte), así que responde que sí; SQLite y Postgres hacen una
+   * consulta a la base. No lanza: devuelve `false`.
    */
-  readable(): boolean;
+  readable(): Promise<boolean>;
 
   // ───── personas ─────
-  users(): AccountUser[];
-  findUser(id: string): AccountUser | undefined;
-  findByLogin(login: string): AccountUser | undefined;
+  users(): Promise<AccountUser[]>;
+  findUser(id: string): Promise<AccountUser | undefined>;
+  findByLogin(login: string): Promise<AccountUser | undefined>;
   /**
    * Una persona entra con su perfil de GitHub. Se la reconoce por su id de GitHub; si no, por una invitación pendiente a su nombre
    * de usuario (que así queda reclamada); si no, solo entra si la instancia está abierta o es administradora. Actualiza su nombre
    * de usuario, nombre y foto. Falla con `not-invited` o `disabled`.
    */
-  signIn(profile: GithubProfile, policy: SignInPolicy): AccountUser;
+  signIn(profile: GithubProfile, policy: SignInPolicy): Promise<AccountUser>;
   /**
    * Una cuenta pendiente: invita a ese nombre de usuario sin que haya entrado todavía. Si la cuenta ya existe, la devuelve tal cual
    * (no cambia su rol). Entra con ese rol cuando se identifique con GitHub.
    */
-  invite(login: string, siteRole?: SiteRole): AccountUser;
+  invite(login: string, siteRole?: SiteRole): Promise<AccountUser>;
   /** Cambia el rol de la instancia, activa o desactiva una cuenta (desactivarla cierra todas sus sesiones) o fija su cuota personal (`quota`). */
-  updateUser(id: string, change: UserChange): AccountUser;
+  updateUser(id: string, change: UserChange): Promise<AccountUser>;
   /**
    * Lo que hace un administrador sobre un nombre de usuario: si la cuenta existe, le aplica el cambio; si no, crea una invitación
    * (cuenta pendiente) con ese rol —`member` por omisión— que reclamará quien entre con ese nombre. Todo en una sola transacción.
    */
-  upsertUser(login: string, change: UserChange): { user: AccountUser; created: boolean };
+  upsertUser(login: string, change: UserChange): Promise<{ user: AccountUser; created: boolean }>;
   /** Cancela la invitación de alguien que todavía no ha entrado (con sus pertenencias a proyectos). Quien ya entró no se borra: se desactiva. */
-  removePending(userId: string): void;
+  removePending(userId: string): Promise<void>;
 
   // ───── sesiones ─────
   /** Abre una sesión: devuelve el token (la única vez que se conoce; en el almacén solo queda su hash). */
-  createSession(userId: string, ttlMs: number): { token: string; expiresAt: string };
+  createSession(userId: string, ttlMs: number): Promise<{ token: string; expiresAt: string }>;
   /** La cuenta dueña de ese token de sesión, si la sesión sigue vigente y la cuenta no está desactivada. */
-  lookupSession(token: string): AccountUser | undefined;
+  lookupSession(token: string): Promise<AccountUser | undefined>;
   /** Cierra la sesión de ese token. Devuelve si existía. */
-  revokeSession(token: string): boolean;
+  revokeSession(token: string): Promise<boolean>;
   /** Sesiones abiertas de una cuenta (sin contar las caducadas). */
-  sessionCount(userId: string): number;
+  sessionCount(userId: string): Promise<number>;
 
   // ───── pertenencia a proyectos ─────
-  roleOf(userId: string, projectId: string): ProjectRole | undefined;
+  roleOf(userId: string, projectId: string): Promise<ProjectRole | undefined>;
   /** Los proyectos a los que pertenece una persona, con su rol. */
-  rolesOf(userId: string): Map<string, ProjectRole>;
+  rolesOf(userId: string): Promise<Map<string, ProjectRole>>;
   /** Quién pertenece al proyecto y con qué rol (los administradores primero, luego por nombre de usuario). */
-  membersOf(projectId: string): Array<{ user: AccountUser; role: ProjectRole; addedAt: string }>;
+  membersOf(projectId: string): Promise<Array<{ user: AccountUser; role: ProjectRole; addedAt: string }>>;
   /** Cuántos proyectos administra esa persona (para el tope de proyectos por persona). */
-  adminCount(userId: string): number;
+  adminCount(userId: string): Promise<number>;
   /**
    * Registra un proyecto recién creado con una persona como administradora. Reemplaza lo que hubiera con ese id: es de un proyecto
    * anterior que ya no existe (borrado a mano de la carpeta), y no debe heredar sus miembros.
    */
-  registerProject(projectId: string, ownerId: string): void;
+  registerProject(projectId: string, ownerId: string): Promise<void>;
   /** Añade a alguien al proyecto o cambia su rol. Falla con `last-admin` si bajara de rol a la única persona administradora. */
-  setMember(projectId: string, userId: string, role: ProjectRole): void;
+  setMember(projectId: string, userId: string, role: ProjectRole): Promise<void>;
   /**
    * Comparte un proyecto con un nombre de usuario de GitHub: si esa persona no tiene cuenta, se crea una invitación (cuenta pendiente
    * con `newUserSiteRole`) que reclamará al entrar; luego se la añade con el rol o se le cambia. Una sola transacción: si el proyecto
    * está lleno o el cambio dejaría al proyecto sin administrador, tampoco queda la invitación.
    */
-  shareProject(projectId: string, login: string, role: ProjectRole, newUserSiteRole: SiteRole): { user: AccountUser; added: boolean; invited: boolean };
+  shareProject(projectId: string, login: string, role: ProjectRole, newUserSiteRole: SiteRole): Promise<{ user: AccountUser; added: boolean; invited: boolean }>;
   /**
    * Quita a alguien del proyecto. Devuelve si pertenecía. Falla con `last-admin` si era la única persona administradora. Si era una
    * invitación de invitado que no ha entrado y ya no le queda ningún proyecto, la invitación se cancela: quitarla del proyecto
    * también le quita la entrada a la instancia.
    */
-  removeMember(projectId: string, userId: string): boolean;
+  removeMember(projectId: string, userId: string): Promise<boolean>;
   /** El proyecto ya no existe: se olvidan sus miembros (y las invitaciones de invitado que solo estaban en él). */
-  dropProject(projectId: string): void;
+  dropProject(projectId: string): Promise<void>;
   /** A cuántos proyectos pertenece cada cuenta (por id de cuenta). */
-  membershipCounts(): Map<string, number>;
+  membershipCounts(): Promise<Map<string, number>>;
 
   // ───── mantenimiento ─────
   /** Un volcado completo y coherente de lo que hay (para migrar, comparar y copiar). Incluye los hashes de las sesiones, nunca sus tokens. */
-  snapshot(): AccountsFile;
+  snapshot(): Promise<AccountsFile>;
   /** Libera lo que tenga abierto (la conexión a la base). Después de cerrarlo no se puede usar. */
-  close(): void;
+  close(): Promise<void>;
 }
+
+type Settled<T> = T extends Promise<infer R> ? R : T;
+
+/**
+ * El mismo contrato en su forma síncrona: lo que cumplen los almacenes de archivo (`JsonAccountStore`, que vive en memoria, y
+ * `SqliteAccountStore`, con `node:sqlite`). Se deriva de `AccountStore` para que no puedan diverger: cada método devuelve directamente el
+ * valor y `userCount` es una propiedad. El servicio no lo usa: lo ve a través de `asAsync`.
+ */
+export type SyncAccountStore = {
+  [K in Exclude<keyof AccountStore, 'kind' | 'userCount'>]: AccountStore[K] extends (...args: infer A) => infer R ? (...args: A) => Settled<R> : AccountStore[K];
+} & {
+  readonly kind: FileAccountStoreKind;
+  readonly userCount: number;
+};

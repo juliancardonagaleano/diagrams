@@ -186,9 +186,9 @@ interface Scope {
   /** Su rol en ese proyecto (para filtrar y para ponerlo en la respuesta), o `undefined` si no pertenece. */
   roleIn(projectId: string): ProjectRole | undefined;
   /** Un proyecto recién creado o importado: quien lo creó pasa a ser su `admin`. */
-  created(projectId: string): void;
+  created(projectId: string): Promise<void>;
   /** Un proyecto borrado: se olvida a sus miembros. */
-  deleted(projectId: string): void;
+  deleted(projectId: string): Promise<void>;
 }
 
 const forbidden = (message: string, extra: Record<string, unknown> = {}): HttpError => new HttpError(403, message, { code: 'forbidden', ...extra });
@@ -198,17 +198,17 @@ const forbidden = (message: string, extra: Record<string, unknown> = {}): HttpEr
  * ser `member` de la instancia y no pasar del tope; cualquier ruta de un proyecto exige pertenecer a él con el rol que pide la operación
  * (si no pertenece, 404, igual que si el proyecto no existiera).
  */
-function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accounts, quotas: Quotas | undefined, method: string, parts: string[]): Scope {
+async function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accounts, quotas: Quotas | undefined, method: string, parts: string[]): Promise<Scope> {
   const { user, siteRole } = identity;
   const siteAdmin = siteRole === 'admin';
-  const roles = siteAdmin ? new Map<string, ProjectRole>() : accounts.store.rolesOf(user.id);
+  const roles = siteAdmin ? new Map<string, ProjectRole>() : await accounts.store.rolesOf(user.id);
   // Dejar un proyecto es de quien se va: basta con pertenecer a él (los demás cambios de miembros exigen administrarlo).
   const leaving = method === 'DELETE' && parts.length === 3 && parts[1] === 'members' && loginKey(parts[2]) === loginKey(user.login);
   const needed = leaving ? 'viewer' : requiredRole(method, parts);
   const creating = method === 'POST' && (parts.length === 0 || (parts.length === 1 && parts[0] === 'import'));
   if (creating) {
     if (siteRole === 'guest') throw forbidden('Tu cuenta es de invitado: puedes entrar a los proyectos que te compartan, pero no crear proyectos.');
-    quotas?.assertCanCreateProject(user.id); // 409 `limit`: el tope de proyectos de esta persona (los administradores de la instancia no lo tienen, salvo que se les fije uno)
+    await quotas?.assertCanCreateProject(user.id); // 409 `limit`: el tope de proyectos de esta persona (los administradores de la instancia no lo tienen, salvo que se les fije uno)
   } else if (parts.length > 0) {
     const projectId = parts[0];
     if (!siteAdmin) {
@@ -221,12 +221,12 @@ function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accou
     userId: user.id,
     all: siteAdmin,
     roleIn: (projectId) => (siteAdmin ? 'admin' : roles.get(projectId)),
-    created: (projectId) => {
-      accounts.store.registerProject(projectId, user.id);
+    created: async (projectId) => {
+      await accounts.store.registerProject(projectId, user.id);
       roles.set(projectId, 'admin');
     },
-    deleted: (projectId) => {
-      accounts.store.dropProject(projectId);
+    deleted: async (projectId) => {
+      await accounts.store.dropProject(projectId);
       roles.delete(projectId);
     },
   };
@@ -241,7 +241,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
   const members = createMembersApi({ accounts: ctx.accounts, readBody: ctx.readBody, sendJson });
 
   /** Avisa en tiempo real de un cambio ya hecho (y ya respondido): solo identificadores y marcas, nunca el documento. `by`: quién lo hizo (ver `actor`). */
-  const announce = (actor: string | undefined, event: Omit<ChangeEvent, 'by'>, options?: PublishOptions): void => ctx.events?.publish({ ...event, ...(actor ? { by: actor } : {}) }, options);
+  const announce = async (actor: string | undefined, event: Omit<ChangeEvent, 'by'>, options?: PublishOptions): Promise<void> => void (await ctx.events?.publish({ ...event, ...(actor ? { by: actor } : {}) }, options));
 
   /** Con sesión de persona, cada proyecto trae el rol de quien llama. Con un token o sin autenticación, la respuesta no cambia. */
   const withRole = <T extends { id: string }>(scope: Scope | undefined, project: T): T | (T & { role: ProjectRole }) => {
@@ -253,7 +253,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
   async function register(scope: Scope | undefined, projectId: string, projects: ProjectStore): Promise<void> {
     if (!scope) return;
     try {
-      scope.created(projectId);
+      await scope.created(projectId);
     } catch (error) {
       await projects.deleteProject(projectId).catch(() => undefined);
       throw error;
@@ -267,7 +267,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
   async function withQuota<T>(projectId: string, input: { diagramId?: string; text: string }, scope: Scope | undefined, write: () => Promise<T>): Promise<T> {
     const quotas = ctx.quotas;
     if (!quotas) return write();
-    return quotas.exclusive(quotas.keyFor(projectId), async () => {
+    return quotas.exclusive(await quotas.keyFor(projectId), async () => {
       await quotas.assertCanSave(projectId, { ...input, actorId: scope?.userId });
       return write();
     });
@@ -306,7 +306,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       const body = await bodyObject(ctx.readBody, req);
       const restored = await projects.restoreVersion(p, d, n, { ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor });
       sendJson(res, 200, restored);
-      if (!restored.unchanged) announce(actor, { type: 'diagram.restored', project: p, diagram: d, updatedAt: restored.diagram.updatedAt });
+      if (!restored.unchanged) await announce(actor, { type: 'diagram.restored', project: p, diagram: d, updatedAt: restored.diagram.updatedAt });
       return;
     }
     throw new HttpError(404, 'Ruta de proyectos desconocida. Ver la lista de rutas de /api/projects en docs/proyectos.md.');
@@ -357,9 +357,9 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       }
       if (method === 'DELETE') {
         // Quienes pertenecían al proyecto se olvidan al borrarlo (`scope.deleted`): se anotan antes para que el aviso les llegue.
-        const belonged = ctx.accounts ? ctx.accounts.store.membersOf(projectId).map((m) => m.user.id) : [];
+        const belonged = ctx.accounts ? (await ctx.accounts.store.membersOf(projectId)).map((m) => m.user.id) : [];
         await projects.deleteProject(projectId);
-        scope?.deleted(projectId);
+        await scope?.deleted(projectId);
         sendJson(res, 200, { deleted: projectId });
         return announce(actor, { type: 'project.deleted', project: projectId }, { alsoUsers: belonged });
       }
@@ -369,9 +369,9 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     if (second === 'members') {
       if (!(await projects.getProject(projectId))) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
       // A quien se le quita el acceso se le avisa aunque ya no pertenezca (así su pantalla deja de mostrar el proyecto sin esperar al sondeo).
-      const removing = ctx.accounts && req.method === 'DELETE' && parts[2] !== undefined ? ctx.accounts.store.membersOf(projectId).find((m) => loginKey(m.user.login) === loginKey(parts[2])) : undefined;
+      const removing = ctx.accounts && req.method === 'DELETE' && parts[2] !== undefined ? (await ctx.accounts.store.membersOf(projectId)).find((m) => loginKey(m.user.login) === loginKey(parts[2])) : undefined;
       await members(req, res, projectId, parts.slice(2), scope?.userId);
-      if (req.method === 'PUT' || req.method === 'DELETE') announce(actor, { type: 'project.changed', project: projectId }, { alsoUsers: removing ? [removing.user.id] : [] });
+      if (req.method === 'PUT' || req.method === 'DELETE') await announce(actor, { type: 'project.changed', project: projectId }, { alsoUsers: removing ? [removing.user.id] : [] });
       return;
     }
     if (second === 'bundle' && parts.length === 2) {
@@ -424,7 +424,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
 
   return async (req, res, url, parts) => {
     if (!store) throw new HttpError(404, 'Este servicio no tiene espacio de trabajo (use --workspace <carpeta>)');
-    const identity = ctx.auth?.identify(req);
+    const identity = await ctx.auth?.identify(req);
     const method = req.method ?? 'GET';
     let scope: Scope | undefined;
     if (identity?.kind === 'token') {
@@ -432,7 +432,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       if (!roleAllows(identity.role, needed)) throw new HttpError(403, `El rol «${identity.role}» no permite esta operación (hace falta «${needed}»).`, { code: 'forbidden' });
     } else if (identity?.kind === 'user') {
       if (!ctx.accounts) throw new HttpError(401, 'Hace falta un token válido: envíe la cabecera «Authorization: Bearer <token>».', { code: 'unauthorized' });
-      scope = scopeFor(identity, ctx.accounts, ctx.quotas, method, parts);
+      scope = await scopeFor(identity, ctx.accounts, ctx.quotas, method, parts);
     }
     guard(req, ctx.cors, !!ctx.auth);
     // Quién guarda, para el historial: el nombre del token o `@usuario` de la sesión. Sin autenticación no se sabe y no se anota nada.

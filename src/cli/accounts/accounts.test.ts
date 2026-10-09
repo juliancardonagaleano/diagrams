@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GithubError, GithubOAuth, parseGithubProfile } from './github';
 import { Accounts, normalizePublicUrl, parseAdminList } from './service';
 import { readClientSecret, setupAccounts } from './setup';
-import { JsonAccountStore } from './store';
+import { asAsync, JsonAccountStore } from './store';
 
 const folders: string[] = [];
 afterEach(() => {
@@ -18,7 +18,7 @@ const tmp = (): string => {
 };
 const open = () => {
   const file = join(tmp(), 'cuentas.json');
-  return { file, store: JsonAccountStore.open(file) };
+  return { file, store: asAsync(JsonAccountStore.open(file)) };
 };
 
 const ana = { id: 101, login: 'ana', name: 'Ana Pérez', avatarUrl: 'https://avatars.example.test/101' };
@@ -26,13 +26,13 @@ const ana = { id: 101, login: 'ana', name: 'Ana Pérez', avatarUrl: 'https://ava
 describe('Accounts: reglas de la instancia', () => {
   const make = (admins: string[], extra: Partial<ConstructorParameters<typeof Accounts>[0]> = {}) => new Accounts({ store: open().store, publicUrl: 'https://iark.example.org/', admins, ...extra });
 
-  it('los administradores salen de la lista, por id numérico o por nombre, y solo cuenta quien ya entró con GitHub', () => {
+  it('los administradores salen de la lista, por id numérico o por nombre, y solo cuenta quien ya entró con GitHub', async () => {
     const accounts = make(['583231', '@Ana']);
     expect(accounts.adminCount).toBe(2);
     expect(accounts.isAdminProfile({ id: 583231, login: 'otro-nombre' })).toBe(true);
     expect(accounts.isAdminProfile({ id: 1, login: 'ANA' })).toBe(true);
     expect(accounts.isAdminProfile({ id: 2, login: 'beto' })).toBe(false);
-    const user = accounts.store.signIn(ana, { signup: 'open', admin: true });
+    const user = await accounts.store.signIn(ana, { signup: 'open', admin: true });
     expect(accounts.siteRoleOf(user)).toBe('admin');
     // una invitación pendiente a ese nombre todavía no es de nadie: no es administradora hasta que alguien entre con él
     expect(accounts.siteRoleOf({ id: 'u_x', login: 'ana', siteRole: 'guest', createdAt: '2026-01-01T00:00:00Z' })).toBe('guest');
@@ -138,22 +138,22 @@ describe('setupAccounts: las opciones de `iark serve`', () => {
   const env = { IARK_GITHUB_CLIENT_SECRET: 'secreto' };
   const ctx = { workspace: true, cors: [] as string[], env };
 
-  it('sin ninguna opción de cuentas no hace nada', () => {
-    expect(setupAccounts({}, { workspace: true, cors: [], env: {} })).toBeUndefined();
-    expect(setupAccounts({ signup: 'open', admins: 'ana', publicUrl: 'https://x.org' }, { workspace: true, cors: [], env: {} })).toBeUndefined();
+  it('sin ninguna opción de cuentas no hace nada', async () => {
+    expect(await setupAccounts({}, { workspace: true, cors: [], env: {} })).toBeUndefined();
+    expect(await setupAccounts({ signup: 'open', admins: 'ana', publicUrl: 'https://x.org' }, { workspace: true, cors: [], env: {} })).toBeUndefined();
   });
 
-  it('pide todo lo que falta de una vez y no acepta el secreto por la línea de comandos', () => {
-    expect(() => setupAccounts({ githubClientId: 'abc' }, { workspace: false, cors: [], env: {} })).toThrowError(
+  it('pide todo lo que falta de una vez y no acepta el secreto por la línea de comandos', async () => {
+    await expect(setupAccounts({ githubClientId: 'abc' }, { workspace: false, cors: [], env: {} })).rejects.toThrowError(
       expect.objectContaining({ message: expect.stringMatching(/--accounts[\s\S]*IARK_GITHUB_CLIENT_SECRET[\s\S]*--public-url[\s\S]*--workspace/) }),
     );
-    expect(() => setupAccounts(base(), { ...ctx, workspace: false })).toThrowError(/--workspace/);
-    expect(() => setupAccounts({ ...base(), publicUrl: undefined }, ctx)).toThrowError(/--public-url/);
-    expect(() => setupAccounts({ accounts: join(tmp(), 'c.json') }, { workspace: true, cors: [], env: {} })).toThrowError(/IARK_GITHUB_CLIENT_SECRET/);
+    await expect(setupAccounts(base(), { ...ctx, workspace: false })).rejects.toThrowError(/--workspace/);
+    await expect(setupAccounts({ ...base(), publicUrl: undefined }, ctx)).rejects.toThrowError(/--public-url/);
+    await expect(setupAccounts({ accounts: join(tmp(), 'c.json') }, { workspace: true, cors: [], env: {} })).rejects.toThrowError(/IARK_GITHUB_CLIENT_SECRET/);
   });
 
-  it('con todo en orden devuelve las cuentas, con los orígenes de --cors como destinos de vuelta', () => {
-    const accounts = setupAccounts({ ...base(), signup: 'open', sessionDays: 7, maxProjects: 3 }, { ...ctx, cors: ['https://app.example.org'] })!;
+  it('con todo en orden devuelve las cuentas, con los orígenes de --cors como destinos de vuelta', async () => {
+    const accounts = (await setupAccounts({ ...base(), signup: 'open', sessionDays: 7, maxProjects: 3 }, { ...ctx, cors: ['https://app.example.org'] }))!;
     expect(accounts.signup).toBe('open');
     expect(accounts.sessionTtlMs).toBe(7 * 24 * 3600 * 1000);
     expect(accounts.maxProjectsPerUser).toBe(3);
@@ -161,7 +161,7 @@ describe('setupAccounts: las opciones de `iark serve`', () => {
     expect(accounts.redirectAllowed(new URL('https://app.example.org/'))).toBe(true);
   });
 
-  it('rechaza valores que no valen, con el motivo', () => {
+  it('rechaza valores que no valen, con el motivo', async () => {
     for (const [change, message] of [
       [{ signup: 'cualquiera' }, /--signup/],
       [{ sessionDays: 0 }, /--session-days/],
@@ -175,31 +175,47 @@ describe('setupAccounts: las opciones de `iark serve`', () => {
       [{ admins: 'ana, ¿quién?' }, /nombre de usuario/],
       [{ githubUrl: 'git.empresa.com' }, /--github-url/],
     ] as const) {
-      expect(() => setupAccounts({ ...base(), ...change }, ctx), JSON.stringify(change)).toThrowError(message);
+      await expect(setupAccounts({ ...base(), ...change }, ctx), JSON.stringify(change)).rejects.toThrowError(message);
     }
   });
 
-  it('con entrada por invitación y sin administradores ni cuentas, nadie podría entrar: no arranca', () => {
-    expect(() => setupAccounts({ ...base(), admins: undefined }, ctx)).toThrowError(/al menos un administrador/);
+  it('con entrada por invitación y sin administradores ni cuentas, nadie podría entrar: no arranca', async () => {
+    await expect(setupAccounts({ ...base(), admins: undefined }, ctx)).rejects.toThrowError(/al menos un administrador/);
     // con la entrada abierta no hace falta
-    expect(setupAccounts({ ...base(), admins: undefined, signup: 'open' }, ctx)).toBeDefined();
+    const open = (await setupAccounts({ ...base(), admins: undefined, signup: 'open' }, ctx))!;
+    expect(open).toBeDefined();
+    await open.store.close();
     // ni con cuentas ya registradas
     const file = join(tmp(), 'c.json');
     JsonAccountStore.open(file).invite('ana');
-    expect(setupAccounts({ ...base(), accounts: file, admins: undefined }, ctx)).toBeDefined();
+    const withUsers = (await setupAccounts({ ...base(), accounts: file, admins: undefined }, ctx))!;
+    expect(withUsers).toBeDefined();
+    await withUsers.store.close();
   });
 
-  it('--accounts-store elige el almacén: json por omisión, sqlite si se pide, y cualquier otra cosa es un error de uso', () => {
-    expect(setupAccounts(base(), ctx)!.store.kind).toBe('json');
-    expect(setupAccounts({ ...base(), accountsStore: ' JSON ' }, ctx)!.store.kind).toBe('json');
-    const sqlite = setupAccounts({ ...base(), accounts: join(tmp(), 'c.db'), accountsStore: 'sqlite' }, ctx)!;
+  it('--accounts-store elige el almacén: json por omisión, sqlite si se pide, y cualquier otra cosa es un error de uso', async () => {
+    const byDefault = (await setupAccounts(base(), ctx))!;
+    expect(byDefault.store.kind).toBe('json');
+    await byDefault.store.close();
+    const upper = (await setupAccounts({ ...base(), accountsStore: ' JSON ' }, ctx))!;
+    expect(upper.store.kind).toBe('json');
+    await upper.store.close();
+    const sqlite = (await setupAccounts({ ...base(), accounts: join(tmp(), 'c.db'), accountsStore: 'sqlite' }, ctx))!;
     expect(sqlite.store.kind).toBe('sqlite');
-    sqlite.store.close();
-    expect(() => setupAccounts({ ...base(), accountsStore: 'postgres' }, ctx)).toThrowError(/--accounts-store debe ser «json» o «sqlite», no «postgres»/);
-    expect(() => setupAccounts({ ...base(), accountsImport: '/x/cuentas.json' }, ctx)).toThrowError(/solo vale con --accounts-store sqlite/);
+    await sqlite.store.close();
+    await expect(setupAccounts({ ...base(), accountsStore: 'mysql' }, ctx)).rejects.toThrowError(/--accounts-store debe ser «json», «sqlite», «postgres», no «mysql»/);
+    await expect(setupAccounts({ ...base(), accountsImport: '/x/cuentas.json' }, ctx)).rejects.toThrowError(/solo vale con --accounts-store sqlite o postgres/);
   });
 
-  it('con sqlite, --accounts-import importa el JSON si la base está vacía, lo cuenta una vez y no repite ni mezcla', () => {
+  it('--accounts-store postgres no se abre sin IARK_DATABASE_URL, y la conexión no se acepta por la línea de comandos', async () => {
+    await expect(setupAccounts({ ...base(), accounts: undefined, accountsStore: 'postgres' }, ctx)).rejects.toThrowError(/IARK_DATABASE_URL/);
+    // la ruta de --accounts no se usa con postgres: no es obligatoria y, si se da, se avisa
+    const lines: string[] = [];
+    await expect(setupAccounts({ ...base(), accountsStore: 'postgres' }, { ...ctx, log: (line) => lines.push(line) })).rejects.toThrowError(/IARK_DATABASE_URL/);
+    expect(lines).toEqual([]);
+  });
+
+  it('con sqlite, --accounts-import importa el JSON si la base está vacía, lo cuenta una vez y no repite ni mezcla', async () => {
     const dir = tmp();
     const jsonFile = join(dir, 'cuentas.json');
     const old = JsonAccountStore.open(jsonFile);
@@ -208,28 +224,28 @@ describe('setupAccounts: las opciones de `iark serve`', () => {
     const { token } = old.createSession(user.id, 3600_000);
     const lines: string[] = [];
     const options = { ...base(), accounts: join(dir, 'cuentas.db'), accountsStore: 'sqlite', accountsImport: jsonFile, admins: undefined };
-    const first = setupAccounts(options, { ...ctx, log: (line) => lines.push(line) })!;
+    const first = (await setupAccounts(options, { ...ctx, log: (line) => lines.push(line) }))!;
     expect(first.store.kind).toBe('sqlite');
-    expect(first.store.lookupSession(token)?.login).toBe('ana');
-    expect(first.store.roleOf(user.id, 'tienda')).toBe('admin');
+    expect((await first.store.lookupSession(token))?.login).toBe('ana');
+    expect(await first.store.roleOf(user.id, 'tienda')).toBe('admin');
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatch(/Cuentas importadas de .*1 cuenta, 1 sesión y 1 pertenencia a 1 proyecto.*Copia de seguridad del JSON/);
-    first.store.close();
+    expect(lines[0]).toMatch(/Cuentas importadas de .*1 cuenta, 1 sesión y 1 pertenencia a 1 proyecto.*Copia de seguridad del origen/);
+    await first.store.close();
     // otra vez: ya está importada, no dice nada ni cambia nada
-    const second = setupAccounts(options, { ...ctx, log: (line) => lines.push(line) })!;
+    const second = (await setupAccounts(options, { ...ctx, log: (line) => lines.push(line) }))!;
     expect(lines).toHaveLength(1);
-    expect(second.store.userCount).toBe(1);
-    second.store.close();
+    expect(await second.store.userCount()).toBe(1);
+    await second.store.close();
     // sin el archivo (una instalación nueva) tampoco dice nada
-    const fresh = setupAccounts({ ...options, admins: '583231', accounts: join(dir, 'nueva.db'), accountsImport: join(dir, 'no-existe.json') }, { ...ctx, log: (line) => lines.push(line) })!;
+    const fresh = (await setupAccounts({ ...options, admins: '583231', accounts: join(dir, 'nueva.db'), accountsImport: join(dir, 'no-existe.json') }, { ...ctx, log: (line) => lines.push(line) }))!;
     expect(lines).toHaveLength(1);
-    fresh.store.close();
+    await fresh.store.close();
   });
 
-  it('un archivo de cuentas dañado es un error de uso, no una excepción', () => {
+  it('un archivo de cuentas dañado es un error de uso, no una excepción', async () => {
     const file = join(tmp(), 'c.json');
     writeFileSync(file, 'roto');
-    expect(() => setupAccounts({ ...base(), accounts: file }, ctx)).toThrowError(/no es válido/);
+    await expect(setupAccounts({ ...base(), accounts: file }, ctx)).rejects.toThrowError(/no es válido/);
   });
 
   it('el secreto se lee del entorno o de un archivo (Docker secrets); un archivo ilegible o vacío es un error', () => {

@@ -38,3 +38,18 @@ export async function releaseDatabase(): Promise<void> {
     // no llegó a abrirse o ya estaba cerrado
   }
 }
+
+/**
+ * Cierra el pool aunque queden referencias sin soltar: para cuando el proceso se va por un error (el arranque de `iark serve` falló después de
+ * abrir la base) y no habrá quien llame a `releaseDatabase`. Con el servicio en marcha no se usa: cada almacén suelta la suya al cerrarse.
+ */
+export async function closeDatabase(): Promise<void> {
+  const entry = current;
+  if (!entry) return;
+  current = undefined;
+  try {
+    await (await entry.db).close();
+  } catch {
+    // no llegó a abrirse o ya estaba cerrado
+  }
+}

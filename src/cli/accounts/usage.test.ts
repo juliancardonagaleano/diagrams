@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MemoryProjectStore } from '@iark/kernel';
 import { Accounts, DEFAULT_QUOTAS, type AccountsOptions } from './service';
-import { JsonAccountStore } from './store';
+import { asAsync, JsonAccountStore } from './store';
 import { formatBytes, parseByteSize, Quotas } from './usage';
 
 const folders: string[] = [];
@@ -15,8 +15,9 @@ afterEach(() => {
 function setup(options: Partial<Omit<AccountsOptions, 'store'>> = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'iark-uso-'));
   folders.push(dir);
+  // `store` es el síncrono (cómodo para preparar casos); las cuentas lo ven por el contrato asíncrono
   const store = JsonAccountStore.open(join(dir, 'cuentas.json'));
-  const accounts = new Accounts({ store, signup: 'open', admins: ['1'], ...options });
+  const accounts = new Accounts({ store: asAsync(store), signup: 'open', admins: ['1'], ...options });
   const open = { signup: 'open', admin: false } as const;
   const ana = store.signIn({ id: 1, login: 'ana' }, open); // en --admins
   const beto = store.signIn({ id: 2, login: 'beto' }, open);
@@ -60,20 +61,20 @@ describe('Accounts: topes y propiedad de los proyectos', () => {
     expect(accounts.limitsFor({ ...beto, siteRole: 'admin' })).toEqual({ bytes: 0, projects: 0, diagramsPerProject: 0 });
   });
 
-  it('un proyecto lo posee su persona administradora más antigua: quien lo creó, y solo si sigue administrándolo', () => {
+  it('un proyecto lo posee su persona administradora más antigua: quien lo creó, y solo si sigue administrándolo', async () => {
     const { store, accounts, beto, carla } = setup();
     store.registerProject('tienda', beto.id);
-    expect(accounts.ownerOf('tienda')?.login).toBe('beto');
+    expect((await accounts.ownerOf('tienda'))?.login).toBe('beto');
     store.setMember('tienda', carla.id, 'admin'); // llega después: no lo posee
-    expect(accounts.ownerOf('tienda')?.login).toBe('beto');
-    expect(accounts.ownedProjects(beto.id)).toEqual(['tienda']);
-    expect(accounts.ownedProjects(carla.id)).toEqual([]);
+    expect((await accounts.ownerOf('tienda'))?.login).toBe('beto');
+    expect(await accounts.ownedProjects(beto.id)).toEqual(['tienda']);
+    expect(await accounts.ownedProjects(carla.id)).toEqual([]);
     // si quien lo creó deja de administrarlo, pasa a la siguiente persona administradora
     store.setMember('tienda', beto.id, 'editor');
-    expect(accounts.ownerOf('tienda')?.login).toBe('carla');
-    expect(accounts.ownedProjects(beto.id)).toEqual([]);
-    expect(accounts.ownedProjects(carla.id)).toEqual(['tienda']);
-    expect(accounts.ownerOf('no-existe')).toBeUndefined();
+    expect((await accounts.ownerOf('tienda'))?.login).toBe('carla');
+    expect(await accounts.ownedProjects(beto.id)).toEqual([]);
+    expect(await accounts.ownedProjects(carla.id)).toEqual(['tienda']);
+    expect(await accounts.ownerOf('no-existe')).toBeUndefined();
   });
 });
 

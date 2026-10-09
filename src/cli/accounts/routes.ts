@@ -3,9 +3,10 @@ import { performance } from 'node:perf_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { HttpError } from '../httpError';
 import { bearerToken, clientAddress, FailureLimiter, type Authenticator } from '../serveAuth';
+import { accountHttpError } from './errors';
 import { GithubError } from './github';
 import type { Accounts, PublicUser } from './service';
-import { AccountError, SESSION_PREFIX } from './store';
+import { AccountError, SESSION_PREFIX, type AccountUser } from './store';
 
 /**
  * Inicio de sesión con GitHub: las rutas `/api/auth/…` de `iark serve --accounts`.
@@ -205,7 +206,7 @@ export function createAuthApi(ctx: AuthApiContext): (req: IncomingMessage, res: 
     let user;
     try {
       profile = await github.profileFromCode(code, accounts.callbackUrl);
-      user = accounts.store.signIn(profile, { signup: accounts.signup, admin: accounts.isAdminProfile(profile) });
+      user = await accounts.store.signIn(profile, { signup: accounts.signup, admin: accounts.isAdminProfile(profile) });
     } catch (error) {
       if (error instanceof AccountError && error.code === 'not-invited') return fail('not_invited', 'denied', profile?.login);
       if (error instanceof AccountError && error.code === 'disabled') return fail('disabled', 'denied', profile?.login);
@@ -248,20 +249,30 @@ export function createAuthApi(ctx: AuthApiContext): (req: IncomingMessage, res: 
     const found = codes.get(key);
     codes.delete(key);
     if (!found || found.expires <= wall() || !sameText(sha256Base64Url(body.verifier), found.challenge)) throw invalid();
-    const user = accounts.store.findUser(found.userId);
-    if (!user || user.disabled) throw invalid();
-    const session = accounts.store.createSession(user.id, accounts.sessionTtlMs);
-    ctx.onLogin?.(req, accounts.publicUser(user));
-    ctx.sendJson(res, 200, { token: session.token, expiresAt: session.expiresAt, user: accounts.publicUser(user) });
+    // El código ya se gastó: si el almacén de cuentas no responde (una base de red caída), la persona vuelve a iniciar sesión; no es un intento fallido.
+    let opened: { user: AccountUser; session: { token: string; expiresAt: string } };
+    try {
+      const user = await accounts.store.findUser(found.userId);
+      if (!user || user.disabled) throw invalid();
+      opened = { user, session: await accounts.store.createSession(user.id, accounts.sessionTtlMs) };
+    } catch (error) {
+      throw error instanceof AccountError ? accountHttpError(error) : error;
+    }
+    ctx.onLogin?.(req, accounts.publicUser(opened.user));
+    ctx.sendJson(res, 200, { token: opened.session.token, expiresAt: opened.session.expiresAt, user: accounts.publicUser(opened.user) });
   }
 
-  function logout(req: IncomingMessage, res: ServerResponse): void {
+  async function logout(req: IncomingMessage, res: ServerResponse): Promise<void> {
     methodOnly(req, 'POST');
     if (!ctx.auth) throw new HttpError(404, 'Esta instancia no tiene autenticación.');
-    ctx.auth.identify(req); // 401, 429 o 503 si no hay una sesión que valga
+    await ctx.auth.identify(req); // 401, 429 o 503 si no hay una sesión que valga
     const token = bearerToken(req.headers.authorization);
     if (!accounts || !token?.startsWith(SESSION_PREFIX)) throw new HttpError(400, 'Este token no es una sesión: no se puede cerrar así (para revocarlo, `iark auth revoke`).', { code: 'not-a-session' });
-    accounts.store.revokeSession(token);
+    try {
+      await accounts.store.revokeSession(token);
+    } catch (error) {
+      throw error instanceof AccountError ? accountHttpError(error) : error;
+    }
     ctx.sendJson(res, 200, { loggedOut: true });
   }
 

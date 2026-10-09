@@ -1,7 +1,8 @@
 import type { IncomingMessage } from 'node:http';
 import { performance } from 'node:perf_hooks';
+import { accountHttpError } from './accounts/errors';
 import type { Accounts, PublicUser } from './accounts/service';
-import { SESSION_PREFIX, type SiteRole } from './accounts/store';
+import { AccountError, SESSION_PREFIX, type AccountUser, type SiteRole } from './accounts/store';
 import { HttpError } from './httpError';
 import type { TokenIdentity, TokenStore } from './tokens';
 
@@ -137,8 +138,8 @@ export type Identity =
   | { kind: 'user'; user: PublicUser; siteRole: SiteRole; /** El token de la sesión, para cerrarla. */ session: string };
 
 export interface Authenticator {
-  /** Quién llama: el dueño del token o de la sesión de la petición, o lanza el `HttpError` 401, 429 o 503. */
-  identify(req: IncomingMessage): Identity;
+  /** Quién llama: el dueño del token o de la sesión de la petición, o rechaza con el `HttpError` 401, 429 o 503 (el almacén de cuentas no responde). */
+  identify(req: IncomingMessage): Promise<Identity>;
 }
 
 export interface AuthenticatorOptions {
@@ -149,17 +150,26 @@ export interface AuthenticatorOptions {
   limits?: Partial<FailureLimiterOptions>;
 }
 
+/** La cuenta de una sesión. Si el almacén no responde (la base de la red está caída) es un 503/500 de verdad, no un «sesión inválida» que cuente como intento fallido. */
+async function lookupSession(accounts: Accounts, token: string): Promise<AccountUser | undefined> {
+  try {
+    return await accounts.store.lookupSession(token);
+  } catch (error) {
+    throw error instanceof AccountError ? accountHttpError(error) : error;
+  }
+}
+
 export function createAuthenticator(options: AuthenticatorOptions): Authenticator {
   const limiter = new FailureLimiter(options.limits);
   return {
-    identify(req) {
+    async identify(req) {
       const address = clientAddress(req, options.trustProxy ?? false);
       const wait = limiter.retryAfter(address);
       if (wait > 0) throw rateLimited(wait);
       const header = req.headers.authorization;
       const token = bearerToken(header);
       if (options.accounts && token?.startsWith(SESSION_PREFIX)) {
-        const user = options.accounts.store.lookupSession(token);
+        const user = await lookupSession(options.accounts, token);
         if (user) return { kind: 'user', user: options.accounts.publicUser(user), siteRole: options.accounts.siteRoleOf(user), session: token };
       } else if (options.tokens) {
         const found = options.tokens.lookup(token);
