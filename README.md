@@ -139,7 +139,7 @@ Todo lo que antes vivía en este README está en [`docs/`](docs/indice.md), con 
 - **Usar**: [CLI](docs/cli.md) · [IA](docs/ia.md) · [importar y exportar](docs/importadores.md) · [proyectos](docs/proyectos.md) · [trazabilidad](docs/trazabilidad.md)
 - **Módulos**: [C4](docs/modulos/c4.md) · [integración](docs/modulos/integracion.md) · [datos](docs/modulos/datos.md) · [empresarial](docs/modulos/empresarial.md) · [plataforma](docs/modulos/plataforma.md) · [seguridad](docs/modulos/seguridad.md) · [módulos de terceros](docs/plugins.md)
 - **Operar**: [servicio](docs/servicio.md) · [inicio de sesión con GitHub](docs/cuentas-github.md) · [GitHub Pages](docs/despliegue-pages.md) · [guía de despliegue de la nube](docs/despliegue-nube.md) · [`deploy/`](deploy/)
-- **Desarrollar**: [desarrollo, estructura y pruebas](docs/desarrollo.md) · [hoja de ruta](docs/roadmap.md) · [historial](docs/historial.md)
+- **Desarrollar**: [desarrollo, estructura, pruebas e internacionalización](docs/desarrollo.md) · [hoja de ruta](docs/roadmap.md) · [historial](docs/historial.md)
 
 ## Estado
 
@@ -148,6 +148,7 @@ Las seis especialidades, el banco de trabajo, la federación, los proyectos y el
 - No hay edición colaborativa: dos personas sobre el mismo diagrama no se mezclan, el segundo guardado pregunta qué versión conservar. Sí hay avisos en tiempo real: con los proyectos en un servidor, cuando otra persona guarda el diagrama que tienes abierto te sale «hay una versión más nueva» con la opción de cargarla (sin tocar lo que escribes; el canal es de un solo proceso del servidor). Con los proyectos en un servidor lo que escribes sin red se conserva en el navegador y se envía solo al volver la conexión, pero abrir o listar proyectos sigue necesitando al servidor ([docs/proyectos.md](docs/proyectos.md)). Cada guardado deja una versión que se puede restaurar (historial local a cada almacén). El servicio con cuentas de GitHub limita lo que guarda cada persona (espacio, proyectos y diagramas por proyecto, con topes configurables y ajustables por persona: [docs/cuentas-github.md](docs/cuentas-github.md#cuotas-de-uso)); con tokens no hay cuotas.
 - El servicio gestionado es de una sola máquina (las cuentas van en una base SQLite del disco local: varios procesos sobre ella son seguros, pero no hay réplicas en máquinas distintas; el camino a Postgres es una decisión pendiente, ver [docs/cuentas-github.md](docs/cuentas-github.md#camino-a-postgres-y-réplicas-una-decisión-pendiente-no-tomada)) y no tiene pantalla de administración de cuentas, solo la API.
 - La generación con IA solo se ha probado de verdad con un modelo (DeepSeek-V4-Pro por Foundry, 28-09-2026): ver [docs/ia.md](docs/ia.md#prueba-real-de-generate).
+- La interfaz está en **español e inglés** (selector en el editor C4, el banco de trabajo y la suite; `?lang=en` o el idioma del navegador; `lang` en los SDK de embebido): están traducidos el gestor de proyectos, la barra, el historial, la administración y los encabezados y menús; el resto del lienzo y los paneles, el CLI y el servicio siguen en español ([docs/desarrollo.md](docs/desarrollo.md#internacionalización)).
 - Quedan fuera de alcance el servidor MCP, las vistas de despliegue y de código de C4 y exportar a DSL de Structurizr.
 
 ## Contribuir, seguridad y licencia
