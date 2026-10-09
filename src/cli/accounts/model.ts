@@ -36,6 +36,27 @@ export const MAX_MEMBERS_PER_PROJECT = 100;
 /** Cuentas pendientes (invitaciones) a la vez: acota lo que una persona con permiso de invitar puede llenar. */
 export const MAX_PENDING_USERS = 500;
 
+/**
+ * La cuota de uso que un administrador fija a UNA persona, por encima de la de la instancia (ver `quotas.ts`). Cada campo ausente
+ * significa «el valor de la instancia»; `0`, «sin tope»; cualquier otro, el tope en su unidad.
+ */
+export interface UserQuota {
+  /** Bytes en total de los proyectos que posee (documentos de los diagramas y sus versiones). */
+  bytes?: number;
+  /** Cuántos proyectos puede poseer. */
+  projects?: number;
+  /** Cuántos diagramas admite cada uno de sus proyectos. */
+  diagramsPerProject?: number;
+}
+
+/** Un cambio de `UserQuota`: un número fija el campo, `null` lo quita (vuelve al valor de la instancia) y lo que falta no se toca. */
+export type UserQuotaChange = { [K in keyof UserQuota]?: number | null };
+
+export const QUOTA_FIELDS = ['bytes', 'projects', 'diagramsPerProject'] as const;
+
+/** ¿Es un tope válido? Un entero seguro de 0 en adelante (`0` es «sin tope»). */
+export const isQuotaValue = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
 export interface AccountUser {
   id: string;
   login: string;
@@ -45,6 +66,8 @@ export interface AccountUser {
   avatarUrl?: string;
   siteRole: SiteRole;
   disabled?: boolean;
+  /** La cuota que un administrador le fijó a esta persona; sin ella (o sin un campo), valen los topes de la instancia. */
+  quota?: UserQuota;
   createdAt: string;
   lastLoginAt?: string;
 }
@@ -111,6 +134,22 @@ export class AccountError extends Error {
   }
 }
 
+/**
+ * Aplica un cambio a la cuota actual de una cuenta; `undefined` si ya no queda ningún campo fijado. Un valor que no es un entero
+ * de 0 en adelante ni `null` es `invalid`. Lo comparten los dos almacenes.
+ */
+export function applyQuotaChange(current: UserQuota | undefined, change: UserQuotaChange): UserQuota | undefined {
+  const next: UserQuota = { ...current };
+  for (const field of QUOTA_FIELDS) {
+    const value = change[field];
+    if (value === undefined) continue;
+    if (value === null) delete next[field];
+    else if (isQuotaValue(value)) next[field] = value;
+    else throw new AccountError('invalid', `La cuota «${field}» debe ser un entero de 0 en adelante (0 es «sin tope») o null para volver al valor de la instancia.`);
+  }
+  return QUOTA_FIELDS.some((field) => next[field] !== undefined) ? next : undefined;
+}
+
 // ───────────── nombres, ids y tokens ─────────────
 
 /**
@@ -153,6 +192,8 @@ export interface AccountStoreOptions {
 export interface UserChange {
   siteRole?: SiteRole;
   disabled?: boolean;
+  /** Fija o quita campos de la cuota personal (ver `UserQuotaChange`). */
+  quota?: UserQuotaChange;
 }
 
 /** Los recuentos de `AccountStore.stats()`. */
@@ -212,7 +253,7 @@ export interface AccountStore {
    * (no cambia su rol). Entra con ese rol cuando se identifique con GitHub.
    */
   invite(login: string, siteRole?: SiteRole): AccountUser;
-  /** Cambia el rol de la instancia o activa o desactiva una cuenta (desactivarla cierra todas sus sesiones). */
+  /** Cambia el rol de la instancia, activa o desactiva una cuenta (desactivarla cierra todas sus sesiones) o fija su cuota personal (`quota`). */
   updateUser(id: string, change: UserChange): AccountUser;
   /**
    * Lo que hace un administrador sobre un nombre de usuario: si la cuenta existe, le aplica el cambio; si no, crea una invitación

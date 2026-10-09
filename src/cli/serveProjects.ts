@@ -1,8 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { bundleFileName, bundleToText, checkProject, createBundle, importBundle, isVersioned, ProjectError, parseBundle, parseVersionId, snapshotProject, unsupportedVersions, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
+import { bundleFileName, bundleToText, checkProject, createBundle, importBundle, isVersioned, ProjectError, parseBundle, parseVersionId, snapshotProject, unsupportedVersions, type ImportedProject, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
 import { accountHttpError } from './accounts/errors';
 import { createMembersApi } from './accounts/members';
 import type { Accounts } from './accounts/service';
+import type { Quotas } from './accounts/usage';
 import { AccountError, loginKey, projectRoleAllows, type ProjectRole } from './accounts/store';
 import { allow, bodyObject, isJson } from './httpBody';
 import { HttpError } from './httpError';
@@ -57,6 +58,8 @@ import { isWorkspaceId } from './workspace';
  *  - un proyecto al que no pertenece responde 404 (como si no existiera: no se revela qué proyectos hay); uno al que pertenece con poco rol, 403;
  *  - crear o importar un proyecto exige ser `member` de la instancia (un `guest` solo entra a lo que le comparten) y no pasar del tope de
  *    proyectos por persona, y deja a quien lo crea como `admin` del proyecto; borrarlo olvida a sus miembros;
+ *  - las cuotas de uso (`accounts/usage.ts`) rechazan con `409` y `code: "limit"` crear o importar de más, crear un diagrama en un proyecto lleno y
+ *    guardar lo que no cabe en el espacio de quien posee el proyecto; borrar, renombrar, nombrar y restaurar versiones nunca se rechazan;
  *  - un administrador de la instancia ve todos los proyectos y es `admin` de todos.
  * Los tokens de `--tokens` siguen funcionando con su rol para toda la carpeta (cuentas de servicio y CLI).
  */
@@ -71,6 +74,8 @@ export interface ProjectsApiContext {
   auth?: Authenticator;
   /** Con cuentas de GitHub: la pertenencia a proyectos de cada persona. */
   accounts?: Accounts;
+  /** Con cuentas de GitHub: las cuotas de uso (proyectos por persona, diagramas por proyecto y bytes por persona; ver `accounts/usage.ts`). */
+  quotas?: Quotas;
   /** Para avisar en tiempo real de lo que cambia (`GET /api/events`, ver `serveEvents.ts`); sin él, no se avisa de nada. */
   events?: EventPublisher;
   readBody(req: IncomingMessage): Promise<string>;
@@ -193,7 +198,7 @@ const forbidden = (message: string, extra: Record<string, unknown> = {}): HttpEr
  * ser `member` de la instancia y no pasar del tope; cualquier ruta de un proyecto exige pertenecer a él con el rol que pide la operación
  * (si no pertenece, 404, igual que si el proyecto no existiera).
  */
-function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accounts, method: string, parts: string[]): Scope {
+function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accounts, quotas: Quotas | undefined, method: string, parts: string[]): Scope {
   const { user, siteRole } = identity;
   const siteAdmin = siteRole === 'admin';
   const roles = siteAdmin ? new Map<string, ProjectRole>() : accounts.store.rolesOf(user.id);
@@ -203,9 +208,7 @@ function scopeFor(identity: Extract<Identity, { kind: 'user' }>, accounts: Accou
   const creating = method === 'POST' && (parts.length === 0 || (parts.length === 1 && parts[0] === 'import'));
   if (creating) {
     if (siteRole === 'guest') throw forbidden('Tu cuenta es de invitado: puedes entrar a los proyectos que te compartan, pero no crear proyectos.');
-    if (!siteAdmin && accounts.store.adminCount(user.id) >= accounts.maxProjectsPerUser) {
-      throw forbidden(`Ya administras ${accounts.maxProjectsPerUser} proyectos, el máximo por persona en esta instancia. Borra alguno o pide a un administrador que suba el tope.`, { code: 'limit' });
-    }
+    quotas?.assertCanCreateProject(user.id); // 409 `limit`: el tope de proyectos de esta persona (los administradores de la instancia no lo tienen, salvo que se les fije uno)
   } else if (parts.length > 0) {
     const projectId = parts[0];
     if (!siteAdmin) {
@@ -255,6 +258,19 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       await projects.deleteProject(projectId).catch(() => undefined);
       throw error;
     }
+  }
+
+  /**
+   * Guarda con las cuotas: comprueba que cabe y escribe sin que otro guardado de la misma persona se cuele en medio. Sin cuotas (o sin cuentas),
+   * solo escribe. Restaurar una versión no pasa por aquí a propósito (ver `accounts/usage.ts`).
+   */
+  async function withQuota<T>(projectId: string, input: { diagramId?: string; text: string }, scope: Scope | undefined, write: () => Promise<T>): Promise<T> {
+    const quotas = ctx.quotas;
+    if (!quotas) return write();
+    return quotas.exclusive(quotas.keyFor(projectId), async () => {
+      await quotas.assertCanSave(projectId, { ...input, actorId: scope?.userId });
+      return write();
+    });
   }
 
   /**
@@ -316,7 +332,12 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     }
     // `import` no es un proyecto: es la ruta para traer uno desde su archivo único
     if (first === 'import' && parts.length === 1 && method === 'POST') {
-      const imported = await importBundle(projects, parseBundle(await ctx.readBody(req)), { name: url.searchParams.get('name') ?? undefined });
+      const bundle = parseBundle(await ctx.readBody(req));
+      const importIt = async (): Promise<ImportedProject> => {
+        if (scope) await ctx.quotas?.assertCanImport(scope.userId, bundle);
+        return importBundle(projects, bundle, { name: url.searchParams.get('name') ?? undefined });
+      };
+      const imported = await (scope && ctx.quotas ? ctx.quotas.exclusive(scope.userId, importIt) : importIt());
       await register(scope, imported.project.id, projects);
       sendJson(res, 201, scope ? { ...imported, project: withRole(scope, imported.project) } : imported, { Location: `/api/projects/${imported.project.id}` });
       return announce(actor, { type: 'project.created', project: imported.project.id, updatedAt: imported.project.updatedAt });
@@ -366,7 +387,8 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     if (second === 'diagrams' && parts.length === 2) {
       if (method !== 'POST') return allow('POST');
       const body = await bodyObject(ctx.readBody, req);
-      const created = await projects.saveDiagram(projectId, { module: text(body, 'module', { required: true }), name: text(body, 'name'), text: text(body, 'text', { required: true })!, by: actor });
+      const input = { module: text(body, 'module', { required: true }), name: text(body, 'name'), text: text(body, 'text', { required: true })!, by: actor };
+      const created = await withQuota(projectId, { text: input.text }, scope, () => projects.saveDiagram(projectId, input));
       sendJson(res, 201, created, { Location: `/api/projects/${projectId}/diagrams/${created.id}` });
       return announce(actor, { type: 'diagram.created', project: projectId, diagram: created.id, updatedAt: created.updatedAt });
     }
@@ -379,7 +401,8 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       }
       if (method === 'PUT') {
         const body = await bodyObject(ctx.readBody, req);
-        const saved = await projects.saveDiagram(projectId, { id: diagramId, text: text(body, 'text', { required: true })!, ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor });
+        const input = { id: diagramId, text: text(body, 'text', { required: true })!, ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor };
+        const saved = await withQuota(projectId, { diagramId, text: input.text }, scope, () => projects.saveDiagram(projectId, input));
         sendJson(res, 200, saved);
         return announce(actor, { type: 'diagram.saved', project: projectId, diagram: diagramId, updatedAt: saved.updatedAt });
       }
@@ -409,13 +432,15 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       if (!roleAllows(identity.role, needed)) throw new HttpError(403, `El rol «${identity.role}» no permite esta operación (hace falta «${needed}»).`, { code: 'forbidden' });
     } else if (identity?.kind === 'user') {
       if (!ctx.accounts) throw new HttpError(401, 'Hace falta un token válido: envíe la cabecera «Authorization: Bearer <token>».', { code: 'unauthorized' });
-      scope = scopeFor(identity, ctx.accounts, method, parts);
+      scope = scopeFor(identity, ctx.accounts, ctx.quotas, method, parts);
     }
     guard(req, ctx.cors, !!ctx.auth);
     // Quién guarda, para el historial: el nombre del token o `@usuario` de la sesión. Sin autenticación no se sabe y no se anota nada.
     const actor = identity?.kind === 'token' ? identity.name : identity?.kind === 'user' ? `@${identity.user.login}` : undefined;
     try {
       await route(req, res, url, parts, store, scope, actor);
+      // Cualquier cambio deja caduca la medida de ese proyecto (las cuotas la miden de nuevo la próxima vez que la necesiten).
+      if (method !== 'GET' && method !== 'HEAD' && parts[0] !== undefined && parts[0] !== 'import') ctx.quotas?.invalidate(parts[0]);
     } catch (error) {
       throw toHttpError(error);
     }

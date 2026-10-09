@@ -478,8 +478,8 @@ describe('iark serve --accounts: cada persona ve sus proyectos', () => {
     await create(cloud, beto, 'Uno');
     await create(cloud, beto, 'Dos');
     const third = await call(cloud.base, beto).post('/api/projects', { name: 'Tres' });
-    expect(third.status).toBe(403);
-    expect(await third.json()).toMatchObject({ code: 'limit', error: expect.stringContaining('máximo por persona') });
+    expect(third.status).toBe(409);
+    expect(await third.json()).toMatchObject({ code: 'limit', quota: 'projects', used: 2, limit: 2, error: expect.stringContaining('máximo por persona') });
     expect(readdirSync(cloud.root).sort()).toEqual(['dos', 'uno']);
     for (const name of ['A', 'B', 'C']) await create(cloud, ana, name);
     // al borrar uno vuelve a caber

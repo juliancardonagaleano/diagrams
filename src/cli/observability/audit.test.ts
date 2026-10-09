@@ -72,6 +72,19 @@ describe('deriveAudit: qué petición es qué fila', () => {
     expect(derive('DELETE', '/api/admin/users/dani', 200)[0]).toMatchObject({ action: 'user.remove', target: { login: 'dani' } });
   });
 
+  it('cuotas: cambiar la cuota de una cuenta deja una fila user.quota con solo los números de los campos conocidos (nada de texto libre)', () => {
+    const body = JSON.stringify({ quota: { bytes: 1048576, projects: null, diagramsPerProject: 0, extra: 5, otro: 'texto libre' } });
+    expect(derive('PUT', '/api/admin/users/dani', 200, { body })).toEqual([
+      { action: 'user.quota', result: 'ok', target: { project: undefined, diagram: undefined, login: 'dani' }, change: { quota: { bytes: 1048576, projects: null, diagramsPerProject: 0 } } },
+    ]);
+    expect(JSON.stringify(derive('PUT', '/api/admin/users/dani', 200, { body }))).not.toContain('texto libre');
+    // junto con otros cambios deja una fila por cada uno
+    expect(derive('PUT', '/api/admin/users/dani', 200, { body: JSON.stringify({ siteRole: 'guest', quota: { bytes: 5 } }) }).map((r) => r.action)).toEqual(['user.role', 'user.quota']);
+    // lo rechazado conserva la acción y el motivo; un cuerpo sin cuota válida no deja user.quota
+    expect(derive('PUT', '/api/admin/users/dani', 400, { body: JSON.stringify({ quota: { bytes: -1 } }), errorCode: 'invalid' }).map((r) => r.action)).toEqual(['user.set']);
+    expect(derive('PUT', '/api/admin/users/dani', 403, { body, actor: BETO, errorCode: 'forbidden' }).map((r) => [r.action, r.result, r.code])).toEqual([['user.quota', 'denied', 'forbidden']]);
+  });
+
   it('las rutas de cálculo solo dejan fila cuando se deniegan (compute.denied); las protegidas sin acción, cuando la credencial es falsa o el rol no alcanza (auth.denied)', () => {
     expect(derive('POST', '/api/c4/validate', 401, { actor: ANON, errorCode: 'unauthorized', authFailure: 'missing' })).toEqual([{ action: 'compute.denied', result: 'denied', code: 'unauthorized' }]);
     expect(derive('POST', '/api/trace', 403, { actor: TOKEN, errorCode: 'forbidden' })[0]).toMatchObject({ action: 'compute.denied', code: 'forbidden' });

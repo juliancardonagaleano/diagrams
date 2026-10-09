@@ -183,7 +183,7 @@ describe('SqliteAccountStore entre procesos (varios procesos, una base)', () => 
     } finally {
       holder.close();
     }
-    inspect(path, (query) => expect(query('PRAGMA user_version')[0]?.user_version).toBe(1));
+    inspect(path, (query) => expect(query('PRAGMA user_version')[0]?.user_version).toBe(MIGRATIONS.length));
   });
 
   it('un servicio que arranca mientras otros procesos escriben abre la base y migra sin errores (el esquema se aplica una sola vez)', async () => {
@@ -192,7 +192,7 @@ describe('SqliteAccountStore entre procesos (varios procesos, una base)', () => 
     expectClean(outcomes);
     expect(countOf(outcomes, (line) => line.ok === true)).toBe(40);
     inspect(path, (query) => {
-      expect(query('PRAGMA user_version')[0]?.user_version).toBe(1);
+      expect(query('PRAGMA user_version')[0]?.user_version).toBe(MIGRATIONS.length);
       expect(query('SELECT count(*) AS n FROM users')[0]?.n).toBe(40);
     });
   });

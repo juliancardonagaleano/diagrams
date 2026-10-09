@@ -57,6 +57,24 @@ describe('JsonAccountStore: el archivo', () => {
     );
   });
 
+  it('la cuota personal se lee y se guarda en el archivo; un archivo sin ella (de antes de las cuotas) se lee igual y una cuota inválida lo daña', () => {
+    const { file, store } = open();
+    const user = store.signIn(ana, OPEN);
+    store.updateUser(user.id, { quota: { bytes: 1_000_000, projects: 0 } });
+    expect(JSON.parse(readFileSync(file, 'utf8')).users[0].quota).toEqual({ bytes: 1_000_000, projects: 0 });
+    expect(JsonAccountStore.open(file).findUser(user.id)?.quota).toEqual({ bytes: 1_000_000, projects: 0 });
+    store.updateUser(user.id, { quota: { bytes: null, projects: null } });
+    expect(JSON.parse(readFileSync(file, 'utf8')).users[0]).not.toHaveProperty('quota'); // sin cuota fijada no queda ni el campo
+    expect(JsonAccountStore.open(file).findUser(user.id)?.quota).toBeUndefined();
+
+    const entry = { id: 'u_1', login: 'ana', siteRole: 'member', createdAt: '2026-01-01T00:00:00Z' };
+    const withQuota = (quota: unknown): string => JSON.stringify({ version: 1, users: [{ ...entry, quota }], sessions: [], projects: {} });
+    expect(parseAccountsFile(withQuota({ diagramsPerProject: 12 })).users[0].quota).toEqual({ diagramsPerProject: 12 });
+    for (const bad of [[], 'mucho', { bytes: -1 }, { bytes: 1.5 }, { bytes: '10' }, { bytes: null }, { discos: 3 }]) {
+      expect(() => parseAccountsFile(withQuota(bad)), JSON.stringify(bad)).toThrowError(expect.objectContaining({ code: 'corrupt', message: expect.stringMatching(/quota/) }));
+    }
+  });
+
   it('referencias rotas, duplicados y miembros repetidos son un archivo dañado', () => {
     const user = { id: 'u1', login: 'ana', githubId: 1, siteRole: 'member', createdAt: '2026-01-01T00:00:00Z' };
     const base = { version: 1, users: [user], sessions: [], projects: {} };

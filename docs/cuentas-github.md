@@ -23,7 +23,9 @@ iark serve --host 0.0.0.0 --port 8787 --static dist/app \
 | `--signup invite\|open` | `IARK_SIGNUP` | `invite` (por omisión): solo entran los administradores y las personas invitadas (o con un proyecto compartido: ver [Compartir proyectos](#compartir-proyectos)). `open`: entra cualquiera con cuenta de GitHub |
 | `--admins <lista>` | `IARK_ADMINS` | Administradores de la instancia, separados por comas: nombres de usuario de GitHub o, **mejor, sus identificadores numéricos** (el nombre de usuario puede pasar a otra persona si su dueña lo cambia; el id no). `curl https://api.github.com/users/<usuario>` lo da |
 | `--session-days <n>` | `IARK_SESSION_DAYS` | Duración de una sesión (30 por omisión) |
-| `--max-projects <n>` | `IARK_MAX_PROJECTS` | Proyectos que puede administrar cada persona (25 por omisión; los administradores no tienen tope) |
+| `--max-projects <n>` | `IARK_MAX_PROJECTS` | Cuota: proyectos que puede poseer cada persona (25 por omisión; `0` quita el tope; los administradores de la instancia no tienen tope). Ver [Cuotas de uso](#cuotas-de-uso) |
+| `--max-diagrams <n>` | `IARK_MAX_DIAGRAMS` | Cuota: diagramas que admite cada proyecto (200 por omisión; `0` quita el tope) |
+| `--max-bytes <tamaño>` | `IARK_MAX_BYTES` | Cuota: espacio total de los proyectos de cada persona, documentos más historial de versiones (`256M` por omisión; acepta `500K`, `1.5G`, bytes sueltos; `0` o `off` quita el tope; los administradores de la instancia no tienen tope) |
 | `--cors <orígenes>`, `--trust-proxy` | `IARK_CORS`, `IARK_TRUST_PROXY=true` | Orígenes que pueden llamar a la API desde un navegador y a los que se vuelve tras entrar (para volver hay que nombrarlos: un `*` no vale); y «hay un proxy de confianza delante» (solo con proxy: ver [Límites](servicio.md#límites)). Sirven para plataformas que solo se configuran por entorno |
 | `--github-url`, `--github-api-url` | `IARK_GITHUB_URL`, `IARK_GITHUB_API_URL` | Con GitHub Enterprise Server, su dirección y su API (`https://git.empresa.com`, `https://git.empresa.com/api/v3`) |
 | `--access-log`, `--audit-log`, `--metrics`, `--metrics-token` | `IARK_ACCESS_LOG`, `IARK_AUDIT_LOG`, `IARK_METRICS`, `IARK_METRICS_TOKEN` | Registro de accesos, **auditoría** (quién inició sesión, falló al hacerlo o cambió qué, también lo denegado), y métricas de Prometheus. Apagados por omisión; llevan el usuario de GitHub y la dirección IP: ver [Observabilidad](observabilidad.md) |
@@ -43,7 +45,7 @@ Las cuentas, las sesiones y a quién se compartió cada proyecto se guardan en u
 | Un fallo a mitad de un cambio | Se deshace en memoria; el archivo no cambia | `ROLLBACK`: no queda nada a medias |
 | Topes (500 invitaciones, 20 sesiones por cuenta, 100 miembros) y «el proyecto no se queda sin administrador» | Se cumplen en un proceso | Se cumplen también entre procesos: se comprueban dentro de la transacción |
 | Un corte de luz | Lo escrito atómicamente sigue ahí | Lo confirmado sigue ahí (`synchronous=FULL`) |
-| Esquema | Un JSON versionado (`version: 1`) | `PRAGMA user_version` con migraciones numeradas; una base de una versión más nueva no se abre |
+| Esquema | Un JSON versionado (`version: 1`; la cuota personal es un campo opcional más, sin cambiar la versión) | `PRAGMA user_version` con migraciones numeradas (la 2 añade la cuota personal); una base de una versión más nueva no se abre |
 | Necesita | Nada | Node 22.13 o superior (`node:sqlite`, integrado: sin dependencias nuevas) y un disco **local** |
 
 **Cómo funciona el almacén SQLite** (`src/cli/accounts/sqliteStore.ts`):
@@ -96,7 +98,7 @@ El almacén SQLite cubre un servicio en **una máquina** con uno o varios proces
 4. **Migraciones y operación**: el mismo esquema versionado (las `MIGRATIONS` numeradas son casi SQL estándar), una herramienta de migraciones que no corra dos veces a la vez (candado de asesoramiento), un pool de conexiones, la comprobación `accounts` de `/readyz` (ver [observabilidad](observabilidad.md)), que hoy lee la base SQLite o el JSON y habría que cambiar por una consulta a Postgres (el `HEALTHCHECK` de la imagen consulta `/healthz`, que no depende de la base), copias y restauración (las de Postgres, no `iark accounts backup`) y una importación desde SQLite (`iark accounts migrate` aceptaría `--from` de una base).
 5. **El estado que hoy vive en la memoria de cada proceso**, y que SQLite no resuelve porque no es de las cuentas: el `state` del inicio de sesión de GitHub y los códigos de un solo uso (`routes.ts`: `logins` y `codes`), y los frenos de intentos fallidos (`WindowLimiter`). Con varias instancias detrás de un balanceador, o bien el inicio de sesión (`/api/auth/*`) necesita **afinidad de sesión** (que las tres peticiones del flujo lleguen a la misma instancia) o ese estado debe pasar a un almacén compartido (la propia base, o Redis). **Esto vale ya hoy para varias instancias sobre un mismo SQLite**: las sesiones ya abiertas, los roles, los proyectos compartidos y los topes valen en todas, pero el flujo de entrada necesita afinidad.
 6. **El espacio de trabajo** (`--workspace`, un directorio por proyecto) también tendría que ser compartido (disco de red con las garantías que necesite el almacén de proyectos) o pasar a otro almacén: es independiente de las cuentas y no se ha tocado.
-7. **Un límite que no cambia con SQLite**: el tope de proyectos por persona (`--max-projects`) se comprueba en `serveProjects.ts` antes de crear el proyecto, fuera de la transacción de las cuentas; con varias instancias, dos creaciones simultáneas de la misma persona podrían pasarlo por uno. Va con las cuotas, que son otro cambio.
+7. **Un límite que no cambia con SQLite**: las cuotas de uso (ver [Cuotas de uso](#cuotas-de-uso)) se comprueban en `accounts/usage.ts` antes de escribir en el espacio de trabajo, fuera de la transacción de las cuentas, y los guardados de una misma persona se serializan solo dentro de un proceso. Con varias instancias sobre la misma carpeta, dos guardados o dos creaciones simultáneos de la misma persona en réplicas distintas pueden pasarse del tope por lo que se guarda a la vez. Y la medida que se muestra puede ir hasta 30 s por detrás de lo que otra réplica haya escrito.
 
 **Qué decide quien aloja**: si basta con una máquina (recomendado hasta que haga falta otra cosa), si quiere una base gestionada (Postgres) y de quién es la operación de esa base, y si acepta la afinidad de sesión del balanceador como solución al punto 5 o prefiere el estado compartido.
 
@@ -145,11 +147,73 @@ Solo para quien administra la instancia (una persona con rol `admin` o un token 
 
 | Petición | Qué hace |
 |---|---|
-| `GET /api/admin/users` | Las cuentas: `{ id, login, name?, avatarUrl?, siteRole, disabled, pending, listed?, createdAt, lastLoginAt?, projects }`, por nombre de usuario. `listed` marca a quien figura en `--admins`; `projects`, a cuántos proyectos pertenece |
-| `PUT /api/admin/users/<usuario>` | `{ siteRole?: "admin" \| "member" \| "guest", disabled?: boolean }` → cambia el rol de la instancia o desactiva/reactiva la cuenta (desactivar cierra sus sesiones y le impide volver a entrar). Con un nombre que no existe **crea una invitación** (rol `member` por omisión): 201 |
+| `GET /api/admin/users` | Las cuentas: `{ id, login, name?, avatarUrl?, siteRole, disabled, pending, listed?, createdAt, lastLoginAt?, projects, quota?, limits, usage? }`, por nombre de usuario. `listed` marca a quien figura en `--admins`; `projects`, a cuántos proyectos pertenece; `quota`, la cuota personal si la tiene; `limits`, los topes que valen para ella; `usage`, lo que ocupa (ver [Cuotas de uso](#cuotas-de-uso)) |
+| `PUT /api/admin/users/<usuario>` | `{ siteRole?: "admin" \| "member" \| "guest", disabled?: boolean, quota?: { bytes?, projects?, diagramsPerProject? } }` → cambia el rol de la instancia, desactiva/reactiva la cuenta (desactivar cierra sus sesiones y le impide volver a entrar) o fija su [cuota personal](#cuota-personal-de-cada-persona). Con un nombre que no existe **crea una invitación** (rol `member` por omisión): 201 |
 | `DELETE /api/admin/users/<usuario>` | Cancela la invitación de quien todavía no ha entrado. Con quien ya entró, 409 `conflict`: se desactiva |
 
 Nadie puede cambiar su propio rol ni desactivarse (409 `self`: que lo haga otra persona), y a quien figura en `--admins` no se le puede bajar de rol ni desactivar desde la API (409 `listed-admin`): su rol lo manda la lista. Un `PUT` con `siteRole: "admin"` hace administradora a otra persona sin tocar `--admins`; quitarle el rol es otro `PUT`.
+
+## Cuotas de uso
+
+Un servicio abierto necesita un límite a lo que cada persona puede guardar: sin él, una cuenta puede llenar el disco del servidor. Las cuotas existen **solo con `--workspace` y `--accounts`** (sin cuentas no hay personas a quienes cobrar; el servicio con `--tokens` no las tiene). Están activas por omisión, con topes generosos, y se pueden quitar.
+
+### Qué se cuenta
+
+- **Espacio**: los bytes de los documentos actuales de los diagramas **más los de todas las versiones del historial** ([historial de versiones](proyectos.md#historial-de-versiones)). El historial ocupa disco de verdad (un diagrama recién creado ya lleva una versión con su contenido), así que cada guardado cuesta, como mucho, el documento nuevo más la versión que se anota. Se mide con los tamaños de archivo, por el gancho `versionUsage` del historial. No se cuentan `project.json`, el índice del historial ni los archivos que alguien deje a mano en la carpeta.
+- **Proyectos**: cuántos proyectos posee la persona.
+- **Diagramas por proyecto**: es un tope de cada proyecto, no de la persona.
+
+### A quién se cobra
+
+A la persona que **posee** el proyecto: su persona administradora **más antigua** (normalmente quien lo creó o importó; si deja de administrarlo, pasa a la siguiente administradora; con empate en la fecha, el id de cuenta más bajo). No importa quién guarda: una persona con rol `editor` en un proyecto compartido no gasta su cuota sino la de quien lo posee. Un proyecto **sin dueña** (copiado a mano a la carpeta, o creado con un token de servicio) solo tiene el tope de diagramas por proyecto de la instancia. **Los administradores de la instancia no tienen tope** salvo que se les fije una cuota personal.
+
+### Los topes
+
+| Tope | Por omisión | Opción / variable |
+|---|---|---|
+| Espacio por persona | 256 MiB | `--max-bytes` / `IARK_MAX_BYTES` |
+| Proyectos por persona | 25 | `--max-projects` / `IARK_MAX_PROJECTS` |
+| Diagramas por proyecto | 200 | `--max-diagrams` / `IARK_MAX_DIAGRAMS` |
+
+`0` (o `off` en `--max-bytes`) quita el tope. `--max-bytes` acepta bytes sueltos o un sufijo de 1024 en 1024 (`500K`, `256M`, `1.5G`, `2T`). Al arrancar, el servicio imprime los topes que rigen.
+
+#### Cuota personal de cada persona
+
+Quien administra la instancia puede fijar a una persona topes distintos de los de la instancia (para darle más espacio a un equipo, o quitárselo a una cuenta abusiva): `PUT /api/admin/users/<usuario>` con `{ "quota": { "bytes": 1073741824, "projects": 0, "diagramsPerProject": null } }`. Cada campo es independiente: un número fija el tope (`0`, sin tope), `null` lo quita (vuelve al valor de la instancia) y lo que falta no se toca. Los bytes son enteros; la [pantalla de administración](#pantalla-de-administración) los escribe en MB. La cuota se guarda con la cuenta: en el JSON, el campo opcional `quota` (la versión del archivo sigue siendo 1; **una versión anterior de IArk que reescriba el archivo la descarta**) y en SQLite, tres columnas (migración 2 del esquema, que se aplica sola al abrir la base y no se puede deshacer: una versión anterior ya no abre una base migrada). Va por `PUT`, así que queda en la auditoría como `user.quota` ([observabilidad](observabilidad.md)).
+
+### Qué pasa al llegar al tope
+
+Crear o importar un proyecto, crear un diagrama y guardar uno **se rechazan** con `409` y `code: "limit"` (el mismo código de los topes de miembros y de versiones con nombre), un mensaje claro y tres campos más:
+
+```json
+{ "error": "Este proyecto ya tiene 200 diagramas, el máximo por proyecto (200). Borra alguno o pide a un administrador que suba el tope.",
+  "code": "limit", "quota": "diagrams", "used": 200, "limit": 200 }
+```
+
+`quota` es `bytes`, `projects` o `diagrams`. **Nunca se pierde nada**: un guardado rechazado no toca el disco y la interfaz conserva el borrador de quien edita. Lo que libera espacio o no lo hace crecer **sigue permitido** aunque la persona esté por encima del tope (porque se lo bajaron, por ejemplo): guardar un documento idéntico o más pequeño, borrar diagramas y proyectos, renombrar, nombrar y **borrar versiones con nombre** y **restaurar** una versión (añade otra versión, pero la rotación del historial la mantiene acotada por diagrama). Antes de guardar se estima el crecimiento como `2 × nuevo − actual` con historial (`nuevo − actual` sin él): es una cota superior que no descuenta que el guardado sustituya la versión anterior ni la rotación, así que se puede ver un rechazo cuando por poco habría cabido; borrar lo que sobra lo arregla.
+
+Cambio respecto a versiones anteriores: el tope de proyectos por persona (`--max-projects`) ya no responde `403`, sino `409 limit` como el resto, y cuenta los proyectos que se **poseen**, no los que se administran.
+
+### Ver el uso
+
+`GET /api/usage` (solo una sesión de persona; con un token de servicio o sin `--accounts`, 404):
+
+```json
+{ "limits": { "bytes": 268435456, "projects": 25, "diagramsPerProject": 200 },
+  "usage": { "bytes": 1203, "documentBytes": 601, "versionBytes": 602, "versions": 2, "projects": 1 },
+  "projects": [ { "id": "tienda", "name": "Tienda", "diagrams": 2, "documentBytes": 601, "versions": 2, "versionBytes": 602, "bytes": 1203 } ] }
+```
+
+`limits` son los que valen para esa persona (los de la instancia con los suyos por encima; `0`, sin tope) y `projects`, los que posee, del que más ocupa al que menos. Este `GET` siempre mide de verdad; el uso que se usa para decidir un guardado puede venir de una caché de 30 s por proyecto, que se invalida con cada cambio que pasa por el servicio. En el gestor de proyectos, bajo «Dónde se guardan», un medidor enseña el espacio, los proyectos y los diagramas del proyecto elegido; avisa (`role="status"`) cuando alguno pasa del 80 % del tope y lo dice como error cuando se alcanzó. No aparece si no hay topes, ni con los proyectos de este navegador ni con un token. En la pantalla de administración se ve el uso de cada cuenta y se edita su cuota.
+
+`/metrics` expone `iark_quota_rejections_total{kind}` (operaciones rechazadas por tipo de tope) e `iark_quota_limit{kind}` (los topes de la instancia). **Sin etiquetas de persona ni de proyecto**: no existe una métrica del uso de cada persona (cardinalidad y privacidad); eso se ve en la pantalla de administración o en `GET /api/admin/users`.
+
+### Límites
+
+- **Con varias réplicas** sobre una misma carpeta, los guardados simultáneos de una persona en réplicas distintas pueden pasarse del tope por lo que se guarda a la vez (dentro de un proceso se serializan por persona), y la medida va hasta 30 s por detrás de lo que escriba otra réplica o una mano en la carpeta.
+- **El tope de bytes es una estimación al guardar y una medida al mostrar**; no es una cuota del sistema de archivos. Quien necesite un tope duro de disco debe ponerlo también en el volumen.
+- **No hay una acción de «limpiar historial» por persona**: lo que se puede borrar son diagramas, proyectos y versiones con nombre; las versiones automáticas rotan solas (50 por diagrama).
+- **No se cobra por proyecto compartido a quien lo recibe**, y un proyecto sin dueña solo tiene el tope de diagramas.
 
 ## Pantalla de administración
 
@@ -157,7 +221,7 @@ Quien administra la instancia no necesita la API a mano. El gestor de proyectos 
 
 **Quién la ve.** Solo una persona con sesión de GitHub y `siteRole: admin`. Para un miembro, un invitado, un token (aunque tenga rol `admin`: las cuentas de servicio usan la API) o los proyectos de este navegador no hay botón ni enlace, y el gestor no pide nada a `/api/admin`. El botón no es la seguridad: el servidor vuelve a comprobar el rol en cada petición, así que si a alguien se lo quitan con la ventana abierta, la siguiente lectura o cambio responde 403 y la ventana deja de mostrar cuentas.
 
-**Qué muestra.** Una tabla con una fila por cuenta: foto (o su inicial), `@usuario`, nombre, las marcas «tú» y «en --admins», el rol, el estado (*Activa*, *Invitación pendiente* o *Desactivada*), el último acceso y a cuántos proyectos pertenece. Por omisión van primero los administradores, luego los miembros y los invitados, y dentro de cada rol por usuario. Se puede **buscar** por usuario o nombre (sin distinguir mayúsculas ni acentos), **filtrar** (por rol, invitaciones pendientes o desactivadas) y **ordenar** (por rol, usuario, último acceso o proyectos). Encima de la tabla, un resumen: cuántas cuentas, administradores, invitaciones pendientes y desactivadas hay.
+**Qué muestra.** Una tabla con una fila por cuenta: foto (o su inicial), `@usuario`, nombre, las marcas «tú» y «en --admins», el rol, el estado (*Activa*, *Invitación pendiente* o *Desactivada*), el último acceso, a cuántos proyectos pertenece y su **espacio y cuota** (lo que ocupa frente a su tope, con una barra, los proyectos que posee, la marca «cuota propia» si tiene la suya y «Cerca del tope» o «Tope alcanzado»). Por omisión van primero los administradores, luego los miembros y los invitados, y dentro de cada rol por usuario. Se puede **buscar** por usuario o nombre (sin distinguir mayúsculas ni acentos), **filtrar** (por rol, invitaciones pendientes o desactivadas) y **ordenar** (por rol, usuario, último acceso, proyectos o espacio usado). Encima de la tabla, un resumen: cuántas cuentas, administradores, invitaciones pendientes y desactivadas hay.
 
 **Qué se puede hacer**
 
@@ -168,6 +232,7 @@ Quien administra la instancia no necesita la API a mano. El gestor de proyectos 
 | Desactivar | Pide confirmación en la propia fila. Cierra sus sesiones y no le deja volver a entrar | `PUT { disabled: true }` |
 | Reactivar | Sin confirmación: se deshace con otro clic | `PUT { disabled: false }` |
 | Cancelar una invitación | Solo de quien aún no ha entrado. Pide confirmación; también la quita de los proyectos a los que la hubieran invitado | `DELETE` |
+| Cambiar la cuota de una cuenta | **Cuota…** abre bajo la fila un editor con los tres topes (espacio, en MB; proyectos; diagramas por proyecto): cada uno es «Valor de la instancia», «Sin tope» u «Otro valor…». **Guardar cuota** manda los tres; Escape o **Cancelar** lo cierran sin cambiar nada | `PUT { quota }` |
 
 **Lo que no ofrece, y por qué.** Tu propia cuenta (409 `self`) y las de `--admins` (409 `listed-admin`) salen en la lista, pero sin selector ni botón de desactivar, con la razón a la vista: su rol y su acceso los manda la lista del servicio, que se cambia en su configuración (`IARK_ADMINS`). Tampoco se puede administrar una cuenta cuyo nombre el servicio apartó con un `~` (alguien que cambió de nombre en GitHub dejó el suyo a otra persona): la API no puede nombrarla.
 

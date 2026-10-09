@@ -129,6 +129,9 @@ export function classifyRoute(method: string, pathname: string): RouteInfo {
     case 'whoami':
       if (parts.length === 1) return route('/api/whoami', { protected: true });
       break;
+    case 'usage':
+      if (parts.length === 1) return route('/api/usage', { protected: true });
+      break;
     case 'modules':
       if (parts.length === 1) return route('/api/modules');
       break;

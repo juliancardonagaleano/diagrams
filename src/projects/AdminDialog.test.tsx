@@ -67,7 +67,7 @@ describe('administración de la instancia (pantalla de cuentas)', () => {
       renderAdmin(session);
       const table = await loaded();
       expect(screen.getByRole('dialog', { name: 'Administración de la instancia' })).toBeInTheDocument();
-      expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Cuenta', 'Rol', 'Estado', 'Último acceso', 'Proyectos', 'Acciones']);
+      expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Cuenta', 'Rol', 'Estado', 'Último acceso', 'Proyectos', 'Espacio y cuota', 'Acciones']);
       expect(within(table).getAllByRole('rowheader').map((h) => h.textContent)).toEqual(expect.arrayContaining([expect.stringContaining('@ana'), expect.stringContaining('@beto')]));
 
       const ana = rowOf('ana');
@@ -631,5 +631,43 @@ describe('administración de la instancia (pantalla de cuentas)', () => {
       expect(help.closest('details')).not.toHaveAttribute('open');
       expect(help.closest('details')).toHaveTextContent('Invitado: solo entra a los proyectos que le comparten');
     });
+  });
+});
+
+describe('administración de la instancia: cuotas (servidor simulado)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  afterEach(cleanup);
+
+  it('la fila enseña lo que ocupa la cuenta frente a sus topes, la marca si está cerca y distingue la cuota propia', async () => {
+    const { server, session } = await setup();
+    server.quotas = { bytes: 1000, projects: 4, diagramsPerProject: 0 };
+    server.usage.set('beto', { bytes: 900, projects: 1 });
+    accountOf(server, 'Elena-Dev').quota = { projects: 0 };
+    renderAdmin(session);
+    await loaded();
+    const beto = rowOf('beto');
+    expect(within(beto).getByTestId('admin-usage')).toHaveTextContent('900 B de 1000 B');
+    expect(within(beto).getByTestId('admin-usage-projects')).toHaveTextContent('1 de 4 proyectos');
+    expect(within(beto).getByTestId('admin-usage-level')).toHaveTextContent('Cerca del tope');
+    expect(within(beto).queryByTestId('admin-own-quota')).toBeNull();
+    expect(within(rowOf('Elena-Dev')).getByTestId('admin-own-quota')).toBeInTheDocument();
+    expect(within(rowOf('ana')).getByRole('button', { name: 'Cuota de @ana' })).toBeInTheDocument();
+  });
+
+  it('guardar manda los tres campos (null quita, 0 es sin tope, MB pasan a bytes)', async () => {
+    const { server, session } = await setup();
+    renderAdmin(session);
+    await loaded();
+    await userEvent.click(within(rowOf('beto')).getByRole('button', { name: 'Cuota de @beto' }));
+    const form = screen.getByRole('form', { name: 'Cuota de @beto' });
+    await userEvent.selectOptions(within(form).getByLabelText('Tope de espacio de @beto'), 'custom');
+    await userEvent.type(within(form).getByLabelText('Espacio de @beto, en MB'), '1.5');
+    await userEvent.selectOptions(within(form).getByLabelText('Tope de diagramas por proyecto de @beto'), 'none');
+    await userEvent.click(within(form).getByRole('button', { name: 'Guardar cuota de @beto' }));
+    await waitFor(() => expect(accountOf(server, 'beto').quota).toEqual({ bytes: 1572864, diagramsPerProject: 0 }));
+    expect(puts(server)).toEqual(['PUT /api/admin/users/beto']);
   });
 });

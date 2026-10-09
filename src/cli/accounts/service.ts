@@ -9,6 +9,25 @@ import { isGithubLogin, loginKey, type AccountStore, type AccountUser, type Gith
 
 export type SignupMode = 'open' | 'invite';
 
+/**
+ * Los topes de uso de la instancia (cuotas). `0` es «sin tope». Valen para cada persona con rol `member` o `guest`; los administradores de la
+ * instancia no tienen tope salvo que se les fije uno a mano (`UserQuota`). Qué se cuenta y cómo se aplica: ver `usage.ts`.
+ */
+export interface QuotaLimits {
+  /** Bytes en total de los proyectos que posee una persona: los documentos de sus diagramas más el historial de versiones. */
+  bytes: number;
+  /** Proyectos que puede poseer (la persona administradora más antigua de un proyecto lo posee: normalmente, quien lo creó). */
+  projects: number;
+  /** Diagramas que admite cada proyecto. */
+  diagramsPerProject: number;
+}
+
+export const DEFAULT_MAX_BYTES = 256 * 1024 * 1024;
+export const DEFAULT_MAX_PROJECTS = 25;
+export const DEFAULT_MAX_DIAGRAMS = 200;
+/** Los topes por omisión: razonables para una instancia pequeña y siempre desactivables con `0`. */
+export const DEFAULT_QUOTAS: Readonly<QuotaLimits> = { bytes: DEFAULT_MAX_BYTES, projects: DEFAULT_MAX_PROJECTS, diagramsPerProject: DEFAULT_MAX_DIAGRAMS };
+
 /** Lo que se cuenta de una persona hacia fuera: nunca el id de GitHub ni las fechas. */
 export interface PublicUser {
   id: string;
@@ -32,14 +51,17 @@ export interface AccountsOptions {
   sessionTtlMs?: number;
   /** Orígenes (además del de `publicUrl`) a los que se puede devolver a la persona tras entrar: los de `--cors`, nombrados, nunca `*`. */
   allowedOrigins?: string[];
-  /** Cuántos proyectos puede administrar una persona (los administradores de la instancia no tienen tope). Por omisión, 25. */
+  /** Cuántos proyectos puede poseer una persona (los administradores de la instancia no tienen tope). Por omisión, 25; `0`, sin tope. Atajo de `quotas.projects`. */
   maxProjectsPerUser?: number;
+  /** Los topes de uso de la instancia (ver `QuotaLimits`); los que falten valen `DEFAULT_QUOTAS`. */
+  quotas?: Partial<QuotaLimits>;
   /** El reloj en milisegundos (en las pruebas, uno falso). */
   now?: () => number;
 }
 
 export const DEFAULT_SESSION_DAYS = 30;
-export const DEFAULT_MAX_PROJECTS = 25;
+
+const definedOnly = <T extends object>(value: T | undefined): Partial<T> => Object.fromEntries(Object.entries(value ?? {}).filter(([, v]) => v !== undefined)) as Partial<T>;
 
 /** Una lista de administradores: nombres de usuario (sin distinguir mayúsculas) o identificadores numéricos de GitHub. */
 export function parseAdminList(value: string | string[] | undefined): string[] {
@@ -74,7 +96,8 @@ export class Accounts {
   readonly publicUrl: string | undefined;
   readonly signup: SignupMode;
   readonly sessionTtlMs: number;
-  readonly maxProjectsPerUser: number;
+  /** Los topes de uso de la instancia. */
+  readonly quotas: QuotaLimits;
   readonly now: () => number;
   private readonly adminLogins: Set<string>;
   private readonly adminIds: Set<number>;
@@ -86,12 +109,45 @@ export class Accounts {
     this.publicUrl = options.publicUrl ? normalizePublicUrl(options.publicUrl) : undefined;
     this.signup = options.signup ?? 'invite';
     this.sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_DAYS * 24 * 3600 * 1000;
-    this.maxProjectsPerUser = options.maxProjectsPerUser ?? DEFAULT_MAX_PROJECTS;
+    this.quotas = { ...DEFAULT_QUOTAS, ...definedOnly(options.quotas), ...(options.maxProjectsPerUser !== undefined ? { projects: options.maxProjectsPerUser } : {}) };
     this.now = options.now ?? ((): number => Date.now());
     const admins = parseAdminList(options.admins);
     this.adminIds = new Set(admins.filter((a) => /^\d+$/.test(a)).map(Number));
     this.adminLogins = new Set(admins.filter((a) => !/^\d+$/.test(a)).map(loginKey));
     this.origins = new Set([...(this.publicUrl ? [new URL(this.publicUrl).origin] : []), ...(options.allowedOrigins ?? []).filter((o) => o !== '*')]);
+  }
+
+  /** Cuántos proyectos puede poseer cada persona por omisión (`0`, sin tope). */
+  get maxProjectsPerUser(): number {
+    return this.quotas.projects;
+  }
+
+  /**
+   * Los topes que valen para una persona: los de la instancia, con lo que un administrador le fijó a ella (`AccountUser.quota`) por encima. Los
+   * administradores de la instancia no tienen tope por omisión. `0` es «sin tope».
+   */
+  limitsFor(user: AccountUser): QuotaLimits {
+    const base: QuotaLimits = this.siteRoleOf(user) === 'admin' ? { bytes: 0, projects: 0, diagramsPerProject: 0 } : this.quotas;
+    return { bytes: user.quota?.bytes ?? base.bytes, projects: user.quota?.projects ?? base.projects, diagramsPerProject: user.quota?.diagramsPerProject ?? base.diagramsPerProject };
+  }
+
+  /**
+   * Quién posee un proyecto a efectos de las cuotas: su persona administradora más antigua (la que lo creó, mientras siga siendo administradora).
+   * Un proyecto sin ninguna persona (el que se copió a mano a la carpeta) no lo posee nadie.
+   */
+  ownerOf(projectId: string): AccountUser | undefined {
+    const admins = this.store.membersOf(projectId).filter((m) => m.role === 'admin');
+    admins.sort((a, b) => (a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : a.user.id < b.user.id ? -1 : 1));
+    return admins[0]?.user;
+  }
+
+  /** Los proyectos que posee una persona (ver `ownerOf`). */
+  ownedProjects(userId: string): string[] {
+    const owned: string[] = [];
+    for (const [projectId, role] of this.store.rolesOf(userId)) {
+      if (role === 'admin' && this.ownerOf(projectId)?.id === userId) owned.push(projectId);
+    }
+    return owned.sort();
   }
 
   /** Cuántos administradores hay en la lista de la instancia. */

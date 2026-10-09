@@ -418,6 +418,37 @@ export function accountStoreContract(kind: AccountStoreKind, harness: AccountSto
         expect(store.updateUser(user.id, { disabled: false }).disabled).toBeUndefined();
       });
 
+      it('la cuota personal se fija campo a campo, se quita con null, sobrevive a un reinicio y a un volcado, y un valor inválido no cambia nada', () => {
+        const harnessed = make();
+        const store = harnessed.store;
+        const user = store.signIn(ana, OPEN);
+        expect(user.quota).toBeUndefined();
+        expect(store.updateUser(user.id, { quota: { bytes: 5_000_000, diagramsPerProject: 0 } }).quota).toEqual({ bytes: 5_000_000, diagramsPerProject: 0 });
+        // un cambio parcial no toca los demás campos; null quita solo ese
+        expect(store.updateUser(user.id, { quota: { projects: 3 } }).quota).toEqual({ bytes: 5_000_000, projects: 3, diagramsPerProject: 0 });
+        expect(store.updateUser(user.id, { quota: { bytes: null } }).quota).toEqual({ projects: 3, diagramsPerProject: 0 });
+        // lo inválido se rechaza entero: ni el campo bueno de la misma petición se aplica
+        for (const bad of [-1, 1.5, Number.NaN, Infinity, '10' as never, true as never]) {
+          expect(() => store.updateUser(user.id, { quota: { projects: 9, bytes: bad } }), String(bad)).toThrowError(code('invalid'));
+        }
+        expect(store.findUser(user.id)?.quota).toEqual({ projects: 3, diagramsPerProject: 0 });
+        // con todos los campos quitados, la cuenta ya no lleva cuota
+        expect(store.updateUser(user.id, { quota: { projects: null, diagramsPerProject: null } }).quota).toBeUndefined();
+        store.updateUser(user.id, { quota: { bytes: 1024 } });
+        // el volcado lleva la cuota, y cambiar lo que se devuelve no cambia el almacén
+        const dump = store.snapshot();
+        expect(dump.users[0].quota).toEqual({ bytes: 1024 });
+        dump.users[0].quota!.bytes = 1;
+        store.findUser(user.id)!.quota!.bytes = 2;
+        expect(store.findUser(user.id)?.quota).toEqual({ bytes: 1024 });
+        const again = harnessed.reopen();
+        expect(again.findUser(user.id)?.quota).toEqual({ bytes: 1024 });
+        // upsertUser crea la invitación con su cuota, en una sola operación; si la cuota es inválida no queda la invitación
+        expect(again.upsertUser('dani', { quota: { projects: 2 } })).toMatchObject({ created: true, user: { quota: { projects: 2 } } });
+        expect(() => again.upsertUser('eva', { quota: { bytes: -5 } })).toThrowError(code('invalid'));
+        expect(again.findByLogin('eva')).toBeUndefined();
+      });
+
       it('removePending cancela una invitación y sus proyectos, y se niega con quien ya entró', () => {
         const store = open();
         const a = store.signIn(ana, OPEN);

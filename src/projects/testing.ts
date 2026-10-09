@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { isVersioned, MemoryProjectStore, parseVersionId, ProjectError, type ProjectErrorCode, type ProjectRole, type ProjectStore, type SiteRole } from '@iark/kernel';
+import { isVersioned, MemoryProjectStore, parseVersionId, ProjectError, type ProjectErrorCode, type ProjectQuotaUsage, type ProjectRole, type ProjectStore, type QuotaLimits, type QuotaUsage, type SiteRole } from '@iark/kernel';
 
 /**
  * Apoyo de las pruebas: un `fetch` simulado que se comporta como la API `/api/projects` de `iark serve --workspace` (rutas,
@@ -54,6 +54,12 @@ export interface FakeServer {
   directory: FakeAccount[];
   /** Cuántas invitaciones sin reclamar admite la instancia (el servidor responde 409 `limit` al pasarse). */
   maxPending: number;
+  /** Los topes de la instancia que valen a quien no tiene cuota personal (0: sin tope). Por omisión, ninguno. */
+  quotas: QuotaLimits;
+  /** Lo que ocupa cada persona (por nombre de usuario en minúsculas); quien no figura ocupa 0. */
+  usage: Map<string, Partial<QuotaUsage>>;
+  /** El desglose por proyecto que devuelve `GET /api/usage`, por nombre de usuario en minúsculas. */
+  usageProjects: Map<string, ProjectQuotaUsage[]>;
   /** Añade una cuenta ya existente (que entró, o una invitación con `pending: true`) sin pasar por GitHub. */
   addAccount(account: Partial<FakeAccount> & { login: string }): FakeAccount;
   /** Los cambios en tiempo real: ver `FakeEvents`. */
@@ -103,6 +109,8 @@ export interface FakeAccount {
   listed?: boolean;
   createdAt: string;
   lastLoginAt?: string;
+  /** La cuota personal que le fijó un administrador (campos ausentes: el valor de la instancia; 0: sin tope). */
+  quota?: Partial<QuotaLimits>;
 }
 
 /** Una persona con cuenta en el servidor simulado. */
@@ -180,6 +188,9 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
     maxMembers: options.maxMembers ?? 50,
     maxProjects: options.maxProjects ?? Infinity,
     maxPending: options.maxPending ?? 500,
+    quotas: { bytes: 0, projects: 0, diagramsPerProject: 0 },
+    usage: new Map(),
+    usageProjects: new Map(),
     exchanges: 0,
     directory: [],
     fetch: undefined as unknown as typeof fetch,
@@ -248,7 +259,17 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
     createdAt: account.createdAt,
     ...(account.lastLoginAt ? { lastLoginAt: account.lastLoginAt } : {}),
     projects: [...server.members.values()].filter((list) => list.some((m) => sameLogin(m.login, account.login))).length,
+    ...(account.quota ? { quota: account.quota } : {}),
+    limits: limitsOf(account),
+    ...(server.usage.has(account.login.toLowerCase()) ? { usage: usageFor(account.login) } : {}),
   });
+  /** Los topes que valen para una cuenta: los de la instancia con los suyos por encima; un administrador de la instancia no tiene tope por omisión. */
+  const limitsOf = (account: FakeAccount): QuotaLimits => {
+    const base = account.siteRole === 'admin' ? { bytes: 0, projects: 0, diagramsPerProject: 0 } : server.quotas;
+    return { bytes: account.quota?.bytes ?? base.bytes, projects: account.quota?.projects ?? base.projects, diagramsPerProject: account.quota?.diagramsPerProject ?? base.diagramsPerProject };
+  };
+  const usageFor = (login: string): QuotaUsage => ({ bytes: 0, documentBytes: 0, versionBytes: 0, versions: 0, projects: 0, ...server.usage.get(login.toLowerCase()) });
+  const QUOTA_FIELDS: readonly string[] = ['bytes', 'projects', 'diagramsPerProject'];
   const SITE_ROLES: readonly string[] = ['admin', 'member', 'guest'];
 
   /** `/api/admin/users` con las mismas reglas que el servidor de verdad (`src/cli/accounts/admin.ts`). */
@@ -264,6 +285,14 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
       if (body.siteRole !== undefined && (typeof body.siteRole !== 'string' || !SITE_ROLES.includes(body.siteRole))) return json(400, { error: `"siteRole" debe ser ${SITE_ROLES.join(', ')}.`, code: 'invalid' });
       if (body.disabled !== undefined && typeof body.disabled !== 'boolean') return json(400, { error: '"disabled" debe ser verdadero o falso.', code: 'invalid' });
       if (!INSTANCE_LOGIN.test(login)) return json(400, { error: `«${login.slice(0, 60)}» no es un nombre de usuario de GitHub (letras, números y guiones, hasta 39 caracteres).`, code: 'invalid' });
+      if (body.quota !== undefined) {
+        const quota = body.quota;
+        if (!quota || typeof quota !== 'object' || Array.isArray(quota)) return json(400, { error: '"quota" debe ser un objeto: { "bytes"?, "projects"?, "diagramsPerProject"? }.', code: 'invalid' });
+        for (const [field, amount] of Object.entries(quota)) {
+          if (!QUOTA_FIELDS.includes(field)) return json(400, { error: `"quota.${field.slice(0, 40)}" no existe: los campos son ${QUOTA_FIELDS.join(', ')}.`, code: 'invalid' });
+          if (amount !== null && !(typeof amount === 'number' && Number.isSafeInteger(amount) && amount >= 0)) return json(400, { error: `"quota.${field}" debe ser un entero de 0 en adelante (0 es «sin tope») o null para volver al valor de la instancia.`, code: 'invalid' });
+        }
+      }
       const siteRole = body.siteRole as SiteRole | undefined;
       if (existing) {
         const lowers = (siteRole !== undefined && siteRole !== 'admin') || body.disabled === true;
@@ -276,6 +305,15 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
       }
       const account = existing ?? server.addAccount({ login, pending: true, siteRole: 'member' });
       if (siteRole !== undefined) account.siteRole = siteRole;
+      if (body.quota !== undefined) {
+        const next: Record<string, number> = { ...account.quota };
+        for (const [field, amount] of Object.entries(body.quota as Record<string, number | null>)) {
+          if (amount === null) delete next[field];
+          else next[field] = amount;
+        }
+        if (Object.keys(next).length > 0) account.quota = next as Partial<QuotaLimits>;
+        else delete account.quota;
+      }
       if (typeof body.disabled === 'boolean') {
         account.disabled = body.disabled;
         // desactivar una cuenta cierra sus sesiones
@@ -372,6 +410,14 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
       if (!authorized) return unauthorized();
       return json(200, { auth: true, name: server.name, role: server.role });
     }
+    if (path === '/api/usage') {
+      // Como `src/cli/accounts/usage.ts`: solo una sesión de persona en un servicio con cuentas; si no, 404.
+      if (!server.accounts || server.noProjects) return json(404, { error: 'Ruta de la API desconocida. Ver /api/modules.' });
+      if (!authorized) return unauthorized();
+      if (!caller) return json(404, { error: 'Las cuotas son por persona: esta credencial es un token de servicio, sin cuenta ni cuota.', code: 'not-found' });
+      const account = server.directory.find((a) => sameLogin(a.login, caller.login));
+      return json(200, { limits: account ? limitsOf(account) : server.quotas, usage: usageFor(caller.login), projects: server.usageProjects.get(caller.login.toLowerCase()) ?? [] });
+    }
     if (path.startsWith('/api/admin/')) {
       if (!server.accounts) return json(404, { error: 'Este servicio no tiene cuentas de GitHub: la administración de cuentas solo existe con --accounts.' });
       if (!authorized) return unauthorized();
@@ -413,7 +459,7 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
           if (caller) {
             if (siteRoleOf(caller) === 'guest') return forbidden('Tu cuenta no puede crear proyectos en esta instancia.');
             const administered = [...server.members.values()].filter((list) => list.some((m) => sameLogin(m.login, caller.login) && m.role === 'admin')).length;
-            if (siteRoleOf(caller) !== 'admin' && administered >= server.maxProjects) return json(403, { error: `Ya administras ${server.maxProjects} proyectos, el máximo por persona en esta instancia.`, code: 'limit' });
+            if (siteRoleOf(caller) !== 'admin' && administered >= server.maxProjects) return json(409, { error: `Ya tienes ${server.maxProjects} ${server.maxProjects === 1 ? 'proyecto' : 'proyectos'}, el máximo por persona en esta instancia (${server.maxProjects}). Borra alguno o pide a un administrador que suba el tope.`, code: 'limit' });
           }
           const created = await store.createProject({ name: String(body.name), description: body.description as string | undefined });
           if (caller) server.members.set(created.id, [{ login: caller.login, role: 'admin', pending: false }]);

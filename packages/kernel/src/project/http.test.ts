@@ -372,3 +372,57 @@ describe('HttpProjectStore: administrar las cuentas de la instancia', () => {
     expect(error.message).toContain('solo existe con --accounts');
   });
 });
+
+describe('HttpProjectStore: cuotas de uso', () => {
+  const limits = { bytes: 268435456, projects: 25, diagramsPerProject: 200 };
+  const usage = { bytes: 2400, documentBytes: 700, versionBytes: 1700, versions: 2, projects: 1 };
+
+  it('usage() pide /api/usage con el token y lee topes, uso y desglose por proyecto; descarta lo que no tiene lo mínimo', async () => {
+    const { store: s, calls } = store(
+      () => ({ body: { limits, usage, projects: [{ id: 'p', name: 'Tienda', diagrams: 1, documentBytes: 700, versions: 2, versionBytes: 1700, bytes: 2400 }, { id: 'sin-bytes', name: 'Roto' }, 7, null] } }),
+      { token: 'iark_s_abc' },
+    );
+    expect(await s.usage()).toEqual({ limits, usage, projects: [{ id: 'p', name: 'Tienda', diagrams: 1, documentBytes: 700, versions: 2, versionBytes: 1700, bytes: 2400 }] });
+    expect(`${calls[0].init.method} ${calls[0].url}`).toBe('GET https://iark.example/api/usage');
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer iark_s_abc');
+  });
+
+  it('un servidor sin cuotas por persona (404, con o sin código), o que responde otra cosa, no es un error: no hay nada que mostrar', async () => {
+    expect(await store(() => ({ status: 404, body: { error: 'Ruta de la API desconocida.' } })).store.usage()).toBeUndefined();
+    expect(await store(() => ({ status: 404, body: { error: 'Las cuotas son por persona.', code: 'not-found' } })).store.usage()).toBeUndefined();
+    expect(await store(() => ({ body: { nope: 1 } })).store.usage()).toBeUndefined();
+    expect(await store(() => ({ body: { limits: { bytes: -1, projects: 1, diagramsPerProject: 1 }, usage } })).store.usage()).toBeUndefined();
+    // los demás fallos sí se cuentan: una sesión caducada o un servidor caído no se disfrazan de «sin cuotas»
+    expect((await failure(store(() => ({ status: 401, body: { error: 'caducó' } })).store.usage())).code).toBe('unauthorized');
+    expect((await failure(store(() => new Error('sin red')).store.usage())).info.network).toBe(true);
+  });
+
+  it('listAccounts lee la cuota personal, los topes y el uso de cada cuenta; con valores inválidos los ignora', async () => {
+    const base = { id: 'u_1', login: 'ana', siteRole: 'member', disabled: false, pending: false, createdAt: '2026-01-01T00:00:00.000Z', projects: 2 };
+    const { store: s } = store(() => ({
+      body: [
+        { ...base, quota: { bytes: 1000, diagramsPerProject: 0, projects: -3, discos: 9 }, limits, usage },
+        { ...base, id: 'u_2', login: 'beto', quota: 'mucho', limits: { bytes: 1 }, usage: { bytes: 'x' } },
+      ],
+    }));
+    const [ana, beto] = await s.listAccounts();
+    expect(ana).toMatchObject({ quota: { bytes: 1000, diagramsPerProject: 0 }, limits, usage });
+    expect(ana.quota).not.toHaveProperty('projects');
+    expect(beto).not.toHaveProperty('quota');
+    expect(beto).not.toHaveProperty('limits');
+    expect(beto).not.toHaveProperty('usage');
+  });
+
+  it('setAccount manda la cuota tal cual (un número fija, null quita) junto a lo demás que cambie', async () => {
+    const { store: s, calls } = store(() => ({ body: { id: 'u_1', login: 'ana', siteRole: 'member', disabled: false, pending: false, createdAt: '', projects: 0, quota: { bytes: 5 } } }));
+    expect((await s.setAccount('ana', { quota: { bytes: 5, projects: null, diagramsPerProject: 0 } })).account.quota).toEqual({ bytes: 5 });
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ quota: { bytes: 5, projects: null, diagramsPerProject: 0 } });
+    await s.setAccount('ana', { disabled: true });
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ disabled: true });
+  });
+
+  it('un guardado que no cabe en la cuota llega como invalid con serverCode limit y el mensaje del servidor', async () => {
+    const error = await failure(store(() => ({ status: 409, body: { error: 'No hay espacio para guardar esto.', code: 'limit', quota: 'bytes', used: 10, limit: 10 } })).store.saveDiagram('p', { id: 'd', text: 'x' }));
+    expect(error).toMatchObject({ code: 'invalid', message: 'No hay espacio para guardar esto.', info: { status: 409, serverCode: 'limit' } });
+  });
+});

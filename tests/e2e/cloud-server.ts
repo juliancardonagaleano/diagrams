@@ -140,7 +140,7 @@ async function freePort(): Promise<number> {
  */
 const defaultStore = (): 'json' | 'sqlite' => (process.env.IARK_TEST_ACCOUNTS_STORE === 'sqlite' ? 'sqlite' : 'json');
 
-export async function startManagedCloud(options: { cors: string; admins?: FakeProfile[]; signup?: 'open' | 'invite'; store?: 'json' | 'sqlite' }): Promise<ManagedCloud> {
+export async function startManagedCloud(options: { cors: string; admins?: FakeProfile[]; signup?: 'open' | 'invite'; store?: 'json' | 'sqlite'; /** Opciones de `iark serve` de más (por ejemplo `--max-projects 1`). */ extraArgs?: string[] }): Promise<ManagedCloud> {
   const github = await startFakeGithub();
   const dir = mkdtempSync(join(tmpdir(), 'iark-e2e-gestionada-'));
   const workspace = join(dir, 'espacio');
@@ -154,6 +154,7 @@ export async function startManagedCloud(options: { cors: string; admins?: FakePr
     '--workspace', workspace, '--accounts', accounts, '--accounts-store', store,
     '--github-client-id', FAKE_CLIENT_ID, '--public-url', url, '--cors', options.cors,
     '--signup', options.signup ?? 'invite', '--host', '127.0.0.1', '-p', String(port),
+    ...(options.extraArgs ?? []),
   ];
   const env: NodeJS.ProcessEnv = {
     ...process.env,
