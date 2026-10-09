@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EditorSpec } from '@iark/kernel';
 import { FAKE_DOC, fakeEditor, type FakeDoc } from '../testing-editor';
 import { actionAvailability, applySelectionChanges, describeSelection, focusNodes, NO_SELECTION, removeAll, resolveSelection, toggleSelected } from './selection';
@@ -94,5 +94,15 @@ describe('disponibilidad de las acciones', () => {
 
   it('en solo lectura ninguna está disponible', () => {
     expect(actionAvailability(action('renumber'), FAKE_DOC, [], true).enabled).toBe(false);
+  });
+
+  it('pasa al disabled() del módulo la vista abierta (una acción de C4 depende de la vista en que se está)', () => {
+    const disabled = vi.fn((_doc: unknown, _ids: string[], viewId?: string) => (viewId === 'contexto' ? 'No aquí.' : undefined));
+    const porVista = { id: 'up', label: 'Subir nivel', needs: 'none', disabled, run: () => ({ ok: false, reason: 'no' }) } as never;
+    expect(actionAvailability(porVista, FAKE_DOC, [], false, 'contexto')).toEqual({ enabled: false, title: 'No aquí.' });
+    expect(actionAvailability(porVista, FAKE_DOC, [], false, 'contenedores').enabled).toBe(true);
+    expect(disabled).toHaveBeenLastCalledWith(FAKE_DOC, [], 'contenedores');
+    // Sin vista, los módulos que no la usan siguen recibiendo lo de siempre.
+    expect(actionAvailability(action('inspect'), FAKE_DOC, ['api'], false).enabled).toBe(true);
   });
 });

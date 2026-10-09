@@ -44,11 +44,11 @@ src/cli/               comandos de iark (commander): módulos, `trace`, `diff`, 
 src/cli/plugins/       módulos de terceros: `config.ts` (iark.config.json y qué configuración se elige), `resolve.ts` (especificadores) y `load.ts` (import y comprobación de la forma)
 src/embed/             protocolo postMessage (C4 y de módulos), SDK de anfitrión y Web Component <iark-module>
 src/projects/          proyectos guardados en la app web: almacén en IndexedDB y almacén remoto (servidor), su configuración, la sesión con autoguardado y el gestor
-src/modules-app/       banco de trabajo genérico de módulos (controlador sin React, editor, protocolo del puente)
+src/modules-app/       banco de trabajo genérico de módulos (controlador sin React, lienzo común de los seis módulos —C4 incluido—, protocolo del puente)
 src/shell/             shell de la suite (descubrimiento por manifiesto)
 src/trace-app/         vista web de trazabilidad entre módulos (tablero sin DOM + página)
 src/mermaid-preview/   vista previa de Mermaid (la librería `mermaid` se carga solo al pedirla)
-src/app/               editor React (Vite, React Flow, Semi UI, Tailwind)
+src/app/               editor C4 clásico (React, Vite, React Flow, Semi UI, Tailwind); el banco de trabajo ya no lo incrusta
 schema/                JSON Schema del documento y del formato de generación
 examples/              documentos de ejemplo por módulo, páginas anfitrionas de demostración y `plugin-riesgos/` (un módulo de terceros completo; ver docs/plugins.md)
 public/.well-known/    manifiesto de federación publicado con el sitio (iark.json)

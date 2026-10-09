@@ -81,7 +81,9 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const [layout, setLayout] = useState<GraphLayout | undefined>();
   const [selection, setSelection] = useState<Selection>(NO_SELECTION);
   const [prompting, setPrompting] = useState<{ id: string; initial: string } | undefined>();
-  const [edgeKind, setEdgeKind] = useState(spec.defaultEdgeKind ?? spec.edgeKinds[0]?.kind ?? '');
+  // Los tipos derivados (`addable: false`, p. ej. la relación implícita de C4) se dibujan pero no se ofrecen para crear relaciones.
+  const addableEdges = useMemo(() => spec.edgeKinds.filter((k) => k.addable !== false), [spec]);
+  const [edgeKind, setEdgeKind] = useState(spec.defaultEdgeKind ?? addableEdges[0]?.kind ?? spec.edgeKinds[0]?.kind ?? '');
   const [showKeys, setShowKeys] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
   const boxSelecting = useRef(false);
@@ -136,7 +138,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const documentRef = useRef(document);
   documentRef.current = document;
   const layoutSeq = useRef(0);
-  const relayout = useCallback(async () => {
+  const relayout = useCallback(async (fresh = false) => {
     const g = graphRef.current;
     if (!g) return;
     const seq = ++layoutSeq.current;
@@ -161,7 +163,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
       setLaidFor(wanted);
     };
     try {
-      const own = spec.layout && documentRef.current !== undefined ? await spec.layout(documentRef.current, viewId) : undefined;
+      const own = spec.layout && documentRef.current !== undefined ? await spec.layout(documentRef.current, viewId, fresh ? { fresh: true } : undefined) : undefined;
       if (own) return apply(own);
       const kinds = new Map(spec.nodeKinds.map((k) => [k.kind, k]));
       const parents = new Set(g.nodes.filter((n) => n.parentId).map((n) => n.parentId as string));
@@ -277,36 +279,47 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     [graph, links, notify],
   );
 
+  // Una operación que solo navega (bajar al detalle de un sistema, subir de nivel) devuelve el mismo documento: no es una edición y no
+  // entra en el historial de deshacer. Si pide abrir otra vista (`view`), se abre tras aplicar el documento, que ya la contiene.
   const commit = useCallback(
     (result: EditResult<unknown>): string | undefined => {
       if (!result.ok) {
         notify(result.reason);
         return undefined;
       }
-      history.record(text);
-      onText(pretty(result.document));
+      if (result.document !== document) {
+        history.record(text);
+        onText(pretty(result.document));
+      }
+      if (result.view && result.view !== viewId) onView(result.view);
       return result.id;
     },
-    [history, notify, onText, text],
+    [document, history, notify, onText, onView, text, viewId],
   );
 
   const addNode = (kind: string): void => {
     if (readOnly || document === undefined) return;
     const label = spec.nodeKinds.find((k) => k.kind === kind)?.label ?? kind;
     const parentNode = single ? graph?.nodes.find((n) => n.id === single) : undefined;
-    const id = commit(spec.addNode(document, kind, `${label} nuevo`, parentNode?.id, viewId));
+    const result = spec.addNode(document, kind, `${label} nuevo`, parentNode?.id, viewId);
+    const id = commit(result);
     if (!id) return;
-    const rect = wrapper.current?.getBoundingClientRect();
-    const center = flow.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 400) / 2 + Math.random() * 60 - 30, y: (rect?.top ?? 0) + (rect?.height ?? 300) / 2 + Math.random() * 60 - 30 });
-    const next = new Map(moved).set(id, { x: Math.round(center.x - 90), y: Math.round(center.y - 36) });
-    setMoved(next);
-    writePositions(key, next);
+    // Un nodo que nace dentro de una zona (un contenedor C4 en el límite de su sistema) no se coloca a mano en el centro de la
+    // pantalla, donde quedaría fuera de ella: lo coloca el autolayout dentro de su zona.
+    const inGroup = result.ok && !!spec.project(result.document, viewId).nodes.find((n) => n.id === id)?.parentId;
+    if (!inGroup) {
+      const rect = wrapper.current?.getBoundingClientRect();
+      const center = flow.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 400) / 2 + Math.random() * 60 - 30, y: (rect?.top ?? 0) + (rect?.height ?? 300) / 2 + Math.random() * 60 - 30 });
+      const next = new Map(moved).set(id, { x: Math.round(center.x - 90), y: Math.round(center.y - 36) });
+      setMoved(next);
+      writePositions(key, next);
+    }
     setSelection(new Set([id]));
   };
 
   const onConnect = (c: Connection): void => {
     if (readOnly || document === undefined || !c.source || !c.target) return;
-    const why = spec.canConnect?.(document, edgeKind, c.source, c.target);
+    const why = spec.canConnect?.(document, edgeKind, c.source, c.target, viewId);
     if (why) return notify(why);
     const id = commit(spec.addEdge(document, edgeKind, c.source, c.target));
     if (id) setSelection(new Set([id]));
@@ -330,16 +343,25 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   const selectedItems = useMemo(() => (graph && selectedIds.length > 1 ? describeSelection(spec, graph, selectedIds) : undefined), [spec, graph, selectedIds]);
 
   const actions = spec.actions ?? [];
-  const availability = useMemo(() => (document === undefined ? [] : actions.map((a) => actionAvailability(a, document, selectedIds, readOnly))), [actions, document, selectedIds, readOnly]);
+  const availability = useMemo(() => (document === undefined ? [] : actions.map((a) => actionAvailability(a, document, selectedIds, readOnly, viewId))), [actions, document, selectedIds, readOnly, viewId]);
   const runAction = (action: (typeof actions)[number], input?: string): void => {
     setPrompting(undefined);
-    if (!readOnly && document !== undefined) commit(action.run(document, selectedIds, input));
+    if (!readOnly && document !== undefined) commit(action.run(document, selectedIds, input, viewId));
   };
   const startAction = (action: (typeof actions)[number]): void => {
     if (!action.prompt) return runAction(action);
-    setPrompting({ id: action.id, initial: document === undefined ? '' : (action.prompt.initial?.(document, selectedIds) ?? '') });
+    setPrompting({ id: action.id, initial: document === undefined ? '' : (action.prompt.initial?.(document, selectedIds, viewId) ?? '') });
   };
   const prompted = actions.find((a) => a.id === prompting?.id);
+  // Alt+↓ y Alt+↑ sin otro significado (no hay enlace que seguir ni diagrama al que volver) lanzan la acción del módulo que los reclama
+  // (`shortcut`): así C4 baja y sube de nivel. Se guarda en una referencia para que el oyente del teclado no dependa de cada render.
+  const shortcutRef = useRef<(key: 'alt+down' | 'alt+up') => boolean>(() => false);
+  shortcutRef.current = (key) => {
+    const i = actions.findIndex((a) => a.shortcut === key);
+    if (i < 0 || !availability[i]?.enabled) return false;
+    startAction(actions[i]);
+    return true;
+  };
 
   const undo = useCallback(() => {
     const previous = history.undo(text);
@@ -356,7 +378,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     setFailedFor('');
     setFittedFor('');
     // Al llegar el nuevo autolayout, el efecto de encuadre recoloca la cámara (la vista vuelve a estar sin encuadrar).
-    void relayout();
+    void relayout(true);
   }, [key, relayout]);
 
   useEffect(() => {
@@ -372,12 +394,17 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
       else if (action === 'layout') autoLayout();
       else if (action === 'fit') void flow.fitView({ padding: 0.15, duration: 250 });
       else if (action === 'deselect') setSelection(NO_SELECTION);
-      else if (action === 'follow') follow(single);
-      else if (action === 'back') onBack?.();
+      else if (action === 'follow') {
+        const linked = !!single && !!graph?.nodes.find((n) => n.id === single)?.ref;
+        if (linked || !shortcutRef.current('alt+down')) follow(single);
+      } else if (action === 'back') {
+        if (onBack) onBack();
+        else shortcutRef.current('alt+up');
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [autoLayout, flow, follow, onBack, redo, remove, selectedIds, single, undo]);
+  }, [autoLayout, flow, follow, graph, onBack, redo, remove, selectedIds, single, undo]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setSelection((current) => applySelectionChanges(current, changes));
@@ -428,6 +455,8 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     );
   }
 
+  const crumbs = spec.breadcrumb?.(document, viewId) ?? [];
+
   return (
     <div className="cv-root" ref={wrapper} data-testid="module-canvas" data-view={viewId ?? ''} data-layout={settled ? 'ready' : 'pending'}>
       <div className="cv-toolbar" role="toolbar" aria-label="Herramientas del lienzo">
@@ -474,17 +503,21 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
             ))}
         </div>
         <span className="cv-sep" />
-        <label className="cv-edge-kind">
-          Relación
-          <select value={edgeKind} onChange={(e) => setEdgeKind(e.target.value)} data-testid="edge-kind">
-            {spec.edgeKinds.map((k) => (
-              <option key={k.kind} value={k.kind}>
-                {k.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="cv-sep" />
+        {addableEdges.length > 1 && (
+          <>
+            <label className="cv-edge-kind">
+              Relación
+              <select value={edgeKind} onChange={(e) => setEdgeKind(e.target.value)} data-testid="edge-kind">
+                {addableEdges.map((k) => (
+                  <option key={k.kind} value={k.kind}>
+                    {k.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="cv-sep" />
+          </>
+        )}
         <button type="button" className="cv-tool" onClick={undo} disabled={!history.canUndo || readOnly} title="Deshacer (Ctrl+Z)" aria-label="Deshacer">
           ↶
         </button>
@@ -518,13 +551,29 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
         </button>
       </div>
 
+      {crumbs.length > 1 && (
+        <nav className="cv-crumbs" aria-label="Niveles del diagrama" data-testid="canvas-breadcrumb">
+          {crumbs.map((c, i) => {
+            const current = i === crumbs.length - 1;
+            return (
+              <span key={c.id} className="cv-crumb-item">
+                {i > 0 && <span className="cv-crumb-sep" aria-hidden="true">›</span>}
+                <button type="button" className={current ? 'cv-crumb is-current' : 'cv-crumb'} aria-current={current ? 'page' : undefined} disabled={current} onClick={() => onView(c.id)} data-testid={`crumb-${c.id}`}>
+                  {c.label}
+                </button>
+              </span>
+            );
+          })}
+        </nav>
+      )}
+
       {failedFor === layoutKey && (
         <div className="cv-notice" role="status" data-testid="canvas-layout-error">
           No se pudo calcular la colocación automática de este diagrama: los elementos se muestran en una colocación provisional. Puedes moverlos a mano o pulsar Autolayout para reintentarlo.
         </div>
       )}
 
-      {prompted && prompting && <ActionPrompt key={prompted.id} action={prompted} document={document} initial={prompting.initial} onSubmit={(value) => runAction(prompted, value)} onCancel={() => setPrompting(undefined)} />}
+      {prompted && prompting && <ActionPrompt key={prompted.id} action={prompted} document={document} viewId={viewId} initial={prompting.initial} onSubmit={(value) => runAction(prompted, value)} onCancel={() => setPrompting(undefined)} />}
 
       {showKeys && (
         <dl className="cv-keys" data-testid="shortcuts">

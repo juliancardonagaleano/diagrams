@@ -2,6 +2,12 @@
 .cv-empty { padding: 24px; text-align: center; color: var(--wb-text-2); }
 .cv-notice { padding: 6px 12px; border-bottom: 1px solid var(--wb-border); background: var(--wb-warning-bg); color: var(--wb-warning); font-size: 12px; }
 .cv-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--wb-border); background: var(--wb-surface); }
+.cv-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 4px 10px; border-bottom: 1px solid var(--wb-border); background: var(--wb-surface); font-size: 12px; }
+.cv-crumb-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.cv-crumb-sep { color: var(--wb-text-2); }
+.cv-crumb { padding: 2px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--wb-primary); font: inherit; cursor: pointer; }
+.cv-crumb:hover:not(:disabled) { background: var(--wb-surface-2); }
+.cv-crumb.is-current { color: var(--wb-text); font-weight: 600; cursor: default; }
 .cv-group-tools { display: flex; flex-wrap: wrap; gap: 4px; }
 .cv-sep { width: 1px; height: 22px; background: var(--wb-border); margin: 0 4px; }
 .cv-tool { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--wb-border); border-radius: 6px; background: var(--wb-surface-2); color: var(--wb-text); font: inherit; font-size: 12px; cursor: pointer; }

@@ -239,7 +239,7 @@ server {
 iark serve --workspace ./proyectos --tokens tokens.json --frame-ancestors https://app.ejemplo.org
 ```
 
-Una lista concreta siempre incluye además el propio origen (el banco de módulos incrusta el editor C4). Añadir `?embed=1` a otra página (la suite, la trazabilidad…) no abre su incrustación. Con la imagen Docker del repositorio, la variable `IARK_FRAME_ANCESTORS` de `deploy/.env` llega al servicio.
+Una lista concreta siempre incluye además el propio origen (la suite incrusta el editor C4 y el banco de módulos). Añadir `?embed=1` a otra página (la suite, la trazabilidad…) no abre su incrustación. Con la imagen Docker del repositorio, la variable `IARK_FRAME_ANCESTORS` de `deploy/.env` llega al servicio.
 
 **Lo que no cubre.** Detrás de un proxy que ya pone alguna de estas cabeceras, la del servicio y la del proxy pueden coincidir: deja una sola. El sitio de GitHub Pages es estático y no puede enviar cabeceras (no hay CSP ni `frame-ancestors` allí). Firefox no expone `ancestorOrigins`: el editor embebido toma el origen del anfitrión de `?origin=` o de `document.referrer` (ver [Modo embebido](embebido.md)).
 

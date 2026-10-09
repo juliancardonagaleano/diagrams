@@ -4,18 +4,20 @@ import type { EditorAction } from '@iark/kernel';
 interface Props {
   action: EditorAction<unknown>;
   document: unknown;
+  /** Vista abierta: las propuestas de la acción pueden depender de ella. */
+  viewId?: string;
   initial: string;
   onSubmit(value: string): void;
   onCancel(): void;
 }
 
 /** Formulario en línea con el que una acción del módulo pide su texto (el nombre del dominio…) antes de ejecutarse. */
-export function ActionPrompt({ action, document, initial, onSubmit, onCancel }: Props) {
+export function ActionPrompt({ action, document, viewId, initial, onSubmit, onCancel }: Props) {
   const [value, setValue] = useState(initial);
   const listId = useId();
   const prompt = action.prompt;
   if (!prompt) return null;
-  const suggestions = prompt.suggestions?.(document) ?? [];
+  const suggestions = prompt.suggestions?.(document, viewId) ?? [];
   return (
     <form
       className="cv-prompt"

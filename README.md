@@ -107,7 +107,7 @@ Una especialidad propia no necesita tocar este repositorio: un **módulo de terc
 
 | Superficie | Dónde | Para qué | Más |
 |---|---|---|---|
-| Editor C4 | `index.html` | Editar diagramas C4 con lienzo interactivo, deshacer/rehacer, minimapa y panel de problemas | [docs/modulos/c4.md](docs/modulos/c4.md) |
+| Editor C4 (clásico) | `index.html` | Editar diagramas C4 con lienzo interactivo, deshacer/rehacer, minimapa y panel de problemas (C4 también se edita en el lienzo común del banco de trabajo, `modulos.html?module=c4`) | [docs/modulos/c4.md](docs/modulos/c4.md) |
 | Banco de trabajo | `modulos.html?module=<id>` | Editar cualquier módulo: lienzo, JSON con validación, vistas, exportar, importar, informes y comparar versiones | [docs/suite-web.md](docs/suite-web.md) |
 | Suite (shell) | `suite.html` | Descubre los módulos de una instancia leyendo su manifiesto y monta el editor o el widget elegido | [docs/suite-web.md](docs/suite-web.md) |
 | Trazabilidad | `trazabilidad.html` | Enlaces `urn:iark:…` entre documentos de varios módulos, referencias sin resolver y alcance de un elemento | [docs/trazabilidad.md](docs/trazabilidad.md) |

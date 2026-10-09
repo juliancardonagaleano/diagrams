@@ -45,6 +45,8 @@ function NotationNodeImpl({ data, selected }: NodeProps<NotationNodeType>) {
   // El icono propio del nodo (el servicio de una nube) sustituye al de su tipo; con color de acento es una ficha de proveedor.
   const provider = node.icon && node.icon.length > 0 && node.iconColor ? node.icon : undefined;
   const icon = node.icon ?? notation.icon;
+  // La figura propia del nodo (un contenedor C4 que es una base de datos) sustituye a la de su tipo.
+  const shape = node.shape ?? notation.shape;
 
   if (group) {
     const line = node.stroke ?? fill;
@@ -68,8 +70,8 @@ function NotationNodeImpl({ data, selected }: NodeProps<NotationNodeType>) {
   }
 
   return (
-    <div className="cv-node" style={{ width, height, color: ink }} data-selected={selected || undefined} data-diff={diff} data-testid={`node-${node.id}`} data-kind={node.kind} data-shape={notation.shape}>
-      <ShapeSvg shape={notation.shape} width={width} height={height} fill={fill} stroke={node.stroke ?? notation.stroke} dashed={node.dashed} />
+    <div className="cv-node" style={{ width, height, color: ink }} data-selected={selected || undefined} data-diff={diff} data-testid={`node-${node.id}`} data-kind={node.kind} data-shape={shape}>
+      <ShapeSvg shape={shape} width={width} height={height} fill={fill} stroke={node.stroke ?? notation.stroke} dashed={node.dashed} />
       {!notation.bare && <Handle type="target" position={Position.Left} />}
       {provider ? (
         <ProviderIcon id={node.id} paths={provider} color={node.iconColor!} />
