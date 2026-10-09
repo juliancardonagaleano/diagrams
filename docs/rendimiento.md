@@ -19,6 +19,7 @@ npm run perf -- layout              # el autolayout (ELK) en Node: un proceso po
 npm run perf -- canvas              # el lienzo en un Chromium real: primer nodo, asentado, tareas largas, DOM, memoria
 npm run perf -- chunks              # el tamaño de cada trozo de dist/app y la carga inicial de cada página
 npm run perf -- canvas --elk thread # lo mismo con ELK en el hilo principal (?elk=thread), con la MISMA compilación
+npm run perf -- canvas --c4 bench   # C4 en el lienzo común del banco de trabajo (por omisión se abre en el editor clásico)
 npm run perf -- layout --modes normal,fast --sizes 1000,2000 --runs 1   # esfuerzo de ELK forzado (integración, datos, plataforma, seguridad)
 ```
 
@@ -267,7 +268,29 @@ C4 no se volvió a medir en Node: su algoritmo no cambió (solo la llamada a ELK
 - **El hilo principal ya no se bloquea con el cálculo**: la tarea más larga baja de 12,6 s a 0,43 s (Integración, 1025 nodos), de 41,1 s a 0,80 s (Integración, 2050), de 13,4 s a 1,2 s (Seguridad, 1022) y de 51,4 s a 4,4 s (Seguridad, 2042). El tiempo asentado cae de 27,0 s a 6,3 s (Integración, 1025), de 86,1 s a 18,0 s (Integración, 2050), de 28,8 s a 9,3 s (Seguridad, 1022) y de 114,7 s a 26,4 s (Seguridad, 2042). Parte de esa mejora es el modo rápido de ELK, no el hilo de trabajo (ver la tabla siguiente).
 - **Se montan muchos menos nodos**: de 1025 a 41 en Integración, de 2042 a 1 en Seguridad. (Con 0–1 nodos en pantalla no es una avería: con diagramas de ese tamaño el encuadre llega al zoom mínimo, 0,1, y la zona central no tiene ningún nodo; antes los nodos estaban en el DOM pero tampoco se veían; el minimapa muestra dónde está el dibujo.)
 - **Memoria**: el montón de JavaScript de la página cae (455 → 27 MB con 2050 nodos de Integración; 575 → 33 MB con 2042 de Seguridad), pero la memoria residente de todo el navegador **sube un poco** (1402 → 1511 MB y 1576 → 1646 MB): el hilo de trabajo tiene su propia copia de ELK y su propio montón.
-- **C4** (el editor `index.html`, que todavía no usa el lienzo común y no recorta nodos): ELK ya no es lo que bloquea (tiempo bloqueado de 19,3 s a 5,6 s con 499 nodos y de 59,8 s a 20,2 s con 999), pero el resto del cálculo de C4 (`smartLayout`: evaluar candidatos, rutas, calidad) sigue en el hilo principal, y **la colocación no es más rápida**: 21,4 s → 21,9 s con 499 nodos y 62,0 s → 66,0 s con 999 (un 6 % más lento, con los rangos sin solaparse; no se investigó). Con 2000 nodos sigue sin asentar en 240 s. El editor C4 no muestra «Calculando…» ni deja cancelar (es el de `src/app/`, que no se tocó: otra rama lo migra al lienzo común).
+- **C4 en el editor clásico** (`index.html`, `src/app/`, que no se tocó y no recorta nodos; ver abajo C4 en el lienzo común): ELK ya no es lo que bloquea (tiempo bloqueado de 19,3 s a 5,6 s con 499 nodos y de 59,8 s a 20,2 s con 999), pero el resto del cálculo de C4 (`smartLayout`: evaluar candidatos, rutas, calidad) sigue en el hilo principal, y **la colocación no es más rápida**: 21,4 s → 21,9 s con 499 nodos y 62,0 s → 66,0 s con 999 (un 6 % más lento, con los rangos sin solaparse; no se investigó). Con 2000 nodos sigue sin asentar en 240 s. El editor clásico de C4 no muestra «Calculando…» ni deja cancelar (es el de `src/app/`, que no se tocó).
+
+### C4 en el lienzo común del banco de trabajo
+
+Tras fusionar `master` (C4 pasó a abrirse también en el lienzo común: `modulos.html?module=c4`), se midió C4 ahí (`npm run perf -- canvas --c4 bench`, 3 repeticiones, commit `74b6bb3`), con el hilo de trabajo y con `?elk=thread` (misma compilación, una pasada con cada opción seguidas).
+
+Con el hilo de trabajo:
+
+| Módulo | Nodos | Aristas | Primer nodo | Asentado | Layout (página) | Tarea más larga | Bloqueado (>50 ms) | Mayor hueco del pulso | Nodos en el DOM | Montón JS | RSS del navegador | Estado «calculando» |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| c4 | 100 | 150 | 237 ms (231 ms–268 ms) | 7181 ms (7175 ms–7398 ms) | 6663 ms (6660 ms–6876 ms) | 88 ms (84 ms–98 ms) | 73 ms (49 ms–84 ms) | 172 ms (165 ms–184 ms) | 100 / 2028 elem. | 10 MB | 947 MB | sí |
+| c4 | 500 | 734 | 372 ms (332 ms–485 ms) | 30.6 s (29.2 s–31.4 s) | 29.8 s (28.5 s–30.7 s) | 558 ms (511 ms–575 ms) | 8661 ms (8090 ms–8700 ms) | 562 ms (517 ms–581 ms) | 89 / 2795 elem. | 14 MB | 1008 MB | sí |
+| c4 | 1000 | 1504 | 462 ms (449 ms–495 ms) | 89.2 s (87.5 s–90.4 s) | 88.2 s (86.3 s–89.3 s) | 1531 ms (1520 ms–1534 ms) | 32.7 s (32.0 s–33.9 s) | 1547 ms (1522 ms–1572 ms) | 96 / 4055 elem. | 20 MB | 1133 MB | sí |
+
+Con ELK en el hilo principal (`?elk=thread`):
+
+| Módulo | Nodos | Aristas | Primer nodo | Asentado | Layout (página) | Tarea más larga | Bloqueado (>50 ms) | Mayor hueco del pulso | Nodos en el DOM | Montón JS | RSS del navegador | Estado «calculando» |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| c4 | 100 | 150 | 264 ms (244 ms–280 ms) | 7859 ms (7721 ms–7940 ms) | 7333 ms (7184 ms–7382 ms) | 523 ms (512 ms–563 ms) | 5121 ms (5003 ms–5189 ms) | 914 ms (906 ms–935 ms) | 100 / 2029 elem. | 23 MB | 794 MB | sí |
+| c4 | 500 | 734 | 386 ms (366 ms–408 ms) | 38.9 s (38.3 s–39.7 s) | 37.9 s (37.4 s–38.6 s) | 1485 ms (1417 ms–1611 ms) | 35.2 s (34.6 s–36.0 s) | 2665 ms (2562 ms–2933 ms) | 89 / 2796 elem. | 41 MB | 836 MB | sí |
+| c4 | 1000 | 1504 | 564 ms (531 ms–565 ms) | 123.6 s (119.6 s–125.4 s) | 121.6 s (117.4 s–123.3 s) | 3704 ms (3540 ms–3962 ms) | 119.7 s (115.8 s–121.6 s) | 7939 ms (6745 ms–8532 ms) | 96 / 4056 elem. | 65 MB | 877 MB | sí |
+
+Lectura: el tiempo que tarda en asentarse **es el de siempre o algo menor** (100 nodos, 7,9 s → 7,2 s; 500, 38,9 s → 30,6 s; 1000, 123,6 s → 89,2 s), pero el hilo principal queda libre: lo bloqueado pasa de 5,1 s a 73 ms (100 nodos), de 35,2 s a 8,7 s (500) y de 119,7 s a 32,7 s (1000). Lo que sigue bloqueando es el resto del cálculo de C4 (`smartLayout` evalúa candidatos y rutas en el hilo principal, con ELK en el hilo de trabajo): tareas de hasta 1,5 s con 1000 nodos. El estado «Calculando…» sí aparece y deja cancelar (la señal de cancelación llega hasta ELK, y `smartLayout` la comprueba entre candidatos). Con 1000 nodos solo se montan 96 en el DOM (recorte).
 
 ### Hilo de trabajo contra hilo principal con la misma compilación
 
@@ -316,7 +339,7 @@ El hilo de trabajo no acelera el cálculo (C4: 21,9 s contra 22,3 s; es un hilo 
 | suite.html | 367.8 kB | 118.2 kB | 7 |
 | trazabilidad.html | 376.4 kB | 120.4 kB | 6 |
 
-Lectura: `domain-c4` pasa de 1683 kB a 255 kB y ya no arrastra ELK; las páginas cargan **menos** al abrirse (`index.html`, de 2704 kB a 1276 kB; `modulos.html`, de 2379 kB a 953 kB; `suite.html`, de 1795 kB a 367 kB; `trazabilidad.html`, de 1805 kB a 376 kB). El total de JavaScript de la compilación **sube** (8915 kB → 10 353 kB): ELK aparece dos veces más (hilo de trabajo y salida de emergencia), ambas bajo demanda y la segunda solo si no hay `Worker`.
+Lectura: `domain-c4` pasa de 1683 kB a 255 kB y ya no arrastra ELK; las páginas cargan **menos** al abrirse (`index.html`, de 2704 kB a 1276 kB; `modulos.html`, de 2379 kB a 953 kB; `suite.html`, de 1795 kB a 367 kB; `trazabilidad.html`, de 1805 kB a 376 kB). El total de JavaScript de la compilación **sube** (8915 kB → 10 353 kB): ELK aparece dos veces más (hilo de trabajo y salida de emergencia), ambas bajo demanda y la segunda solo si no hay `Worker`. Tras fusionar `master` (que añadió más código a las páginas) la carga inicial medida con el comando de los trozos es: `index.html` 1309 kB, `modulos.html` 985 kB, `suite.html` 388 kB y `trazabilidad.html` 397 kB; las cuatro siguen por debajo de las de antes de la rama (2704, 2379, 1795 y 1805 kB).
 
 ## Decisiones (cambiables)
 
@@ -336,13 +359,14 @@ Ninguna prueba de `npm test` ni del CI falla por tiempo. Fijan lo estructural:
 - `src/modules-app/canvas/DiagramCanvas.scale.test.tsx`: con 1000 nodos se montan en el DOM muchos menos (el recorte), con menos de 150 se montan todos; la selección, el foco y los enlaces funcionan con nodos fuera de pantalla; el estado «calculando» y «Cancelar»; el aviso tras cancelar.
 - `src/modules-app/canvas/stable.test.ts`: seleccionar o mover un nodo cambia solo su objeto.
 - `tests/e2e/tamano-trozos.spec.ts` (sobre `dist/app`): 500 kB por trozo salvo las excepciones de `scripts/perf/limites.ts` (y que cada excepción siga haciendo falta), tope de carga inicial por página, y que ELK no esté en ninguna carga inicial. La lógica está en `scripts/perf/chunks.ts` y se prueba aparte (`tests/perf/chunks.test.ts`).
+- `packages/domain-c4/src/layout/elkLayout.test.ts`: la señal de cancelación aborta el layout de C4 (también en `smartLayout`, entre candidatos) y no se confunde con un fallo que deba recuperarse.
 - `tests/e2e/rendimiento-lienzo.spec.ts`: con un diagrama de 500 nodos, el cálculo corre en el hilo de trabajo (se ve en `page.on('worker')`) sin caer a la salida de emergencia, aparece «Calculando…» y la página responde mientras tanto (un umbral muy holgado: 4 s de hueco como máximo, frente a ≈10 s con ELK en el hilo principal), se puede cancelar y reintentar, y con la vista acercada solo se montan los nodos que caen en pantalla y se puede seleccionar uno.
 - `tests/e2e/seguridad-cabeceras.spec.ts`: el hilo de trabajo funciona con la política de seguridad de `iark serve` puesta, sin violaciones.
 - `tests/perf/generators.test.ts`: los generadores son deterministas y producen documentos válidos con los tamaños que dicen.
 
 ## Límites conocidos y pendiente
 
-- **Editor C4 (`src/app/`)**: usa el hilo de trabajo a través del layout de C4, pero no tiene estado «calculando», no deja cancelar y no recorta nodos; en modo `smart` con 1000 nodos son más de 60 s. Lo heredará al migrar al lienzo común.
+- **Editor clásico de C4 (`src/app/`)**: usa el hilo de trabajo a través del layout de C4, pero no tiene estado «calculando», no deja cancelar y no recorta nodos; en modo `smart` con 1000 nodos son más de 60 s. No se tocó en esta rama. En el lienzo común del banco de trabajo, C4 sí tiene «Calculando…», cancelación y recorte (ver arriba), pero `smartLayout` sigue evaluando candidatos en el hilo principal (tareas de hasta 1,5 s con 1000 nodos) y tarda 89 s en asentar: queda pendiente evaluarlo fuera del hilo principal o con menos candidatos a partir de cierto tamaño.
 - **Tras llegar la colocación, el hilo principal aún trabaja** entre 0,4 s (1000 nodos) y 4–5 s (2000): copiar el resultado del hilo, construir el flujo y pintar. No se perfiló.
 - **Sin simplificación a zoom lejano**: si el diagrama es denso y cabe entero en pantalla, el recorte no ahorra nada (se montan todos los nodos). Una versión reducida del nodo a zoom bajo sería lo siguiente.
 - **El encuadre de diagramas enormes** llega al zoom mínimo (0,1) sin abarcarlos.
