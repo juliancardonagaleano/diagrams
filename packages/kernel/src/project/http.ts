@@ -98,6 +98,48 @@ export interface ProjectMember {
   you?: boolean;
 }
 
+/** Los topes de uso de una persona (cuotas): `0` es «sin tope». Qué se cuenta y a quién: ver `docs/cuentas-github.md`. */
+export interface QuotaLimits {
+  /** Bytes en total de los proyectos que posee: los documentos de los diagramas más el historial de versiones. */
+  bytes: number;
+  /** Proyectos que puede poseer. */
+  projects: number;
+  /** Diagramas que admite cada uno de sus proyectos. */
+  diagramsPerProject: number;
+}
+
+/** Lo que ocupa una persona (la suma de los proyectos que posee). */
+export interface QuotaUsage {
+  bytes: number;
+  documentBytes: number;
+  versionBytes: number;
+  versions: number;
+  /** Cuántos proyectos posee. */
+  projects: number;
+}
+
+/** Lo que ocupa uno de sus proyectos. */
+export interface ProjectQuotaUsage {
+  id: string;
+  name: string;
+  diagrams: number;
+  documentBytes: number;
+  versions: number;
+  versionBytes: number;
+  bytes: number;
+}
+
+/** Cuánto usa quien pregunta y cuánto puede usar (`GET /api/usage`, solo con una sesión de persona en un servicio con cuentas). */
+export interface AccountUsage {
+  limits: QuotaLimits;
+  usage: QuotaUsage;
+  /** Los proyectos que posee, del que más ocupa al que menos. */
+  projects: ProjectQuotaUsage[];
+}
+
+/** Lo que un administrador fija a UNA persona por encima de los topes de la instancia; un campo ausente es «el valor de la instancia», `0`, «sin tope». */
+export type PersonalQuota = Partial<QuotaLimits>;
+
 /** Una cuenta de la instancia tal como la ve quien la administra (`GET /api/admin/users`). */
 export interface AdminAccount {
   id: string;
@@ -119,12 +161,22 @@ export interface AdminAccount {
   lastLoginAt?: string;
   /** A cuántos proyectos pertenece. */
   projects: number;
+  /** La cuota personal que le fijó un administrador, si la hay. */
+  quota?: PersonalQuota;
+  /** Los topes que valen para ella ahora (los de la instancia con los suyos por encima). Un servidor anterior a las cuotas no los manda. */
+  limits?: QuotaLimits;
+  /** Lo que ocupa. Falta en un servidor anterior a las cuotas, en una invitación sin reclamar o si no se pudo medir. */
+  usage?: QuotaUsage;
 }
 
-/** Lo que un administrador puede cambiar de una cuenta: su rol en la instancia y si está desactivada. */
+/**
+ * Lo que un administrador puede cambiar de una cuenta: su rol en la instancia, si está desactivada y su cuota personal. En `quota`, un número fija
+ * el tope (`0`, sin tope), `null` lo quita (vuelve al valor de la instancia) y lo que falta no se toca.
+ */
 export interface AccountChange {
   siteRole?: SiteRole;
   disabled?: boolean;
+  quota?: { [K in keyof QuotaLimits]?: number | null };
 }
 
 /** Las sesiones de persona que reparte el inicio de sesión de GitHub empiezan así; los tokens de `iark auth` (`iark_…`), no. */
@@ -213,6 +265,14 @@ function parseAccount(value: unknown): AdminAccount | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const account = value as Record<string, unknown>;
   if (typeof account.id !== 'string' || typeof account.login !== 'string' || !account.login) return undefined;
+  const personal = account.quota && typeof account.quota === 'object' ? (account.quota as Record<string, unknown>) : {};
+  const quota: PersonalQuota = {
+    ...(count(personal.bytes) !== undefined ? { bytes: count(personal.bytes) } : {}),
+    ...(count(personal.projects) !== undefined ? { projects: count(personal.projects) } : {}),
+    ...(count(personal.diagramsPerProject) !== undefined ? { diagramsPerProject: count(personal.diagramsPerProject) } : {}),
+  };
+  const limits = parseLimits(account.limits);
+  const usage = parseQuotaUsage(account.usage);
   return {
     id: account.id,
     login: account.login,
@@ -225,7 +285,40 @@ function parseAccount(value: unknown): AdminAccount | undefined {
     createdAt: typeof account.createdAt === 'string' ? account.createdAt : '',
     ...(typeof account.lastLoginAt === 'string' && account.lastLoginAt ? { lastLoginAt: account.lastLoginAt } : {}),
     projects: typeof account.projects === 'number' && Number.isFinite(account.projects) ? Math.max(0, Math.trunc(account.projects)) : 0,
+    ...(quota && Object.keys(quota).length > 0 ? { quota } : {}),
+    ...(limits ? { limits } : {}),
+    ...(usage ? { usage } : {}),
   };
+}
+
+/** Un número de cuota válido (entero de 0 en adelante), o `undefined`. */
+const count = (value: unknown): number | undefined => (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined);
+
+/** Los topes de una respuesta, o `undefined` si no vienen los tres. */
+function parseLimits(value: unknown): QuotaLimits | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const { bytes, projects, diagramsPerProject } = value as Record<string, unknown>;
+  const b = count(bytes);
+  const p = count(projects);
+  const d = count(diagramsPerProject);
+  return b !== undefined && p !== undefined && d !== undefined ? { bytes: b, projects: p, diagramsPerProject: d } : undefined;
+}
+
+function parseQuotaUsage(value: unknown): QuotaUsage | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const u = value as Record<string, unknown>;
+  const bytes = count(u.bytes);
+  const projects = count(u.projects);
+  if (bytes === undefined || projects === undefined) return undefined;
+  return { bytes, documentBytes: count(u.documentBytes) ?? 0, versionBytes: count(u.versionBytes) ?? 0, versions: count(u.versions) ?? 0, projects };
+}
+
+function parseProjectQuotaUsage(value: unknown): ProjectQuotaUsage | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const p = value as Record<string, unknown>;
+  const bytes = count(p.bytes);
+  if (typeof p.id !== 'string' || typeof p.name !== 'string' || bytes === undefined) return undefined;
+  return { id: p.id, name: p.name, diagrams: count(p.diagrams) ?? 0, documentBytes: count(p.documentBytes) ?? 0, versions: count(p.versions) ?? 0, versionBytes: count(p.versionBytes) ?? 0, bytes };
 }
 
 /** Una versión de la respuesta del servidor, o `undefined` si no tiene lo mínimo del contrato. */
@@ -389,11 +482,39 @@ export class HttpProjectStore implements VersionedProjectStore {
    */
   async setAccount(login: string, change: AccountChange): Promise<{ account: AdminAccount; created: boolean }> {
     const name = cleanLogin(login);
-    const body: AccountChange = { ...(change.siteRole !== undefined ? { siteRole: change.siteRole } : {}), ...(change.disabled !== undefined ? { disabled: change.disabled } : {}) };
+    const body: AccountChange = {
+      ...(change.siteRole !== undefined ? { siteRole: change.siteRole } : {}),
+      ...(change.disabled !== undefined ? { disabled: change.disabled } : {}),
+      ...(change.quota !== undefined ? { quota: change.quota } : {}),
+    };
     const { status, payload } = await this.exchange('PUT', `${ADMIN_USERS}/${encodeURIComponent(name)}`, body);
     const account = parseAccount(payload);
     if (!account) throw new ProjectError('unavailable', `${this.baseUrl} respondió algo que no es una cuenta.`);
     return { account, created: status === 201 };
+  }
+
+  // ───────────── cuotas ─────────────
+
+  /**
+   * Cuánto usa quien pregunta y cuánto puede usar (`GET /api/usage`). `undefined` si el servidor no tiene cuotas por persona (anterior a ellas, sin
+   * cuentas, o la credencial es un token de servicio): no es un fallo, simplemente no hay nada que mostrar. Los demás fallos (red, sesión caducada) lanzan.
+   */
+  async usage(): Promise<AccountUsage | undefined> {
+    let found: Payload;
+    try {
+      found = (await this.request('GET', '/api/usage')) as Payload;
+    } catch (error) {
+      if (error instanceof ProjectError && error.info.status === 404) return undefined;
+      throw error;
+    }
+    const limits = parseLimits(found.limits);
+    const usage = parseQuotaUsage(found.usage);
+    if (!limits || !usage) return undefined;
+    const projects = (Array.isArray(found.projects) ? found.projects : []).flatMap((entry: unknown) => {
+      const project = parseProjectQuotaUsage(entry);
+      return project ? [project] : [];
+    });
+    return { limits, usage, projects };
   }
 
   /** Cancela la invitación de quien todavía no ha entrado. Con quien ya entró el servidor responde `conflict`: se le quita el acceso desactivando su cuenta. */

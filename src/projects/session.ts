@@ -9,6 +9,7 @@ import {
   ProjectError,
   snapshotProject,
   type AccountChange,
+  type AccountUsage,
   type AdminAccount,
   type Diagram,
   type DiagramMeta,
@@ -427,6 +428,15 @@ export class ProjectSession {
   async whoami(): Promise<RemoteSession | undefined> {
     const store = this.store as { whoami?: () => Promise<RemoteSession> };
     return store.whoami ? store.whoami() : undefined;
+  }
+
+  /**
+   * Cuánto usa esta persona y cuánto puede usar (las cuotas del servidor), o `undefined` si el almacén no es un servidor con cuotas por persona
+   * (este navegador, un servidor sin cuentas, o una credencial que no es una persona). Lanza si el servidor no responde.
+   */
+  async usage(): Promise<AccountUsage | undefined> {
+    const store = this.store as { usage?: () => Promise<AccountUsage | undefined> };
+    return store.usage ? store.usage() : undefined;
   }
 
   /** Con qué se identifica esta sesión ante el servidor: una sesión de persona (inicio de sesión de GitHub), un token o nada (un servidor abierto o este navegador). */

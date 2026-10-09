@@ -5,6 +5,7 @@ import { loadBackend } from './backend';
 import { AdminDialog } from './AdminDialog';
 import { copyProject, copyTargetFor, type CopyTarget } from './copy';
 import { PROJECT_ROLE_HELP, PROJECT_ROLE_LABEL } from './people';
+import { QuotaMeter } from './QuotaMeter';
 import type { ProjectSession } from './session';
 import { ShareDialog } from './ShareDialog';
 import { StoragePanel, type StoragePanelProps } from './StoragePanel';
@@ -421,6 +422,8 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
           onAdminister={setAdministering}
           {...storage}
         />
+
+        <QuotaMeter session={session} projects={projects} selected={selected} />
 
         <div className="pj-body">
           <nav className="pj-list" aria-label="Proyectos">

@@ -45,7 +45,7 @@ describe('errores de cuentas en el gestor de proyectos', () => {
     await create('Primero');
     await screen.findByRole('button', { name: /^Primero/ });
     await create('Segundo');
-    expect(await screen.findByTestId('projects-error')).toHaveTextContent('Ya administras 1 proyectos, el máximo por persona en esta instancia.');
+    expect(await screen.findByTestId('projects-error')).toHaveTextContent('Ya tienes 1 proyecto, el máximo por persona en esta instancia (1).');
     expect(screen.queryByRole('form', { name: 'Conectar a un servidor' })).toBeNull();
   });
 

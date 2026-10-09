@@ -643,6 +643,106 @@ td.pj-admin-actions {
   white-space: normal;
 }
 
+/* Espacio y cuota de cada cuenta */
+.pj-admin-quota-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 150px;
+}
+.pj-admin-quota-cell [data-level='full'] {
+  color: var(--pj-error);
+}
+.pj-chip.pj-near {
+  color: var(--pj-warning);
+  border-color: var(--pj-warning);
+}
+.pj-quota-bar {
+  width: 140px;
+  max-width: 100%;
+  height: 6px;
+  accent-color: var(--pj-primary);
+}
+.pj-quota-line[data-level='near'] .pj-quota-bar {
+  accent-color: var(--pj-warning);
+}
+.pj-quota-line[data-level='full'] .pj-quota-bar {
+  accent-color: var(--pj-error);
+}
+.pj-admin-quota-row > td {
+  background: var(--pj-bg-2);
+}
+.pj-admin-quota-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+.pj-admin-quota-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.pj-admin-quota-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px 8px;
+}
+.pj-admin-quota-field label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--pj-text-2);
+  font-size: 12px;
+}
+.pj-admin-quota-field > label:first-child {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.pj-admin-quota-field input[type='number'] {
+  width: 90px;
+}
+
+/* Cuánto usa la persona, en el gestor de proyectos */
+.pj-quota {
+  border-bottom: 1px solid var(--pj-border);
+  background: var(--pj-bg-2);
+}
+.pj-quota-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  padding: 6px 16px;
+  list-style: none;
+  font-size: 12px;
+  color: var(--pj-text-2);
+}
+.pj-quota-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pj-quota-label {
+  color: var(--pj-text);
+}
+.pj-quota-line[data-level='full'] .pj-quota-text {
+  color: var(--pj-error);
+  font-weight: 600;
+}
+.pj-quota-line[data-level='near'] .pj-quota-text {
+  color: var(--pj-warning);
+  font-weight: 600;
+}
+.pj-quota > .pj-warn,
+.pj-quota > .pj-error {
+  font-size: 13px;
+}
+
 /* En una pantalla pequeña cada cuenta es una tarjeta: nada obliga a desplazarse de lado. La tabla conserva su semántica (roles explícitos en el HTML). */
 @media (max-width: 700px) {
   .pj-admin-body {

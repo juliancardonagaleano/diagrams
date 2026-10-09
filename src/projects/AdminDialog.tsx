@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ProjectError, type AdminAccount, type PublicUser, type SiteRole } from '@iark/kernel';
 import { INSTANCE_LOGIN, safeAvatarUrl, SITE_ROLE_HELP, SITE_ROLE_TITLE, SITE_ROLES } from './people';
+import { accountLevel, draftOf, formatBytes, percentOf, quotaChangeOf, type QuotaDraft, type QuotaMode } from './quota';
 import type { ProjectSession } from './session';
 
 export interface AdminDialogProps {
@@ -21,16 +22,17 @@ const FILTERS: ReadonlyArray<{ id: Filter; label: string }> = [
   { id: 'disabled', label: 'Desactivadas' },
 ];
 
-type SortKey = 'role' | 'login' | 'lastLogin' | 'projects';
+type SortKey = 'role' | 'login' | 'lastLogin' | 'projects' | 'usage';
 const SORTS: ReadonlyArray<{ id: SortKey; label: string }> = [
   { id: 'role', label: 'Rol (administradores primero)' },
   { id: 'login', label: 'Usuario (A–Z)' },
   { id: 'lastLogin', label: 'Último acceso (el más reciente primero)' },
   { id: 'projects', label: 'Proyectos (los que más, primero)' },
+  { id: 'usage', label: 'Espacio (los que más usan, primero)' },
 ];
 
 /** Qué hacer con el foco cuando termina lo que se estaba haciendo y la pantalla se vuelve a pintar. */
-type FocusTarget = 'invite' | { id: string; target: 'role' | 'toggle' };
+type FocusTarget = 'invite' | { id: string; target: 'role' | 'toggle' | 'quota' };
 
 const fold = (text: string): string => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 const byLogin = (a: AdminAccount, b: AdminAccount): number => a.login.localeCompare(b.login, 'es', { sensitivity: 'base' });
@@ -42,6 +44,7 @@ const COMPARE: Record<SortKey, (a: AdminAccount, b: AdminAccount) => number> = {
   login: () => 0,
   lastLogin: (a, b) => lastSeen(b) - lastSeen(a),
   projects: (a, b) => b.projects - a.projects,
+  usage: (a, b) => (b.usage?.bytes ?? 0) - (a.usage?.bytes ?? 0),
 };
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
@@ -72,6 +75,20 @@ function lastAccess(account: AdminAccount): { text: string; full?: string } {
   if (seconds < 30 * 86400) return { text: `hace ${plural(Math.round(seconds / 86400), 'día', 'días')}`, full };
   return { text: new Date(time).toLocaleDateString('es'), full };
 }
+
+const QUOTA_NAMES = { bytes: 'espacio', projects: 'proyectos', diagramsPerProject: 'diagramas por proyecto' } as const;
+
+/** Un tope en una frase: `sin tope`, `256 MB`, `25`. */
+const limitText = (key: keyof typeof QUOTA_NAMES, value: number): string => (value === 0 ? 'sin tope' : key === 'bytes' ? formatBytes(value) : String(value));
+
+/** La cuota personal de una cuenta en una frase: solo lo que tiene fijado ella, no lo que le viene de la instancia. */
+function describeQuota(account: AdminAccount): string {
+  const own = account.quota ?? {};
+  const parts = (Object.keys(QUOTA_NAMES) as Array<keyof typeof QUOTA_NAMES>).flatMap((key) => (own[key] === undefined ? [] : [`${QUOTA_NAMES[key]} ${limitText(key, own[key])}`]));
+  return parts.length > 0 ? parts.join(', ') : 'los de la instancia';
+}
+
+const LEVEL_TEXT = { near: 'Cerca del tope', full: 'Tope alcanzado' } as const;
 
 /**
  * Qué le pasa a la persona según el error del servidor. El mensaje del servidor es claro y viene en español: se conserva (es lo que de verdad dijo
@@ -116,6 +133,8 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
   const [confirming, setConfirming] = useState<{ id: string; kind: 'disable' | 'cancel' } | undefined>();
   /** Roles elegidos que todavía no se han guardado, por id de cuenta. */
   const [drafts, setDrafts] = useState<Record<string, SiteRole>>({});
+  /** La cuenta cuya cuota se está editando, con el borrador de sus tres topes (el espacio, en MB) y, si lo escrito no vale, por qué. */
+  const [quotaEdit, setQuotaEdit] = useState<{ id: string; draft: QuotaDraft; error?: string } | undefined>();
   const dialog = useRef<HTMLDivElement>(null);
   const inviteInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -145,6 +164,7 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
       // un borrador que ya es el rol de la cuenta (o de una cuenta que ya no está) y una confirmación de una cuenta que ya no está, se descartan
       setDrafts((previous) => Object.fromEntries(Object.entries(previous).filter(([id, draft]) => list.some((a) => a.id === id && a.siteRole !== draft))));
       setConfirming((current) => (current && list.some((a) => a.id === current.id) ? current : undefined));
+      setQuotaEdit((current) => (current && list.some((a) => a.id === current.id) ? current : undefined));
     } catch (e) {
       if (!alive.current) return;
       const message = explain(e);
@@ -282,9 +302,47 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
     focusAfter.current = { id: account.id, target: 'toggle' };
   };
 
+  const startQuota = (account: AdminAccount): void => {
+    setConfirming(undefined);
+    setQuotaEdit({ id: account.id, draft: draftOf(account.quota, account.limits) });
+  };
+
+  const stopQuota = (account: AdminAccount): void => {
+    setQuotaEdit(undefined);
+    focusAfter.current = { id: account.id, target: 'quota' };
+  };
+
+  const saveQuota = (account: AdminAccount): void => {
+    if (!quotaEdit || quotaEdit.id !== account.id) return;
+    const result = quotaChangeOf(quotaEdit.draft);
+    if ('error' in result) {
+      setQuotaEdit({ ...quotaEdit, error: result.error });
+      return;
+    }
+    focusAfter.current = { id: account.id, target: 'quota' };
+    void act(async () => {
+      const saved = await session.setAccount(account.login, { quota: result.change });
+      said(
+        saved.account.quota
+          ? `Se guardó la cuota de @${saved.account.login}: ${describeQuota(saved.account)}.`
+          : `@${saved.account.login} vuelve a los topes de la instancia.`,
+      );
+      setQuotaEdit(undefined);
+      await load();
+    }, `No se pudo guardar la cuota de @${account.login}.`);
+  };
+
+  const editDraft = (key: keyof QuotaDraft, patch: Partial<QuotaDraft[keyof QuotaDraft]>): void =>
+    setQuotaEdit((current) => (current ? { id: current.id, draft: { ...current.draft, [key]: { ...current.draft[key], ...patch } } } : current));
+
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
       event.stopPropagation();
+      const editing = accounts?.find((a) => a.id === quotaEdit?.id);
+      if (editing) {
+        stopQuota(editing);
+        return;
+      }
       const pending = accounts?.find((a) => a.id === confirming?.id);
       if (pending) stopConfirming(pending);
       else onClose();
@@ -323,13 +381,145 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
   const pending = accounts?.filter((a) => a.pending).length ?? 0;
   const disabled = accounts?.filter((a) => a.disabled).length ?? 0;
   const filtering = query.trim() !== '' || filter !== 'all';
-  const ariaSort = (key: SortKey): 'ascending' | 'descending' | undefined => (sort === key ? (key === 'lastLogin' || key === 'projects' ? 'descending' : 'ascending') : undefined);
+  const ariaSort = (key: SortKey): 'ascending' | 'descending' | undefined => (sort === key ? (key === 'lastLogin' || key === 'projects' || key === 'usage' ? 'descending' : 'ascending') : undefined);
 
   const roleOptions = SITE_ROLES.map((r) => (
     <option key={r} value={r}>
       {SITE_ROLE_TITLE[r]}
     </option>
   ));
+
+  /** Lo que ocupa una cuenta frente a sus topes, y el botón para cambiarlos. */
+  const usageCell = (account: AdminAccount, open: boolean) => {
+    const { usage, limits } = account;
+    const level = accountLevel(usage, limits);
+    const percent = usage && limits ? percentOf(usage.bytes, limits.bytes) : undefined;
+    const own = account.quota && Object.keys(account.quota).length > 0;
+    return (
+      <div className="pj-admin-quota-cell">
+        {usage && limits ? (
+          <>
+            <span data-testid="admin-usage" data-level={level}>
+              {limits.bytes > 0 ? `${formatBytes(usage.bytes)} de ${formatBytes(limits.bytes)}` : `${formatBytes(usage.bytes)} (sin tope)`}
+            </span>
+            {percent !== undefined && <progress className="pj-quota-bar" value={percent} max={100} aria-label={`Espacio de @${account.login}: ${percent} % del tope`} />}
+            <small className="pj-hint" data-testid="admin-usage-projects">
+              {limits.projects > 0 ? `${usage.projects} de ${limits.projects} proyectos` : plural(usage.projects, 'proyecto propio', 'proyectos propios')}
+              {limits.diagramsPerProject > 0 ? ` · hasta ${plural(limits.diagramsPerProject, 'diagrama', 'diagramas')} cada uno` : ''}
+            </small>
+          </>
+        ) : (
+          <small className="pj-hint">{limits ? `Topes: espacio ${limitText('bytes', limits.bytes)}, proyectos ${limitText('projects', limits.projects)}.` : '—'}</small>
+        )}
+        <span className="pj-admin-states">
+          {own && (
+            <span className="pj-chip" title={`Cuota propia: ${describeQuota(account)}`} data-testid="admin-own-quota">
+              cuota propia
+            </span>
+          )}
+          {(level === 'near' || level === 'full') && (
+            <span className={`pj-chip ${level === 'full' ? 'pj-off' : 'pj-near'}`} data-testid="admin-usage-level" data-level={level}>
+              {LEVEL_TEXT[level]}
+            </span>
+          )}
+        </span>
+        {limits && (
+          <button
+            type="button"
+            onClick={() => (open ? stopQuota(account) : startQuota(account))}
+            disabled={busy || !INSTANCE_LOGIN.test(account.login)}
+            aria-expanded={open}
+            aria-label={`Cuota de @${account.login}`}
+            data-focus="quota"
+          >
+            Cuota…
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  /** La fila de debajo de una cuenta con el editor de su cuota: por cada tope, el valor de la instancia, sin tope o uno concreto. */
+  const quotaEditor = (account: AdminAccount, edit: { id: string; draft: QuotaDraft; error?: string }) => {
+    const errorId = `pj-admin-quota-error-${account.id}`;
+    const fields: ReadonlyArray<{ key: keyof QuotaDraft; label: string; unit: string }> = [
+      { key: 'bytes', label: 'Espacio', unit: 'MB' },
+      { key: 'projects', label: 'Proyectos', unit: 'proyectos' },
+      { key: 'diagramsPerProject', label: 'Diagramas por proyecto', unit: 'diagramas' },
+    ];
+    return (
+      <tr role="row" className="pj-admin-quota-row" data-testid="admin-quota-row" data-login={account.login}>
+        <td role="cell" colSpan={7}>
+          <form
+            className="pj-admin-quota-form"
+            aria-label={`Cuota de @${account.login}`}
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveQuota(account);
+            }}
+          >
+            <div className="pj-admin-quota-fields">
+              {fields.map(({ key, label, unit }) => {
+                const field = edit.draft[key];
+                return (
+                  <div className="pj-admin-quota-field" key={key}>
+                    <label>
+                      {label}
+                      <select
+                        aria-label={`Tope de ${label.toLowerCase()} de @${account.login}`}
+                        value={field.mode}
+                        disabled={busy}
+                        onChange={(e) => editDraft(key, { mode: e.target.value as QuotaMode })}
+                      >
+                        <option value="instance">Valor de la instancia</option>
+                        <option value="none">Sin tope</option>
+                        <option value="custom">Otro valor…</option>
+                      </select>
+                    </label>
+                    {field.mode === 'custom' && (
+                      <label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={key === 'bytes' ? 0.1 : 1}
+                          step={key === 'bytes' ? 'any' : 1}
+                          aria-label={`${label} de @${account.login}, en ${unit}`}
+                          aria-invalid={edit.error ? true : undefined}
+                          aria-describedby={edit.error ? errorId : undefined}
+                          value={field.amount}
+                          disabled={busy}
+                          onChange={(e) => editDraft(key, { amount: e.target.value })}
+                        />
+                        <span aria-hidden="true">{unit}</span>
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <small className="pj-hint">
+              «Valor de la instancia» son los topes con los que arrancó el servicio (<code>--max-bytes</code>, <code>--max-projects</code>, <code>--max-diagrams</code>); los administradores de la
+              instancia no tienen tope si no se les fija uno. Se cobran a quien posee el proyecto (su administrador más antiguo) y cuentan los documentos y todo su historial de versiones.
+            </small>
+            {edit.error && (
+              <p className="pj-error pj-admin-field-error" id={errorId} role="alert" data-testid="admin-quota-error">
+                {edit.error}
+              </p>
+            )}
+            <span className="pj-actions">
+              <button type="submit" className="pj-primary" disabled={busy} aria-label={`Guardar cuota de @${account.login}`}>
+                Guardar cuota
+              </button>
+              <button type="button" onClick={() => stopQuota(account)} disabled={busy} aria-label={`Cancelar el cambio de cuota de @${account.login}`}>
+                Cancelar
+              </button>
+            </span>
+          </form>
+        </td>
+      </tr>
+    );
+  };
 
   const row = (account: AdminAccount) => {
     const mine = account.id === me.id;
@@ -347,7 +537,8 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
     const seen = lastAccess(account);
     const asking = confirming?.id === account.id ? confirming.kind : undefined;
     return (
-      <tr key={account.id} role="row" data-testid="admin-row" data-account={account.id} data-login={account.login} data-role={account.siteRole} data-pending={account.pending ? 'true' : undefined} data-disabled={account.disabled ? 'true' : undefined}>
+      <Fragment key={account.id}>
+      <tr role="row" data-testid="admin-row" data-account={account.id} data-login={account.login} data-role={account.siteRole} data-pending={account.pending ? 'true' : undefined} data-disabled={account.disabled ? 'true' : undefined}>
         <th scope="row" role="rowheader" className="pj-admin-who">
           <div className="pj-admin-id">
             <Avatar account={account} />
@@ -415,6 +606,9 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
         <td role="cell" data-label="Proyectos">
           {account.projects}
         </td>
+        <td role="cell" data-label="Espacio" className="pj-admin-usage">
+          {usageCell(account, quotaEdit?.id === account.id)}
+        </td>
         <td role="cell" data-label="Acciones" className="pj-admin-actions">
           {asking ? (
             <span className="pj-confirm" role="alert" data-testid="admin-confirm">
@@ -449,6 +643,8 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
           )}
         </td>
       </tr>
+      {quotaEdit?.id === account.id && quotaEditor(account, quotaEdit)}
+      </Fragment>
     );
   };
 
@@ -619,6 +815,9 @@ export function AdminDialog({ session, me, onClose, notify }: AdminDialogProps) 
                           </th>
                           <th scope="col" role="columnheader" aria-sort={ariaSort('projects')}>
                             Proyectos
+                          </th>
+                          <th scope="col" role="columnheader" aria-sort={ariaSort('usage')}>
+                            Espacio y cuota
                           </th>
                           <th scope="col" role="columnheader">
                             <span className="pj-visually-hidden">Acciones</span>
