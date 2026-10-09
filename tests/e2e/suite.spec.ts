@@ -45,7 +45,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
       }),
     );
     await page.goto('/suite.html?manifest=' + encodeURIComponent('/otra/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('status')).toContainText('Instancia de datos v9.9.9 · 1 módulos');
+    await expect(page.getByRole('status')).toContainText('Instancia de datos v9.9.9 · 1 módulo');
     await expect(page.getByRole('navigation', { name: 'Módulos' }).getByRole('button')).toHaveCount(1);
     await expect.poll(() => page.frames().some((f) => f.url().includes('module=data'))).toBe(true);
   });
@@ -79,7 +79,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
     expect(asked, 'no se pidió el manifiesto ajeno antes de confirmar').toEqual([]);
 
     await page.getByRole('button', { name: 'Conectar' }).click();
-    await expect(page.getByRole('status')).toContainText('Instancia ajena v3.1.4 · 1 módulos');
+    await expect(page.getByRole('status')).toContainText('Instancia ajena v3.1.4 · 1 módulo');
     await expect(page.getByRole('alert')).toHaveCount(0); // el aviso se retira al conectar
     expect(asked).toEqual(['https://otra.example/.well-known/iark.json']);
     await expect.poll(() => page.frames().some((f) => f.url().includes('module=data') && f.url().includes('embed=1'))).toBe(true);
@@ -152,7 +152,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
       }),
     );
     await page.goto('/suite.html?manifest=' + encodeURIComponent('/futuro/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('status')).toContainText('Instancia del futuro v9.0.0 · 1 módulos (1 no compatible)');
+    await expect(page.getByRole('status')).toContainText('Instancia del futuro v9.0.0 · 1 módulo (1 no compatible)');
     await expect(page.getByRole('alert')).toContainText('«security» exige la versión 99 del contrato de módulos');
     await expect(page.getByRole('navigation', { name: 'Módulos' }).getByRole('button')).toHaveCount(1);
     await expect.poll(() => page.frames().some((f) => f.url().includes('module=data') && f.url().includes('embed=1'))).toBe(true);

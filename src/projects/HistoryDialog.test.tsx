@@ -8,6 +8,7 @@ import { FAKE_DOC, fakeModule, type FakeDoc } from '../modules-app/testing-edito
 import { createProjectSession } from './factory';
 import { HistoryDialog, type HistoryDialogProps } from './HistoryDialog';
 import { ProjectSession } from './session';
+import { resetLang, setLang } from '../i18n';
 import { fakeServer, type FakePerson, type FakeServer } from './testing';
 
 /**
@@ -545,5 +546,54 @@ describe('historial de versiones (cuadro)', () => {
       await userEvent.click(screen.getByRole('dialog').parentElement!);
       expect(props.onClose).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe('historial de versiones (cuadro) en inglés', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    setLang('en', { persist: false });
+  });
+  afterEach(() => {
+    cleanup();
+    resetLang();
+  });
+
+  it('todo el cuadro sale en inglés: título, lista, resumen de cambios, fechas y plurales', async () => {
+    const setup = await remote('admin');
+    open(setup);
+    await loaded();
+    const dialog = screen.getByRole('dialog', { name: 'Version history' });
+    expect(dialog).toHaveTextContent('“Pedidos” · project “Tienda” · server localhost:8787');
+    expect(screen.getByTestId('history-count')).toHaveTextContent('3 versions');
+    expect(items()[0]).toHaveTextContent('Version 3');
+    expect(items()[0]).toHaveTextContent('Current');
+    await waitFor(() => expect(screen.getByTestId('history-summary')).toBeInTheDocument());
+    expect(screen.getByTestId('history-summary')).toHaveTextContent('1 modified (1 field). From version 2 to the current diagram.');
+    expect(screen.getByTestId('history-changed')).toHaveTextContent('Modified (1)');
+    expect(screen.getByRole('region', { name: 'Versions' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Actions on version 2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    // la fecha sigue el formato del idioma (mes escrito en inglés, no «ene», «feb»…)
+    expect(items()[0].querySelector('time')?.textContent).toMatch(/^[A-Z][a-z]{2} \d{1,2}, \d{4}/);
+  });
+
+  it('confirmar y restaurar usan los textos en inglés, con el nombre del diagrama', async () => {
+    const setup = await remote('admin');
+    open(setup);
+    await loaded();
+    await userEvent.click(screen.getByRole('button', { name: 'Restore this version' }));
+    expect(screen.getByTestId('history-confirm-restore')).toHaveTextContent('Restore version 2? The diagram “Pedidos” will take on its content');
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, restore' }));
+    await waitFor(() => expect(screen.getByTestId('history-note')).toHaveTextContent('Version 2 restored: it was saved as version 4.'));
+  });
+
+  it('las pistas por rol salen en inglés (un lector puede consultar pero no restaurar)', async () => {
+    const setup = await remote('viewer');
+    setup.server!.role = 'viewer';
+    open(setup);
+    await loaded();
+    expect(screen.getByTestId('history-hint')).toHaveTextContent('Your role in the project (reader) lets you consult the history but not restore or name versions.');
   });
 });
