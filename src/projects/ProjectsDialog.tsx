@@ -83,9 +83,13 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
   const live = current?.();
 
   useEffect(() => {
+    // Al cerrar, el foco vuelve a quien abrió el gestor (WCAG 2.4.3), si sigue en la página.
+    const opener = document.activeElement instanceof HTMLElement && !dialogRef.current?.contains(document.activeElement) ? document.activeElement : undefined;
     // Si el panel ya llevó el foco a su campo (el servidor rechazó el token: abre directamente en el token), se respeta.
-    if (dialogRef.current?.contains(document.activeElement)) return;
-    dialogRef.current?.querySelector<HTMLElement>('input, button')?.focus();
+    if (!dialogRef.current?.contains(document.activeElement)) dialogRef.current?.querySelector<HTMLElement>('input, button')?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
   }, []);
   // Con un servidor, mientras el gestor está abierto la lista se mantiene al día (no hay aviso entre equipos); lee al abrir.
   useEffect(() => session.watch(), [session]);
@@ -367,12 +371,12 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
     <>
     <div className="pj-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="pj-dialog" role="dialog" aria-modal="true" aria-labelledby="pj-title" ref={dialogRef} tabIndex={-1} onKeyDown={onKeyDown} data-testid="projects-dialog">
-        <header className="pj-head">
+        <div className="pj-head">
           <h2 id="pj-title">Proyectos</h2>
           <button type="button" onClick={onClose} aria-label="Cerrar">
             ✕
           </button>
-        </header>
+        </div>
 
         {!state.available && (
           <p className="pj-warn" role="alert">

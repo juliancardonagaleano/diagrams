@@ -84,7 +84,7 @@ export function DiagramPanel({ controller, state }: PanelProps) {
           {renderError}
         </div>
       )}
-      <div className={`wb-stage${fit ? ' fit' : ''}`} data-testid="diagram-stage">
+      <div className={`wb-stage${fit ? ' fit' : ''}`} data-testid="diagram-stage" tabIndex={0} role="region" aria-label="Dibujo del diagrama (se desplaza con las flechas)">
         {svg ? (
           <img alt={`Diagrama de la vista ${viewId ?? ''} del módulo ${module?.name ?? ''}`} src={svgDataUrl(svg)} data-view={viewId} />
         ) : (
@@ -273,11 +273,11 @@ export function ReportsPanel({ controller, state, notify }: PanelProps) {
   return (
     <div className="wb-panel" role="tabpanel" aria-label="Informes">
       {state.analysis.status !== 'ok' && <div className="wb-note" style={{ margin: '0 0 10px' }}>Los informes leen el documento del editor: corrige sus problemas antes de generarlos.</div>}
-      {reports.length > 0 && <h3 style={{ marginTop: 0 }}>Informes del documento</h3>}
+      {reports.length > 0 && <h2 style={{ marginTop: 0 }}>Informes del documento</h2>}
       {reports.map((c) => (
         <CommandCard key={`${state.moduleId}:${c.name}`} controller={controller} command={c} notify={notify} />
       ))}
-      {converts.length > 0 && <h3>Crear este documento a partir de otro módulo</h3>}
+      {converts.length > 0 && <h2>Crear este documento a partir de otro módulo</h2>}
       {converts.map((c) => (
         <CommandCard key={`${state.moduleId}:${c.name}`} controller={controller} command={c} notify={notify} />
       ))}
@@ -347,7 +347,7 @@ export function ExportPanel({ controller, state, notify }: PanelProps) {
       )}
       {preview?.format === 'mermaid' && (
         <>
-          <h3>Dibujo de Mermaid</h3>
+          <h2>Dibujo de Mermaid</h2>
           <MermaidPreview text={preview.data} label={`Vista previa de Mermaid${state.viewId ? ` (${state.viewId})` : ''}`} />
         </>
       )}

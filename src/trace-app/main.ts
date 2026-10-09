@@ -26,6 +26,7 @@ import {
 import { downloadText, readFile, svgDataUrl } from '../modules-app/files';
 import { MODULE_SOURCES } from '../modules-app/modules';
 import { heatLevel, TraceBoard } from './board';
+import { tabIndexDePestana, teclasDePestanas } from '../modules-app/a11y/pestanas';
 
 /**
  * Vista de trazabilidad entre módulos (`trazabilidad.html`): reúne los documentos de varios módulos (ejemplos, archivos o
@@ -153,10 +154,14 @@ const TABS: Array<{ id: TabId; label: string }> = [
 ];
 let tab: TabId = (params.get('tab') as TabId | null) && TABS.some((t) => t.id === params.get('tab')) ? (params.get('tab') as TabId) : 'graph';
 
-const panels = new Map<TabId, HTMLElement>(TABS.map((t) => [t.id, h('section', { class: 'tr-panel', role: 'tabpanel', id: `panel-${t.id}`, 'aria-labelledby': `tab-${t.id}` })]));
+const panels = new Map<TabId, HTMLElement>(TABS.map((t) => [t.id, h('section', { class: 'tr-panel', role: 'tabpanel', id: `panel-${t.id}`, 'aria-labelledby': `tab-${t.id}`, tabindex: 0 })]));
 el('panels').append(...panels.values());
 
+el('tabs').addEventListener('keydown', teclasDePestanas);
+
 function renderTabs(counts: Partial<Record<TabId, number>>): void {
+  // Las pestañas se vuelven a crear en cada dibujo: si una tenía el foco (se llegó a ella con las flechas), la nueva lo recupera.
+  const focused = el('tabs').contains(document.activeElement) ? document.activeElement?.id : undefined;
   el('tabs').replaceChildren(
     ...TABS.map((t) =>
       h(
@@ -166,6 +171,7 @@ function renderTabs(counts: Partial<Record<TabId, number>>): void {
           role: 'tab',
           id: `tab-${t.id}`,
           'aria-selected': String(tab === t.id),
+          tabindex: tabIndexDePestana(tab === t.id, false, false),
           'aria-controls': `panel-${t.id}`,
           onClick: () => {
             tab = t.id;
@@ -177,6 +183,7 @@ function renderTabs(counts: Partial<Record<TabId, number>>): void {
     ),
   );
   for (const [id, panel] of panels) panel.hidden = id !== tab;
+  if (focused) document.getElementById(focused)?.focus();
 }
 
 const nodeLabel = (n: TraceNode): string => `${n.name} (${n.module}:${n.id})`;
@@ -226,7 +233,7 @@ function renderLinks(graph: TraceGraph): void {
       h(
         'div',
         { class: 'tr-pair' },
-        h('h3', {}, `${pair} (${rows.length})`),
+        h('h2', {}, `${pair} (${rows.length})`),
         h(
           'table',
           { class: 'tr-table' },
@@ -241,7 +248,7 @@ function renderLinks(graph: TraceGraph): void {
           h(
             'div',
             { class: 'tr-pair' },
-            h('h3', {}, `Avisos (${graph.notices.length})`),
+            h('h2', {}, `Avisos (${graph.notices.length})`),
             h('ul', { class: 'tr-notices' }, ...graph.notices.map((n) => h('li', {}, nodeLabel(byUrn.get(n.from)!), ': ', n.message))),
           ),
         ]),
@@ -447,7 +454,7 @@ function renderOrphans(graph: TraceGraph): void {
       h(
         'section',
         { class: 'tr-orphan-group' },
-        h('h3', {}, `${board.label(g.module)} · ${g.kind} (${g.orphans.length} de ${g.total})`),
+        h('h2', {}, `${board.label(g.module)} · ${g.kind} (${g.orphans.length} de ${g.total})`),
         h('ul', {}, ...g.orphans.map((n) => h('li', {}, n.name, ' ', h('small', {}, n.id)))),
       ),
     ),
@@ -521,7 +528,7 @@ function renderCoverage(): void {
             h(
               'section',
               { class: 'tr-coverage-detail' },
-              h('h3', {}, h('code', {}, r.rule.text)),
+              h('h2', {}, h('code', {}, r.rule.text)),
               ...(r.note ? [h('p', { class: 'tr-note' }, r.note)] : []),
               ...(r.applicable
                 ? [

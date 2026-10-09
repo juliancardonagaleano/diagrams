@@ -5,16 +5,27 @@
   --wb-border: #d9dde3;
   --wb-text: #1f2430;
   --wb-text-2: #566070;
+  /* `--wb-primary` es un FONDO con texto `--wb-primary-text` encima; `--wb-primary-ink` es primario usado COMO TEXTO o línea sobre las superficies. Con el tema oscuro no pueden ser el mismo color (blanco sobre él y él sobre el fondo oscuro no llegan a 4,5:1 a la vez). */
   --wb-primary: #175e7a;
   --wb-primary-hover: #1b6f90;
   --wb-primary-text: #ffffff;
+  --wb-primary-ink: #175e7a;
+  /* Anillo de foco (WCAG 2.4.7 y 1.4.11: al menos 3:1 con la superficie que lo rodea). */
+  --wb-focus: #175e7a;
+  /* Borde de los campos de texto y selectores (1.4.11: 3:1, porque es lo que los distingue del fondo). Los divisores decorativos siguen en `--wb-border`. */
+  --wb-control-border: #6b7686;
+  --wb-muted: #566070;
   --wb-error: #b42318;
   --wb-error-bg: #fdecea;
   --wb-warning: #9a5b00;
   --wb-warning-bg: #fff4e0;
   --wb-info: #175e7a;
   --wb-info-bg: #e6f2f7;
-  --wb-ok: #1a7f43;
+  --wb-ok: #166a38;
+  /* Rellenos sólidos con texto blanco encima (los signos «+», «−» y «~» de Comparar): iguales en los dos temas. */
+  --wb-ok-solid: #166a38;
+  --wb-error-solid: #b42318;
+  --wb-warning-solid: #8a5200;
   --wb-canvas: #ffffff;
   --wb-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --wb-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
@@ -28,8 +39,12 @@
   --wb-border: #333944;
   --wb-text: #e6e8ec;
   --wb-text-2: #a0a8b5;
-  --wb-primary: #2c8ab0;
-  --wb-primary-hover: #3aa0c8;
+  --wb-primary: #1d7295;
+  --wb-primary-hover: #195f7d;
+  --wb-primary-ink: #6cc0e2;
+  --wb-focus: #6cc0e2;
+  --wb-control-border: #7c8594;
+  --wb-muted: #a0a8b5;
   --wb-error: #ff8d84;
   --wb-error-bg: #3a1d1b;
   --wb-warning: #ffc76b;
@@ -81,8 +96,8 @@ button,
   cursor: not-allowed;
 }
 .wb-btn:focus-within {
-  outline: 2px solid var(--wb-primary);
-  outline-offset: 1px;
+  outline: 2px solid var(--wb-focus);
+  outline-offset: 2px;
 }
 .wb-btn:hover:not(.disabled),
 button:hover:not(:disabled) {
@@ -101,15 +116,21 @@ button.primary:hover:not(:disabled) {
   background: var(--wb-primary-hover);
 }
 select,
+input[type='text'],
+input[type='number'],
+input[type='search'],
+textarea {
+  border: 1px solid var(--wb-control-border);
+}
+select,
 input[type='text'] {
   padding: 5px 8px;
   border-radius: 6px;
-  border: 1px solid var(--wb-border);
   background: var(--wb-surface);
 }
 :focus-visible {
-  outline: 2px solid var(--wb-primary);
-  outline-offset: 1px;
+  outline: 2px solid var(--wb-focus);
+  outline-offset: 2px;
 }
 
 .wb {
@@ -132,7 +153,7 @@ input[type='text'] {
   align-items: baseline;
   gap: 8px;
   font-weight: 700;
-  color: var(--wb-primary);
+  color: var(--wb-primary-ink);
   text-decoration: none;
 }
 .wb-brand small {
@@ -252,8 +273,8 @@ input[type='text'] {
   white-space: nowrap;
 }
 .wb-tabs button[aria-selected='true'] {
-  border-bottom-color: var(--wb-primary);
-  color: var(--wb-primary);
+  border-bottom-color: var(--wb-primary-ink);
+  color: var(--wb-primary-ink);
   font-weight: 600;
 }
 .wb-panel {
@@ -262,6 +283,7 @@ input[type='text'] {
   overflow: auto;
   padding: 12px;
 }
+.wb-panel h2 { font-size: 1.17em; margin: 1em 0; }
 .wb-panel.diagram {
   display: flex;
   flex-direction: column;
@@ -337,7 +359,7 @@ input[type='text'] {
   border: 0;
   padding: 0;
   background: none;
-  color: var(--wb-primary);
+  color: var(--wb-primary-ink);
   text-decoration: underline;
   text-align: left;
 }
@@ -380,7 +402,7 @@ input[type='text'] {
   font-size: 12px;
   padding: 6px 8px;
   border-radius: 6px;
-  border: 1px solid var(--wb-border);
+  border: 1px solid var(--wb-control-border);
   background: var(--wb-surface);
 }
 pre.wb-out {
@@ -428,13 +450,38 @@ pre.wb-out {
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+/* Enlace «Saltar al contenido» (WCAG 2.4.1): invisible hasta que recibe el foco. */
+.wb-skip {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 100;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: var(--wb-primary);
+  color: var(--wb-primary-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.wb-skip:focus {
+  top: 8px;
+}
+/* El título de la página (`h1`) envuelve la marca sin cambiar cómo se ve. */
+.wb-title {
+  display: flex;
+  margin: 0;
+  font: inherit;
+}
+.wb-main:focus {
+  outline: none;
+}
 
 .wb[data-ui='min'] .wb-header {
   justify-content: flex-end;
   padding: 4px 10px;
 }
 .wb-link {
-  color: var(--wb-primary);
+  color: var(--wb-primary-ink);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -447,7 +494,7 @@ pre.wb-out {
 .wb-main[data-mode='canvas'] .wb-editor { display: none; }
 
 .wb-import-preview { margin: 4px 0 0; }
-.wb-import-preview summary { cursor: pointer; font-size: 12px; color: var(--wb-muted, #64748b); }
+.wb-import-preview summary { cursor: pointer; font-size: 12px; color: var(--wb-muted); }
 
 /* Pestaña de adjuntos (los contratos de un módulo): lista a la izquierda y editor a la derecha. */
 .wb-panel.at-panel { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: 0; padding: 0; overflow: hidden; }
@@ -473,7 +520,7 @@ pre.wb-out {
 .at-toolbar .at-danger { margin-left: auto; border-color: var(--wb-error); background: var(--wb-error-bg); color: var(--wb-error); }
 .at-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: var(--wb-warning-bg); color: var(--wb-warning); font-size: 12px; }
 .at-confirm span { flex: 1 1 240px; }
-.at-text { flex: 1 0 260px; width: 100%; min-height: 260px; resize: vertical; padding: 10px 12px; border: 1px solid var(--wb-border); border-radius: 6px; background: var(--wb-surface); font-family: var(--wb-mono); font-size: 12px; line-height: 18px; white-space: pre; overflow: auto; tab-size: 2; }
+.at-text { flex: 1 0 260px; width: 100%; min-height: 260px; resize: vertical; padding: 10px 12px; border: 1px solid var(--wb-control-border); border-radius: 6px; background: var(--wb-surface); font-family: var(--wb-mono); font-size: 12px; line-height: 18px; white-space: pre; overflow: auto; tab-size: 2; }
 .at-diagnostics { display: grid; gap: 6px; font-size: 12px; }
 .at-diagnostics .wb-issues li { padding: 6px 10px; }
 .at-diagnostics .wb-chip { justify-self: start; }
@@ -482,7 +529,7 @@ pre.wb-out {
 .at-section ul { margin: 0; padding: 0 10px 8px 28px; }
 .at-section .at-muted { padding: 0 10px 6px; }
 .at-section ul.at-used { padding-left: 10px; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.at-used button { padding: 3px 8px; font-size: 12px; }
+.at-used button { padding: 3px 8px; font-size: 12px; min-height: 24px; }
 .at-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 8px; }
 .at-chip { padding: 2px 8px; font-size: 12px; font-family: var(--wb-mono); border-radius: 10px; }
 .at-used small { color: var(--wb-text-2); }
@@ -495,13 +542,13 @@ pre.wb-out {
 .wb-compare-paste summary { cursor: pointer; font-size: 12px; color: var(--wb-text-2); }
 .wb-compare-paste textarea { display: block; width: 100%; margin: 6px 0; font-family: var(--wb-mono); font-size: 12px; }
 .wb-compare-summary { margin: 0; font-size: 13px; }
-.wb-compare-section h3 { margin: 4px 0; font-size: 13px; }
-.wb-compare-section h4 { margin: 8px 0 2px; color: var(--wb-text-2); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; font-family: var(--wb-mono); }
+.wb-compare-section h2 { margin: 4px 0; font-size: 13px; }
+.wb-compare-section h3 { margin: 8px 0 2px; color: var(--wb-text-2); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; font-family: var(--wb-mono); }
 .wb-compare-section ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
 .wb-compare-sign { display: inline-block; width: 18px; height: 18px; border-radius: 4px; color: #fff; font-weight: 700; text-align: center; line-height: 18px; }
-.wb-compare-sign.added { background: var(--wb-ok); }
-.wb-compare-sign.removed { background: var(--wb-error); }
-.wb-compare-sign.changed { background: var(--wb-warning); }
+.wb-compare-sign.added { background: var(--wb-ok-solid); }
+.wb-compare-sign.removed { background: var(--wb-error-solid); }
+.wb-compare-sign.changed { background: var(--wb-warning-solid); }
 .wb-change { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 3px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--wb-text); font: inherit; font-size: 12px; text-align: left; }
 button.wb-change { cursor: pointer; }
 button.wb-change:hover { border-color: var(--wb-primary); background: var(--wb-info-bg); }
@@ -559,4 +606,16 @@ button.wb-change:hover { border-color: var(--wb-primary); background: var(--wb-i
   border-radius: 6px;
   background: var(--wb-warning-bg);
   color: var(--wb-text);
+}
+
+/* Movimiento reducido (WCAG 2.3.3): quien lo pide en su sistema no ve animaciones ni transiciones que no sean esenciales. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
