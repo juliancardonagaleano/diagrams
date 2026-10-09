@@ -1,5 +1,5 @@
 import type { DomainModule, EntityRef, Exporter, Importer, ModuleIssue, ViewRef } from '@iark/kernel';
-import { looksLikeMermaid } from '@iark/kernel';
+import { CONTRACT_VERSION, looksLikeMermaid } from '@iark/kernel';
 import { dataAiSpec } from './ai/generation';
 import { dataCommands } from './commands';
 import { toDdl } from './ddl';
@@ -87,6 +87,7 @@ export const dataModule: DomainModule<DataDocument> = {
   name: 'Arquitectura de datos',
   version: '0.1.0',
   description: 'Linaje, modelo entidad-relación (pata de gallo o UML), gobierno del dato y catálogo (productos de datos, APIs y glosario): dominios, pipelines, clasificación, datos personales y contratos por motor de base de datos; importa de Mermaid, DDL de SQL y dbt y exporta a Mermaid, SVG, draw.io y DDL.',
+  contractVersion: CONTRACT_VERSION,
   documentVersion: DATA_DOCUMENT_VERSION,
   schema: dataDocumentSchema as unknown as DomainModule<DataDocument>['schema'],
   jsonSchema: dataJsonSchema,

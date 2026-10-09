@@ -33,7 +33,7 @@ import type { TokenStore } from './tokens';
  *   POST /api/<módulo>/import?importer=&name=   cuerpo: texto (Mermaid…) → { document, warnings, importer }
  *   POST /api/<módulo>/run/<comando>            cuerpo: { input?, args?, options? } → { output, warnings, kind }
  *   POST /api/<módulo>/diff                     cuerpo: { before, after } (dos documentos del módulo) → DocumentDiff: qué se añadió, quitó y modificó
- *   POST /api/trace                             cuerpo: { documents: [{ module, document }], from?, direction?, depth? } → { graph, from?, reached?, report, mermaid, svg }
+ *   POST /api/trace                             cuerpo: { documents: [{ module, document }], from?, direction?, depth?, types?, orphans?, matrix?, coverage? } → { graph, types?, from?, reached?, orphans?, matrix?, coverage?, report, mermaid, svg }
  *   GET  /healthz                               vivo: 200 { status: "ok" } sin autenticación ni detalles (lo consulta el HEALTHCHECK de la imagen)
  *   GET  /readyz                                listo: 200 o 503 con el estado (ok/fail) de cada comprobación: carpeta de trabajo, tokens, cuentas, cálculo
  *   GET  /metrics                               métricas de Prometheus; solo con `--metrics` (ver `observability/`): con token o solo desde loopback

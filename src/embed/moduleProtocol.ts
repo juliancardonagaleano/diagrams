@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EMBED_PROTOCOL_VERSION } from '@iark/kernel/protocol';
 
 /**
  * Protocolo postMessage de los módulos de la suite (`modulos.html?embed=1&proto=json&module=<id>`). Es el hermano del
@@ -9,9 +10,12 @@ import { z } from 'zod';
  * - `capabilities`: lo que ofrece la instancia (módulos, formatos de importación y exportación, vistas de traza, informes),
  *   en el evento `init` y bajo demanda con la acción `capabilities`. El anfitrión no necesita conocer el interior de ningún módulo.
  *
- * La versión sube de forma compatible: los campos nuevos son opcionales y un evento desconocido se ignora.
+ * La versión sube de forma compatible: los campos nuevos son opcionales y un evento desconocido se ignora. Es la misma
+ * del protocolo del editor C4 (`EMBED_PROTOCOL_VERSION`, `mayor.menor`): el `init` del iframe y el primer `load` del
+ * anfitrión la llevan en `version`, cada lado la compara con la suya (`negotiateProtocol`) y, si la mayor difiere, emite un
+ * `error` con `code: 'incompatible-protocol'` en vez de funcionar a medias. Un lado que no la declara habla 1.0.
  */
-export const MODULE_PROTOCOL_VERSION = '1.0';
+export const MODULE_PROTOCOL_VERSION = EMBED_PROTOCOL_VERSION;
 
 /** Documento de un módulo: el objeto o su texto JSON. */
 const documentValue = z.union([z.record(z.string(), z.unknown()), z.string()]);
@@ -20,6 +24,8 @@ const documentValue = z.union([z.record(z.string(), z.unknown()), z.string()]);
 
 export const moduleLoadActionSchema = z.object({
   action: z.literal('load'),
+  /** Versión del protocolo (`mayor.menor`) que habla el anfitrión; el SDK la añade siempre. Omitida vale 1.0. */
+  version: z.string().optional(),
   /** Módulo a abrir; si se omite, el que indicó la URL o el que ya está abierto. */
   module: z.string().optional(),
   /** Documento del módulo. Con `importer`, el texto en ese otro formato. Si se omite, se abre en blanco. */
@@ -104,6 +110,8 @@ export interface ModuleCapabilitiesInfo {
   name: string;
   version: string;
   description?: string;
+  /** Versión del contrato `DomainModule` del módulo. Opcional al leer: una instancia anterior no la publica y vale 1. */
+  contractVersion?: number;
   documentVersion: string;
   /** La instancia dibuja las vistas del módulo. */
   render: boolean;
@@ -204,6 +212,8 @@ export interface ModuleErrorEvent {
   message: string;
   issues?: Array<{ path: string; message: string }>;
   requestId?: string;
+  /** Qué clase de error es, si el anfitrión puede actuar según ella: `incompatible-protocol` (la versión mayor del protocolo difiere). */
+  code?: string;
 }
 
 export type ModuleEvent =

@@ -13,11 +13,11 @@
     { "id": "proveedor-correo", "name": "Proveedor de correo", "kind": "external", "zoneId": "internet", "owner": "Proveedor de correo" },
     { "id": "waf-lb", "name": "Balanceador y WAF", "kind": "process", "zoneId": "perimetro", "technology": "AWS ALB + WAF", "owner": "Plataforma", "classification": "internal" },
     { "id": "tienda-web", "name": "Tienda web", "kind": "process", "zoneId": "interna", "technology": "React SSR", "owner": "Equipo Web", "classification": "confidential" },
-    { "id": "pedidos", "name": "Servicio de pedidos", "kind": "process", "zoneId": "interna", "technology": "Java, Spring Boot", "owner": "Equipo Pedidos", "classification": "restricted", "ref": "urn:iark:platform:pedidos" },
-    { "id": "facturacion", "name": "Facturación", "kind": "process", "zoneId": "interna", "technology": ".NET", "owner": "Equipo Finanzas", "classification": "confidential", "ref": "urn:iark:platform:facturacion" },
-    { "id": "notificaciones", "name": "Notificaciones", "kind": "process", "zoneId": "interna", "technology": "Node.js", "owner": "Equipo Web", "classification": "internal", "ref": "urn:iark:platform:notificaciones" },
-    { "id": "kafka", "name": "Bus de eventos", "kind": "process", "zoneId": "interna", "technology": "Kafka", "owner": "Plataforma", "classification": "confidential", "ref": "urn:iark:platform:kafka-prod" },
-    { "id": "pedidos-db", "name": "Base de pedidos", "kind": "datastore", "zoneId": "datos", "technology": "PostgreSQL 15", "owner": "Equipo Pedidos", "classification": "confidential", "encryptedAtRest": true, "ref": "urn:iark:platform:pedidos-db-prod" },
+    { "id": "pedidos", "name": "Servicio de pedidos", "kind": "process", "zoneId": "interna", "technology": "Java, Spring Boot", "owner": "Equipo Pedidos", "classification": "restricted", "ref": "urn:iark:platform:pedidos", "refType": "protects" },
+    { "id": "facturacion", "name": "Facturación", "kind": "process", "zoneId": "interna", "technology": ".NET", "owner": "Equipo Finanzas", "classification": "confidential", "ref": "urn:iark:platform:facturacion", "refType": "protects" },
+    { "id": "notificaciones", "name": "Notificaciones", "kind": "process", "zoneId": "interna", "technology": "Node.js", "owner": "Equipo Web", "classification": "internal", "ref": "urn:iark:platform:notificaciones", "refType": "protects" },
+    { "id": "kafka", "name": "Bus de eventos", "kind": "process", "zoneId": "interna", "technology": "Kafka", "owner": "Plataforma", "classification": "confidential", "ref": "urn:iark:platform:kafka-prod", "refType": "protects" },
+    { "id": "pedidos-db", "name": "Base de pedidos", "kind": "datastore", "zoneId": "datos", "technology": "PostgreSQL 15", "owner": "Equipo Pedidos", "classification": "confidential", "encryptedAtRest": true, "ref": "urn:iark:platform:pedidos-db-prod", "refType": "protects" },
     { "id": "secretos", "name": "Almacén de secretos", "kind": "datastore", "zoneId": "datos", "technology": "Vault", "owner": "Plataforma", "classification": "restricted", "encryptedAtRest": true }
   ],
   "flows": [

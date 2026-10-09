@@ -216,3 +216,188 @@
   font: 12px/1.6 var(--wb-mono);
   white-space: pre-wrap;
 }
+
+/* ───────────── filtro por tipo de enlace ───────────── */
+.tr-types {
+  padding: 8px 14px 0;
+}
+.tr-types[hidden] {
+  display: none;
+}
+.tr-types-set {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--wb-border);
+  border-radius: 8px;
+  background: var(--wb-surface);
+}
+.tr-types-set legend {
+  padding: 0 6px;
+  color: var(--wb-text-2);
+  font-size: 12px;
+}
+.tr-types-set button {
+  padding: 2px 9px;
+  font-size: 12px;
+}
+.tr-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.tr-type small {
+  color: var(--wb-text-2);
+}
+.tr-types-note {
+  margin: 4px 2px 0;
+  color: var(--wb-text-2);
+  font-size: 12px;
+}
+.tr-link-type {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--wb-border);
+  border-radius: 999px;
+  color: var(--wb-text-2);
+  font: 12px var(--wb-mono);
+  white-space: nowrap;
+}
+.tr-link-type.typed {
+  border-color: var(--wb-info);
+  background: var(--wb-info-bg);
+  color: var(--wb-info);
+}
+.tr-notices {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+/* ───────────── matriz, huérfanos y cobertura ───────────── */
+.tr-note {
+  margin: 0 0 10px;
+  color: var(--wb-text-2);
+  font-size: 12px;
+}
+.tr-summary {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+.tr-scroll {
+  margin: 0 0 14px;
+  overflow-x: auto;
+}
+.tr-matrix th,
+.tr-matrix td {
+  text-align: center;
+}
+.tr-matrix tbody th,
+.tr-matrix tfoot th,
+.tr-breakdown tbody th,
+.tr-breakdown tfoot th,
+.tr-coverage tbody th {
+  text-align: left;
+}
+.tr-table caption {
+  padding: 0 0 6px;
+  color: var(--wb-text-2);
+  font-size: 12px;
+  text-align: left;
+}
+.tr-total {
+  background: var(--wb-surface-2);
+  font-weight: 600;
+}
+/* Cada nivel fija su color de fondo y de texto (contraste ≥ 4,5:1 en los dos temas); el número va siempre escrito en la celda. */
+.heat-0 {
+  background: transparent;
+  color: var(--wb-text-2);
+}
+.heat-1 {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+.heat-2 {
+  background: #93c5fd;
+  color: #0f172a;
+}
+.heat-3 {
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+}
+.heat-4 {
+  background: #1e3a8a;
+  color: #ffffff;
+  font-weight: 700;
+}
+.tr-swatch {
+  display: inline-block;
+  min-width: 52px;
+  padding: 1px 8px;
+  border: 1px solid var(--wb-border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.tr-orphan-group {
+  margin: 0 0 14px;
+}
+.tr-orphan-group h3,
+.tr-coverage-detail h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.tr-orphan-group ul,
+.tr-coverage-detail ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+}
+.tr-orphan-group small,
+.tr-coverage-detail small {
+  color: var(--wb-text-2);
+}
+.tr-coverage-form textarea {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  margin: 4px 0 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--wb-border);
+  border-radius: 6px;
+  background: var(--wb-surface-2);
+  font: 12px/1.5 var(--wb-mono);
+  resize: vertical;
+}
+.tr-coverage-form label[for] {
+  color: var(--wb-text-2);
+  font-size: 12px;
+}
+.tr-rule-errors {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  color: var(--wb-error);
+  font-size: 13px;
+}
+.tr-coverage {
+  margin-bottom: 12px;
+}
+.tr-coverage meter {
+  width: 90px;
+  vertical-align: middle;
+}
+.tr-coverage-detail {
+  margin: 0 0 12px;
+}
+.tr-coverage-detail summary {
+  cursor: pointer;
+  font-size: 13px;
+}

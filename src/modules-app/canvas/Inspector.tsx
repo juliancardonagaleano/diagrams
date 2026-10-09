@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { formatUrn, type EditResult, type EditorGraph, type EditorSpec, type EntityRef, type FieldSpec } from '@iark/kernel';
+import { DEFAULT_LINK_TYPE, formatUrn, type EditResult, type EditorGraph, type EditorSpec, type EntityRef, type FieldSpec } from '@iark/kernel';
 import type { Backlink } from '../links';
-import { resolveRef } from '../links';
+import { linkTypeOptions, resolveRef } from '../links';
 import type { SelectionItem } from './selection';
 
 /** Lo que el banco de trabajo sabe de los demás módulos, para enlazar sin escribir URN a mano. */
@@ -46,7 +46,10 @@ interface AttachmentBinding {
   create?(): void;
 }
 
-function RefPicker({ value, readOnly, links, onCommit }: { value: string; readOnly: boolean; links: LinkTools; onCommit(value: string): void }) {
+/** Lo que el selector de enlace cambia en el elemento: el destino (`ref`) y/o el tipo del enlace (`refType`; vacío = el de por omisión). */
+type RefPatch = { ref?: string; refType?: string };
+
+function RefPicker({ value, type, readOnly, links, onCommit }: { value: string; type: string; readOnly: boolean; links: LinkTools; onCommit(patch: RefPatch): void }) {
   const current = resolveRef(value);
   const [moduleId, setModuleId] = useState(current?.moduleId ?? '');
   const [entities, setEntities] = useState<EntityRef[]>([]);
@@ -61,11 +64,13 @@ function RefPicker({ value, readOnly, links, onCommit }: { value: string; readOn
       alive = false;
     };
   }, [moduleId, links]);
+  const typeOptions = linkTypeOptions(type || undefined);
+  const selectedType = typeOptions.find((t) => t.id === (type || DEFAULT_LINK_TYPE));
   return (
     <div className="cv-field" data-testid="ref-picker">
       <label htmlFor="cv-f-ref-module">Enlace a otro módulo</label>
       <div className="cv-ref-row">
-        <select id="cv-f-ref-module" value={moduleId} disabled={readOnly} onChange={(e) => (setModuleId(e.target.value), e.target.value === '' && onCommit(''))} aria-label="Módulo enlazado">
+        <select id="cv-f-ref-module" value={moduleId} disabled={readOnly} onChange={(e) => (setModuleId(e.target.value), e.target.value === '' && onCommit({ ref: '', refType: '' }))} aria-label="Módulo enlazado">
           <option value="">—</option>
           {links.modules.map((m) => (
             <option key={m.id} value={m.id}>
@@ -73,7 +78,7 @@ function RefPicker({ value, readOnly, links, onCommit }: { value: string; readOn
             </option>
           ))}
         </select>
-        <select value={current?.moduleId === moduleId ? current.elementId : ''} disabled={readOnly || !moduleId} onChange={(e) => e.target.value && onCommit(formatUrn(moduleId, e.target.value))} aria-label="Elemento enlazado">
+        <select value={current?.moduleId === moduleId ? current.elementId : ''} disabled={readOnly || !moduleId} onChange={(e) => e.target.value && onCommit({ ref: formatUrn(moduleId, e.target.value) })} aria-label="Elemento enlazado">
           <option value="">{moduleId ? (entities.length ? 'Elige un elemento' : 'Sin elementos') : '—'}</option>
           {entities.map((en) => (
             <option key={en.id} value={en.id}>
@@ -87,7 +92,16 @@ function RefPicker({ value, readOnly, links, onCommit }: { value: string; readOn
           </button>
         )}
       </div>
-      <small className="cv-hint">{value || 'Sin enlace'}</small>
+      <div className="cv-ref-row">
+        <select value={type || DEFAULT_LINK_TYPE} disabled={readOnly || !current} onChange={(e) => onCommit({ refType: e.target.value === DEFAULT_LINK_TYPE ? '' : e.target.value })} aria-label="Tipo de enlace" title={selectedType?.description} data-testid="ref-type">
+          {typeOptions.map((t) => (
+            <option key={t.id} value={t.id} title={t.description}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <small className="cv-hint">{value ? `${value} · ${type || DEFAULT_LINK_TYPE}` : 'Sin enlace'}</small>
     </div>
   );
 }
@@ -110,7 +124,7 @@ function Backlinks({ moduleId, elementId, links }: { moduleId: string; elementId
         {items.map((b) => (
           <li key={b.urn}>
             <button type="button" className="cv-tool" onClick={() => links.follow(b.urn)} title={`Ir a ${b.urn}`}>
-              {b.moduleLabel}: {b.name} <small>({b.kind})</small> ⤷
+              {b.moduleLabel}: {b.name} <small>({b.kind})</small> <small className="cv-link-type">{b.type}</small> ⤷
             </button>
           </li>
         ))}
@@ -257,13 +271,14 @@ export function Inspector({ spec, document, id, selection, readOnly, graph, modu
       <h3>
         {notation?.label ?? item.kind} <small>{id}</small>
       </h3>
-      {fields.map((f) =>
-        f.key === 'ref' && links ? (
-          <RefPicker key={`${id}:ref`} value={typeof item.values.ref === 'string' ? item.values.ref : ''} readOnly={readOnly} links={links} onCommit={(value) => onPatch(id, { ref: value })} />
-        ) : (
-          <Field key={`${id}:${f.key}`} field={f} value={item.values[f.key]} readOnly={readOnly} attachment={attachment} onCommit={(value) => onPatch(id, { [f.key]: value })} />
-        ),
-      )}
+      {fields.map((f) => {
+        // Con las herramientas de enlace, el selector del banco de trabajo se ocupa del destino y del tipo del enlace a la vez.
+        if (f.key === 'ref' && links) {
+          return <RefPicker key={`${id}:ref`} value={asText(item.values.ref)} type={asText(item.values.refType)} readOnly={readOnly} links={links} onCommit={(patch) => onPatch(id, patch)} />;
+        }
+        if (f.key === 'refType' && links) return null;
+        return <Field key={`${id}:${f.key}`} field={f} value={item.values[f.key]} readOnly={readOnly} attachment={attachment} onCommit={(value) => onPatch(id, { [f.key]: value })} />;
+      })}
       {links && moduleId && item.type === 'node' && <Backlinks moduleId={moduleId} elementId={id} links={links} />}
       {!readOnly && (
         <button type="button" className="cv-danger" onClick={() => onRemove(id)}>

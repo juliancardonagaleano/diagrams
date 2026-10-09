@@ -36,9 +36,13 @@ export function suiteManifest(registry: ModuleRegistry, options: SuiteManifestOp
   const api = options.api?.replace(/\/+$/, '');
   const endpoints: Record<string, ModuleManifest['endpoints']> = {};
   for (const module of registry.list()) {
+    // Un módulo de terceros (cargado desde `iark.config.json`) no está en el sitio: ni su editor en el banco de trabajo ni su JSON
+    // Schema estático existen, porque el sitio enlaza los seis módulos incorporados al compilarse. Se anuncian solo la API y el
+    // esquema que sirve la API; la web no puede abrirlo (ver docs/plugins.md, «Límites»).
+    const external = registry.originOf(module.id) !== undefined;
     const found = {
-      ...(site ? { embed: OWN_EDITOR.has(module.id) ? '../' : `../modulos.html?module=${module.id}` } : {}),
-      ...(site ? { schema: `../schema/${module.id}-document.schema.json` } : api ? { schema: `${api}/${module.id}/schema` } : {}),
+      ...(site && !external ? { embed: OWN_EDITOR.has(module.id) ? '../' : `../modulos.html?module=${module.id}` } : {}),
+      ...(site && !external ? { schema: `../schema/${module.id}-document.schema.json` } : api ? { schema: `${api}/${module.id}/schema` } : {}),
       ...(api ? { api: `${api}/${module.id}` } : {}),
     };
     if (Object.keys(found).length > 0) endpoints[module.id] = found;

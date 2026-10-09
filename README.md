@@ -101,6 +101,8 @@ Cada especialidad es un paquete `@iark/domain-*` que implementa el contrato `Dom
 
 `iark modules` lista los módulos instalados y los formatos que importan y exportan; los formatos están tabulados en [docs/importadores.md](docs/importadores.md).
 
+Una especialidad propia no necesita tocar este repositorio: un **módulo de terceros** es un paquete que implementa el contrato `DomainModule` y se carga desde un `iark.config.json` (`iark --config … modules`, `iark serve --config …`). Hay un ejemplo completo en [`examples/plugin-riesgos/`](examples/plugin-riesgos/) y la guía en [docs/plugins.md](docs/plugins.md); funcionan en el CLI y en el servicio, no en el sitio web.
+
 ## Superficies
 
 | Superficie | Dónde | Para qué | Más |
@@ -127,6 +129,7 @@ Lo imprescindible antes de exponer algo (el detalle está en cada documento y la
 - **Registros y métricas: apagados por omisión.** El registro de accesos (`--access-log`) y la auditoría (`--audit-log`) llevan el usuario de GitHub y la dirección IP, nunca credenciales ni contenido; `/metrics` (`--metrics`) exige un token o solo atiende a loopback, y el servicio se niega a arrancar con métricas abiertas fuera de loopback. `/healthz` y `/readyz` son públicos y sin detalles ([docs/observabilidad.md](docs/observabilidad.md)).
 - **Los tokens y las sesiones se guardan solo como hash** en disco; el secreto de la OAuth App de GitHub no tiene opción de línea de comandos (entorno o archivo).
 - **`--from-repo` solo lee una lista blanca** de archivos y redacta los secretos antes de enviar nada al modelo; `--dry-run` enseña exactamente qué se enviaría ([docs/ia.md](docs/ia.md)).
+- **Cargar un módulo de terceros ejecuta su código** con los permisos del proceso: solo se carga la configuración que señalas tú (`--config`, `IARK_CONFIG` o el `iark.config.json` del directorio actual), nunca la de un proyecto clonado (`--from-repo`) ni la de una carpeta de trabajo (`--workspace`); `--no-config` lo desactiva ([docs/plugins.md](docs/plugins.md)).
 - **Al embeber, fija el origen del anfitrión** (`&origin=https://mi-host`): sin él las respuestas de `postMessage` van a `*` ([docs/embebido.md](docs/embebido.md)).
 
 ## Documentación
@@ -134,7 +137,7 @@ Lo imprescindible antes de exponer algo (el detalle está en cada documento y la
 Todo lo que antes vivía en este README está en [`docs/`](docs/indice.md), con un mapa de dónde quedó cada sección:
 
 - **Usar**: [CLI](docs/cli.md) · [IA](docs/ia.md) · [importar y exportar](docs/importadores.md) · [proyectos](docs/proyectos.md) · [trazabilidad](docs/trazabilidad.md)
-- **Módulos**: [C4](docs/modulos/c4.md) · [integración](docs/modulos/integracion.md) · [datos](docs/modulos/datos.md) · [empresarial](docs/modulos/empresarial.md) · [plataforma](docs/modulos/plataforma.md) · [seguridad](docs/modulos/seguridad.md)
+- **Módulos**: [C4](docs/modulos/c4.md) · [integración](docs/modulos/integracion.md) · [datos](docs/modulos/datos.md) · [empresarial](docs/modulos/empresarial.md) · [plataforma](docs/modulos/plataforma.md) · [seguridad](docs/modulos/seguridad.md) · [módulos de terceros](docs/plugins.md)
 - **Operar**: [servicio](docs/servicio.md) · [inicio de sesión con GitHub](docs/cuentas-github.md) · [GitHub Pages](docs/despliegue-pages.md) · [guía de despliegue de la nube](docs/despliegue-nube.md) · [`deploy/`](deploy/)
 - **Desarrollar**: [desarrollo, estructura y pruebas](docs/desarrollo.md) · [hoja de ruta](docs/roadmap.md) · [historial](docs/historial.md)
 

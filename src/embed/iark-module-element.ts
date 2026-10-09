@@ -172,7 +172,7 @@ export class IarkModuleElement extends HTMLElement {
           else if (event.event === 'save') this.#emit(EVENT_NAMES.save, { module: event.module, document: event.document, exit: event.exit });
           else if (event.event === 'exit') this.#emit(EVENT_NAMES.exit, { modified: event.modified });
           else if (event.event === 'result') this.#emit(EVENT_NAMES.result, { module: event.module, command: event.command, kind: event.kind, output: event.output, warnings: event.warnings });
-          else if (event.event === 'error') this.#emit(EVENT_NAMES.error, { message: event.message, issues: event.issues });
+          else if (event.event === 'error') this.#emit(EVENT_NAMES.error, { message: event.message, issues: event.issues, ...(event.code ? { code: event.code } : {}) });
         },
       });
       this.#embed = embed;

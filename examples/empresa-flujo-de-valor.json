@@ -35,7 +35,7 @@
     {"id": "cierre-mensual", "name": "Cierre contable mensual", "ownerId": "finanzas"}
   ],
   "applications": [
-    {"id": "tienda-web", "name": "Tienda online", "technology": "React + Node.js", "ownerId": "ventas", "criticality": "critical", "annualCost": 180000, "users": 25000, "strategy": "keep", "ref": "urn:iark:integration:tienda-web"},
+    {"id": "tienda-web", "name": "Tienda online", "technology": "React + Node.js", "ownerId": "ventas", "criticality": "critical", "annualCost": 180000, "users": 25000, "strategy": "keep", "ref": "urn:iark:integration:tienda-web", "refType": "realizes"},
     {"id": "erp", "name": "ERP corporativo", "technology": "SAP S/4HANA", "vendor": "SAP", "ownerId": "finanzas", "criticality": "critical", "annualCost": 1200000, "users": 450, "strategy": "keep"},
     {"id": "crm", "name": "CRM", "technology": "Salesforce", "vendor": "Salesforce", "ownerId": "ventas", "criticality": "high", "annualCost": 240000, "users": 120, "strategy": "keep", "external": true},
     {"id": "motor-precios", "name": "Motor de precios", "technology": "Java + Redis", "ownerId": "ventas", "criticality": "medium"},
@@ -43,8 +43,8 @@
     {"id": "wms-nuevo", "name": "WMS nuevo", "technology": "Java + PostgreSQL", "ownerId": "logistica", "lifecycle": "planned", "criticality": "high", "annualCost": 150000, "users": 60, "strategy": "keep"},
     {"id": "tms", "name": "Gestión de transporte", "technology": "Transporeon", "vendor": "Transporeon", "ownerId": "logistica", "criticality": "medium", "annualCost": 48000, "users": 35, "strategy": "keep", "external": true},
     {"id": "portal-proveedores", "name": "Portal de proveedores", "technology": "Node.js", "ownerId": "logistica", "criticality": "medium", "annualCost": 30000, "users": 300, "strategy": "migrate"},
-    {"id": "facturacion-electronica", "name": "Facturación electrónica", "technology": "Java", "ownerId": "finanzas", "criticality": "high", "ref": "urn:iark:integration:facturacion"},
-    {"id": "pasarela-pagos", "name": "Pasarela de pagos", "technology": "Stripe", "vendor": "Stripe", "ownerId": "finanzas", "criticality": "high", "external": true, "ref": "urn:iark:integration:pasarela-pagos"},
+    {"id": "facturacion-electronica", "name": "Facturación electrónica", "technology": "Java", "ownerId": "finanzas", "criticality": "high", "ref": "urn:iark:integration:facturacion", "refType": "realizes"},
+    {"id": "pasarela-pagos", "name": "Pasarela de pagos", "technology": "Stripe", "vendor": "Stripe", "ownerId": "finanzas", "criticality": "high", "external": true, "ref": "urn:iark:integration:pasarela-pagos", "refType": "realizes"},
     {"id": "contact-center", "name": "Contact center", "technology": "Genesys Cloud", "vendor": "Genesys", "ownerId": "atencion", "criticality": "medium", "external": true}
   ],
   "technologies": [

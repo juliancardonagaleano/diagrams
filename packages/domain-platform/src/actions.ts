@@ -137,7 +137,7 @@ export function duplicateEnvironment(doc: PlatformDocument, environmentId: strin
     return { ...rest, id: networkIds.get(n.id)!, environmentId: newId, ...(n.parentId ? { parentId: networkIds.get(n.parentId)! } : {}) };
   });
   const resources: Resource[] = environmentResources.map((r) => {
-    const { networkId: _network, ref: _ref, counterpartOf: _counterpart, ...rest } = r;
+    const { networkId: _network, ref: _ref, refType: _refType, counterpartOf: _counterpart, ...rest } = r;
     return { ...rest, id: resourceIds.get(r.id)!, environmentId: newId, ...(r.networkId ? { networkId: networkIds.get(r.networkId)! } : {}), counterpartOf: r.id };
   });
   const deploymentIds = new Set(doc.deployments.map((d) => d.id));

@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "workspace": { "name": "Riesgos de la banca en línea" },
+  "risks": [
+    {
+      "id": "proveedor-unico",
+      "title": "Un único proveedor de correo transaccional",
+      "probability": 3,
+      "impact": 4,
+      "status": "open",
+      "owner": "ana",
+      "mitigation": "Contratar un segundo proveedor y conmutar por DNS",
+      "ref": "urn:iark:c4:email"
+    },
+    {
+      "id": "mainframe-fin-de-soporte",
+      "title": "El sistema bancario central pierde soporte del fabricante",
+      "probability": 4,
+      "impact": 5,
+      "status": "mitigating",
+      "owner": "luis",
+      "mitigation": "Migración por fases a la API de núcleo bancario",
+      "ref": "urn:iark:c4:mainframe"
+    },
+    {
+      "id": "sesiones-robadas",
+      "title": "Robo de sesiones de la aplicación web",
+      "probability": 4,
+      "impact": 4,
+      "status": "open",
+      "ref": "urn:iark:c4:web-app"
+    },
+    {
+      "id": "picos-de-carga",
+      "title": "Picos de carga en fin de mes",
+      "probability": 2,
+      "impact": 3,
+      "status": "accepted",
+      "owner": "marta",
+      "ref": "urn:iark:c4:api"
+    },
+    {
+      "id": "licencia-caducada",
+      "title": "Licencia del componente de firma caducada",
+      "probability": 1,
+      "impact": 2,
+      "status": "closed",
+      "owner": "ana"
+    }
+  ]
+}

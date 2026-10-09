@@ -1,5 +1,5 @@
 import type { DomainModule, EntityRef, Exporter, Importer, ModuleIssue, ViewRef } from '@iark/kernel';
-import { looksLikeMermaid } from '@iark/kernel';
+import { CONTRACT_VERSION, looksLikeMermaid } from '@iark/kernel';
 import { securityAiSpec } from './ai/generation';
 import { securityCommands } from './commands';
 import { securityEditor } from './editor';
@@ -56,6 +56,7 @@ export const securityModule: DomainModule<SecurityDocument> = {
   name: 'Arquitectura de seguridad',
   version: '0.1.0',
   description: 'Zonas de confianza, activos, flujos de datos, amenazas STRIDE y controles, con diagrama de flujo de datos, modelo de amenazas, riesgos y superficie de ataque; exporta a Mermaid, SVG y draw.io.',
+  contractVersion: CONTRACT_VERSION,
   documentVersion: SECURITY_DOCUMENT_VERSION,
   schema: securityDocumentSchema as unknown as DomainModule<SecurityDocument>['schema'],
   jsonSchema: securityJsonSchema,

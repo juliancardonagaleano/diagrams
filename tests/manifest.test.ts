@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { manifestSchema } from '@iark/kernel';
+import { CONTRACT_VERSION, EMBED_PROTOCOL_VERSION, manifestSchema } from '@iark/kernel';
 import { createDefaultRegistry } from '../src/cli/registry';
 import { suiteManifest } from '../src/cli/suiteManifest';
 import { MANIFEST_PATH, renderManifest } from '../scripts/generate-manifest';
@@ -16,6 +16,12 @@ describe('manifiesto de federación del sitio estático', () => {
     const parsed = manifestSchema.safeParse(published);
     expect(parsed.success).toBe(true);
     expect(published.modules.map((m: { id: string }) => m.id)).toEqual(createDefaultRegistry().ids());
+  });
+
+  it('publica la versión del protocolo embebido y el contrato de cada módulo (los lee el shell)', () => {
+    expect(published.protocol).toBe(EMBED_PROTOCOL_VERSION);
+    for (const module of published.modules) expect(module.contractVersion, module.id).toBe(CONTRACT_VERSION);
+    expect(published.schema).toBe('iark.manifest/1'); // el literal del esquema no cambia al añadir campos opcionales
   });
 
   it('cada endpoint apunta a algo que el sitio publica', () => {

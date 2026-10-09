@@ -1,4 +1,4 @@
-import { uniqueId, type EdgeNotation, type EditResult, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
+import { REF_TYPE_FIELD, uniqueId, type EdgeNotation, type EditResult, type EditorGraph, type EditorNode, type EditorSpec, type FieldSpec, type NodeNotation } from '@iark/kernel';
 import { ASSET_COLORS, assetFacts, ASSET_SHAPES, CONTROL_COLOR, CONTROL_SHAPE, FLOW_NODE_COLOR, FLOW_SHAPE, RISK_COLORS, STANDARD_STYLE, THREAT_SHAPE, ZONE_STYLES, buildScene, heatLayout, heatPlacement } from './export/render';
 import {
   ASSET_KINDS,
@@ -112,6 +112,7 @@ function nodeFields(kind: string, doc: SecurityDocument): FieldSpec[] {
       ...(kind === 'secret' ? [{ key: 'rotation', label: 'Rotación periódica', type: 'select', options: YES_NO, allowEmpty: true, hint: 'vacío = no se sabe' } as FieldSpec] : []),
       ...(kind === 'channel' ? [{ key: 'encrypted', label: 'Cifra el tráfico', type: 'select', options: YES_NO, allowEmpty: true, hint: 'vacío = no se sabe' } as FieldSpec] : []),
       { key: 'ref', label: 'Referencia (URN)', type: 'text', hint: 'urn:iark:<módulo>:<id>' },
+      REF_TYPE_FIELD,
       { key: 'tags', label: 'Etiquetas', type: 'list' },
     ];
   }
@@ -364,7 +365,7 @@ export const securityEditor: EditorSpec<SecurityDocument> = {
     if ((typeof patch.name === 'string' && patch.name.trim() === '') || (typeof patch.title === 'string' && patch.title.trim() === '')) return fail('El nombre no puede estar vacío.');
     switch (e.kind) {
       case 'asset': {
-        const next = patchObject(e.item as Asset, patch, ['name', 'description', 'kind', 'zoneId', 'technology', 'owner', 'classification', 'encryptedAtRest', 'authentication', 'rotation', 'encrypted', 'ref', 'tags']);
+        const next = patchObject(e.item as Asset, patch, ['name', 'description', 'kind', 'zoneId', 'technology', 'owner', 'classification', 'encryptedAtRest', 'authentication', 'rotation', 'encrypted', 'ref', 'refType', 'tags']);
         if (all.get(next.zoneId)?.kind !== 'zone') return fail(`No existe la zona «${next.zoneId}».`);
         if (next.kind !== 'datastore' && next.kind !== 'secret') delete next.encryptedAtRest;
         if (next.kind !== 'identity' && next.kind !== 'channel') delete next.authentication;

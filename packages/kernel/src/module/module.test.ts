@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { buildManifest, manifestSchema } from './manifest';
+import { EMBED_PROTOCOL_VERSION } from './protocol';
 import { importFiles, joinSourceFiles, multiFileImporter, sourceFilesOf } from './operations';
 import { ModuleRegistry, UnknownModuleError } from './registry';
 import type { DomainModule, ImportContext, Importer } from './types';
@@ -79,6 +80,30 @@ describe('manifiesto de federación', () => {
     });
     expect(manifestSchema.safeParse(manifest).success).toBe(true);
     expect(manifestSchema.safeParse({ ...manifest, schema: 'otro' }).success).toBe(false);
+  });
+
+  it('lleva la versión del protocolo embebido (`protocol`) y el contrato de cada módulo (`contractVersion`)', () => {
+    const registry = new ModuleRegistry().register(fakeModule('c4')).register({ ...fakeModule('data'), contractVersion: 1 });
+    const manifest = buildManifest(registry, { name: 'IArk - DIAgrams', version: '0.1.0' });
+    expect(manifest.protocol).toBe(EMBED_PROTOCOL_VERSION);
+    // el módulo que no declara contrato se publica como 1, el que sí lo declara, con el suyo
+    expect(manifest.modules.map((m) => m.contractVersion)).toEqual([1, 1]);
+    expect(manifest.schema).toBe('iark.manifest/1'); // el literal no cambia
+    expect(manifestSchema.parse(manifest)).toMatchObject({ protocol: '1.0', modules: [{ contractVersion: 1 }, { contractVersion: 1 }] });
+  });
+
+  it('`protocol` y `contractVersion` son opcionales al leer (una instancia anterior no los publica) y solo admiten lo que son', () => {
+    const base = buildManifest(new ModuleRegistry().register(fakeModule('c4')), { name: 'IArk - DIAgrams', version: '0.1.0' });
+    const { protocol: _protocol, ...withoutProtocol } = base;
+    const old = { ...withoutProtocol, modules: base.modules.map(({ contractVersion: _contract, ...rest }) => rest) };
+    const parsed = manifestSchema.safeParse(old);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).not.toHaveProperty('protocol');
+    expect(parsed.data?.modules[0]).not.toHaveProperty('contractVersion');
+    expect(manifestSchema.safeParse({ ...base, protocol: 1 }).success).toBe(false);
+    expect(manifestSchema.safeParse({ ...base, modules: [{ ...base.modules[0], contractVersion: '1' }] }).success).toBe(false);
+    expect(manifestSchema.safeParse({ ...base, modules: [{ ...base.modules[0], contractVersion: 1.5 }] }).success).toBe(false);
+    expect(manifestSchema.safeParse({ ...base, modules: [{ ...base.modules[0], contractVersion: 0 }] }).success).toBe(false);
   });
 
   it('`projects` y `projectsAuth` son opcionales: se conservan al interpretar el manifiesto y solo admiten los valores conocidos', () => {

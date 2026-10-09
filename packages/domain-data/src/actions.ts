@@ -158,7 +158,7 @@ const MASK: EditorAction<DataDocument> = {
     const taken = allIds(doc);
     const maskedId = uniqueId(`${asset.id}-anonimizado`, taken);
     const pipelineId = uniqueId(`enmascarar-${asset.id}`, [...taken, maskedId]);
-    const { pii: _pii, retention: _retention, contractId: _contract, ref: _ref, tags: _tags, ...base } = asset;
+    const { pii: _pii, retention: _retention, contractId: _contract, ref: _ref, refType: _refType, tags: _tags, ...base } = asset;
     const masked: DataAsset = {
       ...base,
       id: maskedId,

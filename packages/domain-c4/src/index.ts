@@ -17,6 +17,7 @@ export {
   type ValidationIssue,
   type ValidationResult,
 } from './model/schema';
+export { C4_MIGRATIONS } from './model/migrations';
 export * from './model/factories';
 export { sampleDocument } from './model/sample';
 export { deriveView, viewBounds, type DerivedView, type DerivedNode, type DerivedBoundary, type DerivedEdge } from './model/viewDerivation';
