@@ -111,7 +111,7 @@ Cada especialidad es un paquete `@iark/domain-*` que implementa el contrato `Dom
 | Trazabilidad | `trazabilidad.html` | Enlaces `urn:iark:…` entre documentos de varios módulos, referencias sin resolver y alcance de un elemento | [docs/trazabilidad.md](docs/trazabilidad.md) |
 | Proyectos | *Proyectos…* en el banco y en *Archivo* del editor C4; `iark project` | Guardar y abrir diagramas agrupados: carpeta, navegador o servidor propio | [docs/proyectos.md](docs/proyectos.md) |
 | CLI | `iark` | generate, layout, convert, import, validate, schema, prompt, diff, trace, project, auth, serve y los comandos de cada módulo | [docs/cli.md](docs/cli.md) · [docs/ia.md](docs/ia.md) |
-| Servicio | `iark serve` | API por módulo, sitio, proyectos y autenticación (tokens o inicio de sesión de GitHub) | [docs/servicio.md](docs/servicio.md) · [docs/cuentas-github.md](docs/cuentas-github.md) |
+| Servicio | `iark serve` | API por módulo, sitio, proyectos y autenticación (tokens o inicio de sesión de GitHub); registro de accesos, auditoría, `/healthz`, `/readyz` y métricas de Prometheus | [docs/servicio.md](docs/servicio.md) · [docs/cuentas-github.md](docs/cuentas-github.md) · [docs/observabilidad.md](docs/observabilidad.md) |
 | Widget y embebido | `modulos.html?embed=1`, `index.html?embed=1`, `<iark-module>` | Llevar el editor a otra aplicación con `postMessage`, SDK o Web Component | [docs/embebido.md](docs/embebido.md) |
 
 ## Sitio publicado y demos
@@ -124,6 +124,7 @@ Lo imprescindible antes de exponer algo (el detalle está en cada documento y la
 
 - **`iark serve` solo habla HTTP**: para usarlo por internet va detrás de un proxy con HTTPS (`--trust-proxy`); ver [docs/servicio.md](docs/servicio.md).
 - **Con una carpeta de trabajo (`--workspace`) y fuera de loopback exige autenticación** (`--tokens` o `--accounts`); sin ella, no arranca. La imagen Docker no fija ningún espacio de trabajo a propósito.
+- **Registros y métricas: apagados por omisión.** El registro de accesos (`--access-log`) y la auditoría (`--audit-log`) llevan el usuario de GitHub y la dirección IP, nunca credenciales ni contenido; `/metrics` (`--metrics`) exige un token o solo atiende a loopback, y el servicio se niega a arrancar con métricas abiertas fuera de loopback. `/healthz` y `/readyz` son públicos y sin detalles ([docs/observabilidad.md](docs/observabilidad.md)).
 - **Los tokens y las sesiones se guardan solo como hash** en disco; el secreto de la OAuth App de GitHub no tiene opción de línea de comandos (entorno o archivo).
 - **`--from-repo` solo lee una lista blanca** de archivos y redacta los secretos antes de enviar nada al modelo; `--dry-run` enseña exactamente qué se enviaría ([docs/ia.md](docs/ia.md)).
 - **Al embeber, fija el origen del anfitrión** (`&origin=https://mi-host`): sin él las respuestas de `postMessage` van a `*` ([docs/embebido.md](docs/embebido.md)).

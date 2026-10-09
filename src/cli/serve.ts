@@ -191,6 +191,10 @@ export function createSuiteServer(options: ServeOptions): Server {
   const sendJson = (res: ServerResponse, status: number, value: unknown, headers: Record<string, string> = {}): void =>
     send(res, status, `${JSON.stringify(value, null, 2)}\n`, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
 
+  /** JSON en una sola línea (a diferencia del resto de la API): `/healthz` y `/readyz` las leen máquinas, no personas, y cabe en pocos bytes. */
+  const sendCompact = (res: ServerResponse, status: number, value: unknown): void =>
+    send(res, status, `${JSON.stringify(value)}\n`, { 'Content-Type': 'application/json; charset=utf-8' });
+
   // Salud (`/healthz`, `/readyz`) y métricas (`/metrics`): ver `observability/`. Las comprobaciones de `/readyz` son las que tiene este servidor.
   const checks: Record<string, Check> = {};
   const workspaceRoot = (options.projects as { root?: unknown } | undefined)?.root;
@@ -417,12 +421,12 @@ export function createSuiteServer(options: ServeOptions): Server {
       // Los puntos de control de las máquinas (balanceador, Docker, Prometheus) van antes del CORS y de la autenticación de personas.
       if (url.pathname === '/healthz') {
         requireRead(req);
-        return sendJson(res, 200, { status: 'ok' });
+        return sendCompact(res, 200, { status: 'ok' });
       }
       if (url.pathname === '/readyz') {
         requireRead(req);
         const report = await readiness.status();
-        return sendJson(res, report.ok ? 200 : 503, { status: report.ok ? 'ok' : 'fail', checks: report.checks });
+        return sendCompact(res, report.ok ? 200 : 503, { status: report.ok ? 'ok' : 'fail', checks: report.checks });
       }
       if (url.pathname === '/metrics' && metricsEndpoint) return metricsEndpoint(req, res, send);
       applyCors(req, res, url.pathname);

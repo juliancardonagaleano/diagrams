@@ -36,7 +36,7 @@ packages/domain-data/  @iark/domain-data: módulo `data` (activos, dominios, pip
 packages/domain-enterprise/  @iark/domain-enterprise: módulo `enterprise` (capacidades, procesos, aplicaciones y tecnología con ciclo de vida; mapa de capacidades, paisaje, impacto y obsolescencia; import Mermaid, export Mermaid/SVG/draw.io, IA)
 packages/domain-platform/  @iark/domain-platform: módulo `platform` (entornos, redes, recursos, servicios, despliegues, dependencias y pipelines; topología, despliegue por entorno, entrega continua e impacto; import Mermaid, export Mermaid/SVG/draw.io, IA)
 packages/domain-security/  @iark/domain-security: módulo `security` (zonas de confianza, activos, flujos de datos, amenazas STRIDE y controles; diagrama de flujo de datos, modelo de amenazas, riesgos y superficie de ataque; import Mermaid, export Mermaid/SVG/draw.io, IA)
-src/cli/               comandos de iark (commander): módulos, `trace`, `diff`, `project` (con el almacén en carpeta `workspace.ts`), `auth` (tokens: `tokens.ts`), `serve` (y su API de proyectos, con la autenticación de `serveAuth.ts` y el inicio de sesión de GitHub en `accounts/`), `repo/` (`--from-repo`); carga los módulos del registro
+src/cli/               comandos de iark (commander): módulos, `trace`, `diff`, `project` (con el almacén en carpeta `workspace.ts`), `auth` (tokens: `tokens.ts`), `serve` (y su API de proyectos, con la autenticación de `serveAuth.ts` y el inicio de sesión de GitHub en `accounts/`; la observabilidad —`X-Request-Id`, registros, auditoría, salud y métricas— en `observability/`), `repo/` (`--from-repo`); carga los módulos del registro
 src/embed/             protocolo postMessage (C4 y de módulos), SDK de anfitrión y Web Component <iark-module>
 src/projects/          proyectos guardados en la app web: almacén en IndexedDB y almacén remoto (servidor), su configuración, la sesión con autoguardado y el gestor
 src/modules-app/       banco de trabajo genérico de módulos (controlador sin React, editor, protocolo del puente)
@@ -71,7 +71,7 @@ tests/e2e/             pruebas Playwright
   [Trampas conocidas](#trampas-conocidas).
 - **Imagen Docker** (`npm run docker:smoke`, `scripts/docker-smoke-cuentas.ts`): construye la imagen (o usa una con `--image`), la ejecuta de verdad
   y recorre el servicio gestionado contra un GitHub de mentira (`tests/helpers/fakeGithub.ts`): inicio de sesión, un proyecto en el volumen, reiniciar y
-  sustituir el contenedor, copia de seguridad y restauración, bind mount, secreto por archivo y que nada secreto salga en `docker logs`. Necesita Docker y Linux
+  sustituir el contenedor, copia de seguridad y restauración, bind mount, secreto por archivo, que `/healthz` y `/readyz` respondan (el `HEALTHCHECK` consulta `/healthz`), que `/metrics` no exista por omisión y que nada secreto salga en `docker logs`. Necesita Docker y Linux
   (`--network host`); sin ellos se salta con un mensaje. No forma parte de `npm test`.
 
 ## Decisiones de diseño
