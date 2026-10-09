@@ -15,7 +15,10 @@ afterEach(() => {
 function setup(options: Partial<Omit<AccountsOptions, 'store'>> = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'iark-uso-'));
   folders.push(dir);
-  const store = JsonAccountStore.open(join(dir, 'cuentas.json'));
+  // Un reloj que avanza un segundo en cada lectura: «la más antigua» se decide por `addedAt`, y con el reloj real dos altas en el mismo
+  // milisegundo empatan y desempata el id (aleatorio), con lo que la prueba fallaba de vez en cuando.
+  let tick = Date.UTC(2026, 0, 1);
+  const store = JsonAccountStore.open(join(dir, 'cuentas.json'), { now: () => new Date((tick += 1000)) });
   const accounts = new Accounts({ store, signup: 'open', admins: ['1'], ...options });
   const open = { signup: 'open', admin: false } as const;
   const ana = store.signIn({ id: 1, login: 'ana' }, open); // en --admins
