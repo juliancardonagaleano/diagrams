@@ -32,7 +32,7 @@ El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 | Importadores | **Hecho**: `.drawio`, Structurizr DSL, Mermaid, Terraform, Kubernetes, DDL de SQL, dbt y ArchiMate. Integración y seguridad solo importan Mermaid | [importadores.md](importadores.md) |
 | Federación y embebido | **Hecho**: manifiesto `iark.manifest/1`, shell, SDK de anfitrión y Web Component `<iark-module>` | [embebido.md](embebido.md) |
 | Trazabilidad | **Hecho** (v1 y v2): referencias por URN con tipo de enlace, `iark trace` (huérfanos, matriz y cobertura), `POST /api/trace` y vista web | [trazabilidad.md](trazabilidad.md) |
-| Versionado de diagramas | **Hecho**: `iark diff` y pestaña «Comparar» (sin instantáneas en el navegador) | [cli.md](cli.md#comparar-versiones-de-un-diagrama-iark-diff) |
+| Versionado de diagramas | **Hecho**: `iark diff`, pestaña «Comparar» e **historial de versiones** de cada diagrama guardado en un proyecto (restaurar, nombrar, comparar; carpeta, navegador y servidor) | [cli.md](cli.md#comparar-versiones-de-un-diagrama-iark-diff) · [proyectos.md](proyectos.md#historial-de-versiones) |
 | Proyectos y nube | **Hecho**: carpeta de trabajo, navegador, servidor propio con tokens, inicio de sesión de GitHub, compartir proyectos, API y pantalla de administración de cuentas | [proyectos.md](proyectos.md) · [servicio.md](servicio.md) · [cuentas-github.md](cuentas-github.md) |
 | Despliegue | **Hecho**: GitHub Pages automático, imagen Docker y `deploy/` con Caddy | [despliegue-pages.md](despliegue-pages.md) · [despliegue-nube.md](despliegue-nube.md) |
 | Observabilidad | **Hecho** (v1, apagada por omisión): `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz`, `/readyz` y métricas de Prometheus en `iark serve` | [observabilidad.md](observabilidad.md) |
@@ -112,7 +112,7 @@ Los pendientes menores y límites conocidos al 2026-10-08, con la fase en la que
 | Nube gestionada | El freno de intentos solo lee la última entrada de `X-Forwarded-For` (plataformas con otra cabecera, como `Fly-Client-IP`, comparten freno) | 4 |
 | Nube gestionada | No se ha probado con un certificado público real ni en una plataforma concreta | 4 |
 | Nube gestionada | La observabilidad no se ha probado con un Prometheus, un `logrotate` ni un Caddy reales; los registros y las métricas son de una sola instancia (sin reunir varias réplicas) y no hay trazas distribuidas; la auditoría no es a prueba de manipulación (envío a un sistema externo o `chattr +a`) ni cubre las lecturas | 4 |
-| Versionado | No hay instantáneas guardadas en el navegador (se compara con archivos, git o un JSON abierto) | 4 |
+| Versionado | El historial de versiones es local a cada almacén: no viaja en el archivo único (exportar, importar, copiar), no tiene cuotas por proyecto o persona (solo el gancho `versionUsage`) y dos procesos que guarden el mismo diagrama a la vez pueden perder una versión del historial (no el diagrama) | 3 |
 | Versionado | El resaltado de cambios no llega al lienzo C4 embebido (es un iframe; el panel sí funciona) | 3 |
 | Versionado | La pestaña «Comparar» comparte nombre con la vista «Comparar» de Plataforma (entornos lado a lado); podría llamarse «Versiones» | 3 |
 | IA | Falta ejecutar con claves reales la verificación con `validate()`, los topes de tokens, `explain`/`review`, `tests/ai-live.test.ts` y `npm run evals:live` (solo hay pruebas con servicios simulados); y solo C4 emite *errores* en `validate()`, así que en los otros cinco módulos el bucle de reglas solo actúa con `--strict` | 3 |

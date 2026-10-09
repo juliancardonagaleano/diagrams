@@ -111,7 +111,7 @@ Una especialidad propia no necesita tocar este repositorio: un **módulo de terc
 | Banco de trabajo | `modulos.html?module=<id>` | Editar cualquier módulo: lienzo, JSON con validación, vistas, exportar, importar, informes y comparar versiones | [docs/suite-web.md](docs/suite-web.md) |
 | Suite (shell) | `suite.html` | Descubre los módulos de una instancia leyendo su manifiesto y monta el editor o el widget elegido | [docs/suite-web.md](docs/suite-web.md) |
 | Trazabilidad | `trazabilidad.html` | Enlaces `urn:iark:…` entre documentos de varios módulos, referencias sin resolver y alcance de un elemento | [docs/trazabilidad.md](docs/trazabilidad.md) |
-| Proyectos | *Proyectos…* en el banco y en *Archivo* del editor C4; `iark project` | Guardar y abrir diagramas agrupados: carpeta, navegador o servidor propio | [docs/proyectos.md](docs/proyectos.md) |
+| Proyectos | *Proyectos…* en el banco y en *Archivo* del editor C4; `iark project` | Guardar y abrir diagramas agrupados (carpeta, navegador o servidor propio), con historial de versiones: ver, comparar, restaurar y nombrar | [docs/proyectos.md](docs/proyectos.md) |
 | CLI | `iark` | generate, layout, convert, import, validate, schema, prompt, diff, trace, project, auth, serve y los comandos de cada módulo | [docs/cli.md](docs/cli.md) · [docs/ia.md](docs/ia.md) |
 | Servicio | `iark serve` | API por módulo, sitio, proyectos y autenticación (tokens o inicio de sesión de GitHub); registro de accesos, auditoría, `/healthz`, `/readyz` y métricas de Prometheus | [docs/servicio.md](docs/servicio.md) · [docs/cuentas-github.md](docs/cuentas-github.md) · [docs/observabilidad.md](docs/observabilidad.md) |
 | Widget y embebido | `modulos.html?embed=1`, `index.html?embed=1`, `<iark-module>` | Llevar el editor a otra aplicación con `postMessage`, SDK o Web Component | [docs/embebido.md](docs/embebido.md) |
@@ -145,7 +145,7 @@ Todo lo que antes vivía en este README está en [`docs/`](docs/indice.md), con 
 
 Las seis especialidades, el banco de trabajo, la federación, los proyectos y el servicio gestionado están hechos; el proyecto está en la **Fase 1 «Endurecer»** de su plan de robustecimiento (seguridad, compuerta de CI, documentos de proyecto). Qué está hecho, qué falta y los límites conocidos: [docs/roadmap.md](docs/roadmap.md). Los que conviene saber desde el principio:
 
-- No hay colaboración en tiempo real ni trabajo sin conexión: dos personas sobre el mismo diagrama no se mezclan, el segundo guardado pregunta qué versión conservar.
+- No hay colaboración en tiempo real ni trabajo sin conexión: dos personas sobre el mismo diagrama no se mezclan, el segundo guardado pregunta qué versión conservar. Cada guardado deja una versión que se puede restaurar (historial local a cada almacén, sin cuotas).
 - El servicio gestionado es de una sola réplica (las cuentas son un archivo JSON con un único escritor).
 - La generación con IA solo se ha probado de verdad con un modelo (DeepSeek-V4-Pro por Foundry, 28-09-2026): ver [docs/ia.md](docs/ia.md#prueba-real-de-generate).
 - Quedan fuera de alcance el servidor MCP, las vistas de despliegue y de código de C4 y exportar a DSL de Structurizr.

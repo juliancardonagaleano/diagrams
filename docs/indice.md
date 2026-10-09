@@ -9,7 +9,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | [cli.md](cli.md) | Referencia del CLI `iark` (todos los comandos), comparar versiones con `iark diff` y uso como biblioteca. |
 | [ia.md](ia.md) | Generar y refinar diagramas con IA: proveedores (Anthropic, Claude en Foundry, cualquier modelo de Foundry), sin clave de API, dibujar desde un repositorio (`--from-repo`), privacidad y estado de las pruebas reales. |
 | [importadores.md](importadores.md) | Importar y exportar: `.drawio`, DSL de Structurizr y Mermaid; tabla de los formatos de cada módulo. |
-| [proyectos.md](proyectos.md) | Proyectos: carpeta de trabajo y `iark project`, API HTTP de proyectos, proyectos en el navegador y guardar en un servidor propio. |
+| [proyectos.md](proyectos.md) | Proyectos: carpeta de trabajo y `iark project`, API HTTP de proyectos, historial de versiones, proyectos en el navegador y guardar en un servidor propio. |
 | [trazabilidad.md](trazabilidad.md) | Enlaces entre módulos por URN (`iark trace`, `trazabilidad.html`). |
 | [plugins.md](plugins.md) | Módulos de terceros sin tocar el repositorio: `iark.config.json`, escribir un módulo paso a paso (ejemplo en `examples/plugin-riesgos/`), seguridad, `iark serve` y Docker, paquetes `@iark/*` y qué no hace (el sitio web no los carga). |
 
@@ -64,7 +64,7 @@ El README tenía 1.294 líneas; todo su contenido se movió aquí (y el README q
 | Conversión a `.drawio` · Importar un `.drawio` · Importar un DSL de Structurizr · Mermaid | [importadores.md](importadores.md) |
 | Módulo de integraciones · de datos · empresarial · de plataforma · de seguridad | [integración](modulos/integracion.md), [datos](modulos/datos.md), [empresarial](modulos/empresarial.md), [plataforma](modulos/plataforma.md), [seguridad](modulos/seguridad.md) |
 | Trazabilidad entre módulos | [trazabilidad.md](trazabilidad.md) |
-| Proyectos (espacio de trabajo en carpeta) · API HTTP de proyectos · Proyectos en la app web · Guardar en la nube (servidor propio) desde el navegador | [proyectos.md](proyectos.md) |
+| Proyectos (espacio de trabajo en carpeta) · API HTTP de proyectos · Historial de versiones · Proyectos en la app web · Guardar en la nube (servidor propio) desde el navegador | [proyectos.md](proyectos.md) |
 | Servidor para varias personas (nube autoalojada) · Servicio HTTP (`iark serve`) · Imagen Docker | [servicio.md](servicio.md) |
 | Servicio gestionado: inicio de sesión con GitHub | [cuentas-github.md](cuentas-github.md) |
 | CLI `iark` · Comparar versiones (`iark diff`) · Uso programático | [cli.md](cli.md) |
