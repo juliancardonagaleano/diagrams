@@ -296,7 +296,7 @@ test.describe('proyectos en la nube (servidor propio)', () => {
     await expect(dialog(page).getByTestId('project-diagram')).toContainText('Ventas');
   });
 
-  test('avisos al conectar: CORS rechazado (con el origen exacto), servidor apagado y dirección que no es de IArk', async ({ page, origin }) => {
+  test('avisos al conectar: CORS rechazado (con el origen exacto), servidor apagado y dirección que no es de DIAgrams', async ({ page, origin }) => {
     await open(page, 'module=data');
     await page.getByRole('button', { name: 'Proyectos…' }).click();
     await storage(page).getByRole('button', { name: 'Conectar a un servidor…' }).click();
@@ -318,7 +318,7 @@ test.describe('proyectos en la nube (servidor propio)', () => {
     await expect(storage(page).getByTestId('storage-test')).toHaveAttribute('data-problem', 'unreachable', { timeout: 20000 });
     expect(await page.evaluate(() => localStorage.getItem('iark.projects.backend'))).toBeNull(); // probar no guarda nada
 
-    // la propia página sirve HTML, no la API de IArk
+    // la propia página sirve HTML, no la API de DIAgrams
     await storage(page).getByLabel('Dirección del servidor').fill(origin);
     await storage(page).getByRole('button', { name: 'Probar conexión' }).click();
     await expect(storage(page).getByTestId('storage-test')).toHaveAttribute('data-problem', /no-projects|server/, { timeout: 20000 });

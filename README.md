@@ -1,6 +1,6 @@
-# IArk - DIAgrams
+# DIAgrams
 
-**Suite de diagramación de arquitectura**: seis especialidades (C4, integración, datos, empresarial, plataforma y seguridad) sobre un núcleo común, **federada y embebible**, con un CLI (`iark`) que dibuja y refina diagramas con IA. Antes «Diagramador C4»; el comando `c4diagram` se mantiene como alias de `iark`.
+**Suite de diagramación de arquitectura**: seis especialidades (C4, integración, datos, empresarial, plataforma y seguridad) sobre un núcleo común, **federada y embebible**, con un CLI (`iark`) que dibuja y refina diagramas con IA. Antes «IArk - DIAgrams» y, antes, «Diagramador C4». El nombre del producto es DIAgrams; el comando se sigue llamando `iark` (y `c4diagram` se mantiene como alias) y los identificadores internos (`@iark/*`, `urn:iark:…`, `/.well-known/iark.json`, las variables `IARK_*`) no cambian, para no romper a nadie.
 
 - **Un JSON limpio y estable por módulo**, con esquema publicado ([`schema/`](schema/)) y sin coordenadas: la IA produce el modelo y el autolayout (ELK) produce la geometría. Se convierte a **`.drawio`**, **SVG** y **Mermaid**, y se importa desde `.drawio`, DSL de Structurizr, Mermaid, OpenAPI, AsyncAPI, Threat Dragon, Terraform, Kubernetes, CloudFormation, Helm, DDL de SQL, dbt, OpenLineage, ArchiMate y BPMN, según el módulo.
 - **Editor web interactivo** del modelo C4 (con la estética de [drawdb.app](https://www.drawdb.app/)) y un **banco de trabajo** con lienzo propio para las otras cinco especialidades.

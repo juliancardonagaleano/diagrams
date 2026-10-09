@@ -177,7 +177,7 @@ test.describe('proyectos en la nube con inicio de sesión de GitHub', () => {
     expect(sessionOf(after.session, cloud)).toBeUndefined();
     const old = await fetch(`${cloud.url}/api/projects`, { headers: { Authorization: `Bearer ${token}` } });
     expect(old.status).toBe(401);
-    expect(cloud.github.revoked).toHaveLength(2); // el token de GitHub se revocó en cada inicio de sesión: IArk no conserva acceso
+    expect(cloud.github.revoked).toHaveLength(2); // el token de GitHub se revocó en cada inicio de sesión: DIAgrams no conserva acceso
     expect(errors).toEqual([]);
   });
 

@@ -377,7 +377,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     if (second === 'bundle' && parts.length === 2) {
       if (method !== 'GET') return allow('GET');
       const snapshot = await snapshotProject(projects, projectId);
-      const file = bundleToText(createBundle(snapshot, { generator: 'IArk - DIAgrams' }));
+      const file = bundleToText(createBundle(snapshot, { generator: 'DIAgrams' }));
       return ctx.send(res, 200, file, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="${bundleFileName(snapshot.name)}"` });
     }
     if (second === 'check' && parts.length === 2) {

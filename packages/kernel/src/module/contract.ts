@@ -41,8 +41,8 @@ export function assertModuleContract(module: AnyModule): void {
   }
   if (!isContractCompatible(declared)) {
     throw new Error(
-      `El módulo «${module.id}» se escribió para la versión ${declared} del contrato DomainModule y este IArk implementa la ${CONTRACT_VERSION}: ` +
-        'actualiza IArk o usa una versión del módulo escrita para el contrato anterior.',
+      `El módulo «${module.id}» se escribió para la versión ${declared} del contrato DomainModule y este DIAgrams implementa la ${CONTRACT_VERSION}: ` +
+        'actualiza DIAgrams o usa una versión del módulo escrita para el contrato anterior.',
     );
   }
   const problems = validateMigrationChain(module.documentVersion, module.migrations ?? []);

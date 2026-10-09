@@ -6,7 +6,7 @@ import { isGithubLogin, type GithubProfile } from './store';
  *  1. `authorizeUrl` lleva a la persona a GitHub para que acepte (sin permisos: no se pide ningún scope, así que GitHub solo da
  *     acceso a su información pública, que es todo lo que hace falta para saber quién es).
  *  2. GitHub vuelve con un `code`; `profileFromCode` lo cambia por un token de GitHub, lee `GET /user` y **olvida el token**: se
- *     revoca enseguida, no se guarda ni se registra. Después del inicio de sesión, IArk no tiene acceso a nada de GitHub.
+ *     revoca enseguida, no se guarda ni se registra. Después del inicio de sesión, DIAgrams no tiene acceso a nada de GitHub.
  *
  * `baseUrl` y `apiUrl` son los de github.com por omisión; con GitHub Enterprise Server se apuntan a su servidor
  * (`https://git.empresa.com` y `https://git.empresa.com/api/v3`), y las pruebas los apuntan a un GitHub de mentira.
@@ -149,7 +149,7 @@ export class GithubOAuth {
     }
   }
 
-  /** Revoca el token de GitHub (el acceso de IArk acaba aquí). Mejor esfuerzo: un fallo no cambia nada para la persona. */
+  /** Revoca el token de GitHub (el acceso de DIAgrams acaba aquí). Mejor esfuerzo: un fallo no cambia nada para la persona. */
   private async revoke(token: string): Promise<void> {
     try {
       await this.call(`${this.apiUrl}/applications/${encodeURIComponent(this.clientId)}/token`, {

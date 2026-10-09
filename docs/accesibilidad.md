@@ -2,7 +2,7 @@
 
 Qué se ha medido, qué se ha arreglado, qué atajos de teclado hay, qué se comprueba solo en cada cambio y qué **no** se ha podido comprobar sin un lector de pantalla real. Es la acción 10 de la [fase 3](roadmap.md) («Accesibilidad»).
 
-> **Lo que este documento no afirma.** No dice que IArk «cumple WCAG 2.2 AA». Dice que una herramienta automática (axe-core) no encuentra violaciones en las superficies auditadas y que se arreglaron las que sí encontró. Esa herramienta, según su propia documentación, detecta solo una parte de los problemas (alrededor de un tercio de los criterios WCAG se pueden comprobar sin una persona), y **nadie ha probado todavía estas pantallas con un lector de pantalla real**. La [lista de comprobación manual](#lista-de-comprobación-manual) de abajo es lo que falta.
+> **Lo que este documento no afirma.** No dice que DIAgrams «cumple WCAG 2.2 AA». Dice que una herramienta automática (axe-core) no encuentra violaciones en las superficies auditadas y que se arreglaron las que sí encontró. Esa herramienta, según su propia documentación, detecta solo una parte de los problemas (alrededor de un tercio de los criterios WCAG se pueden comprobar sin una persona), y **nadie ha probado todavía estas pantallas con un lector de pantalla real**. La [lista de comprobación manual](#lista-de-comprobación-manual) de abajo es lo que falta.
 
 ## Alcance y objetivo
 
@@ -61,7 +61,7 @@ Por regla, antes del trabajo (violaciones = regla × superficie × tema; entre p
 | crítico | `aria-required-children` | 28 | Pestañas de Semi UI con `collapsible`: botones que no son pestañas dentro del `tablist`. |
 | crítico | `aria-valid-attr-value` | 6 | `aria-activedescendant` apuntando a una opción que no existe con la lista cerrada. |
 | crítico | `label` | 2 | Campos de la ficha sin etiqueta asociada. |
-| serio | `color-contrast` | 145 | Marca «IArk», texto secundario, botones, enlaces, títulos de zona, pestañas… |
+| serio | `color-contrast` | 145 | Marca «DIAgrams», texto secundario, botones, enlaces, títulos de zona, pestañas… |
 | serio | `scrollable-region-focusable` | 8 | Regiones con desplazamiento a las que el teclado no llegaba. |
 | serio | `role-img-alt` | 6 | Flecha de los selectores de Semi UI con `aria-label=""`. |
 | serio | `aria-input-field-name` | 4 | Selectores sin nombre. |

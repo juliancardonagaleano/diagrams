@@ -2,7 +2,7 @@
 
 [← Índice de la documentación](indice.md)
 
-IArk - DIAgrams trae seis módulos (`c4`, `integration`, `data`, `enterprise`, `platform`, `security`). Un **módulo de terceros** añade una séptima especialidad —o la octava— **sin tocar este repositorio**: es un paquete aparte que implementa el contrato `DomainModule` y que el CLI y el servicio cargan desde un archivo de configuración. Con él, `iark validate --module risk`, `iark convert`, `iark import`, `iark trace`, `iark risk top` y `iark serve` funcionan igual que con un módulo incorporado.
+DIAgrams trae seis módulos (`c4`, `integration`, `data`, `enterprise`, `platform`, `security`). Un **módulo de terceros** añade una séptima especialidad —o la octava— **sin tocar este repositorio**: es un paquete aparte que implementa el contrato `DomainModule` y que el CLI y el servicio cargan desde un archivo de configuración. Con él, `iark validate --module risk`, `iark convert`, `iark import`, `iark trace`, `iark risk top` y `iark serve` funcionan igual que con un módulo incorporado.
 
 > **Qué alcanza hoy.** Los módulos de terceros se cargan en el **CLI** y en **`iark serve`** (y en sus hilos de cálculo). **El sitio web (el banco de trabajo, el shell y el editor) no los trae**: se compila de antemano con los seis módulos incorporados. Un módulo de terceros no tiene editor visual; se opera por la línea de comandos y por la API HTTP, y sale en el manifiesto de federación para quien lo consuma. Ver [Lo que no hace](#lo-que-no-hace-todavía).
 
@@ -104,7 +104,7 @@ Los comandos que lleven una opción o argumento que toque el disco, la red o pro
 
 ### Qué se comprueba al cargarlo
 
-Antes de registrar el módulo se comprueba su **forma** (no basta con que importe): `id`, `name`, `version`, `documentVersion` (`mayor.menor`), que `schema` sea un esquema de zod, `jsonSchema`, `validate`, `importers`/`exporters`/`traceViews`/`cliCommands` bien formados con ids no repetidos, y el contrato (`contractVersion` no mayor que el de IArk, cadena de `migrations` sin huecos). Todos los problemas salen juntos, nombrando el módulo por el especificador con el que se cargó:
+Antes de registrar el módulo se comprueba su **forma** (no basta con que importe): `id`, `name`, `version`, `documentVersion` (`mayor.menor`), que `schema` sea un esquema de zod, `jsonSchema`, `validate`, `importers`/`exporters`/`traceViews`/`cliCommands` bien formados con ids no repetidos, y el contrato (`contractVersion` no mayor que el de DIAgrams, cadena de `migrations` sin huecos). Todos los problemas salen juntos, nombrando el módulo por el especificador con el que se cargó:
 
 ```
 El módulo de terceros «./index.mjs» no cumple el contrato DomainModule:
@@ -128,7 +128,7 @@ Es **solo JSON** (la configuración no ejecuta código):
 |---|---|
 | `modules` | Lista (en orden) de módulos de terceros a cargar. Cada elemento es un **especificador**: ver abajo. Por omisión, ninguno. |
 | `defaultModule` | Módulo que usan por omisión los comandos con `--module` (hoy `c4`). Debe ser uno incorporado o uno de los cargados; si no, error de uso. |
-| `$schema` | Solo para el editor (autocompletado). IArk lo ignora. El esquema está en [`schema/iark-config.schema.json`](../schema/iark-config.schema.json) y lo regenera `npm run schema`. |
+| `$schema` | Solo para el editor (autocompletado). DIAgrams lo ignora. El esquema está en [`schema/iark-config.schema.json`](../schema/iark-config.schema.json) y lo regenera `npm run schema`. |
 
 Cualquier otra clave es un error (el esquema es estricto): una errata no se pasa por alto.
 
@@ -150,7 +150,7 @@ En este orden (gana la primera que aplique):
 1. **`--no-config`** o **`IARK_NO_CONFIG=1`**: no se carga ninguna, ni siquiera una rota. Es el cerrojo para la integración continua y para quien no quiere ejecutar código de terceros.
 2. **`--config <archivo>`**, y si no, la variable **`IARK_CONFIG`**: ese archivo. Tiene que existir; si no, error (no se ignora en silencio). La opción vale antes y después del subcomando.
 3. El **`iark.config.json` del directorio actual**, si existe. **No se busca en las carpetas padre.**
-4. Si no, ninguna: IArk se comporta como siempre.
+4. Si no, ninguna: DIAgrams se comporta como siempre.
 
 ### Qué ves y qué errores hay
 

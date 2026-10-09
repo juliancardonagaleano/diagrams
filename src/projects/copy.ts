@@ -13,7 +13,7 @@ import type { SessionBackend } from './session';
 export async function copyProject(source: ProjectStore, projectId: string, target: ProjectStore): Promise<ImportedProject> {
   const snapshot = await snapshotProject(source, projectId);
   // Se pasa por el texto del archivo para validarlo igual que uno importado a mano (módulos, tamaño, ids repetidos).
-  const bundle = parseBundle(bundleToText(createBundle(snapshot, { generator: 'IArk - DIAgrams' })));
+  const bundle = parseBundle(bundleToText(createBundle(snapshot, { generator: 'DIAgrams' })));
   return importBundle(target, bundle);
 }
 

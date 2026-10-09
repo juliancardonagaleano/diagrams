@@ -55,7 +55,7 @@ schema/                JSON Schema del documento y del formato de generación
 examples/              documentos de ejemplo por módulo, páginas anfitrionas de demostración y `plugin-riesgos/` (un módulo de terceros completo; ver docs/plugins.md)
 public/.well-known/    manifiesto de federación publicado con el sitio (iark.json)
 Dockerfile             imagen del servicio (`iark serve` + sitio)
-deploy/                despliegue de la nube gestionada: docker-compose.yml (IArk + Caddy con HTTPS), Caddyfile, .env.example y secrets/ (ignorada por git)
+deploy/                despliegue de la nube gestionada: docker-compose.yml (DIAgrams + Caddy con HTTPS), Caddyfile, .env.example y secrets/ (ignorada por git)
 docs/                  esta documentación (el mapa está en docs/indice.md; la hoja de ruta, en docs/roadmap.md)
 scripts/               generación de esquemas y manifiesto, preparación y comprobación de los paquetes publicables (`packages.ts`), despliegue a gh-pages y prueba de la imagen Docker
 .github/workflows/     despliegue automático a GitHub Pages y publicación manual de los paquetes (`release-packages.yml`)

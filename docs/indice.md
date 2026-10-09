@@ -1,4 +1,4 @@
-# Documentación de IArk - DIAgrams
+# Documentación de DIAgrams
 
 Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene, la [hoja de ruta](roadmap.md).
 

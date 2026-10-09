@@ -1,6 +1,6 @@
 # Módulo de terceros de ejemplo: registro de riesgos
 
-Un paquete mínimo que añade a IArk - DIAgrams el módulo `risk` **sin tocar el repositorio**: esquema, validación, exportador a Markdown, importador de CSV, el comando `iark risk top` y entidades para la trazabilidad. Solo importa `@iark/kernel` y `zod` (sus `peerDependencies`).
+Un paquete mínimo que añade a DIAgrams el módulo `risk` **sin tocar el repositorio**: esquema, validación, exportador a Markdown, importador de CSV, el comando `iark risk top` y entidades para la trazabilidad. Solo importa `@iark/kernel` y `zod` (sus `peerDependencies`).
 
 ```bash
 # desde esta carpeta (el iark.config.json de aquí carga ./index.mjs)

@@ -18,7 +18,7 @@ import type { DiagramMeta, ProjectStore } from './types';
  *  - Retención: se conservan las últimas `keepAutomatic` versiones automáticas más todas las nombradas, hasta `maxVersions` en
  *    total por diagrama. Al pasarse, se descarta la automática más vieja. Las nombradas solo se quitan a mano.
  *  - Línea base: si el contenido que había antes de guardar no es el de la última versión (un diagrama anterior al historial, o
- *    editado fuera de IArk: a mano, con git), ese contenido se registra primero como versión, para no perderlo al sobrescribirlo.
+ *    editado fuera de DIAgrams: a mano, con git), ese contenido se registra primero como versión, para no perderlo al sobrescribirlo.
  */
 
 /** Una versión de un diagrama, sin su documento. */

@@ -37,7 +37,7 @@ export interface ProjectBundle {
 }
 
 const bundleSchema = z.object({
-  format: z.literal(PROJECT_BUNDLE_FORMAT, { error: `No es un proyecto de IArk (falta "format": "${PROJECT_BUNDLE_FORMAT}").` }),
+  format: z.literal(PROJECT_BUNDLE_FORMAT, { error: `No es un proyecto de DIAgrams (falta "format": "${PROJECT_BUNDLE_FORMAT}").` }),
   version: z.number().int().min(1),
   exportedAt: z.string().optional().default(''),
   generator: z.string().optional(),
@@ -90,7 +90,7 @@ export function parseBundle(text: string): ProjectBundle {
     throw new ProjectError('invalid', `El archivo no es JSON válido: ${(error as Error).message}`, { reason: 'bundle-not-json', params: { detail: (error as Error).message } });
   }
   if (json && typeof json === 'object' && (json as { format?: unknown }).format !== PROJECT_BUNDLE_FORMAT) {
-    throw new ProjectError('invalid', `No es un proyecto de IArk: falta "format": "${PROJECT_BUNDLE_FORMAT}". (Un diagrama suelto se abre con «Abrir archivo…».)`, { reason: 'bundle-not-project', params: { format: PROJECT_BUNDLE_FORMAT } });
+    throw new ProjectError('invalid', `No es un proyecto de DIAgrams: falta "format": "${PROJECT_BUNDLE_FORMAT}". (Un diagrama suelto se abre con «Abrir archivo…».)`, { reason: 'bundle-not-project', params: { format: PROJECT_BUNDLE_FORMAT } });
   }
   const parsed = bundleSchema.safeParse(json);
   if (!parsed.success) {

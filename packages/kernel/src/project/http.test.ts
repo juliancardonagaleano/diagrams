@@ -197,7 +197,7 @@ describe('HttpProjectStore: inicio de sesión (cuentas)', () => {
     expect(await selfHosted.providers()).toEqual({ providers: [], tokens: true });
   });
 
-  it('providers: un servidor anterior a las cuentas (o un sitio que no es IArk) no ofrece ningún inicio de sesión; la red caída sí es un fallo', async () => {
+  it('providers: un servidor anterior a las cuentas (o un sitio que no es DIAgrams) no ofrece ningún inicio de sesión; la red caída sí es un fallo', async () => {
     const legacy = store(() => ({ status: 404, body: { error: 'Ruta de la API desconocida. Ver /api/modules.' } })).store;
     expect(await legacy.providers()).toEqual({ providers: [], tokens: true });
     const pages = store(() => ({ status: 404, text: '<html>404 File not found</html>' })).store;

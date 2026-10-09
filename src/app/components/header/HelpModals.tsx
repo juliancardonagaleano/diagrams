@@ -42,7 +42,7 @@ export function ShortcutsModal({ visible, onClose }: { visible: boolean; onClose
 export function AboutModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { tr } = useT();
   return (
-    <Modal title="IArk - DIAgrams" visible={visible} onCancel={onClose} footer={null} size="small">
+    <Modal title="DIAgrams" visible={visible} onCancel={onClose} footer={null} size="small">
       <div className="space-y-2 text-sm">
         <p>{tr('ed.about.p1')}</p>
         <ul className="list-disc pl-5 text-color-2">

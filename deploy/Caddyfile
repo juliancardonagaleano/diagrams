@@ -1,4 +1,4 @@
-# Caddy: da HTTPS a IArk y renueva solo el certificado (gratuito, de Let's Encrypt o ZeroSSL). Lo usa el docker-compose.yml de esta carpeta.
+# Caddy: da HTTPS a DIAgrams y renueva solo el certificado (gratuito, de Let's Encrypt o ZeroSSL). Lo usa el docker-compose.yml de esta carpeta.
 #
 # IARK_DOMAIN es el dominio (o subdominio) del servicio, sin «https://» (se pone en deploy/.env): Caddy pide el certificado de
 # ese nombre y redirige el puerto 80 al 443. Para que lo consiga, el registro DNS del dominio debe apuntar a esta máquina y los
@@ -15,14 +15,14 @@
 	@sinsse not path /api/events
 	encode @sinsse zstd gzip
 	# HSTS: el navegador no vuelve a pedir este dominio por http durante 180 días. Se pone aquí para que valga también en las respuestas
-	# que da Caddy (un 502 si IArk está caído); IArk lo envía igual cuando ve `X-Forwarded-Proto: https` (con --trust-proxy), y el
+	# que da Caddy (un 502 si DIAgrams está caído); DIAgrams lo envía igual cuando ve `X-Forwarded-Proto: https` (con --trust-proxy), y el
 	# prefijo `>` fija el valor al final, así que no sale duplicado. Sin `includeSubDomains` ni `preload`: son decisiones del dominio.
 	header >Strict-Transport-Security "max-age=15552000"
 	# `iark` es el nombre del servicio en el compose; su puerto no se publica fuera. Caddy añade X-Forwarded-For con la dirección
-	# del cliente, y por eso IArk arranca con --trust-proxy (el freno de intentos fallidos distingue a cada cliente).
+	# del cliente, y por eso DIAgrams arranca con --trust-proxy (el freno de intentos fallidos distingue a cada cliente).
 	# Caddy no activa su propio registro de accesos (es lo normal en Caddy): la dirección de vuelta de GitHub lleva un código de un solo uso en la
-	# query string. El registro de accesos es el de IArk (IARK_ACCESS_LOG, en el compose), que nunca anota la query string; ver docs/observabilidad.md.
-	# /metrics (si se activa con IARK_METRICS) lo lee Prometheus por la red interna, en iark:8787; IArk lo protege con token, y para que ni
+	# query string. El registro de accesos es el de DIAgrams (IARK_ACCESS_LOG, en el compose), que nunca anota la query string; ver docs/observabilidad.md.
+	# /metrics (si se activa con IARK_METRICS) lo lee Prometheus por la red interna, en iark:8787; DIAgrams lo protege con token, y para que ni
 	# siquiera llegue desde internet se puede cerrar aquí, antes del proxy (no está puesto por omisión):
 	#   @metricas path /metrics
 	#   respond @metricas 404

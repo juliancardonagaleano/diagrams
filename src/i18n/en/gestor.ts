@@ -37,14 +37,14 @@ export const gestor: Record<keyof typeof origen, string> = {
   'backend.noTokenTab': 'The browser does not allow saving the token even for this tab (site data blocked?).',
   'backend.noConfig': 'The browser does not allow saving the settings (site data blocked?): after reloading, the projects of this browser would come back.',
   // Probar la conexión
-  'conn.mixed': 'This page was opened over https and that address is http: the browser will block the requests (mixed content). Put the server behind an https proxy, or open IArk over http.',
+  'conn.mixed': 'This page was opened over https and that address is http: the browser will block the requests (mixed content). Put the server behind an https proxy, or open DIAgrams over http.',
   'conn.unexpected': 'Something unexpected failed while talking to the server.',
   'conn.forbidden': 'The server recognizes the token but does not give you permission for this.',
   'conn.unauthorized': 'The server did not accept the token: it is missing or not valid.',
   'conn.cors': 'The server responds, but the browser does not let this page read its response because the server does not authorize it ({origin}). Start it with --cors {origin}.',
   'conn.unreachable': '{host} cannot be reached: check that the server is running, that the address and port are correct and that you are online.',
   'conn.rateLimited': 'Too many failed attempts: wait a moment and try again.',
-  'conn.noProjects': 'That server does not offer projects: start it with --workspace <folder> (or check that the address is the IArk one).',
+  'conn.noProjects': 'That server does not offer projects: start it with --workspace <folder> (or check that the address is the DIAgrams one).',
   'conn.serverError': 'The server responded with an error.',
   // Inicio de sesión con GitHub: lo que vuelve a la página
   'login.reason.access_denied': 'You did not accept access on GitHub, so the session was not started. You can try again whenever you like.',

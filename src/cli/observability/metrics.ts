@@ -200,7 +200,7 @@ export class Metrics {
   private processFamilies(): MetricFamily[] {
     const cpu = process.cpuUsage();
     return [
-      { name: 'iark_build_info', help: 'Versión de IArk (siempre 1).', type: 'gauge', samples: [{ labels: { version: this.version }, value: 1 }] },
+      { name: 'iark_build_info', help: 'Versión de DIAgrams (siempre 1).', type: 'gauge', samples: [{ labels: { version: this.version }, value: 1 }] },
       { name: 'process_start_time_seconds', help: 'Momento de arranque del proceso (segundos desde 1970).', type: 'gauge', samples: [{ value: this.startedAt }] },
       { name: 'process_uptime_seconds', help: 'Segundos que lleva en marcha el proceso.', type: 'gauge', samples: [{ value: Math.round(process.uptime() * 1000) / 1000 }] },
       { name: 'process_resident_memory_bytes', help: 'Memoria residente del proceso (RSS), en bytes.', type: 'gauge', samples: [{ value: process.memoryUsage.rss() }] },

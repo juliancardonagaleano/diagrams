@@ -44,7 +44,7 @@ const PAGES_ORIGIN = 'https://juliancardonagaleano.github.io';
 const ADMIN = { id: 583231, login: 'duena', name: 'La Dueña' };
 const VISITA = { id: 4242, login: 'visita' };
 const SECRET_PATH = '/run/secrets/github_client_secret';
-/** Las opciones de `deploy/docker-compose.yml` para el contenedor de IArk. */
+/** Las opciones de `deploy/docker-compose.yml` para el contenedor de DIAgrams. */
 const HARDENED = ['--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--tmpfs', '/tmp'];
 
 // ───────────── utilidades ─────────────

@@ -10,7 +10,7 @@ export { createIarkModuleEmbed } from './iark-module-embed';
 export type { IarkModuleEmbed, IarkModuleEmbedOptions, ModuleAction, ModuleCapabilitiesInfo, ModuleEvent, ModuleIssueInfo, SuiteCapabilitiesInfo } from './iark-module-embed';
 
 /**
- * SDK de anfitrión: crea un iframe con IArk - DIAgrams en modo embebido y
+ * SDK de anfitrión: crea un iframe con DIAgrams en modo embebido y
  * gestiona el protocolo postMessage (handshake `init` → `load`, eventos, acciones).
  *
  *   const embed = createIarkEmbed({ container: '#editor', url: 'https://mi-host/diagramador/', document, autosave: true,
@@ -20,7 +20,7 @@ export type { IarkModuleEmbed, IarkModuleEmbedOptions, ModuleAction, ModuleCapab
 export interface IarkEmbedOptions {
   /** Elemento (o selector) donde insertar el iframe. */
   container: HTMLElement | string;
-  /** URL de la app de IArk - DIAgrams (se le añaden `embed=1&proto=json`). */
+  /** URL de la app de DIAgrams (se le añaden `embed=1&proto=json`). */
   url: string;
   /** Documento inicial (objeto o JSON). Si se omite, se abre en blanco. */
   document?: C4Document | string;
@@ -56,7 +56,7 @@ export interface IarkEmbedOptions {
 
 export interface IarkEmbed {
   iframe: HTMLIFrameElement;
-  /** Promesa que se resuelve cuando IArk - DIAgrams ha cargado el documento inicial; se rechaza si el protocolo del iframe es incompatible. */
+  /** Promesa que se resuelve cuando DIAgrams ha cargado el documento inicial; se rechaza si el protocolo del iframe es incompatible. */
   ready: Promise<void>;
   load(document?: C4Document | string, options?: Omit<LoadAction, 'action' | 'document' | 'version'>): Promise<C4Document>;
   merge(document: C4Document | string, autoLayout?: boolean): void;
@@ -93,7 +93,7 @@ export function createIarkEmbed(options: IarkEmbedOptions): IarkEmbed {
   iframe.style.border = '0';
   iframe.style.width = '100%';
   iframe.style.height = '100%';
-  iframe.setAttribute('title', options.title ?? 'IArk - DIAgrams');
+  iframe.setAttribute('title', options.title ?? 'DIAgrams');
   for (const [k, v] of Object.entries(options.iframeAttributes ?? {})) iframe.setAttribute(k, v);
   container.appendChild(iframe);
 
@@ -156,7 +156,7 @@ export function createIarkEmbed(options: IarkEmbedOptions): IarkEmbed {
       // con esa forma pero roto casi seguro viene de él (versión desalineada, bug); en vez de
       // descartarlo en silencio se avisa. El resto (ruido ajeno a nuestro protocolo) se ignora.
       const looksAddressedToUs = parseFailed ? (event.data as string).trim().startsWith('{') : !!data && typeof data === 'object';
-      if (looksAddressedToUs) options.onError?.({ message: 'Mensaje recibido de IArk - DIAgrams embebido no reconocido' });
+      if (looksAddressedToUs) options.onError?.({ message: 'Mensaje recibido de DIAgrams embebido no reconocido' });
       return;
     }
     const msg = data as EmbedEvent;

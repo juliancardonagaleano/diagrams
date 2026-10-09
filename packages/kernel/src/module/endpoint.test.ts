@@ -98,7 +98,7 @@ describe('versiones de un manifiesto: esquema, protocolo y contrato', () => {
 
   it('un esquema de manifiesto de versión MAYOR se rechaza con un mensaje que dice cuál es', () => {
     const problem = manifestCompatibilityProblem({ schema: 'iark.manifest/2', modules: [] }, BASE);
-    expect(problem).toMatch(/versión más nueva del formato \(iark\.manifest\/2\).*entiende iark\.manifest\/1.*Actualiza IArk/);
+    expect(problem).toMatch(/versión más nueva del formato \(iark\.manifest\/2\).*entiende iark\.manifest\/1.*Actualiza DIAgrams/);
     expect(problem).toContain(BASE);
   });
 

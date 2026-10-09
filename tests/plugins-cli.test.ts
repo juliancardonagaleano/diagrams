@@ -32,7 +32,7 @@ interface Run {
   stderr: string;
 }
 
-/** Ejecuta el CLI en `cwd` (por omisión, la carpeta del proyecto) con un entorno limpio de variables de IArk. */
+/** Ejecuta el CLI en `cwd` (por omisión, la carpeta del proyecto) con un entorno limpio de variables de DIAgrams. */
 function iark(args: string[], options: { cwd?: string; env?: Record<string, string>; input?: string } = {}): Run {
   const r = spawnSync(process.execPath, [bundle.cli, ...args], {
     cwd: options.cwd ?? project.dir,
