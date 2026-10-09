@@ -1,0 +1,18 @@
+{
+  "module": "data",
+  "cases": [
+    {
+      "id": "ventas-lakehouse",
+      "kind": "generate",
+      "instruction": "Un CRM en SaaS y la base de pedidos PostgreSQL se replican cada noche (Airbyte) a un lakehouse Delta Lake; de ahí un proceso ELT con dbt carga el almacén de ventas en Snowflake, con las tablas clientes (datos personales, confidencial) y fact_ventas. Un informe «Ventas mensuales» se actualiza cada mañana desde fact_ventas.",
+      "notes": "Linaje de punta a punta: orígenes, lakehouse, almacén con datos personales, informe, tres pipelines y una relación entre tablas.",
+      "expect": {
+        "kinds": { "source": 1, "database": 1, "lake": 1, "warehouse": 1, "table": 2, "report": 1, "pipeline": 3 },
+        "mentions": ["Snowflake", "dbt", "Airbyte"],
+        "maxWarnings": 0,
+        "loop": { "attempts": 1, "repaired": false, "verification": "passed" },
+        "prompt": { "systemContains": ["arquitecto de datos", "NO produces coordenadas"], "userContains": ["Snowflake"], "maxInputTokens": 9000 }
+      }
+    }
+  ]
+}

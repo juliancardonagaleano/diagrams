@@ -1,0 +1,259 @@
+{
+  "case": "pedidos-reintento-reglas",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. La primera respuesta cumple el esquema pero la vista de contenedores no tiene alcance (scopeId null): validate() del módulo la marca como error y el bucle reintenta por las reglas; la segunda corrige el alcance.",
+  "promptSha256": "d43dfbcc6228d513ce7cbf9d478ae6926b21dc844d94020b36976ca7a0b095b5",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "Plataforma de pedidos",
+          "description": null
+        },
+        "elements": [
+          {
+            "id": "comprador",
+            "type": "person",
+            "name": "Comprador",
+            "description": "Hace pedidos desde el portal",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "pedidos",
+            "type": "softwareSystem",
+            "name": "Plataforma de pedidos",
+            "description": "Recibe y despacha los pedidos",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "pagos",
+            "type": "softwareSystem",
+            "name": "Pasarela de pagos",
+            "description": "Cobra con tarjeta",
+            "technology": null,
+            "external": true,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "portal",
+            "type": "container",
+            "name": "Portal",
+            "description": "Interfaz del comprador",
+            "technology": "Angular",
+            "external": false,
+            "parentId": "pedidos",
+            "shape": "browser"
+          },
+          {
+            "id": "servicio",
+            "type": "container",
+            "name": "Servicio de pedidos",
+            "description": "Registra y despacha pedidos",
+            "technology": "Java, Spring Boot",
+            "external": false,
+            "parentId": "pedidos",
+            "shape": null
+          },
+          {
+            "id": "cola",
+            "type": "container",
+            "name": "Cola de despacho",
+            "description": "Encola los pedidos pendientes de enviar",
+            "technology": "RabbitMQ",
+            "external": false,
+            "parentId": "pedidos",
+            "shape": "queue"
+          }
+        ],
+        "relationships": [
+          {
+            "id": "r1",
+            "sourceId": "comprador",
+            "targetId": "portal",
+            "description": "Hace pedidos en",
+            "technology": "HTTPS"
+          },
+          {
+            "id": "r2",
+            "sourceId": "portal",
+            "targetId": "servicio",
+            "description": "Envía pedidos a",
+            "technology": "JSON/HTTPS"
+          },
+          {
+            "id": "r3",
+            "sourceId": "servicio",
+            "targetId": "cola",
+            "description": "Publica pedidos pendientes en",
+            "technology": "AMQP"
+          },
+          {
+            "id": "r4",
+            "sourceId": "servicio",
+            "targetId": "pagos",
+            "description": "Cobra con",
+            "technology": "HTTPS"
+          }
+        ],
+        "views": [
+          {
+            "id": "contexto",
+            "type": "systemContext",
+            "scopeId": "pedidos",
+            "title": "Contexto de la plataforma",
+            "elementIds": [
+              "comprador",
+              "pedidos",
+              "pagos"
+            ]
+          },
+          {
+            "id": "contenedores",
+            "type": "container",
+            "scopeId": null,
+            "title": "Contenedores de la plataforma",
+            "elementIds": [
+              "comprador",
+              "portal",
+              "servicio",
+              "cola",
+              "pagos"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "content": {
+        "workspace": {
+          "name": "Plataforma de pedidos",
+          "description": null
+        },
+        "elements": [
+          {
+            "id": "comprador",
+            "type": "person",
+            "name": "Comprador",
+            "description": "Hace pedidos desde el portal",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "pedidos",
+            "type": "softwareSystem",
+            "name": "Plataforma de pedidos",
+            "description": "Recibe y despacha los pedidos",
+            "technology": null,
+            "external": false,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "pagos",
+            "type": "softwareSystem",
+            "name": "Pasarela de pagos",
+            "description": "Cobra con tarjeta",
+            "technology": null,
+            "external": true,
+            "parentId": null,
+            "shape": null
+          },
+          {
+            "id": "portal",
+            "type": "container",
+            "name": "Portal",
+            "description": "Interfaz del comprador",
+            "technology": "Angular",
+            "external": false,
+            "parentId": "pedidos",
+            "shape": "browser"
+          },
+          {
+            "id": "servicio",
+            "type": "container",
+            "name": "Servicio de pedidos",
+            "description": "Registra y despacha pedidos",
+            "technology": "Java, Spring Boot",
+            "external": false,
+            "parentId": "pedidos",
+            "shape": null
+          },
+          {
+            "id": "cola",
+            "type": "container",
+            "name": "Cola de despacho",
+            "description": "Encola los pedidos pendientes de enviar",
+            "technology": "RabbitMQ",
+            "external": false,
+            "parentId": "pedidos",
+            "shape": "queue"
+          }
+        ],
+        "relationships": [
+          {
+            "id": "r1",
+            "sourceId": "comprador",
+            "targetId": "portal",
+            "description": "Hace pedidos en",
+            "technology": "HTTPS"
+          },
+          {
+            "id": "r2",
+            "sourceId": "portal",
+            "targetId": "servicio",
+            "description": "Envía pedidos a",
+            "technology": "JSON/HTTPS"
+          },
+          {
+            "id": "r3",
+            "sourceId": "servicio",
+            "targetId": "cola",
+            "description": "Publica pedidos pendientes en",
+            "technology": "AMQP"
+          },
+          {
+            "id": "r4",
+            "sourceId": "servicio",
+            "targetId": "pagos",
+            "description": "Cobra con",
+            "technology": "HTTPS"
+          }
+        ],
+        "views": [
+          {
+            "id": "contexto",
+            "type": "systemContext",
+            "scopeId": "pedidos",
+            "title": "Contexto de la plataforma",
+            "elementIds": [
+              "comprador",
+              "pedidos",
+              "pagos"
+            ]
+          },
+          {
+            "id": "contenedores",
+            "type": "container",
+            "scopeId": "pedidos",
+            "title": "Contenedores de la plataforma",
+            "elementIds": [
+              "comprador",
+              "portal",
+              "servicio",
+              "cola",
+              "pagos"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

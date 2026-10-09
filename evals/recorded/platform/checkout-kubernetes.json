@@ -1,0 +1,186 @@
+{
+  "case": "checkout-kubernetes",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Dos entornos, un clúster por entorno, una base de datos en producción y un pipeline con aprobación manual antes de producción.",
+  "promptSha256": "50b49b9b7659ae5015634c4a05185340650b2fcdb5517e88b9dc1e891eded00c",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "Checkout en Kubernetes",
+          "description": null,
+          "currency": "USD"
+        },
+        "environments": [
+          {
+            "id": "staging",
+            "name": "Staging",
+            "description": null,
+            "kind": "staging",
+            "provider": "AWS",
+            "region": "us-east-1"
+          },
+          {
+            "id": "prod",
+            "name": "Producción",
+            "description": null,
+            "kind": "prod",
+            "provider": "AWS",
+            "region": "us-east-1"
+          }
+        ],
+        "networks": [
+          {
+            "id": "vpc-staging",
+            "name": "VPC de staging",
+            "environmentId": "staging",
+            "parentId": null,
+            "exposure": "private",
+            "cidr": "10.10.0.0/16",
+            "description": null
+          },
+          {
+            "id": "vpc-prod",
+            "name": "VPC de producción",
+            "environmentId": "prod",
+            "parentId": null,
+            "exposure": "private",
+            "cidr": "10.20.0.0/16",
+            "description": null
+          }
+        ],
+        "resources": [
+          {
+            "id": "eks-staging",
+            "name": "Clúster de staging",
+            "kind": "cluster",
+            "environmentId": "staging",
+            "networkId": "vpc-staging",
+            "technology": "Amazon EKS",
+            "version": null,
+            "status": null,
+            "iac": true,
+            "owner": null,
+            "description": null,
+            "monthlyCost": null,
+            "region": null,
+            "cpuLimit": null,
+            "memoryLimit": null,
+            "expiresAt": null,
+            "counterpartOf": null
+          },
+          {
+            "id": "eks-prod",
+            "name": "Clúster de producción",
+            "kind": "cluster",
+            "environmentId": "prod",
+            "networkId": "vpc-prod",
+            "technology": "Amazon EKS",
+            "version": null,
+            "status": null,
+            "iac": true,
+            "owner": null,
+            "description": null,
+            "monthlyCost": 2400,
+            "region": null,
+            "cpuLimit": null,
+            "memoryLimit": null,
+            "expiresAt": null,
+            "counterpartOf": null
+          },
+          {
+            "id": "rds-prod",
+            "name": "Base de datos de producción",
+            "kind": "database",
+            "environmentId": "prod",
+            "networkId": "vpc-prod",
+            "technology": "Amazon RDS PostgreSQL",
+            "version": null,
+            "status": null,
+            "iac": true,
+            "owner": null,
+            "description": null,
+            "monthlyCost": 900,
+            "region": null,
+            "cpuLimit": null,
+            "memoryLimit": null,
+            "expiresAt": null,
+            "counterpartOf": null
+          }
+        ],
+        "services": [
+          {
+            "id": "checkout",
+            "name": "Checkout",
+            "kind": "service",
+            "description": null,
+            "technology": "Node.js",
+            "owner": "Equipo de Pagos",
+            "repo": "github.com/tienda/checkout",
+            "criticality": "critical",
+            "slo": "99,9 % de disponibilidad",
+            "sla": null,
+            "external": null
+          }
+        ],
+        "deployments": [
+          {
+            "id": "checkout-staging",
+            "serviceId": "checkout",
+            "environmentId": "staging",
+            "hostId": "eks-staging",
+            "replicas": 1,
+            "version": null,
+            "monthlyCost": null,
+            "cpuLimit": null,
+            "memoryLimit": null
+          },
+          {
+            "id": "checkout-prod",
+            "serviceId": "checkout",
+            "environmentId": "prod",
+            "hostId": "eks-prod",
+            "replicas": 3,
+            "version": null,
+            "monthlyCost": null,
+            "cpuLimit": null,
+            "memoryLimit": null
+          }
+        ],
+        "dependencies": [
+          {
+            "id": "checkout-db",
+            "sourceId": "checkout",
+            "targetId": "rds-prod",
+            "kind": "data",
+            "protocol": "PostgreSQL",
+            "description": "Guarda los pedidos"
+          }
+        ],
+        "pipelines": [
+          {
+            "id": "ci-cd-checkout",
+            "name": "CI/CD de checkout",
+            "kind": "ci-cd",
+            "tool": "GitHub Actions",
+            "description": null,
+            "owner": null,
+            "serviceIds": [
+              "checkout"
+            ],
+            "provisions": null,
+            "stages": [
+              {
+                "environmentId": "staging",
+                "approval": null
+              },
+              {
+                "environmentId": "prod",
+                "approval": true
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

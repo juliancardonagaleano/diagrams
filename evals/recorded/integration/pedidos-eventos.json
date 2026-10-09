@@ -1,0 +1,205 @@
+{
+  "case": "pedidos-eventos",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Camino feliz con un flujo narrado, contratos con versión y un evento por Kafka.",
+  "promptSha256": "1e9532435472ecd53bfb42c13391d2bad9f4d60cd10807f03c241be2b8bc6dfb",
+  "responses": [
+    {
+      "content": {
+        "workspace": {
+          "name": "Pedidos y facturación",
+          "description": "Alta de pedidos y facturación a partir de un evento"
+        },
+        "nodes": [
+          {
+            "id": "tienda-web",
+            "kind": "system",
+            "name": "Tienda web",
+            "description": null,
+            "technology": "React",
+            "owner": "Equipo Web",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "pedidos",
+            "kind": "system",
+            "name": "Servicio de pedidos",
+            "description": null,
+            "technology": "Java, Spring Boot",
+            "owner": "Equipo Pedidos",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "pedidos-api",
+            "kind": "api",
+            "name": "API de pedidos",
+            "description": null,
+            "technology": null,
+            "owner": "Equipo Pedidos",
+            "external": null,
+            "parentId": "pedidos",
+            "contractId": "pedidos-openapi",
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "pedidos-db",
+            "kind": "store",
+            "name": "Base de pedidos",
+            "description": null,
+            "technology": "PostgreSQL",
+            "owner": null,
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "kafka",
+            "kind": "broker",
+            "name": "Kafka",
+            "description": null,
+            "technology": null,
+            "owner": "Plataforma",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "pedido-creado",
+            "kind": "topic",
+            "name": "pedido-creado",
+            "description": null,
+            "technology": null,
+            "owner": null,
+            "external": null,
+            "parentId": "kafka",
+            "contractId": "pedido-creado-ce",
+            "pattern": null,
+            "domain": null
+          },
+          {
+            "id": "facturacion",
+            "kind": "system",
+            "name": "Facturación",
+            "description": null,
+            "technology": ".NET",
+            "owner": "Equipo Finanzas",
+            "external": null,
+            "parentId": null,
+            "contractId": null,
+            "pattern": null,
+            "domain": null
+          }
+        ],
+        "contracts": [
+          {
+            "id": "pedidos-openapi",
+            "name": "API de pedidos",
+            "format": "openapi",
+            "version": "3.0.3",
+            "url": null,
+            "description": null
+          },
+          {
+            "id": "pedido-creado-ce",
+            "name": "Evento pedido-creado",
+            "format": "cloudevents",
+            "version": "1.0",
+            "url": null,
+            "description": null
+          }
+        ],
+        "interactions": [
+          {
+            "id": "crea-pedido",
+            "sourceId": "tienda-web",
+            "targetId": "pedidos-api",
+            "style": "request-response",
+            "protocol": "REST",
+            "pattern": null,
+            "contractId": "pedidos-openapi",
+            "description": "Crea el pedido",
+            "dataObjects": null,
+            "criticality": "high",
+            "order": 1
+          },
+          {
+            "id": "guarda-pedido",
+            "sourceId": "pedidos",
+            "targetId": "pedidos-db",
+            "style": "request-response",
+            "protocol": "JDBC",
+            "pattern": null,
+            "contractId": null,
+            "description": "Guarda el pedido",
+            "dataObjects": null,
+            "criticality": null,
+            "order": 2
+          },
+          {
+            "id": "publica-evento",
+            "sourceId": "pedidos",
+            "targetId": "pedido-creado",
+            "style": "event",
+            "protocol": "Kafka",
+            "pattern": null,
+            "contractId": "pedido-creado-ce",
+            "description": "Publica el evento pedido-creado",
+            "dataObjects": null,
+            "criticality": null,
+            "order": 3
+          },
+          {
+            "id": "consume-evento",
+            "sourceId": "pedido-creado",
+            "targetId": "facturacion",
+            "style": "event",
+            "protocol": "Kafka",
+            "pattern": null,
+            "contractId": "pedido-creado-ce",
+            "description": "Entrega el evento a Facturación",
+            "dataObjects": null,
+            "criticality": null,
+            "order": 4
+          }
+        ],
+        "flows": [
+          {
+            "id": "pedido-nuevo",
+            "name": "Pedido nuevo",
+            "description": "Del alta del pedido a su facturación",
+            "steps": [
+              {
+                "interactionId": "crea-pedido",
+                "note": null
+              },
+              {
+                "interactionId": "guarda-pedido",
+                "note": null
+              },
+              {
+                "interactionId": "publica-evento",
+                "note": null
+              },
+              {
+                "interactionId": "consume-evento",
+                "note": null
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
