@@ -394,6 +394,9 @@ export function fromHelm(files: HelmFile[], options: InfraImportOptions = {}): P
         ignored.push(file.name);
         continue;
       }
+      if (error instanceof PlatformImportError && /varios documentos YAML/.test(error.message)) {
+        throw new PlatformImportError(`${label(file)} tiene varios documentos YAML (separados por «---»): parece la salida de helm template, que ya es Kubernetes y se importa con el importador de Kubernetes: helm template … | iark import --module platform.`);
+      }
       throw error;
     }
     if (role === 'values') {

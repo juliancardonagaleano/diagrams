@@ -32,6 +32,14 @@ describe('AsyncAPI: detect', () => {
     expect(looksLikeAsyncApi('')).toBe(false);
     expect(looksLikeAsyncApi(readFileSync('examples/pedidos-integracion.json', 'utf8'))).toBe(false);
   });
+
+  it('el módulo lo elige por el contenido aunque comparta extensión con OpenAPI, y deja a OpenAPI lo suyo', () => {
+    expect(registry.detectImporter('integration', 'pagos.yaml', pagos)?.id).toBe('asyncapi');
+    expect(registry.detectImporter('integration', 'farolas.yml', streetlights)?.id).toBe('asyncapi');
+    expect(registry.detectImporter('integration', undefined, streetlights)?.id).toBe('asyncapi');
+    expect(registry.detectImporter('integration', 'petstore.yaml', openapi)?.id).toBe('openapi');
+    expect(registry.detectImporter('integration', 'canales.json', '{"asyncapi":"2.6.0","info":{"title":"x","version":"1"},"channels":{}}')?.id).toBe('asyncapi');
+  });
 });
 
 describe('AsyncAPI 2.x: mapeo', () => {

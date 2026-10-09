@@ -396,10 +396,10 @@ describe('iark: módulos de la suite', () => {
   it('modules lista también el módulo de integraciones con sus formatos', () => {
     const list = run(['modules']);
     expect(list.stdout).toMatch(/^integration {2}Arquitectura de integraciones {2}v0\.1\.0/m);
-    expect(list.stdout).toMatch(/importa: mermaid {2}· {2}exporta: mermaid, svg, drawio/);
+    expect(list.stdout).toMatch(/importa: mermaid, openapi, asyncapi {2}· {2}exporta: mermaid, svg, drawio/);
     const manifest = JSON.parse(run(['modules', '--json']).stdout);
     expect(manifest.modules.map((m: { id: string }) => m.id)).toEqual(['c4', 'integration', 'data', 'enterprise', 'platform', 'security']);
-    expect(manifest.modules[1]).toMatchObject({ exportFormats: ['mermaid', 'svg', 'drawio'], importFormats: ['mermaid'] });
+    expect(manifest.modules[1]).toMatchObject({ exportFormats: ['mermaid', 'svg', 'drawio'], importFormats: ['mermaid', 'openapi', 'asyncapi'] });
   });
 
   it('--format inválido lista los formatos del módulo', () => {
@@ -566,7 +566,7 @@ describe('iark: módulo de datos', () => {
   const dir = mkdtempSync(join(tmpdir(), 'iarkdata-'));
 
   it('modules lista el módulo de datos con sus formatos', () => {
-    expect(run(['modules']).stdout).toMatch(/^data {2}Arquitectura de datos {2}v0\.1\.0\n {4}importa: mermaid, ddl, dbt {2}· {2}exporta: mermaid, svg, drawio/m);
+    expect(run(['modules']).stdout).toMatch(/^data {2}Arquitectura de datos {2}v0\.1\.0\n {4}importa: mermaid, ddl, dbt, openlineage {2}· {2}exporta: mermaid, svg, drawio/m);
   });
 
   it('validate --module data valida el documento y devuelve 2 con errores de estructura', () => {
@@ -700,7 +700,7 @@ describe('iark: módulo empresarial', () => {
   const dir = mkdtempSync(join(tmpdir(), 'iarkent-'));
 
   it('modules lista el módulo empresarial con sus formatos', () => {
-    expect(run(['modules']).stdout).toMatch(/^enterprise {2}Arquitectura empresarial {2}v0\.1\.0\n {4}importa: mermaid, archimate {2}· {2}exporta: mermaid, svg, drawio/m);
+    expect(run(['modules']).stdout).toMatch(/^enterprise {2}Arquitectura empresarial {2}v0\.1\.0\n {4}importa: mermaid, archimate, bpmn {2}· {2}exporta: mermaid, svg, drawio/m);
   });
 
   it('validate --module enterprise valida el documento y devuelve 2 con errores de estructura', () => {
@@ -829,7 +829,7 @@ describe('iark: módulo empresarial', () => {
       expect(otro.status).toBe(2);
       expect(otro.stderr).toMatch(/^La raíz del XML es «mxfile»: un modelo de ArchiMate empieza por «model»/);
       expect(otro.stderr).not.toMatch(/Error inesperado|\n\s+at /);
-      expect(run(['import', comercio, '--module', 'enterprise', '--format', 'visio']).stderr).toMatch(/Formato inválido «visio»\. Use: auto, archimate, mermaid\./);
+      expect(run(['import', comercio, '--module', 'enterprise', '--format', 'visio']).stderr).toMatch(/Formato inválido «visio»\. Use: auto, archimate, bpmn, mermaid\./);
     });
   });
 
@@ -949,7 +949,7 @@ describe('iark: módulo de plataforma', () => {
   const dir = mkdtempSync(join(tmpdir(), 'iarkplat-'));
 
   it('modules lista el módulo de plataforma con sus formatos', () => {
-    expect(run(['modules']).stdout).toMatch(/^platform {2}Arquitectura de plataforma {2}v0\.1\.0\n {4}importa: mermaid, terraform, kubernetes {2}· {2}exporta: mermaid, svg, drawio/m);
+    expect(run(['modules']).stdout).toMatch(/^platform {2}Arquitectura de plataforma {2}v0\.1\.0\n {4}importa: mermaid, terraform, kubernetes, cloudformation, helm {2}· {2}exporta: mermaid, svg, drawio/m);
   });
 
   it('validate --module platform valida el documento y devuelve 2 con errores de estructura', () => {
@@ -1090,7 +1090,7 @@ describe('iark: módulo de seguridad', () => {
   const dir = mkdtempSync(join(tmpdir(), 'iarksec-'));
 
   it('modules lista el módulo de seguridad con sus formatos', () => {
-    expect(run(['modules']).stdout).toMatch(/^security {2}Arquitectura de seguridad {2}v0\.1\.0\n {4}importa: mermaid {2}· {2}exporta: mermaid, svg, drawio/m);
+    expect(run(['modules']).stdout).toMatch(/^security {2}Arquitectura de seguridad {2}v0\.1\.0\n {4}importa: mermaid, threat-dragon {2}· {2}exporta: mermaid, svg, drawio/m);
   });
 
   it('validate --module security valida el documento, muestra los avisos de gobierno y devuelve 2 con errores de estructura', () => {

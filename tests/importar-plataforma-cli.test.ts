@@ -194,7 +194,7 @@ describe('iark: formatos del módulo de plataforma', () => {
   it('un formato inválido lista los del módulo; Mermaid sigue importándose igual', () => {
     const bad = run(['import', '--module', 'platform', '--format', 'pulumi', `${TF}/aws-tienda/main.tf`]);
     expect(bad.status).toBe(2);
-    expect(bad.stderr).toMatch(/Formato inválido «pulumi»\. Use: auto, kubernetes, mermaid, terraform\./);
+    expect(bad.stderr).toMatch(/Formato inválido «pulumi»\. Use: auto, cloudformation, helm, kubernetes, mermaid, terraform\./);
     const { doc } = importTo(['--stdin'], 'flowchart LR\n  subgraph e["Entorno: Producción"]\n    a[Web] --> b[(Datos)]\n  end\n');
     expect(doc.services.length + doc.resources.length).toBeGreaterThan(1);
   });
@@ -204,6 +204,6 @@ describe('iark: formatos del módulo de plataforma', () => {
     writeFileSync(file, 'esto no es nada importable');
     const r = run(['import', '--module', 'platform', file]);
     expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/No se reconoce el formato de ".*notas\.xyz": use --format kubernetes, mermaid o terraform\./);
+    expect(r.stderr).toMatch(/No se reconoce el formato de ".*notas\.xyz": use --format cloudformation, helm, kubernetes, mermaid o terraform\./);
   });
 });

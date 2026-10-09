@@ -234,7 +234,7 @@ export function fromOpenApi(source: string, options: IntegrationImportOptions = 
   if (webhooks > 0) warnings.add(`${webhooks} webhook(s) no se importan (la API que llama al cliente): siguen en el contrato.`);
   const callbacks = countCallbacks(paths);
   if (callbacks > 0) warnings.add(`${callbacks} callback(s) no se importan (la API que llama al cliente): siguen en el contrato.`);
-  if (withCredentials > 0) warnings.add(`${withCredentials} URL de servidor llevaban usuario y clave: se quitaron de las descripciones, pero el contrato conserva el texto original.`);
+  if (withCredentials > 0) warnings.add(`${withCredentials} URL de servidor con usuario y clave: se quitaron de las descripciones, pero el contrato conserva el texto original.`);
   for (const w of refWarnings(resolver.report())) warnings.add(w);
 
   const contract: Contract = {

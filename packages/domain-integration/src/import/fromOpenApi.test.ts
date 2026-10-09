@@ -79,7 +79,7 @@ describe('OpenAPI: mapeo', () => {
     expect(system).not.toContain('secreto');
     expect(system).toContain('oauth2 (petstore_auth), apiKey (api_key)');
     expect(new Set(doc.interactions.map((i) => i.protocol))).toEqual(new Set(['REST (HTTPS)']));
-    expect(warnings).toContain('1 URL de servidor llevaban usuario y clave: se quitaron de las descripciones, pero el contrato conserva el texto original.');
+    expect(warnings).toContain('1 URL de servidor con usuario y clave: se quitaron de las descripciones, pero el contrato conserva el texto original.');
   });
 
   it('cada grupo recibe una interacción desde el cliente implícito, con sus operaciones y los esquemas que alcanza', () => {
@@ -96,7 +96,7 @@ describe('OpenAPI: mapeo', () => {
   it('avisa del cliente implícito y de nada más', () => {
     expect(warnings).toEqual([
       'OpenAPI no dice quién llama a la API: se añadió el sistema externo «Cliente de la API» con una interacción hacia cada grupo de operaciones.',
-      '1 URL de servidor llevaban usuario y clave: se quitaron de las descripciones, pero el contrato conserva el texto original.',
+      '1 URL de servidor con usuario y clave: se quitaron de las descripciones, pero el contrato conserva el texto original.',
     ]);
   });
 

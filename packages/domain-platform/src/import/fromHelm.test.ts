@@ -293,7 +293,7 @@ describe('importar Helm: entradas que no son un chart utilizable', () => {
     expect(fail(only('hola'))).toMatch(/no es un Chart\.yaml/);
     expect(fail(only('apiVersion: v2\nname: [sin cerrar\n'))).toMatch(/^El archivo «Chart\.yaml» no es YAML válido \(línea \d+, columna \d+\)/);
     expect(fail(only('a: 1\na: 2\n'))).toMatch(/no es YAML válido/);
-    expect(fail(only('a: 1\n---\nb: 2\n'))).toMatch(/varios documentos YAML/);
+    expect(fail(only('a: 1\n---\nb: 2\n'))).toMatch(/varios documentos YAML.*parece la salida de helm template.*helm template … \| iark import --module platform/);
   });
 
   it('un Chart.yaml sin nombre o sin versión se dice; un manifiesto de Kubernetes suelto remite a helm template', () => {
