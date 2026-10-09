@@ -541,11 +541,28 @@ button.wb-change:hover { border-color: var(--wb-primary); background: var(--wb-i
   color: var(--wb-text);
 }
 .wb-save {
+  /* El texto cambia (Guardado, Guardando…, Sin conexión: N cambios pendientes…): se reserva ancho para que la barra no salte. */
+  display: inline-block;
+  min-inline-size: 32ch;
+  max-inline-size: 100%;
   color: var(--wb-text-2);
 }
 .wb-save[data-save='error'],
 .wb-save[data-save='conflict'] {
   color: var(--wb-error);
+}
+.wb-save[data-save='offline'] {
+  color: var(--wb-warning);
+}
+.wb-save[data-save='offline']::before,
+.wb-save[data-save='conflict']::before {
+  content: '⚠ ' / '';
+}
+@media (max-width: 700px) {
+  .wb-save {
+    min-inline-size: 0;
+    flex: 1 1 100%;
+  }
 }
 .wb-save[data-save='draft'] {
   color: var(--wb-warning);

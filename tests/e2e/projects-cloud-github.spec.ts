@@ -240,24 +240,19 @@ test.describe('proyectos en la nube con inicio de sesión de GitHub', () => {
     expect(JSON.parse(await editor(page).inputValue()).workspace.name).toBe('Escrito sin sesión');
     expect(onDisk(cloud)).toEqual(['Antes de caducar']);
 
-    // volver a entrar recarga la página: como lo escrito no se puede guardar, antes pregunta (y «Cancelar» lo conserva)
+    // volver a entrar recarga la página: lo escrito está guardado en este navegador (trabajo sin conexión), así que no pregunta ni se pierde
     cloud.signInAs(ANA);
     await page.getByTestId('reconnect').click();
     await expect(storage(page).getByTestId('storage-expired')).toContainText('Tu sesión caducó');
+    await expect(storage(page).getByTestId('storage-expired')).toContainText('está guardado en este navegador y se enviará solo cuando vuelvas a entrar con esta misma cuenta');
     await expect(storage(page).getByTestId('storage-status')).toHaveText('Sesión caducada');
-    await storage(page).getByRole('button', { name: 'Iniciar sesión con GitHub' }).click();
-    await expect(storage(page).getByTestId('storage-loss')).toBeVisible();
-    await storage(page).getByTestId('storage-loss').getByRole('button', { name: 'Cancelar' }).click();
-    await expect(storage(page).getByTestId('storage-loss')).toHaveCount(0);
-    expect(JSON.parse(await editor(page).inputValue()).workspace.name).toBe('Escrito sin sesión');
-
-    await storage(page).getByRole('button', { name: 'Iniciar sesión con GitHub' }).click();
-    await Promise.all([page.waitForEvent('load'), storage(page).getByTestId('storage-loss').getByRole('button', { name: 'Seguir y descartarlos' }).click()]);
+    await Promise.all([page.waitForEvent('load'), storage(page).getByRole('button', { name: 'Iniciar sesión con GitHub' }).click()]);
     await expect(page.locator('.wb-toast')).toContainText('Sesión iniciada como Ana Pérez (@ana-dev)');
+    // la misma cuenta: lo que escribió sin sesión se envía solo al volver a entrar
+    await expect.poll(() => onDisk(cloud), { timeout: 20000 }).toEqual(['Escrito sin sesión']);
     await page.getByRole('button', { name: 'Proyectos…' }).click();
     await expect(storage(page).getByTestId('storage-status')).toHaveText('Conectado');
     await expect(dialog(page).getByRole('button', { name: /^Caduca/ })).toBeVisible(); // la misma cuenta: los mismos proyectos
-    expect(onDisk(cloud)).toEqual(['Antes de caducar']);
     expect(errors).toEqual([]);
   });
 

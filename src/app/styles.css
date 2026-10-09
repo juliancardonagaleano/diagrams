@@ -401,6 +401,31 @@ body {
   font-size: 14px;
 }
 
+.c4-save-note {
+  display: inline-block;
+  min-inline-size: 28ch;
+  max-inline-size: 100%;
+  color: var(--semi-color-text-1);
+}
+.c4-save-note[data-save='offline'] {
+  color: #9a5b00; /* contraste AA sobre el fondo claro de la cabecera */
+}
+.c4-save-note[data-save='conflict'] {
+  color: var(--semi-color-danger);
+}
+body[theme-mode='dark'] .c4-save-note[data-save='offline'] {
+  color: #ffc76b;
+}
+.c4-save-note[data-save='offline']::before,
+.c4-save-note[data-save='conflict']::before {
+  content: '⚠ ' / '';
+}
+@media (max-width: 700px) {
+  .c4-save-note {
+    min-inline-size: 0;
+  }
+}
+
 .semi-tabs-bar-card .semi-tabs-tab {
   font-size: 13px;
 }

@@ -21,6 +21,9 @@ import {
   type RemoteSession,
 } from '@iark/kernel';
 import { hostOf, LAST_KEY } from './backend';
+import { isTransient, OfflineQueue, type PendingChange, type PendingStatus } from './offlineQueue';
+import { OfflineSync, type IdentityMemory, type LockManagerLike, type OfflineSnapshot, type SyncHost } from './offlineSync';
+import type { RetryPolicy } from './offlineQueue';
 
 /**
  * Sesión de proyectos de una pantalla (banco de trabajo o editor C4): qué proyecto y qué diagrama están abiertos, la lista
@@ -28,7 +31,11 @@ import { hostOf, LAST_KEY } from './backend';
  * suscribe y el anfitrión (el controlador del banco o el editor C4) le pasa el texto cuando cambia.
  */
 
-export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error' | 'conflict';
+/**
+ * Cómo va el guardado del diagrama abierto. `offline`: con un servidor, el cambio no llegó por la red y está guardado en este
+ * navegador esperando (se reenvía solo); `conflict`: el servidor cambió el diagrama y lo tuyo se conserva aparte hasta que decidas.
+ */
+export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error' | 'conflict' | 'offline';
 
 export interface ProjectsState {
   ready: boolean;
@@ -52,6 +59,8 @@ export interface ProjectsState {
    */
   syncError?: string;
   syncErrorCode?: ProjectErrorCode;
+  /** Solo con un servidor: los cambios guardados en este navegador que esperan a enviarse (ver `offlineSync.ts`). */
+  offline?: OfflineSnapshot;
 }
 
 /** Dónde se guardan los proyectos de esta sesión: este navegador o un servidor (con su dirección, para mostrarla). */
@@ -107,7 +116,15 @@ export interface SessionOptions {
    * alguien la mira y la ventana está visible. `0` lo desactiva. Por defecto, 30 s.
    */
   pollMs?: number;
+  /**
+   * Solo con un servidor: el trabajo sin conexión. Por omisión, los cambios que no llegan al servidor se guardan en IndexedDB y se
+   * reenvían solos; `false` lo desactiva (el cambio queda en memoria, con «Reintentar»). Las pruebas dan su propia cola y reloj.
+   */
+  offline?: false | { queue?: OfflineQueue; policy?: Partial<RetryPolicy>; now?: () => number; identity?: IdentityMemory; locks?: false | LockManagerLike };
 }
+
+/** Cómo se resuelve un conflicto: `reload` se queda con lo del servidor, `overwrite` con lo propio (sobre lo del servidor) y `copy` guarda lo propio como diagrama nuevo. */
+export type ConflictChoice = 'overwrite' | 'reload' | 'copy';
 
 const CHANNEL = 'iark-projects';
 export const DEFAULT_POLL_MS = 30_000;
@@ -138,6 +155,9 @@ export class ProjectSession {
   private watchers = 0;
   private refreshing: Promise<void> | undefined;
   private stopWatching: (() => void) | undefined;
+  /** El trabajo sin conexión (solo con un servidor): guarda en este navegador lo que no llega y lo reenvía solo. */
+  private readonly sync: OfflineSync | undefined;
+  private stopNetwork: (() => void) | undefined;
 
   constructor(
     readonly store: ProjectStore,
@@ -156,6 +176,90 @@ export class ProjectSession {
     }
     const pollMs = options.pollMs ?? DEFAULT_POLL_MS;
     if (this.remote && pollMs > 0) this.startWatching(pollMs);
+    if (this.backend.kind === 'remote' && options.offline !== false) {
+      const offline = options.offline ?? {};
+      this.sync = new OfflineSync(offline.queue ?? new OfflineQueue(), this.syncHost, store, this.backend.url, { policy: offline.policy, now: offline.now, identity: offline.identity, locks: offline.locks });
+      this.listenToNetwork();
+    }
+  }
+
+  // ───────────── trabajo sin conexión ─────────────
+
+  /** Lo que el motor de reenvío necesita saber de la sesión y lo que le cuenta a la sesión. */
+  private readonly syncHost: SyncHost = {
+    credentialRejected: () => this.state.errorCode === 'unauthorized' || this.state.syncErrorCode === 'unauthorized',
+    changed: () => {
+      if (this.sync) this.set({ offline: this.sync.snapshot });
+    },
+    sent: (change, meta) => {
+      if (this.isOpen(change)) {
+        this.baseUpdatedAt = meta.updatedAt;
+        this.set(this.pendingText === undefined ? { save: 'saved', savedAt: Date.now(), ...NO_SAVE_ERROR } : { save: 'pending', ...NO_SAVE_ERROR });
+      }
+      this.announce();
+      void this.refresh({ background: true });
+    },
+    conflicted: (change) => {
+      if (this.isOpen(change)) this.set({ save: 'conflict', saveError: change.reason, saveErrorCode: 'conflict' });
+    },
+    authRequired: (error, change) => {
+      const open = change ? this.isOpen(change) : this.openEntry() !== undefined;
+      if (open) this.set({ save: 'error', saveError: error.message, saveErrorCode: error.code });
+      else if (error.code === 'unauthorized') this.set({ syncError: error.message, syncErrorCode: error.code });
+    },
+  };
+
+  private isOpen(change: Pick<PendingChange, 'projectId' | 'diagramId'>): boolean {
+    return change.projectId === this.state.projectId && change.diagramId === this.state.diagramId;
+  }
+
+  /** El cambio guardado en este navegador del diagrama abierto, si lo hay. */
+  private openEntry(): PendingChange | undefined {
+    const { projectId, diagramId } = this.state;
+    return this.sync && projectId && diagramId ? this.sync.find(projectId, diagramId) : undefined;
+  }
+
+  private browserOffline(): boolean {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
+  /** Al volver la red, al volver el foco a la ventana y al volver a mostrarla, se reintenta lo que esperaba (con la ventana oculta, el foco no cuenta). */
+  private listenToNetwork(): void {
+    if (typeof window === 'undefined') return;
+    const visible = (): boolean => typeof document === 'undefined' || document.visibilityState !== 'hidden';
+    const online = (): void => void this.sync?.kick('online');
+    const focus = (): void => {
+      if (visible()) void this.sync?.kick('focus');
+    };
+    window.addEventListener('online', online);
+    window.addEventListener('focus', focus);
+    document.addEventListener('visibilitychange', focus);
+    this.stopNetwork = () => {
+      window.removeEventListener('online', online);
+      window.removeEventListener('focus', focus);
+      document.removeEventListener('visibilitychange', focus);
+    };
+  }
+
+  /** Cuántos cambios de esta persona hay guardados en este navegador sin haber llegado al servidor (con o sin conflicto). */
+  get unsentCount(): number {
+    const offline = this.state.offline;
+    return offline ? offline.waiting + offline.authBlocked + offline.conflicts : 0;
+  }
+
+  /** Descarta los cambios sin enviar de esta persona en este servidor (al cerrar sesión, tras confirmarlo). */
+  async discardQueued(): Promise<void> {
+    await this.sync?.discardMine();
+  }
+
+  /** Descarta los cambios sin enviar que dejó otra persona en este navegador (nunca se enviarían con tu credencial). */
+  async discardOthersQueued(): Promise<void> {
+    await this.sync?.discardForeign();
+  }
+
+  /** Reintenta ya lo que espera a poder enviarse («Reintentar ahora»). */
+  async retryNow(): Promise<void> {
+    await this.sync?.kick('manual');
   }
 
   /** `true` si los proyectos están en un servidor (y no en este navegador). */
@@ -190,7 +294,12 @@ export class ProjectSession {
   /** Carga la lista. Devuelve lo último que había abierto, si sigue existiendo, para que el anfitrión decida si lo reabre. */
   async init(): Promise<LastOpened | undefined> {
     await this.refresh();
+    await this.sync?.ready;
     this.set({ ready: true });
+    // Lo que quedó pendiente de otra vez (la pestaña se cerró sin red) se reenvía al abrir. Y se averigua quién es la credencial para que lo que se
+    // escriba desde ahora quede guardado a su nombre (y no lo pueda enviar otra persona con otra credencial).
+    void this.sync?.verifyQuiet();
+    void this.sync?.kick('start');
     const last = this.pointer?.read();
     const project = this.state.projects.find((p) => p.id === last?.projectId);
     if (!project) return undefined;
@@ -320,6 +429,7 @@ export class ProjectSession {
   async useToken(token: string | undefined): Promise<void> {
     (this.store as { setToken?: (token?: string) => void }).setToken?.(token);
     await this.refresh();
+    await this.sync?.credentialsChanged();
     const refused = this.state.saveErrorCode === 'unauthorized' || this.state.saveErrorCode === 'forbidden';
     if (this.pendingText !== undefined && this.state.save === 'error' && refused) await this.retry();
   }
@@ -378,6 +488,7 @@ export class ProjectSession {
       this.selectProject(undefined);
     }
     await this.store.deleteProject(id);
+    await this.sync?.drop(id);
     await this.refresh();
     this.announce();
   }
@@ -423,6 +534,7 @@ export class ProjectSession {
       this.selectProject(undefined);
     }
     await this.members.removeMember(projectId, me.login);
+    await this.sync?.drop(projectId);
     await this.refresh({ background: true });
   }
 
@@ -475,13 +587,27 @@ export class ProjectSession {
   /** Abre un diagrama: guarda lo pendiente del anterior, lo adjunta (sus cambios se guardan solos) y lo devuelve. */
   async openDiagram(projectId: string, diagramId: string): Promise<Diagram> {
     await this.flush();
-    const diagram = await this.store.getDiagram(projectId, diagramId);
-    if (!diagram) throw new ProjectError('not-found', 'El diagrama ya no existe en el proyecto.');
-    this.baseUpdatedAt = diagram.updatedAt;
+    await this.sync?.ready;
+    const queued = this.sync?.find(projectId, diagramId);
+    const found = await this.store.getDiagram(projectId, diagramId);
+    if (!found && !queued) throw new ProjectError('not-found', 'El diagrama ya no existe en el proyecto.');
+    // Si quedó trabajo sin enviar de este diagrama (la pestaña se cerró sin red), lo que se abre es ese trabajo y no la versión del servidor:
+    // sigue esperando para enviarse sobre la marca del servidor en la que se escribió, así que un cambio ajeno se detecta como conflicto.
+    const diagram: Diagram = queued
+      ? { id: diagramId, module: queued.module ?? found?.module ?? '', name: found?.name ?? queued.name, createdAt: found?.createdAt ?? queued.baseUpdatedAt, updatedAt: found?.updatedAt ?? queued.baseUpdatedAt, text: queued.text }
+      : found!;
+    this.baseUpdatedAt = queued?.baseUpdatedAt ?? diagram.updatedAt;
     this.pendingText = undefined;
-    this.set({ projectId, diagramId, save: 'idle', ...NO_SAVE_ERROR });
+    this.set({ projectId, diagramId, ...(queued ? this.stateOf(queued) : { save: 'idle' as const, ...NO_SAVE_ERROR }) });
     this.remember();
     return diagram;
+  }
+
+  /** El estado de guardado que corresponde a un cambio guardado en este navegador. */
+  private stateOf(change: PendingChange): Pick<ProjectsState, 'save' | 'saveError' | 'saveErrorCode'> {
+    if (change.status === 'conflict') return { save: 'conflict', saveError: change.reason, saveErrorCode: 'conflict' };
+    if (change.status === 'auth') return { save: 'error', saveError: change.reason, saveErrorCode: this.state.saveErrorCode === 'forbidden' ? 'forbidden' : 'unauthorized' };
+    return { save: 'offline', saveError: change.reason, saveErrorCode: 'unavailable' };
   }
 
   /** Crea un diagrama en el proyecto abierto (o en `projectId`) y lo adjunta. */
@@ -520,6 +646,7 @@ export class ProjectSession {
       this.detach();
     }
     await this.store.deleteDiagram(projectId, diagramId);
+    await this.sync?.drop(projectId, diagramId);
     await this.refresh();
     this.announce();
   }
@@ -548,7 +675,9 @@ export class ProjectSession {
   queueSave(text: string): void {
     if (!this.attached) return;
     this.pendingText = text;
-    if (this.state.save !== 'conflict') this.set({ save: 'pending', ...NO_SAVE_ERROR });
+    // Con un cambio ya guardado en este navegador (sin conexión, en conflicto, esperando credenciales) el estado visible no cambia al seguir
+    // escribiendo: «Sin conexión: 1 cambio pendiente» no parpadea a «Guardando…» con cada tecla.
+    if (!this.openEntry() && this.state.save !== 'conflict') this.set({ save: 'pending', ...NO_SAVE_ERROR });
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.run(), this.debounceMs);
   }
@@ -576,9 +705,14 @@ export class ProjectSession {
     await this.inFlight;
   }
 
-  /** Hay cambios que aún no están guardados (para avisar al cerrar la pestaña). */
+  /**
+   * Hay cambios que se perderían si se cierra la pestaña (para avisar al cerrar). Un cambio ya guardado en este navegador (IndexedDB) no cuenta:
+   * sobrevive a cerrar la pestaña y se envía al volver. Sí cuenta si ese almacenamiento no es duradero (ventana privada) o no cupo.
+   */
   get dirty(): boolean {
-    return this.pendingText !== undefined || this.state.save === 'saving' || this.state.save === 'error' || this.state.save === 'conflict';
+    if (this.pendingText !== undefined || this.state.save === 'saving') return true;
+    if (this.state.save === 'error' || this.state.save === 'conflict' || this.state.save === 'offline') return !(this.sync?.queue.durable && this.openEntry());
+    return false;
   }
 
   private run(): Promise<void> {
@@ -590,7 +724,20 @@ export class ProjectSession {
   private async write(): Promise<void> {
     const { projectId, diagramId } = this.state;
     const text = this.pendingText;
-    if (text === undefined || !projectId || !diagramId || this.state.save === 'conflict') return;
+    if (text === undefined || !projectId || !diagramId) return;
+    const sync = this.sync;
+    if (sync) await sync.ready;
+    const queued = sync?.find(projectId, diagramId);
+    if (this.state.save === 'conflict' && !queued) return;
+    // Ya hay un cambio de este diagrama esperando en la cola (o el navegador dice que no hay red): no se llama al servidor con cada pausa, se anota
+    // lo último y el motor de reenvío lo envía cuando toca. Así un corte largo no genera una petición por cada edición.
+    if (sync && (queued || this.browserOffline())) {
+      if (await this.park(text, queued ? 'keep' : 'retry')) {
+        if (!queued) sync.noteFailure(new ProjectError('unavailable', 'El navegador está sin conexión.', { network: true }));
+        else if (queued.status === 'retry') void sync.kick('edit');
+        return;
+      }
+    }
     this.set({ save: 'saving' });
     try {
       const meta = await this.store.saveDiagram(projectId, { id: diagramId, text, ifUpdatedAt: this.baseUpdatedAt });
@@ -602,21 +749,71 @@ export class ProjectSession {
       this.announce();
       await this.refresh({ background: this.remote });
     } catch (error) {
+      if (this.state.diagramId === diagramId && sync && (await this.parkAfter(error, text))) return;
       const code = codeOf(error);
       this.set({ save: code === 'conflict' ? 'conflict' : 'error', saveError: (error as Error).message, saveErrorCode: code });
     }
   }
 
   /**
-   * Un conflicto se da cuando otra pestaña guardó el mismo diagrama. `overwrite` conserva lo de esta pestaña;
-   * `reload` descarta lo de esta y devuelve el diagrama como quedó, para que el anfitrión lo cargue.
+   * Guarda `text` en la cola de este navegador como el último estado del diagrama abierto. `false` si no se pudo (tope superado, sin
+   * almacenamiento, sin marca del servidor sobre la que reenviar): quien llama sigue con el comportamiento de siempre (el texto queda en memoria).
    */
-  async resolveConflict(choice: 'overwrite' | 'reload'): Promise<Diagram | undefined> {
+  private async park(text: string, status: PendingStatus | 'keep', error?: ProjectError): Promise<boolean> {
+    const sync = this.sync;
+    const { projectId, diagramId } = this.state;
+    if (!sync || !projectId || !diagramId || !this.baseUpdatedAt) return false;
+    const meta = this.diagram;
+    const problem = status === 'conflict' ? ('changed' as const) : undefined;
+    const result = await sync.park({ projectId, diagramId, name: meta?.name ?? diagramId, module: meta?.module, text, baseUpdatedAt: this.baseUpdatedAt }, status, { problem, reason: error?.message });
+    if (!result.ok) return false;
+    if (this.state.diagramId !== diagramId) return true;
+    if (this.pendingText === text) this.pendingText = undefined;
+    const entry = sync.find(projectId, diagramId);
+    if (entry) this.set(this.stateOf(entry));
+    return true;
+  }
+
+  /** Un guardado falló: si es algo que la cola sabe esperar (la red, una credencial, un conflicto), el cambio se guarda en ella. `true` si quedó guardado. */
+  private async parkAfter(error: unknown, text: string): Promise<boolean> {
+    const sync = this.sync;
+    if (!sync) return false;
+    if (isTransient(error)) {
+      if (!(await this.park(text, 'retry', error))) return false;
+      sync.noteFailure(error);
+      return true;
+    }
+    if (error instanceof ProjectError && (error.code === 'unauthorized' || error.code === 'forbidden')) {
+      if (!(await this.park(text, 'auth', error))) return false;
+      sync.noteAuth(error);
+      this.set({ save: 'error', saveError: error.message, saveErrorCode: error.code });
+      return true;
+    }
+    if (error instanceof ProjectError && error.code === 'conflict') return this.park(text, 'conflict', error);
+    return false;
+  }
+
+  /**
+   * Un conflicto se da cuando otra pestaña, otra persona u otro equipo guardó el mismo diagrama. Tres salidas:
+   * - `reload`: te quedas con lo del servidor y lo tuyo se descarta (devuelve el diagrama como quedó, para que el anfitrión lo cargue).
+   * - `overwrite`: te quedas con lo tuyo, que se envía sobre lo que hay ahora en el servidor.
+   * - `copy`: lo tuyo se guarda como un diagrama nuevo (`name`, o «Nombre (mi versión)») y el original conserva lo del servidor.
+   * Con un servidor, lo tuyo se conserva en este navegador mientras decides y se puede resolver el conflicto de cualquier diagrama con `key`.
+   */
+  async resolveConflict(choice: ConflictChoice, options: { key?: string; name?: string } = {}): Promise<Diagram | undefined> {
+    const entry = this.sync ? (options.key ? this.sync.queue.get(options.key) : this.openEntry()) : undefined;
+    if (this.sync && entry) return this.resolveQueued(entry, choice, options.name);
     const { projectId, diagramId } = this.state;
     if (!projectId || !diagramId) return undefined;
     const current = await this.store.getDiagram(projectId, diagramId);
     if (!current) {
       this.detach();
+      return undefined;
+    }
+    if (choice === 'copy') {
+      const text = this.pendingText;
+      if (text === undefined) return undefined;
+      await this.saveAsNew({ projectId, module: current.module, name: options.name ?? current.name, text });
       return undefined;
     }
     this.baseUpdatedAt = current.updatedAt;
@@ -629,8 +826,82 @@ export class ProjectSession {
     return undefined;
   }
 
-  /** Reintenta un guardado que falló. */
+  /** Un nombre libre en el proyecto a partir de `wanted` («Ventas (mi versión)», «Ventas (mi versión 2)»…). */
+  private freeName(projectId: string, wanted: string): string {
+    const taken = new Set((this.state.projects.find((p) => p.id === projectId)?.diagrams ?? []).map((d) => d.name.trim().toLowerCase()));
+    if (!taken.has(wanted.trim().toLowerCase())) return wanted;
+    const base = wanted.replace(/\s*\(mi versión(?: \d+)?\)$/, '');
+    for (let n = 1; ; n += 1) {
+      const candidate = n === 1 ? `${base} (mi versión)` : `${base} (mi versión ${n})`;
+      if (!taken.has(candidate.toLowerCase())) return candidate;
+    }
+  }
+
+  /** Guarda un texto como diagrama nuevo del proyecto y, si es el abierto, deja la sesión guardando en él. */
+  private async saveAsNew(input: { projectId: string; module: string; name: string; text: string }, wasOpen = true): Promise<DiagramMeta> {
+    let meta: DiagramMeta | undefined;
+    for (let attempt = 0; !meta; attempt += 1) {
+      try {
+        meta = await this.store.saveDiagram(input.projectId, { module: input.module, name: this.freeName(input.projectId, attempt === 0 ? input.name : `${input.name} (${attempt + 1})`), text: input.text });
+      } catch (error) {
+        if (!(error instanceof ProjectError && error.code === 'exists') || attempt >= 5) throw error;
+        await this.refresh({ background: true }); // alguien creó ese nombre en medio: se relee la lista para elegir otro
+      }
+    }
+    await this.refresh({ background: this.remote });
+    if (wasOpen) {
+      this.discardPending();
+      this.baseUpdatedAt = meta.updatedAt;
+      this.set({ diagramId: meta.id, save: 'saved', savedAt: Date.now(), ...NO_SAVE_ERROR });
+      this.remember();
+    }
+    this.announce();
+    return meta;
+  }
+
+  /** `resolveConflict` de un cambio guardado en este navegador. */
+  private async resolveQueued(entry: PendingChange, choice: ConflictChoice, name?: string): Promise<Diagram | undefined> {
+    const sync = this.sync!;
+    const open = this.isOpen(entry);
+    if (choice === 'reload') {
+      // Primero se lee lo del servidor: sin red falla aquí y no se pierde nada de lo tuyo.
+      const current = entry.problem === 'gone' ? undefined : await this.store.getDiagram(entry.projectId, entry.diagramId);
+      await sync.dropKey(entry.key);
+      if (open) {
+        this.discardPending();
+        if (current) {
+          this.baseUpdatedAt = current.updatedAt;
+          this.set({ save: 'idle', ...NO_SAVE_ERROR });
+        } else this.detach();
+      }
+      await this.refresh({ background: this.remote });
+      return open ? current : undefined;
+    }
+    const fresh = choice === 'overwrite' && entry.problem !== 'gone' ? await this.store.getDiagram(entry.projectId, entry.diagramId) : undefined;
+    if (choice === 'overwrite' && fresh) {
+      // Lo tuyo se envía sobre lo que hay ahora en el servidor (la marca nueva): si cambia otra vez mientras tanto, vuelve a ser conflicto.
+      await sync.patch(entry.key, { status: 'retry', problem: undefined, reason: undefined, baseUpdatedAt: fresh.updatedAt });
+      if (open) {
+        this.baseUpdatedAt = fresh.updatedAt;
+        this.set({ save: 'saving', ...NO_SAVE_ERROR });
+      }
+      await sync.kick('manual');
+      return undefined;
+    }
+    // Copia (o «la mía» de un diagrama que ya no existe): un diagrama nuevo con otro nombre; el original no se toca.
+    const module = entry.module ?? this.state.projects.find((p) => p.id === entry.projectId)?.diagrams.find((d) => d.id === entry.diagramId)?.module;
+    if (!module) throw new ProjectError('invalid', 'No se sabe de qué módulo es el diagrama: no se puede guardar la copia.');
+    await this.saveAsNew({ projectId: entry.projectId, module, name: name?.trim() || `${entry.name} (mi versión)`, text: entry.text }, open);
+    await sync.dropKey(entry.key);
+    return undefined;
+  }
+
+  /** Reintenta un guardado que falló (o, si está en la cola de este navegador, lo envía ya). */
   async retry(): Promise<void> {
+    if (this.openEntry()?.status === 'retry') {
+      await this.sync!.kick('manual');
+      return;
+    }
     if (this.pendingText !== undefined) {
       this.set({ save: 'pending' });
       await this.run();
@@ -639,6 +910,8 @@ export class ProjectSession {
 
   dispose(): void {
     this.stopWatching?.();
+    this.stopNetwork?.();
+    this.sync?.dispose();
     this.discardPending();
     this.listeners.clear();
     this.channel?.close();
