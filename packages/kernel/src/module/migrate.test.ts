@@ -133,7 +133,7 @@ describe('migrateDocument: cadena 1.0 → 1.1 → 2.0', () => {
     const result = migrateDocument(module, { version: '2.1', workspace: { name: 'X' } });
     expect(result.status).toBe('unsupported');
     expect(result.status === 'unsupported' && result.message).toMatch(/versión más nueva \(2\.1\) del formato.*hasta la 2\.0/);
-    expect(result.status === 'unsupported' && result.message).toMatch(/Actualiza IArk/);
+    expect(result.status === 'unsupported' && result.message).toMatch(/Actualiza DIAgrams/);
     const analysis = analyzeValue(module, { version: '3.0' });
     expect(analysis).toMatchObject({ status: 'schema', issues: [{ path: 'version' }] });
   });

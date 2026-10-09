@@ -124,7 +124,7 @@ export async function testConnection(input: { url: string; token?: string }, opt
 }
 
 /**
- * Qué formas de entrar ofrece un servidor (`GET /api/auth/providers`, pública), o `undefined` si no se pudo saber (sin red, no es IArk, o la
+ * Qué formas de entrar ofrece un servidor (`GET /api/auth/providers`, pública), o `undefined` si no se pudo saber (sin red, no es DIAgrams, o la
  * dirección es http desde una página https). Un servidor anterior a las cuentas no ofrece ninguna. Nunca lanza: es una pista para elegir qué
  * mostrar, y si falla se muestra lo de siempre (dirección y token).
  */

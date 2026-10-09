@@ -46,7 +46,7 @@ describe('contractVersion', () => {
   });
 
   it('rechaza un contrato MAYOR que el del anfitrión, diciendo cuál es cada uno', () => {
-    expect(() => assertModuleContract(base({ contractVersion: CONTRACT_VERSION + 1 }))).toThrow(/«externo» se escribió para la versión 2 del contrato DomainModule y este IArk implementa la 1/);
+    expect(() => assertModuleContract(base({ contractVersion: CONTRACT_VERSION + 1 }))).toThrow(/«externo» se escribió para la versión 2 del contrato DomainModule y este DIAgrams implementa la 1/);
   });
 
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])('rechaza un contractVersion que no es un entero ≥ 1 (%s)', (value) => {

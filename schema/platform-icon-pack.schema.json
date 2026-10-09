@@ -1,6 +1,6 @@
 {
-  "$id": "https://github.com/juliancardonagaleano/iark-diagrams/schema/platform-icon-pack.schema.json",
-  "title": "Paquete de iconos de plataforma (IArk - DIAgrams)",
+  "$id": "https://github.com/juliancardonagaleano/DIAgrams/schema/platform-icon-pack.schema.json",
+  "title": "Paquete de iconos de plataforma (DIAgrams)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {

@@ -89,6 +89,6 @@ describe('probar la conexión con un servidor', () => {
   it('un servidor que responde con otra cosa (no es JSON) se dice con claridad', async () => {
     const html = (async () => new Response('<html>hola</html>', { status: 200, headers: { 'Content-Type': 'text/html' } })) as unknown as typeof fetch;
     const result = await testConnection({ url: 'http://localhost:8787' }, { fetch: html, page: DEV });
-    expect(result).toMatchObject({ ok: false, problem: 'server', detail: expect.stringContaining('no respondió como un servidor de IArk') });
+    expect(result).toMatchObject({ ok: false, problem: 'server', detail: expect.stringContaining('no respondió como un servidor de DIAgrams') });
   });
 });

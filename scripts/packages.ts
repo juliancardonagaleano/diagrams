@@ -24,7 +24,7 @@ export const ROOT = fileURLToPath(new URL('..', import.meta.url));
 /** Dónde se prepara cada paquete publicable (ignorado por git). */
 export const STAGE_DIR = join(ROOT, 'dist-packages');
 
-const REPOSITORY_URL = 'git+https://github.com/juliancardonagaleano/iark-diagrams.git';
+const REPOSITORY_URL = 'git+https://github.com/juliancardonagaleano/DIAgrams.git';
 
 type Json = Record<string, unknown>;
 
@@ -143,13 +143,13 @@ function readmeFor(manifest: SourceManifest): string {
     '',
     manifest.description ?? '',
     '',
-    'Parte de [IArk - DIAgrams](https://github.com/juliancardonagaleano/iark-diagrams): arquitectura como datos (C4, integración, datos, empresarial, plataforma y seguridad) con documentos JSON versionables, autolayout, exportación y CLI.',
+    'Parte de [DIAgrams](https://github.com/juliancardonagaleano/DIAgrams): arquitectura como datos (C4, integración, datos, empresarial, plataforma y seguridad) con documentos JSON versionables, autolayout, exportación y CLI.',
     '',
     '```bash',
     `npm install ${manifest.name}`,
     '```',
     '',
-    'Es un paquete ESM (`import`) con tipos incluidos. Escribir un módulo propio y cargarlo en el CLI sin tocar el repositorio: [docs/plugins.md](https://github.com/juliancardonagaleano/iark-diagrams/blob/master/docs/plugins.md).',
+    'Es un paquete ESM (`import`) con tipos incluidos. Escribir un módulo propio y cargarlo en el CLI sin tocar el repositorio: [docs/plugins.md](https://github.com/juliancardonagaleano/DIAgrams/blob/master/docs/plugins.md).',
     '',
   ].join('\n');
 }
@@ -345,7 +345,7 @@ export async function checkPackages(options: { keep?: boolean } = {}): Promise<v
 
     // El módulo de ejemplo se copia SIN su node_modules: resuelve @iark/kernel y zod desde lo instalado en el consumidor.
     cpSync(join(ROOT, 'examples', 'plugin-riesgos'), join(consumer, 'plugin-riesgos'), { recursive: true, filter: (source) => !source.includes('node_modules') });
-    const cli = join(consumer, 'node_modules', 'iark-diagrams', 'dist', 'cli', 'index.js');
+    const cli = join(consumer, 'node_modules', 'diagrams', 'dist', 'cli', 'index.js');
     const config = join(consumer, 'plugin-riesgos', 'iark.config.json');
     const iark = (...args: string[]): string => run(process.execPath, [cli, '--config', config, ...args], join(consumer, 'plugin-riesgos'));
     const modules = iark('modules');

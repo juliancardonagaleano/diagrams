@@ -29,7 +29,7 @@ function hostOrigin(): string | undefined {
   if (!origin && isEmbedMode && window.parent !== window && !warnedNoHostOrigin) {
     warnedNoHostOrigin = true;
     console.warn(
-      'IArk - DIAgrams (modo embebido): no se conoce el origen del anfitrión, así que no se emiten eventos ni se aceptan órdenes. ' +
+      'DIAgrams (modo embebido): no se conoce el origen del anfitrión, así que no se emiten eventos ni se aceptan órdenes. ' +
         'Añade ?origin=<origen del anfitrión> a la URL del iframe (createIarkEmbed lo hace siempre).',
     );
   }

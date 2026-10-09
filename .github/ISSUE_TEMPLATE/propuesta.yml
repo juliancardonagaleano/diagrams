@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Gracias por proponer. Antes de escribir, mira la [hoja de ruta](https://github.com/juliancardonagaleano/iark-diagrams/blob/master/docs/roadmap.md): puede que ya esté hecho, planeado o entre los límites conocidos.
+        Gracias por proponer. Antes de escribir, mira la [hoja de ruta](https://github.com/juliancardonagaleano/DIAgrams/blob/master/docs/roadmap.md): puede que ya esté hecho, planeado o entre los límites conocidos.
 
         Una propuesta describe el problema primero y la solución después; así se puede discutir otra forma de resolverlo.
   - type: dropdown

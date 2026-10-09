@@ -1,5 +1,5 @@
 #!/bin/sh
-# Hook pre-push de IArk - DIAgrams: antes de empujar corre la verificación rápida (`npm run verify:fast`):
+# Hook pre-push de DIAgrams: antes de empujar corre la verificación rápida (`npm run verify:fast`):
 # comprobación de tipos + solo las pruebas de vitest que dependen de lo que cambiaste respecto a origin/master.
 #
 # Activarlo (una vez por clon):   npm run hooks:install      (equivale a `git config core.hooksPath .githooks`)

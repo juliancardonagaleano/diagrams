@@ -293,18 +293,18 @@ Como cualquier registro con usuario e IP, entran en la normativa de protección 
 
 ## Detrás de un proxy (Caddy)
 
-El `Caddyfile` de `deploy/` no activa el registro de accesos de Caddy: la dirección de vuelta de GitHub lleva un código de un solo uso en la query string, y el de IArk nunca anota la query string. Tres ajustes **opcionales** (sin probar: no hay Caddy en el entorno donde se escribió esto):
+El `Caddyfile` de `deploy/` no activa el registro de accesos de Caddy: la dirección de vuelta de GitHub lleva un código de un solo uso en la query string, y el de DIAgrams nunca anota la query string. Tres ajustes **opcionales** (sin probar: no hay Caddy en el entorno donde se escribió esto):
 
 ```
 {$IARK_DOMAIN} {
-	# /metrics no sale a internet aunque esté activado (IArk ya lo protege con token); Prometheus lo lee por iark:8787
+	# /metrics no sale a internet aunque esté activado (DIAgrams ya lo protege con token); Prometheus lo lee por iark:8787
 	@metricas path /metrics
 	respond @metricas 404
 
 	reverse_proxy iark:8787 {
-		# un identificador de petición propio de Caddy, para cruzar sus registros con los de IArk (IArk respeta un X-Request-Id válido)
+		# un identificador de petición propio de Caddy, para cruzar sus registros con los de DIAgrams (DIAgrams respeta un X-Request-Id válido)
 		header_up X-Request-Id {http.request.uuid}
-		# comprobación activa de que IArk puede trabajar (carpeta de trabajo, cuentas): Caddy deja de mandarle tráfico si /readyz da 503
+		# comprobación activa de que DIAgrams puede trabajar (carpeta de trabajo, cuentas): Caddy deja de mandarle tráfico si /readyz da 503
 		health_uri /readyz
 		health_interval 15s
 	}

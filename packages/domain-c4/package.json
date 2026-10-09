@@ -1,16 +1,16 @@
 {
   "name": "@iark/domain-c4",
   "version": "0.1.0",
-  "description": "IArk - DIAgrams: módulo de arquitectura de soluciones (modelo C4): documento, vistas, autolayout, importadores y exportadores, prompts de IA",
+  "description": "DIAgrams: módulo de arquitectura de soluciones (modelo C4): documento, vistas, autolayout, importadores y exportadores, prompts de IA",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/juliancardonagaleano/iark-diagrams.git",
+    "url": "git+https://github.com/juliancardonagaleano/DIAgrams.git",
     "directory": "packages/domain-c4"
   },
-  "homepage": "https://github.com/juliancardonagaleano/iark-diagrams#readme",
+  "homepage": "https://github.com/juliancardonagaleano/DIAgrams#readme",
   "bugs": {
-    "url": "https://github.com/juliancardonagaleano/iark-diagrams/issues"
+    "url": "https://github.com/juliancardonagaleano/DIAgrams/issues"
   },
   "keywords": [
     "iark",

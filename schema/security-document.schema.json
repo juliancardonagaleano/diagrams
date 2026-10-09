@@ -1,6 +1,6 @@
 {
-  "$id": "https://github.com/juliancardonagaleano/iark-diagrams/schema/security-document.schema.json",
-  "title": "Documento de seguridad (IArk - DIAgrams)",
+  "$id": "https://github.com/juliancardonagaleano/DIAgrams/schema/security-document.schema.json",
+  "title": "Documento de seguridad (DIAgrams)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {

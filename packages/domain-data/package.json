@@ -1,16 +1,16 @@
 {
   "name": "@iark/domain-data",
   "version": "0.1.0",
-  "description": "IArk - DIAgrams: módulo de arquitectura de datos (activos, dominios, linaje, modelo entidad-relación y gobierno)",
+  "description": "DIAgrams: módulo de arquitectura de datos (activos, dominios, linaje, modelo entidad-relación y gobierno)",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/juliancardonagaleano/iark-diagrams.git",
+    "url": "git+https://github.com/juliancardonagaleano/DIAgrams.git",
     "directory": "packages/domain-data"
   },
-  "homepage": "https://github.com/juliancardonagaleano/iark-diagrams#readme",
+  "homepage": "https://github.com/juliancardonagaleano/DIAgrams#readme",
   "bugs": {
-    "url": "https://github.com/juliancardonagaleano/iark-diagrams/issues"
+    "url": "https://github.com/juliancardonagaleano/DIAgrams/issues"
   },
   "keywords": [
     "iark",

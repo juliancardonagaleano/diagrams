@@ -32,7 +32,7 @@ describe('migraciones del documento C4 (hoy no hay ninguna real)', () => {
   it('una versión MÁS NUEVA se rechaza con el mensaje claro, también desde parseDocument', () => {
     const futuro = { ...sampleDocument, version: '2.0' };
     const result = validateDocument(futuro);
-    expect(result.ok === false && result.issues[0].message).toMatch(/versión más nueva \(2\.0\).*Actualiza IArk/);
+    expect(result.ok === false && result.issues[0].message).toMatch(/versión más nueva \(2\.0\).*Actualiza DIAgrams/);
     expect(() => parseDocument(futuro)).toThrow(DocumentValidationError);
     expect(() => parseDocument(futuro)).toThrow(/más nueva/);
   });

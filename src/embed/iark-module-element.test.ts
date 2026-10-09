@@ -4,7 +4,7 @@ import './iark-module-element';
 import type { IarkModuleElement } from './iark-module-element';
 import type { SuiteCapabilitiesInfo } from './moduleProtocol';
 
-const capabilities: SuiteCapabilitiesInfo = { protocol: '1.0', suite: 'IArk - DIAgrams', available: ['data', 'security'], modules: [] };
+const capabilities: SuiteCapabilitiesInfo = { protocol: '1.0', suite: 'DIAgrams', available: ['data', 'security'], modules: [] };
 
 // jsdom no crea la ventana de un iframe que vive dentro de un shadow root (sí lo hace Chromium: lo cubre el e2e). Para
 // probar el protocolo, el iframe «habla» a través de la propia ventana de jsdom, que sí es un Window válido como `source`.

@@ -291,7 +291,7 @@ describe('puente postMessage de módulos: versionado', () => {
     await h.send({ action: 'load', document: securityDoc });
     const before = h.controller.getState().text;
     await h.send({ action: 'load', document: { ...securityDoc, version: '7.0' } });
-    expect(h.last('error')!.message).toMatch(/versión más nueva \(7\.0\).*Actualiza IArk/s);
+    expect(h.last('error')!.message).toMatch(/versión más nueva \(7\.0\).*Actualiza DIAgrams/s);
     expect(h.controller.getState().text).toBe(before);
   });
 });

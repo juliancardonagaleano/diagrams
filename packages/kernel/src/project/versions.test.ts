@@ -105,7 +105,7 @@ describe('planSave', () => {
   });
 
   it('línea base: el contenido previo que no está en el historial se registra antes de guardar el nuevo, y nunca se sustituye', () => {
-    // sin historial (un diagrama anterior a esta función) o editado fuera de IArk: la última versión no es el contenido previo
+    // sin historial (un diagrama anterior a esta función) o editado fuera de DIAgrams: la última versión no es el contenido previo
     const plan = planSave({ existing: [meta(1, 0)], lastId: 1, previous: { ...facts('editado a mano'), at: at(5) }, next: { savedAt: at(6), ...facts('nuevo') }, policy, coalesce: true });
     expect(plan.add.map((v) => [v.id, v.from, v.hash])).toEqual([
       [2, 'previous', facts('editado a mano').hash],
