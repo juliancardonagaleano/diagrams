@@ -27,10 +27,8 @@ on:
     # Se ignora lo que no puede cambiar ni el sitio ni el resultado de las pruebas: la documentación (`**/*.md`, `docs/**`)
     # y los artefactos de despliegue en contenedor (`deploy/**`, Dockerfile, .dockerignore); ninguna prueba lee esos archivos.
     # `tests/**` YA NO se ignora: un cambio solo en pruebas (o en el código que las prueba) debe pasar por la compuerta `test`.
-    # Ojo: un cambio solo de documentación no dispara el workflow. Hoy no importa (nada es comprobación obligatoria), pero si
-    # algún día `test` se marca como obligatoria en la protección de la rama, un PR solo de documentación nunca la reportaría y
-    # quedaría «esperando» para siempre: entonces hay que quitar estos filtros (el coste es una ejecución más) o añadir un
-    # job que informe siempre.
+    # Ojo: un push a master de solo documentación no dispara el workflow (no hay nada que publicar). En los pull request el
+    # filtro se quitó a propósito: `test` es comprobación obligatoria y debe reportarse siempre.
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -38,13 +36,9 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
   pull_request:
+    # Sin `paths-ignore`: `test` es comprobación obligatoria de `master`, y un PR solo de documentación que no la reportara
+    # quedaría «esperando» para siempre. El coste es una ejecución más en esos PR; en el push a master se sigue ignorando.
     branches: [master]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'deploy/**'
-      - 'Dockerfile'
-      - '.dockerignore'
   workflow_dispatch:
 
 permissions:
@@ -75,6 +69,8 @@ jobs:
         run: npm run build:app
         env:
           OUT_DIR: dist/pages
+          # Servidor de proyectos que el sitio propone por omisión (variable del repositorio; vacía, no propone ninguno).
+          VITE_IARK_SERVER: ${{ vars.IARK_SERVER_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: pages-site

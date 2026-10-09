@@ -169,7 +169,7 @@ export class EventHub implements EventPublisher {
       this.timer = setInterval(() => void this.beat(), this.heartbeatMs);
       this.timer.unref();
     }
-    // `retry:` es la espera por omisión de un `EventSource`; el cliente de IArk usa su propia espera exponencial.
+    // `retry:` es la espera por omisión de un `EventSource`; el cliente de DIAgrams usa su propia espera exponencial.
     this.write(connection, `retry: 5000\n${frame('ready', { heartbeatMs: this.heartbeatMs })}`);
     let closed = false;
     const close = (): void => {

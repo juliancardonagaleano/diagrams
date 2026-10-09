@@ -50,7 +50,7 @@ import {
  *   (temporal + `rename`), con modo 0600, y un cambio que no se pudo guardar se deshace en memoria. Solo hay un proceso escritor:
  *   no admite varias réplicas sobre el mismo archivo (para eso está el almacén SQLite, `sqliteStore.ts`, y `iark accounts migrate`).
  * - `quota` (opcional) es la cuota personal que fijó un administrador (ver `quotas.ts`); el formato sigue siendo la versión 1 porque es un campo
- *   nuevo y opcional: un archivo sin él se lee igual. Un IArk anterior a las cuotas lo ignora al leer y lo pierde al reescribir el archivo.
+ *   nuevo y opcional: un archivo sin él se lee igual. Un DIAgrams anterior a las cuotas lo ignora al leer y lo pierde al reescribir el archivo.
  * Solo usa `node:` (nada de dependencias).
  */
 

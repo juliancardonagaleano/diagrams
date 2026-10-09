@@ -19,7 +19,8 @@ iark modules  [--json]
 iark project  list|create|rename|delete|show|add|get|rename-diagram|remove|copy|export|import|check|trace|history|restore|label|delete-version|diff   # proyectos en una carpeta de trabajo (ver proyectos.md)
 iark auth     create|list|revoke   # tokens de acceso de `iark serve --tokens` (ver servicio.md, «Servidor para varias personas»)
 iark trace    <módulo=archivo>... [--from <módulo:id>] [--direction refs|referrers|both] [--depth n] [--format markdown|mermaid|svg|json] [--type <tipo>]... [--orphans [módulo[:tipo]]] [--matrix [module|kind]] [--coverage "<origen> -> <destino>"]... [--min-coverage n] [--strict] [--strict-unresolved] [--out archivo]   # trazabilidad entre módulos: enlaces tipados, huérfanos, matriz y cobertura (ver trazabilidad.md)
-iark serve    [--static dist/app] [--port 8787] [--host 127.0.0.1] [--cors <orígenes>] [--workspace <carpeta>] [--tokens <archivo> | --accounts <archivo> [--accounts-store json|sqlite|postgres] [--accounts-import <json|db>] [--max-bytes <tamaño>] [--max-projects <n>] [--max-diagrams <n>] …] [--access-log <archivo|->] [--audit-log <archivo|->] [--metrics [--metrics-token <token>]] [--max-streams n]   # servicio HTTP (ver servicio.md; registros, auditoría, salud y métricas: observabilidad.md; `--max-streams` o `IARK_MAX_STREAMS`: canales de cambios en tiempo real por persona, 8 por omisión, 0 los desactiva: servicio.md, «Cambios en tiempo real»)
+iark serve    [--static dist/app] [--port 8787] [--host 127.0.0.1] [--cors <orígenes>] [--workspace <carpeta> | --workspace-store postgres] [--tokens <archivo> | --accounts <archivo> [--accounts-store json|sqlite|postgres] [--accounts-import <json|db>] [--max-bytes <tamaño>] [--max-projects <n>] [--max-diagrams <n>] …] [--access-log <archivo|->] [--audit-log <archivo|->] [--metrics [--metrics-token <token>]] [--max-streams n]   # servicio HTTP (ver servicio.md; registros, auditoría, salud y métricas: observabilidad.md; `--max-streams` o `IARK_MAX_STREAMS`: canales de cambios en tiempo real por persona, 8 por omisión, 0 los desactiva: servicio.md, «Cambios en tiempo real»)
+iark workspace import --from <carpeta> [--replace] [--dry-run]   # pasa los proyectos de una carpeta de trabajo a Postgres (la base sale del entorno, IARK_DATABASE_URL), con sus ids, fechas e historial; idempotente (ver proyectos.md, «Proyectos en Postgres»)
 iark accounts migrate|backup|info   # mantenimiento de las cuentas de `iark serve --accounts-store sqlite|postgres`: `migrate` pasa el JSON (o una base SQLite) de antes a SQLite o a Postgres (`--accounts-store postgres`, conexión en `IARK_DATABASE_URL`); `backup` e `info` son de SQLite (ver cuentas-github.md)
 iark <módulo> <comando>   # comandos propios de cada módulo (p. ej. `iark integration catalog`)
 
@@ -52,7 +53,7 @@ iark migrate antiguo.json --module data --out nuevo.json
 iark migrate --check diagrama.json                  # no escribe nada: código 1 si necesita migración, 0 si ya está al día
 ```
 
-El documento de entrada no se modifica nunca; el migrado sale validado con el esquema del módulo. Un documento de una versión más nueva que la que entiende esta instalación (`Actualiza IArk para abrirlo`) o anterior a la primera migración declarada termina con código 2, también con `--check`. `--check` sirve para la integración continua: falla mientras queden documentos del repositorio por reescribir.
+El documento de entrada no se modifica nunca; el migrado sale validado con el esquema del módulo. Un documento de una versión más nueva que la que entiende esta instalación (`Actualiza DIAgrams para abrirlo`) o anterior a la primera migración declarada termina con código 2, también con `--check`. `--check` sirve para la integración continua: falla mientras queden documentos del repositorio por reescribir.
 
 ## Comparar versiones de un diagrama (`iark diff`)
 
@@ -70,7 +71,7 @@ Los elementos se emparejan por `id` (o por `name`, o por similitud si la lista n
 ## Uso programático
 
 ```ts
-import { generateDocument, autoLayoutDocument, toDrawio, fromDrawio, fromStructurizrDsl, validateDocument, deriveView } from 'iark-diagrams/core';
+import { generateDocument, autoLayoutDocument, toDrawio, fromDrawio, fromStructurizrDsl, validateDocument, deriveView } from 'diagrams/core';
 
 const { document } = await generateDocument({ instruction: 'Un sistema de tickets…' }); // Claude + autolayout
 const laid = await autoLayoutDocument(validateDocument(json).document, { direction: 'RIGHT', force: true });

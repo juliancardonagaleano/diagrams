@@ -49,8 +49,8 @@ import {
  *   **local** (un volumen de Docker, un disco de la máquina), no un sistema de archivos de red (NFS, SMB).
  * - **Esquema versionado.** `PRAGMA user_version` dice qué migraciones numeradas (`MIGRATIONS`) se aplicaron; al abrir se aplican las que
  *   faltan, cada una en su transacción y comprobando la versión dentro de ella (dos procesos que arrancan a la vez no la aplican dos veces).
- *   Una base de una versión más nueva que este IArk no se abre (se negaría a escribir lo que no entiende). `PRAGMA application_id` marca
- *   la base como de IArk: no se abre ni se migra una base ajena.
+ *   Una base de una versión más nueva que este DIAgrams no se abre (se negaría a escribir lo que no entiende). `PRAGMA application_id` marca
+ *   la base como de DIAgrams: no se abre ni se migra una base ajena.
  * - **Integridad.** Claves foráneas (borrar una cuenta borra sus sesiones y pertenencias), nombre de usuario y id de GitHub únicos,
  *   roles con `CHECK`, tablas `STRICT`. Del token de una sesión solo se guarda su hash.
  * - El archivo se crea con modo 0600 (SQLite da el mismo modo a `-wal` y `-shm`).
@@ -62,7 +62,7 @@ import {
 /** Primera versión de Node 22 en la que `node:sqlite` se puede usar sin la bandera `--experimental-sqlite`. */
 export const SQLITE_MIN_NODE = '22.13.0';
 
-/** Las cuatro letras «IArk» como `application_id` de la base. */
+/** Las cuatro letras «DIAgrams» como `application_id` de la base. */
 export const SQLITE_APPLICATION_ID = 0x4941726b;
 
 const DEFAULT_BUSY_TIMEOUT_MS = 5000;
@@ -189,12 +189,12 @@ function rollback(db: DatabaseSync): void {
 }
 
 const tooNew = (path: string, found: number, supported: number): AccountError =>
-  new AccountError('corrupt', `La base de cuentas «${path}» es de una versión más nueva de IArk (esquema ${found}; esta versión entiende hasta el ${supported}). Actualice IArk en vez de abrirla con una versión vieja.`);
+  new AccountError('corrupt', `La base de cuentas «${path}» es de una versión más nueva de DIAgrams (esquema ${found}; esta versión entiende hasta el ${supported}). Actualice DIAgrams en vez de abrirla con una versión vieja.`);
 
-const foreign = (path: string): AccountError => new AccountError('corrupt', `«${path}» es una base SQLite, pero no de cuentas de IArk: no se abre ni se toca.`);
+const foreign = (path: string): AccountError => new AccountError('corrupt', `«${path}» es una base SQLite, pero no de cuentas de DIAgrams: no se abre ni se toca.`);
 
 /**
- * Comprueba, sin escribir nada, que la base es una base de cuentas de IArk que esta versión entiende, y devuelve su versión de esquema
+ * Comprueba, sin escribir nada, que la base es una base de cuentas de DIAgrams que esta versión entiende, y devuelve su versión de esquema
  * (0 si está recién creada y vacía). Una base ajena o de una versión más nueva no se abre ni se toca.
  */
 function assertOurs(db: DatabaseSync, path: string, latest: number): number {

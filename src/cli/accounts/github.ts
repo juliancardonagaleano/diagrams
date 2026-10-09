@@ -6,7 +6,7 @@ import { isGithubLogin, type GithubProfile } from './store';
  *  1. `authorizeUrl` lleva a la persona a GitHub para que acepte (sin permisos: no se pide ningún scope, así que GitHub solo da
  *     acceso a su información pública, que es todo lo que hace falta para saber quién es).
  *  2. GitHub vuelve con un `code`; `profileFromCode` lo cambia por un token de GitHub, lee `GET /user` y **olvida el token**: se
- *     revoca enseguida, no se guarda ni se registra. Después del inicio de sesión, IArk no tiene acceso a nada de GitHub.
+ *     revoca enseguida, no se guarda ni se registra. Después del inicio de sesión, DIAgrams no tiene acceso a nada de GitHub.
  *
  * `baseUrl` y `apiUrl` son los de github.com por omisión; con GitHub Enterprise Server se apuntan a su servidor
  * (`https://git.empresa.com` y `https://git.empresa.com/api/v3`), y las pruebas los apuntan a un GitHub de mentira.
@@ -125,7 +125,7 @@ export class GithubOAuth {
   async profileFromCode(code: string, redirectUri: string): Promise<GithubProfile> {
     const exchanged = await this.call(`${this.baseUrl}/login/oauth/access_token`, {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'iark-diagrams' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'DIAgrams' },
       body: JSON.stringify({ client_id: this.clientId, client_secret: this.clientSecret, code, redirect_uri: redirectUri }),
     });
     const payload = (exchanged.body && typeof exchanged.body === 'object' ? exchanged.body : {}) as Record<string, unknown>;
@@ -139,7 +139,7 @@ export class GithubOAuth {
     try {
       const found = await this.call(`${this.apiUrl}/user`, {
         method: 'GET',
-        headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'User-Agent': 'iark-diagrams', 'X-GitHub-Api-Version': '2022-11-28' },
+        headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'User-Agent': 'DIAgrams', 'X-GitHub-Api-Version': '2022-11-28' },
       });
       if (found.status === 401 || found.status === 403) throw new GithubError('rejected', 'GitHub no dejó leer el perfil.');
       if (found.status < 200 || found.status >= 300) throw new GithubError('unavailable', 'GitHub respondió con un error al leer el perfil.');
@@ -149,7 +149,7 @@ export class GithubOAuth {
     }
   }
 
-  /** Revoca el token de GitHub (el acceso de IArk acaba aquí). Mejor esfuerzo: un fallo no cambia nada para la persona. */
+  /** Revoca el token de GitHub (el acceso de DIAgrams acaba aquí). Mejor esfuerzo: un fallo no cambia nada para la persona. */
   private async revoke(token: string): Promise<void> {
     try {
       await this.call(`${this.apiUrl}/applications/${encodeURIComponent(this.clientId)}/token`, {
@@ -157,7 +157,7 @@ export class GithubOAuth {
         headers: {
           Accept: 'application/vnd.github+json',
           'Content-Type': 'application/json',
-          'User-Agent': 'iark-diagrams',
+          'User-Agent': 'DIAgrams',
           Authorization: `Basic ${Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64')}`,
         },
         body: JSON.stringify({ access_token: token }),

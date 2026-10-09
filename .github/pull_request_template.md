@@ -33,6 +33,6 @@
 
 ## Licencia
 
-- [ ] Acepto que mi aportación se publique bajo la licencia [MIT](https://github.com/juliancardonagaleano/iark-diagrams/blob/master/LICENSE) del proyecto.
+- [ ] Acepto que mi aportación se publique bajo la licencia [MIT](https://github.com/juliancardonagaleano/diagrams/blob/master/LICENSE) del proyecto.
 - [ ] No incluye código, iconos, logotipos ni textos de terceros sin licencia compatible con MIT (los iconos de nubes son glifos propios, no los logotipos oficiales).
-- [ ] No describe una vulnerabilidad sin corregir: para eso, [SECURITY.md](https://github.com/juliancardonagaleano/iark-diagrams/blob/master/SECURITY.md).
+- [ ] No describe una vulnerabilidad sin corregir: para eso, [SECURITY.md](https://github.com/juliancardonagaleano/diagrams/blob/master/SECURITY.md).

@@ -95,7 +95,7 @@ describe('pickImporter: formatos que comparten extensión', () => {
 describe('manifiesto de federación', () => {
   it('describe los módulos registrados y valida con su esquema', () => {
     const registry = new ModuleRegistry().register(fakeModule('c4', [importer('xml', ['.xml'])]));
-    const manifest = buildManifest(registry, { name: 'IArk - DIAgrams', version: '0.1.0', endpoints: { c4: { embed: '/embed/c4/' } } });
+    const manifest = buildManifest(registry, { name: 'DIAgrams', version: '0.1.0', endpoints: { c4: { embed: '/embed/c4/' } } });
     expect(manifest).toMatchObject({
       schema: 'iark.manifest/1',
       modules: [{ id: 'c4', version: '1.2.3', importFormats: ['xml'], exportFormats: ['txt'], endpoints: { embed: '/embed/c4/' } }],
@@ -106,7 +106,7 @@ describe('manifiesto de federación', () => {
 
   it('lleva la versión del protocolo embebido (`protocol`) y el contrato de cada módulo (`contractVersion`)', () => {
     const registry = new ModuleRegistry().register(fakeModule('c4')).register({ ...fakeModule('data'), contractVersion: 1 });
-    const manifest = buildManifest(registry, { name: 'IArk - DIAgrams', version: '0.1.0' });
+    const manifest = buildManifest(registry, { name: 'DIAgrams', version: '0.1.0' });
     expect(manifest.protocol).toBe(EMBED_PROTOCOL_VERSION);
     // el módulo que no declara contrato se publica como 1, el que sí lo declara, con el suyo
     expect(manifest.modules.map((m) => m.contractVersion)).toEqual([1, 1]);
@@ -115,7 +115,7 @@ describe('manifiesto de federación', () => {
   });
 
   it('`protocol` y `contractVersion` son opcionales al leer (una instancia anterior no los publica) y solo admiten lo que son', () => {
-    const base = buildManifest(new ModuleRegistry().register(fakeModule('c4')), { name: 'IArk - DIAgrams', version: '0.1.0' });
+    const base = buildManifest(new ModuleRegistry().register(fakeModule('c4')), { name: 'DIAgrams', version: '0.1.0' });
     const { protocol: _protocol, ...withoutProtocol } = base;
     const old = { ...withoutProtocol, modules: base.modules.map(({ contractVersion: _contract, ...rest }) => rest) };
     const parsed = manifestSchema.safeParse(old);
@@ -129,7 +129,7 @@ describe('manifiesto de federación', () => {
   });
 
   it('`projects` y `projectsAuth` son opcionales: se conservan al interpretar el manifiesto y solo admiten los valores conocidos', () => {
-    const base = buildManifest(new ModuleRegistry().register(fakeModule('c4')), { name: 'IArk - DIAgrams', version: '0.1.0' });
+    const base = buildManifest(new ModuleRegistry().register(fakeModule('c4')), { name: 'DIAgrams', version: '0.1.0' });
     // sin ellos (un sitio estático, o una instancia sin espacio de trabajo) el manifiesto sigue siendo válido
     const plain = manifestSchema.safeParse(base);
     expect(plain.success).toBe(true);

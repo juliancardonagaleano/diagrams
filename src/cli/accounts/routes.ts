@@ -25,7 +25,7 @@ import { AccountError, SESSION_PREFIX, type AccountUser } from './store';
  *    ni queda en registros ni en `Referer`), y lo cambia por la sesión con `POST /api/auth/exchange` demostrando que es quien inició el flujo
  *    (PKCE: manda el `verifier` cuyo sha256 se dio en `challenge`). Un código robado no sirve sin el `verifier`.
  *  - `redirect` solo puede ser el propio sitio o un origen de `--cors` (nunca `*`): no hay redirección abierta.
- *  - El token de GitHub se usa una vez para leer el perfil y se revoca; IArk no conserva acceso a GitHub.
+ *  - El token de GitHub se usa una vez para leer el perfil y se revoca; DIAgrams no conserva acceso a GitHub.
  * La sesión es un token (`iark_s_…`) que se usa como cualquier otro: `Authorization: Bearer`. Nunca va en una cookie, así que no hay CSRF.
  */
 
@@ -117,8 +117,8 @@ export interface AuthApiContext {
 }
 
 const PAGE = (message: string): string =>
-  `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IArk - DIAgrams</title>` +
-  `<body style="font:16px system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem"><h1 style="font-size:1.25rem">IArk - DIAgrams</h1><p>${message}</p><p><a href="./">Volver a empezar</a></p></body></html>`;
+  `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DIAgrams</title>` +
+  `<body style="font:16px system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem"><h1 style="font-size:1.25rem">DIAgrams</h1><p>${message}</p><p><a href="./">Volver a empezar</a></p></body></html>`;
 
 const isJson = (req: IncomingMessage): boolean => (req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() === 'application/json';
 
@@ -193,7 +193,7 @@ export function createAuthApi(ctx: AuthApiContext): (req: IncomingMessage, res: 
     const bound = cookie(req, COOKIE);
     if (!pending || pending.expires <= wall() || !bound || !sameText(bound, state)) {
       ctx.onLoginFailed?.(req, { reason: 'state-mismatch', result: 'denied' });
-      return ctx.send(res, 400, PAGE('El inicio de sesión caducó o no se empezó desde este navegador. Vuelve a empezar desde IArk.'), { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': cookieHeader('', 0) });
+      return ctx.send(res, 400, PAGE('El inicio de sesión caducó o no se empezó desde este navegador. Vuelve a empezar desde DIAgrams.'), { 'Content-Type': 'text/html; charset=utf-8', 'Set-Cookie': cookieHeader('', 0) });
     }
     const fail = (reason: string, result: 'denied' | 'error' = 'denied', login?: string): void => {
       ctx.onLoginFailed?.(req, { reason, result, login });

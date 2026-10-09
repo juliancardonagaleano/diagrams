@@ -247,7 +247,7 @@ function errorFromResponse(status: number, payload: Payload, retryAfter: string 
   }
   if (status === 413) return new ProjectError('invalid', message || 'El documento es demasiado grande para el servidor.', { ...info, reason: 'too-large' });
   if (status === 400) return new ProjectError('invalid', message || 'El servidor rechazó la petición.', { ...info, reason: 'bad-request' });
-  if (status === 404) return new ProjectError('unavailable', message || 'Ese servidor no ofrece proyectos (¿arrancó sin --workspace, o la dirección no es la de IArk?).', { ...info, reason: 'no-projects-api' });
+  if (status === 404) return new ProjectError('unavailable', message || 'Ese servidor no ofrece proyectos (¿arrancó sin --workspace, o la dirección no es la de DIAgrams?).', { ...info, reason: 'no-projects-api' });
   return new ProjectError('unavailable', `El servidor respondió ${status}${message ? `: ${message}` : ''}.`, message ? { ...info, reason: 'server-status-detail', params: { status, message } } : { ...info, reason: 'server-status', params: { status } });
 }
 
@@ -441,7 +441,7 @@ export class HttpProjectStore implements VersionedProjectStore {
 
   /**
    * Qué formas de entrar ofrece el servidor (pública: no lleva el token). Un servidor anterior a las cuentas no tiene la ruta (404):
-   * no ofrece ningún inicio de sesión, y no se sabe si acepta tokens, así que se supone que sí. Los demás fallos (red, no es IArk) lanzan.
+   * no ofrece ningún inicio de sesión, y no se sabe si acepta tokens, así que se supone que sí. Los demás fallos (red, no es DIAgrams) lanzan.
    */
   async providers(): Promise<AuthProviders> {
     let found: Payload;
@@ -468,7 +468,7 @@ export class HttpProjectStore implements VersionedProjectStore {
   async exchangeLoginCode(input: { code: string; verifier: string }): Promise<LoginGrant> {
     const found = (await this.request('POST', '/api/auth/exchange', { code: input.code, verifier: input.verifier }, { anonymous: true })) as Payload;
     const user = parseUser(found.user);
-    if (typeof found.token !== 'string' || !found.token || !user) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de IArk con inicio de sesión (falta la sesión en la respuesta).`, { reason: 'server-no-session', params: { url: this.baseUrl } });
+    if (typeof found.token !== 'string' || !found.token || !user) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de DIAgrams con inicio de sesión (falta la sesión en la respuesta).`, { reason: 'server-no-session', params: { url: this.baseUrl } });
     return { token: found.token, expiresAt: typeof found.expiresAt === 'string' ? found.expiresAt : '', user };
   }
 
@@ -625,7 +625,7 @@ export class HttpProjectStore implements VersionedProjectStore {
       return await this.request(method, path, body);
     } catch (error) {
       if (error instanceof ProjectError && error.code === 'unavailable' && error.info.status === 404 && !error.info.network) {
-        throw new ProjectError('unsupported', 'Este servidor no guarda historial de versiones (¿es de una versión anterior de IArk?).', { ...error.info, reason: 'server-versions-unsupported' });
+        throw new ProjectError('unsupported', 'Este servidor no guarda historial de versiones (¿es de una versión anterior de DIAgrams?).', { ...error.info, reason: 'server-versions-unsupported' });
       }
       throw error;
     }
@@ -718,7 +718,7 @@ export class HttpProjectStore implements VersionedProjectStore {
         payload = JSON.parse(raw);
       } catch {
         // una respuesta que no es JSON (una página de error de un proxy, por ejemplo) no se puede interpretar
-        if (response.ok) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de IArk (la respuesta no es JSON).`, { status: response.status, reason: 'server-not-json', params: { url: this.baseUrl } });
+        if (response.ok) throw new ProjectError('unavailable', `${this.baseUrl} no respondió como un servidor de DIAgrams (la respuesta no es JSON).`, { status: response.status, reason: 'server-not-json', params: { url: this.baseUrl } });
       }
     }
     if (!response.ok) throw errorFromResponse(response.status, payload && typeof payload === 'object' ? (payload as Payload) : {}, response.headers.get('Retry-After'));

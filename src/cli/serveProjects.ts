@@ -144,8 +144,8 @@ function toHttpError(error: unknown): unknown {
   if (error instanceof AccountError) return accountHttpError(error);
   if (!(error instanceof ProjectError)) return error;
   if (error.code === 'unavailable') {
-    process.stderr.write(`error del espacio de trabajo: ${error.message}\n`); // la ruta del disco no se le cuenta a quien llama
-    return new HttpError(500, 'El espacio de trabajo no está disponible (permisos, disco o carpeta).', { code: error.code });
+    process.stderr.write(`error del espacio de trabajo: ${error.message}\n`); // la ruta del disco o el servidor de la base no se le cuentan a quien llama
+    return new HttpError(500, 'El espacio de trabajo no está disponible (permisos, disco, carpeta o base de datos).', { code: error.code });
   }
   // Un tope que no cabe (demasiadas versiones con nombre) tiene su propio `code`, como `limit` al compartir: no es un contenido inválido.
   if (error.info.serverCode === 'limit') return new HttpError(409, error.message, { code: 'limit' });
@@ -377,7 +377,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     if (second === 'bundle' && parts.length === 2) {
       if (method !== 'GET') return allow('GET');
       const snapshot = await snapshotProject(projects, projectId);
-      const file = bundleToText(createBundle(snapshot, { generator: 'IArk - DIAgrams' }));
+      const file = bundleToText(createBundle(snapshot, { generator: 'DIAgrams' }));
       return ctx.send(res, 200, file, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="${bundleFileName(snapshot.name)}"` });
     }
     if (second === 'check' && parts.length === 2) {

@@ -1,6 +1,6 @@
-# IArk - DIAgrams
+# DIAgrams
 
-**Suite de diagramación de arquitectura**: seis especialidades (C4, integración, datos, empresarial, plataforma y seguridad) sobre un núcleo común, **federada y embebible**, con un CLI (`iark`) que dibuja y refina diagramas con IA. Antes «Diagramador C4»; el comando `c4diagram` se mantiene como alias de `iark`.
+**Suite de diagramación de arquitectura**: seis especialidades (C4, integración, datos, empresarial, plataforma y seguridad) sobre un núcleo común, **federada y embebible**, con un CLI (`iark`) que dibuja y refina diagramas con IA. Antes «IArk - DIAgrams» y, antes, «Diagramador C4». El nombre del producto es DIAgrams; el comando se sigue llamando `iark` (y `c4diagram` se mantiene como alias) y los identificadores internos (`@iark/*`, `urn:iark:…`, `/.well-known/iark.json`, las variables `IARK_*`) no cambian, para no romper a nadie.
 
 - **Un JSON limpio y estable por módulo**, con esquema publicado ([`schema/`](schema/)) y sin coordenadas: la IA produce el modelo y el autolayout (ELK) produce la geometría. Se convierte a **`.drawio`**, **SVG** y **Mermaid**, y se importa desde `.drawio`, DSL de Structurizr, Mermaid, OpenAPI, AsyncAPI, Threat Dragon, Terraform, Kubernetes, CloudFormation, Helm, DDL de SQL, dbt, OpenLineage, ArchiMate y BPMN, según el módulo.
 - **Editor web interactivo** del modelo C4 (con la estética de [drawdb.app](https://www.drawdb.app/)) y un **banco de trabajo** con lienzo propio para las otras cinco especialidades.
@@ -36,17 +36,17 @@ El servicio y el sitio, en un solo proceso:
 ```bash
 npm run build
 npm run cli -- serve --static dist/app     # http://127.0.0.1:8787: editor, banco de trabajo, shell y API
-docker build -t iark-diagrams . && docker run --rm -p 8787:8787 iark-diagrams     # lo mismo, en un contenedor
+docker build -t diagrams . && docker run --rm -p 8787:8787 diagrams     # lo mismo, en un contenedor
 ```
 
 Para comprobar un cambio: `npm run typecheck`, `npm test` (vitest), `npm run e2e` (Playwright, requiere `build:app` previo) o todo junto con `npm run verify`. Los scripts, la estructura del repositorio y las pruebas están en [docs/desarrollo.md](docs/desarrollo.md).
 
-Como biblioteca, el paquete `iark-diagrams` exporta el núcleo del módulo C4 (sin DOM: sirve en Node y en el navegador), el SDK de anfitrión y el Web Component:
+Como biblioteca, el paquete `diagrams` exporta el núcleo del módulo C4 (sin DOM: sirve en Node y en el navegador), el SDK de anfitrión y el Web Component:
 
 ```ts
-import { validateDocument, autoLayoutDocument, toDrawio } from 'iark-diagrams/core';
-import { createIarkEmbed, createIarkModuleEmbed } from 'iark-diagrams/embed';
-import 'iark-diagrams/element';   // registra <iark-module>
+import { validateDocument, autoLayoutDocument, toDrawio } from 'diagrams/core';
+import { createIarkEmbed, createIarkModuleEmbed } from 'diagrams/embed';
+import 'diagrams/element';   // registra <iark-module>
 ```
 
 ## Un documento, un archivo

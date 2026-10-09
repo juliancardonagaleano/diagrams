@@ -76,7 +76,7 @@ describe('loadModulePlugin', () => {
     const { specifier, baseDir } = plugin(`export default ${moduleLiteral(`contractVersion: ${CONTRACT_VERSION + 1}`)};`);
     const message = await failure(specifier, baseDir);
     expect(message).toContain('No se pudo cargar el módulo de terceros «./plugin.mjs»');
-    expect(message).toMatch(/versión 2 del contrato DomainModule y este IArk implementa la 1/);
+    expect(message).toMatch(/versión 2 del contrato DomainModule y este DIAgrams implementa la 1/);
   });
 
   it('un módulo con la forma inválida lista todo lo que falla', async () => {

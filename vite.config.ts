@@ -7,7 +7,7 @@ import { fileURLToPath, URL } from 'node:url';
 
 /**
  * Ruta base pública. En GitHub Pages la app se sirve bajo `/<repositorio>/`, así que
- * `npm run deploy:pages` fija `BASE_PATH=/<repositorio>/` (p. ej. `/iark-diagrams/`); en local y en hostings
+ * `npm run deploy:pages` fija `BASE_PATH=/<repositorio>/` (p. ej. `/diagrams/`); en local y en hostings
  * que sirven en la raíz (Cloudflare Pages, Netlify, Vercel) se deja `/`.
  */
 const base = process.env.BASE_PATH ?? '/';

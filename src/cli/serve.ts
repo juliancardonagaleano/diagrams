@@ -37,10 +37,10 @@ import type { TokenStore } from './tokens';
  *   POST /api/<módulo>/diff                     cuerpo: { before, after } (dos documentos del módulo) → DocumentDiff: qué se añadió, quitó y modificó
  *   POST /api/trace                             cuerpo: { documents: [{ module, document }], from?, direction?, depth?, types?, orphans?, matrix?, coverage? } → { graph, types?, from?, reached?, orphans?, matrix?, coverage?, report, mermaid, svg }
  *   GET  /healthz                               vivo: 200 { status: "ok" } sin autenticación ni detalles (lo consulta el HEALTHCHECK de la imagen)
- *   GET  /readyz                                listo: 200 o 503 con el estado (ok/fail) de cada comprobación: carpeta de trabajo, tokens, cuentas, cálculo
+ *   GET  /readyz                                listo: 200 o 503 con el estado (ok/fail) de cada comprobación: carpeta de trabajo (o la base, con Postgres), tokens, cuentas, cálculo
  *   GET  /metrics                               métricas de Prometheus; solo con `--metrics` (ver `observability/`): con token o solo desde loopback
  *
- * Con un espacio de trabajo (`--workspace <carpeta>`), además, los proyectos guardados en esa carpeta (ver `serveProjects.ts`;
+ * Con un espacio de trabajo (`--workspace <carpeta>`, o `--workspace-store postgres`), además, los proyectos guardados en esa carpeta o en la base (ver `serveProjects.ts`;
  * sin él, estas rutas responden 404). Los que modifican exigen `Content-Type: application/json` y rechazan los orígenes ajenos:
  *   GET|POST /api/projects                              lista los proyectos · crea uno { name, description? }
  *   GET|PATCH|DELETE /api/projects/<p>                  resumen · renombra { name } · borra
@@ -81,7 +81,7 @@ export interface ServeOptions {
   cors?: string[];
   /** Tamaño máximo del cuerpo de una petición (bytes). Por defecto 5 MB. */
   maxBodyBytes?: number;
-  /** Espacio de trabajo con los proyectos (`FolderProjectStore`). Sin él, `/api/projects` responde 404. */
+  /** Espacio de trabajo con los proyectos (`FolderProjectStore`, o `PostgresProjectStore` con `--workspace-store postgres`). Sin él, `/api/projects` responde 404. */
   projects?: ProjectStore;
   /** Los tokens de acceso (`--tokens`). Con ellos, `/api/projects…` y `/api/whoami` exigen un token y respetan su rol; sin ellos, no hay autenticación. */
   tokens?: TokenStore;
@@ -211,7 +211,10 @@ export function createSuiteServer(options: ServeOptions): Server {
   // Salud (`/healthz`, `/readyz`) y métricas (`/metrics`): ver `observability/`. Las comprobaciones de `/readyz` son las que tiene este servidor.
   const checks: Record<string, Check> = {};
   const workspaceRoot = (options.projects as { root?: unknown } | undefined)?.root;
+  const workspacePing = (options.projects as { ping?: unknown } | undefined)?.ping;
   if (typeof workspaceRoot === 'string') checks.workspace = () => directoryWritable(workspaceRoot);
+  // Un almacén sin carpeta (Postgres) dice si responde con `ping`: la base contesta una consulta.
+  else if (typeof workspacePing === 'function') checks.workspace = () => (workspacePing as () => Promise<boolean>).call(options.projects);
   if (options.tokens) {
     const tokens = options.tokens;
     checks.tokens = () => tokens.lookup(undefined).status !== 'unavailable';

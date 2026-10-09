@@ -92,9 +92,9 @@ describe('iark migrate --module <otro>', () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it('un documento de una versión MÁS NUEVA termina con código 2 y el mensaje de actualizar IArk (también con --check)', async () => {
+  it('un documento de una versión MÁS NUEVA termina con código 2 y el mensaje de actualizar DIAgrams (también con --check)', async () => {
     const futuro = archivo({ ...DOC_V20, version: '3.0' });
-    await expect(iark(registroDePrueba(), 'migrate', futuro, '--module', 'prueba')).rejects.toMatchObject({ exitCode: 2, message: expect.stringMatching(/versión más nueva \(3\.0\).*Actualiza IArk/s) });
+    await expect(iark(registroDePrueba(), 'migrate', futuro, '--module', 'prueba')).rejects.toMatchObject({ exitCode: 2, message: expect.stringMatching(/versión más nueva \(3\.0\).*Actualiza DIAgrams/s) });
     await expect(iark(registroDePrueba(), 'migrate', futuro, '--module', 'prueba', '--check')).rejects.toBeInstanceOf(CliError);
     expect(stdout).toBe('');
   });

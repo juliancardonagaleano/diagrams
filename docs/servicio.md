@@ -2,13 +2,13 @@
 
 [← Índice de la documentación](indice.md)
 
-`iark serve` es el servicio HTTP de la suite: la API por módulo, el manifiesto de federación y, con `--static`, el sitio compilado. Con `--workspace` añade la API de [proyectos](proyectos.md); con `--tokens` (abajo) o con `--accounts` ([inicio de sesión con GitHub](cuentas-github.md)) puede escuchar en una red. Con `--accounts` y `--workspace` cada persona tiene además **cuotas de uso** (espacio, proyectos y diagramas por proyecto: `--max-bytes`, `--max-projects`, `--max-diagrams`; [Cuotas de uso](cuentas-github.md#cuotas-de-uso)); con `--tokens` no hay cuotas. La guía paso a paso para desplegarlo con HTTPS y disco es [despliegue-nube.md](despliegue-nube.md).
+`iark serve` es el servicio HTTP de la suite: la API por módulo, el manifiesto de federación y, con `--static`, el sitio compilado. Con `--workspace` (una carpeta) o con `--workspace-store postgres` (una base, para un servicio sin disco persistente) añade la API de [proyectos](proyectos.md); con `--tokens` (abajo) o con `--accounts` ([inicio de sesión con GitHub](cuentas-github.md)) puede escuchar en una red. Con `--accounts` y `--workspace` cada persona tiene además **cuotas de uso** (espacio, proyectos y diagramas por proyecto: `--max-bytes`, `--max-projects`, `--max-diagrams`; [Cuotas de uso](cuentas-github.md#cuotas-de-uso)); con `--tokens` no hay cuotas. La guía paso a paso para desplegarlo con HTTPS y disco es [despliegue-nube.md](despliegue-nube.md).
 
 ## Servicio HTTP (`iark serve`)
 
 ```bash
 npm run build
-node dist/cli/index.js serve --static dist/app --port 8787      # o: docker build -t iark-diagrams . && docker run --rm -p 8787:8787 iark-diagrams
+node dist/cli/index.js serve --static dist/app --port 8787      # o: docker build -t diagrams . && docker run --rm -p 8787:8787 diagrams
 curl localhost:8787/api/modules
 curl -X POST localhost:8787/api/security/validate -d @examples/seguridad-ejemplo.json
 curl -X POST 'localhost:8787/api/security/export?format=svg&view=dfd' -d @examples/seguridad-ejemplo.json > dfd.svg
@@ -26,7 +26,7 @@ curl -X POST 'localhost:8787/api/security/export?format=svg&view=dfd' -d @exampl
 | `GET /healthz` · `GET /readyz` | Vivo (`200 {"status":"ok"}`) y listo (`200` o `503` según la carpeta de trabajo, los tokens, las cuentas y el cálculo). Sin autenticación y sin detalles |
 | `GET /metrics` | Métricas de Prometheus. Solo con `--metrics`: con `--metrics-token` o, sin él, solo desde loopback |
 
-Con `--workspace <carpeta>` añade además la API de proyectos (`/api/projects…`, con sus propias reglas de seguridad: ver [API HTTP de proyectos](proyectos.md#api-http-de-proyectos)); con `--tokens <archivo>` (o con `--accounts`, el inicio de sesión con GitHub: ver [Servicio gestionado](cuentas-github.md)) exige un token con rol en esa API y puede escuchar fuera de loopback (ver [Servidor para varias personas (nube autoalojada)](#servidor-para-varias-personas-nube-autoalojada)); sin ella, el servicio no guarda estado. Sin dependencias (`node:http`). Sin `--cors` solo responde al mismo origen; `--cors https://mi-app.example` (o `*`) abre la API a un navegador de otro origen. El cuerpo máximo es de 5 MB. La IA (`generate`, `explain` y `review`) sigue viviendo solo en el CLI: ver [Por qué no hay IA en el servicio](#por-qué-no-hay-ia-en-el-servicio).
+Con `--workspace <carpeta>` añade además la API de proyectos (`/api/projects…`, con sus propias reglas de seguridad: ver [API HTTP de proyectos](proyectos.md#api-http-de-proyectos)); con `--workspace-store postgres` (o `IARK_WORKSPACE_STORE=postgres`) la misma API guarda los proyectos en una base Postgres en vez de en una carpeta, sin indicar carpeta y con la conexión solo en el entorno (`IARK_DATABASE_URL`: ver [Proyectos en Postgres](proyectos.md#proyectos-en-postgres-un-servicio-sin-disco-persistente) y [Postgres](postgres.md)), y `/readyz` comprueba la base en lugar de la carpeta; con `--tokens <archivo>` (o con `--accounts`, el inicio de sesión con GitHub: ver [Servicio gestionado](cuentas-github.md)) exige un token con rol en esa API y puede escuchar fuera de loopback (ver [Servidor para varias personas (nube autoalojada)](#servidor-para-varias-personas-nube-autoalojada)); sin ella, el servicio no guarda estado. Sin dependencias (`node:http`). Sin `--cors` solo responde al mismo origen; `--cors https://mi-app.example` (o `*`) abre la API a un navegador de otro origen. El cuerpo máximo es de 5 MB. La IA (`generate`, `explain` y `review`) sigue viviendo solo en el CLI: ver [Por qué no hay IA en el servicio](#por-qué-no-hay-ia-en-el-servicio).
 
 ### Por qué no hay IA en el servicio
 
@@ -61,17 +61,17 @@ Con `--config` (o `IARK_CONFIG`, o un `iark.config.json` en el directorio donde 
 El `Dockerfile` (dos etapas sobre `node:22-alpine`) compila la biblioteca, el CLI y el sitio, deja solo las dependencias de producción y arranca `iark serve --host 0.0.0.0 --port $PORT --static dist/app` (`PORT` vale 8787 por defecto) como el usuario `node` (no root). La imagen pesa unos 210 MB (la base de Node, unos 165 MB; `node_modules`, 28 MB; el sitio, 9 MB; el CLI, 3 MB) y sin variables no guarda estado (la demo); lo que guarda el servicio gestionado va a `/data`. Pesaba 355 MB mientras el frontend (react, Semi UI, xyflow, zustand…) estaba en `dependencies`: Vite ya lo empaqueta en `dist/app`, así que ahora es `devDependencies` y `npm prune --omit=dev` lo descarta; el paquete npm tampoco lo arrastra a quien lo instala (22 paquetes y 52 MB en vez de 209 y 271 MB).
 
 ```bash
-docker build -t iark-diagrams .
-docker run --rm -p 8787:8787 iark-diagrams                                   # editor, banco de trabajo, shell y API en http://localhost:8787
-docker run --rm -p 9000:8787 iark-diagrams --cors https://mi-app.example    # otro puerto del anfitrión y la API abierta a ese origen
-docker run --rm -e PORT=9100 -p 9000:9100 iark-diagrams                      # otro puerto de dentro (el HEALTHCHECK lo sigue)
-docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges -p 8787:8787 iark-diagrams   # endurecida: no escribe en disco
+docker build -t diagrams .
+docker run --rm -p 8787:8787 diagrams                                   # editor, banco de trabajo, shell y API en http://localhost:8787
+docker run --rm -p 9000:8787 diagrams --cors https://mi-app.example    # otro puerto del anfitrión y la API abierta a ese origen
+docker run --rm -e PORT=9100 -p 9000:9100 diagrams                      # otro puerto de dentro (el HEALTHCHECK lo sigue)
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges -p 8787:8787 diagrams   # endurecida: no escribe en disco
 ```
 
 - Los argumentos tras el nombre de la imagen se añaden al `ENTRYPOINT` (`--cors`, `--static`…); si repites una opción, gana la última. Para cambiar el puerto de publicación basta `-p`. El puerto de dentro sale de la variable `PORT` (8787 por defecto), que usan igual el servidor y el `HEALTHCHECK` (consulta `/healthz`): cámbialo con `-e PORT=9100`, no con `--port` (el servidor escucharía en otro puerto que el `HEALTHCHECK` no mira y el contenedor acabaría `unhealthy`; si aun así lo haces, sobrescribe el chequeo con `--health-cmd` o `--no-healthcheck`).
 - Para guardar proyectos y compartirlos entre personas (volúmenes, tokens, HTTPS), ver [Servidor para varias personas (nube autoalojada)](#servidor-para-varias-personas-nube-autoalojada): la imagen escucha en `0.0.0.0`, así que con `IARK_WORKSPACE` y sin autenticación (`IARK_TOKENS` o el inicio de sesión de GitHub, `IARK_ACCOUNTS`…) se niega a arrancar; por eso la imagen no fija `IARK_WORKSPACE`. Para el servicio con inicio de sesión de GitHub, ver [Servicio gestionado](cuentas-github.md) y la [guía de despliegue](despliegue-nube.md).
 - La carpeta `/data` de la imagen es del usuario `node` (1000:1000): un volumen con nombre la hereda; en un bind mount, la carpeta del anfitrión debe ser de `1000:1000`. Si una plataforma monta el disco con dueño root y no deja cambiarlo, `docker build --build-arg IARK_RUN_AS=root` construye la imagen para correr como root (último recurso).
-- Módulos de terceros en la imagen: no trae ninguno. Monta una carpeta con el módulo **y su `node_modules`** (con `@iark/kernel` y `zod` instalados; el módulo resuelve sus `import` desde ahí, no desde `/app`) y apunta `IARK_CONFIG` a su configuración: `docker run --rm -p 8787:8787 -v "$PWD/plugins:/plugins:ro" -e IARK_CONFIG=/plugins/iark.config.json iark-diagrams`. Ponla fuera de `/data` y del espacio de trabajo. Detalles y seguridad: [Módulos de terceros](plugins.md#iark-serve-y-docker).
+- Módulos de terceros en la imagen: no trae ninguno. Monta una carpeta con el módulo **y su `node_modules`** (con `@iark/kernel` y `zod` instalados; el módulo resuelve sus `import` desde ahí, no desde `/app`) y apunta `IARK_CONFIG` a su configuración: `docker run --rm -p 8787:8787 -v "$PWD/plugins:/plugins:ro" -e IARK_CONFIG=/plugins/iark.config.json diagrams`. Ponla fuera de `/data` y del espacio de trabajo. Detalles y seguridad: [Módulos de terceros](plugins.md#iark-serve-y-docker).
 - El `HEALTHCHECK` consulta `/healthz`: público, sin tocar el disco ni los hilos de cálculo, así que sirve igual con la autenticación activada y un problema pasajero del disco no hace que Docker dé el servicio por muerto. `/readyz` (carpeta de trabajo escribible, tokens y cuentas legibles, cálculo vivo) es para un balanceador o un monitor: ver [Observabilidad](observabilidad.md#salud-healthz-y-readyz).
 - Registros y métricas en el contenedor: `-e IARK_ACCESS_LOG=-` (accesos a la salida estándar, para `docker logs`), `-e IARK_AUDIT_LOG=/data/audit.jsonl` (auditoría en el volumen) y `-e IARK_METRICS=1 -e IARK_METRICS_TOKEN=…` (`/metrics`; el contenedor escucha en `0.0.0.0`, así que el token es obligatorio).
 - El contenedor pasa a `healthy` en unos segundos (`docker inspect --format '{{.State.Health.Status}}' <contenedor>`) y `docker stop` lo detiene en menos de un segundo con código 0: `iark serve` cierra el servidor al recibir `SIGTERM`, sin necesidad de `--init`.
@@ -153,7 +153,7 @@ Un canal de **servidor a cliente** (Server-Sent Events) para que las pestañas d
 - **Detrás de un proxy.** La respuesta lleva `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` y `Connection: keep-alive`. Hace falta que el proxy **no almacene en búfer ni comprima** esa ruta y tenga un tiempo de lectura largo: en nginx, `proxy_buffering off;` y `proxy_read_timeout 1h;` en `location /api/events`; en Caddy, `encode` sin esa ruta y `flush_interval -1` (ver `deploy/Caddyfile`). Un proxy que corta la conexión larga no rompe nada: el cliente lo nota (200 sin `text/event-stream`, o silencio) y sondea como antes.
 - **Registros.** El registro de accesos anota **una línea al cerrarse** el canal (no al abrirse), con la ruta `/api/events`, `stream: true`, `events` (cuántos avisos se enviaron), `bytes`, duración y quién, sin query string ni credenciales; no cuenta como petición en curso ni entra en el histograma de duración (dura horas). La auditoría no anota nada: es solo lectura. Métricas: `iark_event_streams` (abiertos), `iark_events_published_total`, `iark_events_delivered_total`, `iark_event_streams_rejected_total` y `iark_event_streams_dropped_total`, sin etiquetas por persona ni proyecto ([observabilidad](observabilidad.md#métricas-metrics)).
 - **Con el almacén de cuentas `json`, `sqlite` o `postgres`** funciona igual (la pertenencia se consulta por la interfaz del almacén).
-- **Límites.** El canal es **de un proceso**: con varias instancias detrás de un balanceador, cada una solo avisa de lo que pasa por ella (hace falta un bus compartido que no existe); los cambios que se hacen directamente en la carpeta o con `iark project …` no se anuncian; no hay reenvío de lo perdido en un corte (`Last-Event-ID`): el cliente relee la lista al reconectar.
+- **Límites.** El canal es **de un proceso**: con varias instancias detrás de un balanceador, cada una solo avisa de lo que pasa por ella (hace falta un bus compartido que no existe; con los proyectos en Postgres tampoco, porque el pooler de transacción no admite `LISTEN`); los cambios que se hacen directamente en la carpeta o con `iark project …` no se anuncian; no hay reenvío de lo perdido en un corte (`Last-Event-ID`): el cliente relee la lista al reconectar.
 
 ### CORS
 
@@ -164,21 +164,21 @@ Con tokens, las rutas `/api/projects…` y `/api/whoami` anuncian `Access-Contro
 El contenedor corre como el usuario `node` (uid 1000): la carpeta de trabajo y la de tokens deben poder leerse por ese usuario (y la de trabajo, escribirse).
 
 ```bash
-docker build -t iark-diagrams .
+docker build -t diagrams .
 mkdir -p datos/espacio datos/tokens && sudo chown -R 1000:1000 datos
 # crear el primer token con la propia imagen (su ENTRYPOINT es `serve`, así que se cambia por `node`)
-docker run --rm -v "$PWD/datos/tokens:/tokens" --entrypoint node iark-diagrams \
+docker run --rm -v "$PWD/datos/tokens:/tokens" --entrypoint node diagrams \
   dist/cli/index.js auth create "Ana García" --role admin --tokens /tokens/tokens.json
 # el servicio, con la carpeta de trabajo y la de tokens como volúmenes; publicado solo en el anfitrión, donde va el proxy con HTTPS (abajo)
 docker run -d --name iark -p 127.0.0.1:8787:8787 \
   -v "$PWD/datos/espacio:/workspace" -v "$PWD/datos/tokens:/tokens:ro" \
   -e IARK_WORKSPACE=/workspace -e IARK_TOKENS=/tokens/tokens.json \
-  iark-diagrams --cors https://juliancardonagaleano.github.io --trust-proxy
+  diagrams --cors https://juliancardonagaleano.github.io --trust-proxy
 ```
 
 - **Monte la carpeta de los tokens, no el archivo.** Docker monta un archivo suelto por su inodo, y `iark auth` reemplaza el archivo de forma atómica (con otro inodo): el contenedor seguiría viendo el de antes y las revocaciones no surtirían efecto. Con la carpeta montada sí. El servidor solo lee el archivo, así que `:ro` vale.
 - La imagen escucha en `0.0.0.0`: con `IARK_WORKSPACE` y sin `IARK_TOKENS` se niega a arrancar. Un archivo de tokens creado en el anfitrión con otro usuario (modo 0600) no lo podrá leer el contenedor: créelo con la imagen, como arriba, o cámbiele el dueño (`chown 1000`).
-- Para revocar o listar: `docker run --rm -v "$PWD/datos/tokens:/tokens" --entrypoint node iark-diagrams dist/cli/index.js auth revoke "Ana García" --tokens /tokens/tokens.json`; el servidor en marcha lo nota solo.
+- Para revocar o listar: `docker run --rm -v "$PWD/datos/tokens:/tokens" --entrypoint node diagrams dist/cli/index.js auth revoke "Ana García" --tokens /tokens/tokens.json`; el servidor en marcha lo nota solo.
 - El `HEALTHCHECK` de la imagen consulta `/healthz`, que es público.
 - La imagen trae `/data`, una carpeta vacía del usuario `node`: con un **volumen con nombre** (`-v iark-data:/data`) hereda ese dueño y sirve tal cual; con un bind mount de una carpeta del anfitrión, su dueño debe ser `1000:1000` (`chown 1000:1000 <carpeta>`). Es la carpeta que usa el servicio gestionado (`IARK_WORKSPACE=/data/workspace`, `IARK_ACCOUNTS=/data/accounts.db`: las cuentas van en una base SQLite, el almacén `IARK_ACCOUNTS_STORE=sqlite` que fija la imagen; ver [Dónde se guardan las cuentas](cuentas-github.md#dónde-se-guardan-las-cuentas-json-sqlite-o-postgres)).
 - **Con inicio de sesión de GitHub** en lugar de tokens (nube gestionada), la imagen y un `docker-compose.yml` con Caddy, el secreto como Docker secret y el volumen ya están preparados en [`deploy/`](../deploy/); la guía paso a paso (OAuth App, dominio, primer arranque, copias de seguridad) es [`docs/despliegue-nube.md`](despliegue-nube.md).
@@ -188,7 +188,7 @@ Con HTTPS delante (Caddy), en un `docker-compose.yml`:
 ```yaml
 services:
   iark:
-    image: iark-diagrams
+    image: diagrams
     restart: unless-stopped
     command: ["--cors", "https://juliancardonagaleano.github.io", "--trust-proxy"]
     environment:
@@ -274,6 +274,6 @@ Una lista concreta siempre incluye además el propio origen (la suite incrusta e
 - **Sin TLS** (arriba) y, con `--tokens`, **sin registro abierto ni OAuth**: no hay contraseñas, ni registro de personas, ni inicio de sesión con terceros (eso lo ofrece `--accounts`: ver [Servicio gestionado](cuentas-github.md)). Quien administra crea un token por persona y se lo entrega por un canal seguro. Los tokens no caducan y sus roles son globales al espacio de trabajo (no hay permisos por proyecto; con `--accounts` sí).
 - **Un token guardado en el navegador queda expuesto a cualquier XSS del sitio que lo use** (y a las extensiones del navegador y a quien use ese equipo). Use el rol mínimo (`viewer` para quien solo lee), revoque el token ante la duda y no abra el cliente web desde un sitio que no controle.
 - **`--trust-proxy` solo detrás de un proxy.** Sin él, todos los clientes de un proxy comparten la dirección del proxy y, por tanto, el freno de intentos fallidos: cualquiera podría frenar a todos durante unos minutos con tokens inválidos. Con él, la dirección sale de la última entrada de `X-Forwarded-For`: sin un proxy delante, cualquiera cambiaría de dirección a voluntad y el freno no serviría. El freno es por dirección exacta (no agrupa un IPv6 por su prefijo) y no sustituye a un cortafuegos.
-- **Sin cuotas con `--tokens`**: un token con rol `editor` o `admin` puede llenar el disco de la carpeta de trabajo (las cuotas por persona son de `--accounts`: [Cuotas de uso](cuentas-github.md#cuotas-de-uso)); vigile el espacio libre del volumen.
+- **Sin cuotas con `--tokens`**: un token con rol `editor` o `admin` puede llenar el disco de la carpeta de trabajo (o la base, con `--workspace-store postgres`) (las cuotas por persona son de `--accounts`: [Cuotas de uso](cuentas-github.md#cuotas-de-uso)); vigile el espacio libre del volumen.
 - Un token con rol `editor` o `admin` puede escribir y borrar en la carpeta de trabajo: el control de versiones de la carpeta (git, copias de seguridad) es su red de seguridad. Cada diagrama se guarda de forma atómica y `ifUpdatedAt` detecta un guardado en medio, pero no hay edición simultánea (solo avisos de cambios: ver «Cambios en tiempo real») (quién intentó cambiar qué lo anota, si se activa, la [auditoría](observabilidad.md#auditoría)).
 - El servidor no registra accesos ni cambios salvo que se active (`--access-log`, `--audit-log`: ver [Observabilidad](observabilidad.md)). Con `--tokens` o `--accounts`, validar, exportar, importar, comparar, `run` y `/api/trace` piden una credencial de cualquier rol y se calculan en hilos de trabajo con tiempo máximo y cola acotada (ver [Límites honestos](despliegue-nube.md#9-límites-honestos)); `--public-compute` o `IARK_PUBLIC_COMPUTE=1` los deja abiertos. Sin tokens ni cuentas, todo está abierto y cuesta CPU de su servidor con cuerpos de hasta 5 MB.

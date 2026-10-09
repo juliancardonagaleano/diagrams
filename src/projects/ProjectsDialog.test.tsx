@@ -95,7 +95,7 @@ describe('gestor de proyectos', () => {
     const file = new File([content], 'x.json', { type: 'application/json' });
     Object.defineProperty(file, 'text', { value: async () => content }); // jsdom no implementa `File.text()`
     await userEvent.upload(screen.getByLabelText('Importar proyecto desde un archivo'), file);
-    expect(await screen.findByTestId('projects-error')).toHaveTextContent('No es un proyecto de IArk');
+    expect(await screen.findByTestId('projects-error')).toHaveTextContent('No es un proyecto de DIAgrams');
     await userEvent.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalled();
   });

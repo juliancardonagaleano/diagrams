@@ -1,5 +1,5 @@
 {
-  "$id": "https://github.com/juliancardonagaleano/iark-diagrams/schema/platform-generation.schema.json",
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/platform-generation.schema.json",
   "title": "Modelo de plataforma (salida de IA)",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",

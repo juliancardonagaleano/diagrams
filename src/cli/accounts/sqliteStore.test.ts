@@ -52,7 +52,7 @@ describe('SqliteAccountStore: el archivo y sus ajustes', () => {
     }
   });
 
-  it('usa WAL, claves foráneas, la versión del esquema y la marca de IArk', () => {
+  it('usa WAL, claves foráneas, la versión del esquema y la marca de DIAgrams', () => {
     const path = join(tmp(), 'cuentas.db');
     const store = open(path);
     const db = raw(path);
@@ -142,7 +142,7 @@ describe('SqliteAccountStore: migraciones del esquema', () => {
 
   it('una base del esquema 1 (anterior a las cuotas) se migra al 2 sin perder nada: las cuentas no tienen cuota y se les puede fijar una', () => {
     const path = join(tmp(), 'cuentas.db');
-    // La base tal como la dejó la versión anterior de IArk: solo la migración 1, con una cuenta, una sesión y un proyecto.
+    // La base tal como la dejó la versión anterior de DIAgrams: solo la migración 1, con una cuenta, una sesión y un proyecto.
     const legacy = raw(path);
     legacy.exec('PRAGMA journal_mode = WAL');
     MIGRATIONS[0]!.up(legacy);
@@ -190,7 +190,7 @@ describe('SqliteAccountStore: migraciones del esquema', () => {
     expect(readFileSync(path).equals(before)).toBe(true);
   });
 
-  it('una base SQLite que no es de cuentas de IArk no se abre, no se migra ni se le cambia el modo del diario', () => {
+  it('una base SQLite que no es de cuentas de DIAgrams no se abre, no se migra ni se le cambia el modo del diario', () => {
     const path = join(tmp(), 'ajena.db');
     const other = raw(path);
     other.exec("CREATE TABLE notas (texto TEXT); INSERT INTO notas VALUES ('hola')");
@@ -201,7 +201,7 @@ describe('SqliteAccountStore: migraciones del esquema', () => {
     const marked = join(tmp(), 'marcada.db');
     const db = raw(marked);
     db.exec('PRAGMA application_id = 12345; PRAGMA user_version = 1');
-    expect(() => SqliteAccountStore.open(marked)).toThrowError(expect.objectContaining({ code: 'corrupt', message: expect.stringMatching(/no de cuentas de IArk/) }));
+    expect(() => SqliteAccountStore.open(marked)).toThrowError(expect.objectContaining({ code: 'corrupt', message: expect.stringMatching(/no de cuentas de DIAgrams/) }));
   });
 
   it('las migraciones se numeran 1, 2, 3… sin huecos', () => {

@@ -71,14 +71,14 @@ export function manifestCompatibilityProblem(manifest: unknown, source: string):
   const json = manifest as { schema?: unknown; protocol?: unknown };
   const version = manifestSchemaVersion(json.schema);
   if (version !== undefined && version > MANIFEST_SCHEMA_VERSION) {
-    return `El manifiesto en ${source} es de una versión más nueva del formato (${String(json.schema)}); esta suite entiende ${MANIFEST_SCHEMA_ID}. Actualiza IArk para usar esa instancia.`;
+    return `El manifiesto en ${source} es de una versión más nueva del formato (${String(json.schema)}); esta suite entiende ${MANIFEST_SCHEMA_ID}. Actualiza DIAgrams para usar esa instancia.`;
   }
   const remote = json.protocol === undefined || typeof json.protocol === 'string' ? (json.protocol as string | undefined) : JSON.stringify(json.protocol);
   const protocol = negotiateProtocol(EMBED_PROTOCOL_VERSION, remote);
   if (protocol.ok) return undefined;
   if (protocol.reason === 'invalid') return `El manifiesto en ${source} declara un protocolo embebido ilegible (${shorten(protocol.remote)}); esta suite habla la versión ${protocol.local}.`;
   const newer = Number.parseInt(protocol.remote, 10) > Number.parseInt(protocol.local, 10);
-  return `La instancia en ${source} habla el protocolo embebido ${protocol.remote} y esta suite el ${protocol.local}: la versión mayor es distinta y no pueden entenderse. Actualiza ${newer ? 'esta suite (IArk)' : 'la instancia'}.`;
+  return `La instancia en ${source} habla el protocolo embebido ${protocol.remote} y esta suite el ${protocol.local}: la versión mayor es distinta y no pueden entenderse. Actualiza ${newer ? 'esta suite (DIAgrams)' : 'la instancia'}.`;
 }
 
 /**
@@ -90,7 +90,7 @@ export function moduleCompatibilityProblem(module: { id: string; contractVersion
   if (declared === undefined) return undefined;
   if (typeof declared !== 'number' || !Number.isInteger(declared) || declared < 1) return `El módulo «${module.id}» declara un contractVersion inválido (${shorten(JSON.stringify(declared) ?? String(declared))}).`;
   if (isContractCompatible(declared)) return undefined;
-  return `El módulo «${module.id}» exige la versión ${declared} del contrato de módulos y esta suite entiende hasta la ${CONTRACT_VERSION}: actualiza IArk para usarlo.`;
+  return `El módulo «${module.id}» exige la versión ${declared} del contrato de módulos y esta suite entiende hasta la ${CONTRACT_VERSION}: actualiza DIAgrams para usarlo.`;
 }
 
 /**
