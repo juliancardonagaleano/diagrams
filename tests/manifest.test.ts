@@ -55,6 +55,15 @@ describe('manifiesto de federación del sitio estático', () => {
     expect(published.projectsAuth).toBeUndefined();
   });
 
+  it('anuncia el canal de cambios en tiempo real (`projectsEvents`) solo si el servidor lo ofrece, y solo con proyectos', () => {
+    const registry = createDefaultRegistry();
+    const withEvents = suiteManifest(registry, { version: '1', api: '../api', projects: true, events: true });
+    expect(withEvents.projectsEvents).toBe('../api/events');
+    expect(manifestSchema.parse(withEvents).projectsEvents).toBe('../api/events');
+    expect(suiteManifest(registry, { version: '1', api: '../api', projects: true })).not.toHaveProperty('projectsEvents');
+    expect(suiteManifest(registry, { version: '1', api: '../api', events: true })).not.toHaveProperty('projectsEvents');
+  });
+
   it('con espacio de trabajo anuncia también cómo se autentica (`projectsAuth`): `none` por omisión, `bearer` con tokens; nunca sin proyectos', () => {
     const registry = createDefaultRegistry();
     const open = suiteManifest(registry, { version: '1', api: '../api', projects: true });

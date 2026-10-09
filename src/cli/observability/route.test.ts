@@ -78,6 +78,7 @@ describe('classifyRoute: la plantilla de una petición', () => {
   it('marca qué rutas exigen credencial, cuáles son de cálculo y cuáles las comprueban máquinas', () => {
     expect(classifyRoute('GET', '/api/projects').protected).toBe(true);
     expect(classifyRoute('GET', '/api/whoami').protected).toBe(true);
+    expect(classifyRoute('GET', '/api/events')).toMatchObject({ template: '/api/events', protected: true });
     expect(classifyRoute('POST', '/api/auth/logout').protected).toBe(true);
     expect(classifyRoute('GET', '/api/admin/users').protected).toBe(true);
     expect(classifyRoute('POST', '/api/auth/exchange').protected).toBe(false);
@@ -106,7 +107,7 @@ describe('classifyRoute: la plantilla de una petición', () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
       return seed / 4294967296;
     };
-    const words = ['api', 'projects', 'auth', 'admin', 'users', 'github', 'diagrams', 'members', 'bundle', 'run', 'validate', 'export', 'import', 'diff', 'schema', 'capabilities', 'trace', 'whoami', 'modules', 'assets', 'metrics', 'healthz', '..', '.', '%2e%2e', '%00', '%0a', '%E2%80%A8', '%zz', 'ñandú', '', 'x'.repeat(300), '{"a":1}', 'token=abc', 'ana', 'tienda', '0', '-1'];
+    const words = ['api', 'projects', 'auth', 'admin', 'users', 'github', 'diagrams', 'members', 'bundle', 'run', 'validate', 'export', 'import', 'diff', 'schema', 'capabilities', 'trace', 'whoami', 'events', 'modules', 'assets', 'metrics', 'healthz', '..', '.', '%2e%2e', '%00', '%0a', '%E2%80%A8', '%zz', 'ñandú', '', 'x'.repeat(300), '{"a":1}', 'token=abc', 'ana', 'tienda', '0', '-1'];
     const seen = new Set<string>();
     for (let i = 0; i < 1000; i++) {
       const depth = 1 + Math.floor(random() * 6);
