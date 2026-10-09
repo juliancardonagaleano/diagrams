@@ -1,0 +1,41 @@
+{
+  "module": "security",
+  "cases": [
+    {
+      "id": "pagos-reintento-esquema",
+      "kind": "generate",
+      "instruction": "Una API de pagos expuesta a internet detrás de un WAF. El cliente llama al WAF por HTTPS con un token; el WAF reenvía a la API por mTLS; la API guarda tarjetas tokenizadas en una base PostgreSQL de la zona de datos (cifrada en reposo) y lee las credenciales de la pasarela de un gestor de secretos con rotación. Zonas: Internet, Perímetro, Red interna y Zona de datos. Modela amenazas STRIDE (suplantación del cliente, exfiltración de la base e inyección SQL) y sus controles.",
+      "notes": "Bucle por el esquema: la primera respuesta cumple el esquema de salida, pero un flujo parte de un activo que no existe, así que la conversión al documento falla; la segunda lo corrige.",
+      "expect": {
+        "kinds": { "zone": 4, "asset": 5, "threat": 3, "control": 3 },
+        "mentions": ["WAF", "spoofing", "information-disclosure"],
+        "maxWarnings": 3,
+        "loop": { "attempts": 2, "repaired": true, "retries": { "schema": 1, "rules": 0 }, "verification": "passed" },
+        "prompt": { "systemContains": ["arquitecto de seguridad", "NO produces coordenadas"], "userContains": ["WAF"], "maxInputTokens": 9000 }
+      }
+    },
+    {
+      "id": "explicar-tienda",
+      "kind": "explain",
+      "document": "examples/seguridad-ejemplo.json",
+      "lang": "es",
+      "notes": "Explica un modelo de amenazas con cuatro zonas de confianza, flujos cifrados y amenazas STRIDE.",
+      "expect": {
+        "headings": ["Resumen", "Cómo funciona", "Piezas clave"],
+        "mentions": ["Balanceador y WAF", "Servicio de pedidos"],
+        "prompt": { "systemContains": ["zonas de confianza"], "userContains": ["\"zones\""], "maxInputTokens": 9000 }
+      }
+    },
+    {
+      "id": "revisar-tienda",
+      "kind": "review",
+      "document": "examples/seguridad-ejemplo.json",
+      "notes": "Revisión de un documento con varios avisos de validate(): el prompt debe llevarlos y la respuesta, estructurarlos.",
+      "expect": {
+        "headings": ["Resumen", "Incidencias del validador", "Inconsistencias", "Riesgos", "Ausencias", "Recomendaciones"],
+        "mentions": ["credential stuffing", "IDOR"],
+        "prompt": { "systemContains": ["Eres un revisor de arquitectura"], "userContains": ["Incidencias del validador del módulo (20)", "credential stuffing"] }
+      }
+    }
+  ]
+}

@@ -297,3 +297,74 @@ describe('HttpProjectStore: compartir un proyecto (cuentas)', () => {
     expect(error.message).toContain('Ya administras 25 proyectos');
   });
 });
+
+describe('HttpProjectStore: administrar las cuentas de la instancia', () => {
+  const ana = { id: 'u_1', login: 'ana', name: 'Ana', avatarUrl: 'https://avatars.example/u/1', siteRole: 'admin', disabled: false, pending: false, listed: true, createdAt: '2026-01-01T00:00:00.000Z', lastLoginAt: '2026-02-01T10:00:00.000Z', projects: 3 };
+  const carla = { id: 'u_2', login: 'carla', siteRole: 'guest', disabled: false, pending: true, createdAt: '2026-01-02T00:00:00.000Z', projects: 0 };
+
+  it('listAccounts pide /api/admin/users con el token y lee todos los campos; lo opcional que falta queda sin definir', async () => {
+    const { store: s, calls } = store(() => ({ body: [ana, carla] }), { token: 'iark_s_abc' });
+    expect(await s.listAccounts()).toEqual([
+      { ...ana, listed: true },
+      { id: 'u_2', login: 'carla', siteRole: 'guest', disabled: false, pending: true, listed: false, createdAt: '2026-01-02T00:00:00.000Z', projects: 0 },
+    ]);
+    expect(calls[0].url).toBe('https://iark.example/api/admin/users');
+    expect(calls[0].init.method).toBe('GET');
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer iark_s_abc');
+  });
+
+  it('lo que llega mal formado no rompe la lista: se descartan las cuentas sin id o sin usuario y un rol desconocido es el de menos permisos', async () => {
+    const { store: s } = store(() => ({ body: [{ id: 'u_9', login: 'x', siteRole: 'dios', projects: -4 }, { id: 'u_8' }, { login: 'sin-id' }, 7, null] }));
+    expect(await s.listAccounts()).toEqual([{ id: 'u_9', login: 'x', siteRole: 'guest', disabled: false, pending: false, listed: false, createdAt: '', projects: 0 }]);
+    expect(await store(() => ({ body: { nope: 1 } })).store.listAccounts()).toEqual([]);
+    expect((await failure(store(() => ({ body: { nope: 1 } })).store.setAccount('x', { siteRole: 'member' }))).code).toBe('unavailable');
+  });
+
+  it('setAccount manda solo lo que cambia, con el usuario codificado, y distingue la invitación nueva (201) de la cuenta que ya existía (200)', async () => {
+    const { store: s, calls } = store((_url, init) => ({ status: JSON.parse(String(init.body)).siteRole === 'guest' ? 201 : 200, body: carla }));
+    expect(await s.setAccount(' @carla ', { siteRole: 'guest' })).toMatchObject({ created: true, account: { login: 'carla', pending: true } });
+    expect(await s.setAccount('car/la', { disabled: true })).toMatchObject({ created: false });
+    expect(calls.map((c) => `${c.init.method} ${c.url.replace('https://iark.example', '')}`)).toEqual(['PUT /api/admin/users/carla', 'PUT /api/admin/users/car%2Fla']);
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ siteRole: 'guest' });
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ disabled: true });
+    expect((calls[0].init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+  });
+
+  it('cancelInvitation es un DELETE con JSON; un usuario vacío se rechaza sin llegar al servidor', async () => {
+    const { store: s, calls } = store(() => ({ body: { removed: 'carla' } }));
+    await s.cancelInvitation('@carla');
+    expect(`${calls[0].init.method} ${calls[0].url}`).toBe('DELETE https://iark.example/api/admin/users/carla');
+    expect((calls[0].init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect((await failure(s.cancelInvitation(' @ '))).code).toBe('invalid');
+    expect((await failure(s.setAccount('', { disabled: true }))).code).toBe('invalid');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('traduce los errores de administración: propia cuenta y lista de --admins → conflict (con su código), tope → invalid, no administra → forbidden', async () => {
+    const cases: Array<[number, unknown, string, string | undefined]> = [
+      [409, { error: 'No puedes cambiar tu propio rol ni desactivar tu propia cuenta.', code: 'self' }, 'conflict', 'self'],
+      [409, { error: '«ana» figura en la lista de administradores.', code: 'listed-admin' }, 'conflict', 'listed-admin'],
+      [409, { error: 'Esa persona ya entró: para quitarle el acceso, desactiva su cuenta.', code: 'conflict' }, 'conflict', undefined],
+      [409, { error: 'El proyecto se quedaría sin administrador.', code: 'last-admin' }, 'conflict', 'last-admin'],
+      [409, { error: 'Hay 500 invitaciones sin aceptar.', code: 'limit' }, 'invalid', 'limit'],
+      [403, { error: 'Solo quien administra la instancia puede ver y cambiar las cuentas.', code: 'forbidden' }, 'forbidden', undefined],
+      [404, { error: 'No existe la cuenta «x».', code: 'not-found' }, 'not-found', undefined],
+      [400, { error: 'Rol inválido.', code: 'invalid' }, 'invalid', undefined],
+      [401, { error: 'Falta un token válido.', code: 'unauthorized' }, 'unauthorized', undefined],
+    ];
+    for (const [status, body, code, serverCode] of cases) {
+      const set = await failure(store(() => ({ status, body })).store.setAccount('x', { disabled: true }));
+      expect(set.code, JSON.stringify(body)).toBe(code);
+      expect(set.info).toMatchObject({ status, ...(serverCode ? { serverCode } : {}) });
+      expect(set.message).toContain((body as { error: string }).error);
+    }
+    expect((await failure(store(() => ({ status: 403, body: { error: 'no', code: 'forbidden' } })).store.listAccounts())).code).toBe('forbidden');
+    expect((await failure(store(() => ({ status: 409, body: { error: 'ya entró', code: 'conflict' } })).store.cancelInvitation('x'))).code).toBe('conflict');
+  });
+
+  it('un servicio sin cuentas responde 404 a la administración: es `unavailable`, con el mensaje del servidor', async () => {
+    const error = await failure(store(() => ({ status: 404, body: { error: 'Este servicio no tiene cuentas de GitHub: la administración de cuentas solo existe con --accounts.' } })).store.listAccounts());
+    expect(error).toMatchObject({ code: 'unavailable', info: { status: 404 } });
+    expect(error.message).toContain('solo existe con --accounts');
+  });
+});

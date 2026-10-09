@@ -205,4 +205,10 @@ export const integrationAiSpec: AiSpec<IntegrationDocument> = {
   retry: (issues) => `El modelo devuelto no pasó la validación. Corrige estos problemas y devuelve el modelo completo de nuevo:\n${issues}`,
   toDocument: (generated) => generatedToIntegration(generated as GeneratedIntegration),
   carry: carryIntegration,
+  // Para `iark explain` y `iark review`: la proyección compacta del documento y qué destacar y qué mirar en este módulo.
+  serialize: toGenerated,
+  explainGuide:
+    'Cuenta quién inicia cada comunicación, con qué estilo (llamada síncrona, mensaje por cola, evento, lote o flujo continuo) y por qué canal (cola, tópico, pasarela); si hay flujos declarados, narra sus pasos en orden; menciona los contratos (OpenAPI, AsyncAPI, Avro…) de las interfaces y quién es responsable de cada nodo.',
+  reviewGuide:
+    'Mira: cadenas de llamadas síncronas (A llama a B que llama a C) sin patrón de resiliencia (reintento, circuit breaker, cola de mensajes fallidos); colas o tópicos sin productor o sin consumidor; productor y consumidor enlazados directamente sin canal; APIs sin contrato, o contratos sin versión; interacciones sin protocolo ni criticidad; dependencias circulares entre sistemas; datos sensibles que viajan sin que conste autenticación o cifrado; flujos cuyos pasos no cuadran con las interacciones declaradas; nodos aislados.',
 };

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
-import { ProjectError, type DiagramMeta, type ProjectSummary } from '@iark/kernel';
+import { ProjectError, type DiagramMeta, type ProjectSummary, type PublicUser } from '@iark/kernel';
 import { downloadText } from '../modules-app/files';
 import { loadBackend } from './backend';
+import { AdminDialog } from './AdminDialog';
 import { copyProject, copyTargetFor, type CopyTarget } from './copy';
 import { PROJECT_ROLE_HELP, PROJECT_ROLE_LABEL } from './people';
 import type { ProjectSession } from './session';
@@ -72,6 +73,8 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
   /** El proyecto que se está compartiendo (el cuadro «Compartir…» abierto) y el de «¿Salir del proyecto?» pendiente de confirmar. */
   const [sharing, setSharing] = useState<string | undefined>();
   const [leaving, setLeaving] = useState<string | undefined>();
+  /** Quien administra la instancia y tiene abierta su pantalla de cuentas (solo se llega a ella desde «Dónde se guardan», siendo administrador). */
+  const [administering, setAdministering] = useState<PublicUser | undefined>();
   const shareButton = useRef<HTMLButtonElement>(null);
   /** Hay una copia a otro almacén en curso: sus errores son del otro servidor, no de este. */
   const copying = useRef(false);
@@ -260,7 +263,8 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
   // Escape se escucha en el documento: al borrar algo el botón que tenía el foco desaparece y el foco cae en el `body`.
   const escape = useRef<() => void>(() => undefined);
   escape.current = () => {
-    if (sharing) setSharing(undefined);
+    if (administering) setAdministering(undefined);
+    else if (sharing) setSharing(undefined);
     else if (editing) setEditing(undefined);
     else if (confirming) setConfirming(undefined);
     else if (storageOpen) setStorageOpen(false);
@@ -410,6 +414,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
           }}
           onChange={() => setServerVersion((v) => v + 1)}
           notify={notify}
+          onAdminister={setAdministering}
           {...storage}
         />
 
@@ -640,6 +645,7 @@ export function ProjectsDialog({ session, modules, onOpen, current, template, on
         </footer>
       </div>
     </div>
+    {administering && <AdminDialog session={session} me={administering} onClose={() => setAdministering(undefined)} notify={notify} />}
     {sharing && selected && selected.id === sharing && (
       <ShareDialog session={session} project={{ id: selected.id, name: selected.name }} onClose={() => setSharing(undefined)} notify={notify} onLeft={() => setSelectedId(undefined)} />
     )}

@@ -1,0 +1,8 @@
+{
+  "case": "revisar-tienda-sin-descripciones",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Revisión de un documento con avisos del validador: la respuesta recoge las incidencias y sigue la estructura que pide el prompt de review.",
+  "promptSha256": "664d22286dcf37240b4a48a759d2352a2cf277473ec745ae13073afb48fb0559",
+  "responses": [
+    "## Resumen\nEl modelo es mínimo y se entiende, pero le faltan descripciones y tecnologías, y hay dos elementos que no hablan con nadie ni aparecen en ninguna vista. Conviene completarlo antes de compartirlo.\n\n## Incidencias del validador\n- El Cliente y la Tienda en línea no tienen descripción.\n- La Base de datos no indica su tecnología, no participa en ninguna relación y no aparece en ninguna vista.\n- El Sistema heredado tampoco tiene relaciones ni vista: o falta un enlace o sobra el elemento.\n- La relación Cliente → Tienda en línea no tiene descripción.\n\n## Inconsistencias\n- La Base de datos pertenece a la Tienda en línea pero nada la usa, así que el modelo no dice qué contenedor la consulta.\n\n## Riesgos\n- Toda la tienda depende de una sola base de datos: es un punto único de fallo.\n\n## Ausencias\n- No se ve quién autentica al cliente ni dónde se cobra.\n\n## Recomendaciones\n1. Describir el Cliente y la Tienda en línea.\n2. Indicar la tecnología de la Base de datos.\n3. Conectar el Sistema heredado o quitarlo.\n4. Añadir el sistema de pagos y el de identidad.\n"
+  ]
+}

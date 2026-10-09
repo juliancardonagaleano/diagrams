@@ -1,0 +1,8 @@
+{
+  "case": "revisar-pedidos",
+  "notes": "Escrita a mano (no la produjo ningún modelo real); los campos anulables que no se usan se completaron con null, como los devolvería la salida estructurada. Revisión de un documento sin incidencias del validador: la respuesta lo indica y aporta hallazgos propios.",
+  "promptSha256": "77b737a0a82a78ee75fb1e7d223da008ac1d94dd6a55018a16adde1740d8d154",
+  "responses": [
+    "## Resumen\nEl mapa es coherente y el validador no encuentra incidencias, pero hay una cadena síncrona larga en el camino del pedido y un contrato declarado dos veces con formatos distintos.\n\n## Incidencias del validador\nSin incidencias.\n\n## Inconsistencias\n- El Servicio de pedidos publica en el tópico pedido-creado con el contrato Avro 1.3, mientras que el nodo del tópico declara CloudEvents 1.3: no está claro cuál es el formato real del mensaje.\n- La API de facturación existe (gRPC) y Facturación también consume el evento: hay dos caminos para el mismo dato.\n\n## Riesgos\n- Tienda web, API Gateway, API de pedidos y Servicio de pedidos forman una cadena síncrona sin patrón de resiliencia (reintento, circuit breaker).\n- Facturación llama a la Pasarela de pagos de forma síncrona y solo hay un reintento programado cada 15 minutos.\n\n## Ausencias\n- No se ve ninguna cola de mensajes fallidos para el tópico pedido-creado.\n- No consta autenticación entre servicios ni cifrado de los datos del pedido en Kafka.\n\n## Recomendaciones\n1. Unificar el contrato del tópico pedido-creado y declararlo una sola vez.\n2. Añadir un circuit breaker en la llamada a la Pasarela de pagos.\n3. Añadir una cola de mensajes fallidos para los consumidores del tópico.\n4. Documentar la autenticación entre servicios.\n"
+  ]
+}

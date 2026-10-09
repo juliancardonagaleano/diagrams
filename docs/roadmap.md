@@ -27,14 +27,15 @@ El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 |---|---|---|
 | Núcleo y módulos | **Hecho**: `@iark/kernel` y seis módulos (`c4`, `integration`, `data`, `enterprise`, `platform`, `security`), cada uno con esquema, validación, vistas, IA, importadores, exportadores y editor | [historial](historial.md#fases-0-a-6-plan-aprobado-el-2026-09-29) |
 | Web | **Hecho**: editor C4 clásico; banco de trabajo con lienzo propio en los seis módulos (C4 incluido, sin iframe); suite; trazabilidad | [suite-web.md](suite-web.md) |
-| CLI | **Hecho**: `generate`, `layout`, `convert`, `import`, `validate`, `schema`, `prompt`, `diff`, `trace`, `project`, `auth`, `serve` y los comandos de cada módulo | [cli.md](cli.md) |
-| IA | **Hecho**: API de Anthropic, Claude en Foundry, cualquier modelo de Foundry, modo sin clave (`iark prompt`) y `--from-repo`. Probado de verdad solo con DeepSeek-V4-Pro (28-09-2026) | [ia.md](ia.md) |
+| CLI | **Hecho**: `generate`, `explain`, `review`, `layout`, `convert`, `import`, `validate`, `schema`, `prompt`, `diff`, `trace`, `project`, `auth`, `serve` y los comandos de cada módulo | [cli.md](cli.md) |
+| IA | **Hecho**: API de Anthropic, Claude en Foundry, cualquier modelo de Foundry, modo sin clave (`iark prompt`), `--from-repo`, verificación con `validate()`, topes de tokens, `explain`/`review` y evals. Probado de verdad solo con DeepSeek-V4-Pro (28-09-2026); lo nuevo, solo con servicios simulados | [ia.md](ia.md) |
 | Importadores | **Hecho**: `.drawio`, Structurizr DSL, Mermaid, Terraform, Kubernetes, DDL de SQL, dbt y ArchiMate. Integración y seguridad solo importan Mermaid | [importadores.md](importadores.md) |
 | Federación y embebido | **Hecho**: manifiesto `iark.manifest/1`, shell, SDK de anfitrión y Web Component `<iark-module>` | [embebido.md](embebido.md) |
 | Trazabilidad | **Hecho** (v1 y v2): referencias por URN con tipo de enlace, `iark trace` (huérfanos, matriz y cobertura), `POST /api/trace` y vista web | [trazabilidad.md](trazabilidad.md) |
 | Versionado de diagramas | **Hecho**: `iark diff` y pestaña «Comparar» (sin instantáneas en el navegador) | [cli.md](cli.md#comparar-versiones-de-un-diagrama-iark-diff) |
-| Proyectos y nube | **Hecho**: carpeta de trabajo, navegador, servidor propio con tokens, inicio de sesión de GitHub, compartir proyectos y API de administración | [proyectos.md](proyectos.md) · [servicio.md](servicio.md) · [cuentas-github.md](cuentas-github.md) |
+| Proyectos y nube | **Hecho**: carpeta de trabajo, navegador, servidor propio con tokens, inicio de sesión de GitHub, compartir proyectos, API y pantalla de administración de cuentas | [proyectos.md](proyectos.md) · [servicio.md](servicio.md) · [cuentas-github.md](cuentas-github.md) |
 | Despliegue | **Hecho**: GitHub Pages automático, imagen Docker y `deploy/` con Caddy | [despliegue-pages.md](despliegue-pages.md) · [despliegue-nube.md](despliegue-nube.md) |
+| Observabilidad | **Hecho** (v1, apagada por omisión): `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz`, `/readyz` y métricas de Prometheus en `iark serve` | [observabilidad.md](observabilidad.md) |
 | Pruebas | **Hecho**: unitarias, e2e estables y prueba real de la imagen (`docker:smoke`) | [desarrollo.md](desarrollo.md) |
 | Endurecimiento | **En curso** (Fase 1) | [abajo](#fase-1-endurecer-en-curso) |
 
@@ -77,7 +78,7 @@ Que la suite se pueda ampliar desde fuera.
 Que cada módulo sea útil con los archivos reales de quien lo usa.
 
 - **Importadores clave**: integración y seguridad solo importan Mermaid; cada módulo debe importar los formatos reales de su mundo. Se suman los límites conocidos de los actuales (módulos locales de Terraform, ids de ArchiMate que dependen del idioma, «Abrir archivo…» con un solo archivo).
-- **IA con verificación y evals**: medir la calidad de lo que genera cada proveedor y módulo (hoy solo hay una prueba real, de C4), verificar el resultado más allá del esquema, probar los proveedores que están sin probar y completar `--from-repo` (monorepos, manifiesto de auditoría del envío).
+- **IA con verificación y evals** (hecho, salvo la prueba real con claves): `generate` verifica con `validate()` del módulo y reintenta por sus errores (`--no-verify`, `--allow-invalid`, `--strict`); topes de tokens sin precios (`--max-tokens`, `--budget-tokens`, `--max-input-tokens`); `iark explain` y `iark review`; `npm run evals` (16 casos de los seis módulos con respuestas grabadas a mano, también en `npm test`) y `npm run evals:live`; el servicio HTTP queda sin IA, documentado ([ia.md](ia.md), [servicio.md](servicio.md#por-qué-no-hay-ia-en-el-servicio)). **Falta**: ejecutar `tests/ai-live.test.ts` y `evals:live` con claves reales (hoy solo hay una prueba real, de C4 y con DeepSeek-V4-Pro), probar los proveedores que están sin probar y completar `--from-repo` (monorepos, manifiesto de auditoría del envío).
 - **C4 en el lienzo común** (**hecho en el banco de trabajo**; acción 16): C4 es un módulo más del lienzo común (`DomainModule.editor`, `packages/domain-c4/src/editor.ts`) y `modulos.html?module=c4` ya no incrusta el editor clásico: «Comparar» resalta lo añadido, modificado y quitado dentro del lienzo, y los enlaces `ref` entre diagramas, Alt+↓ y Alt+↑ funcionan como en los demás módulos. Se hizo por etapas y sin romper nada: el editor clásico de `src/app` (`index.html`, con el protocolo `postMessage` de los anfitriones externos y los proyectos) **sigue donde estaba**. **Falta**: retirarlo, cuando la [tabla de paridad](modulos/c4.md#diferencias-con-el-editor-clásico) esté toda en «sí» (hoy quedan «diferente» —las posiciones movidas no se guardan en el documento, soltar sobre un límite, Supr— y «no» —opciones de autolayout y chip de calidad, estilo de tarjetas, cuadrícula con imán, exportaciones finas—), y mover entonces las pruebas del editor clásico (`tests/e2e/*.spec.ts` de C4) a este lienzo.
 - **Accesibilidad**: auditoría y arreglos del editor y del banco de trabajo (teclado, lectores de pantalla, contraste).
 - **Rendimiento**: diagramas grandes en el lienzo y en el autolayout, y el tamaño de los trozos de la compilación (hoy `chunkSizeWarningLimit: 2000`).
@@ -89,9 +90,9 @@ Que cada módulo sea útil con los archivos reales de quien lo usa.
 Que una instancia gestionada se pueda operar y medir.
 
 - **Cuentas transaccionales**: las cuentas son un JSON con un único escritor (una sola réplica); pasar a un almacén transaccional y a varias réplicas.
-- **Observabilidad y auditoría**: el servidor no registra accesos ni quién cambió qué; registros estructurados, métricas y auditoría.
+- **Observabilidad y auditoría** *(hecho: registro de accesos, auditoría, salud y métricas en `iark serve`, ver [observabilidad.md](observabilidad.md))*. Queda lo que ese documento reconoce en «Límites»: probarlo con un Prometheus, `logrotate` y una plataforma reales, reunir los registros de varias réplicas cuando las haya, y trazas distribuidas.
 - **Colaboración y sin conexión**: hoy los cambios de dos personas no se mezclan, no hay tiempo real ni trabajo sin conexión, y no hay instantáneas guardadas en el navegador.
-- **Administración de cuentas**: pantalla de administración (hoy solo la API `/api/admin/users`) y cuotas de disco por persona.
+- **Administración de cuentas**: cuotas de disco por persona. La pantalla de administración (invitar, roles, desactivar, cancelar invitaciones) ya está hecha: [cuentas-github.md](cuentas-github.md#pantalla-de-administración).
 - **Interfaz es/en**: la interfaz está en español.
 
 **Puerta**: instancia gestionada operada y medida.
@@ -105,15 +106,18 @@ Los pendientes menores y límites conocidos al 2026-10-08, con la fase en la que
 | Docker | No se ha probado un build en una máquina con red normal (sin el proxy del entorno de desarrollo); la imagen tampoco se ha probado con `--tokens` | 1 |
 | Servicio | Un diagrama muy grande exportado por la API bloquea el servicio mientras se calcula la distribución (~90 s con 300 contenedores) | 1 |
 | Seguridad | Un token guardado en el navegador queda expuesto a un XSS del sitio que lo use; `iark serve` no habla TLS (hace falta un proxy con https) | 1 |
-| Nube gestionada | No hay pantalla de administración de cuentas (solo la API `/api/admin/users`: invitar sin un proyecto, desactivar, cambiar roles) y sin cuotas de disco por persona | 4 |
+| Nube gestionada | Sin cuotas de disco por persona, y la pantalla de administración de cuentas no registra quién cambió qué (las cuentas de servicio con token administran por la API) | 4 |
 | Nube gestionada | El inicio de sesión recarga la página (sin ventana emergente) | 4 |
 | Nube gestionada | Una sola réplica: las cuentas son un JSON con un único escritor | 4 |
 | Nube gestionada | El freno de intentos solo lee la última entrada de `X-Forwarded-For` (plataformas con otra cabecera, como `Fly-Client-IP`, comparten freno) | 4 |
 | Nube gestionada | No se ha probado con un certificado público real ni en una plataforma concreta | 4 |
+| Nube gestionada | La observabilidad no se ha probado con un Prometheus, un `logrotate` ni un Caddy reales; los registros y las métricas son de una sola instancia (sin reunir varias réplicas) y no hay trazas distribuidas; la auditoría no es a prueba de manipulación (envío a un sistema externo o `chattr +a`) ni cubre las lecturas | 4 |
 | Versionado | No hay instantáneas guardadas en el navegador (se compara con archivos, git o un JSON abierto) | 4 |
 | C4 | El editor clásico (`index.html`) sigue vivo junto al lienzo común: dos editores que mantener hasta que la [tabla de paridad](modulos/c4.md#diferencias-con-el-editor-clásico) esté toda en «sí» | 3 |
 | C4 | En el lienzo común lo que se arrastra se recuerda en el navegador, no se escribe en el documento (`view.elements[].x/y`): los exportadores recolocan con ELK lo que el documento no trae | 3 |
 | Versionado | La pestaña «Comparar» comparte nombre con la vista «Comparar» de Plataforma (entornos lado a lado); podría llamarse «Versiones» | 3 |
+| IA | Falta ejecutar con claves reales la verificación con `validate()`, los topes de tokens, `explain`/`review`, `tests/ai-live.test.ts` y `npm run evals:live` (solo hay pruebas con servicios simulados); y solo C4 emite *errores* en `validate()`, así que en los otros cinco módulos el bucle de reglas solo actúa con `--strict` | 3 |
+| IA | El servicio HTTP no ofrece IA a propósito: antes haría falta credencial obligatoria, cuota por persona y tope de presupuesto ([servicio.md](servicio.md#por-qué-no-hay-ia-en-el-servicio)) | 4 |
 | IA desde repo | Solo los manifiestos y puntos de entrada más comunes; monorepos y repos enormes (árbol a profundidad 3, cuotas globales) | 3 |
 | IA desde repo | Un archivo versionado pero ignorado por `.gitignore` no se ve en una carpeta local (en un clon el `.gitignore` no se aplica) | 3 |
 | IA desde repo | Falta un manifiesto de auditoría del envío; el intérprete de `.gitignore` sigue siendo O(n·m) por regla y sin presupuesto global de trabajo | 3 |
@@ -135,7 +139,7 @@ La exportación SVG y PNG desde el modo embebido figuraba aquí como fuera de al
 
 Límites de diseño vigentes, con su explicación en cada documento:
 
-- **Servicio**: `iark serve` solo habla HTTP, no registra accesos, y con `--tokens` los tokens no caducan y sus roles valen para toda la carpeta de trabajo (con `--accounts`, inicio de sesión de GitHub, hay permisos por proyecto) ([servicio.md](servicio.md)).
+- **Servicio**: `iark serve` solo habla HTTP, no registra accesos ni cambios salvo que se active (`--access-log`, `--audit-log`; llevan usuario e IP: [observabilidad.md](observabilidad.md)), y con `--tokens` los tokens no caducan y sus roles valen para toda la carpeta de trabajo (con `--accounts`, inicio de sesión de GitHub, hay permisos por proyecto) ([servicio.md](servicio.md)).
 - **Proyectos**: sin trabajo sin conexión ni tiempo real; cada guardado envía el documento entero (límite de 5 MB) y la lista incluye todos los diagramas, pensado para carpetas pequeñas o medianas ([proyectos.md](proyectos.md)).
 - **Importadores**: lo que no se mapea se avisa, no se importa (capas y formas ocultas en `.drawio`, despliegue y vistas `dynamic` en el DSL de Structurizr, `.drawio.svg` y `.drawio.png`…) ([importadores.md](importadores.md)).
 - **Módulos de terceros**: se cargan en el CLI y en `iark serve`, no en el sitio web (sin editor visual, sin entrada en el banco de trabajo ni en el shell); cargar uno ejecuta su código con los permisos del proceso y por eso solo se carga la configuración que señala quien ejecuta el comando; no se descargan ni se instalan solos y no hay recarga en caliente ([plugins.md](plugins.md)). Los paquetes `@iark/*` están listos para publicarse pero no se han publicado.

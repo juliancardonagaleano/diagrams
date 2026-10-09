@@ -1,0 +1,53 @@
+{
+  "module": "integration",
+  "cases": [
+    {
+      "id": "pedidos-eventos",
+      "kind": "generate",
+      "instruction": "Una tienda recibe pedidos por una API REST (OpenAPI 3.0.3). Al crear un pedido, el servicio de pedidos lo guarda en su base de datos PostgreSQL y publica el evento pedido-creado (CloudEvents 1.0) en un tópico de Kafka; Facturación consume ese evento. Narra el flujo paso a paso.",
+      "notes": "Camino feliz: API con contrato, evento por Kafka, un flujo narrado y ningún aviso del validador.",
+      "expect": {
+        "kinds": { "system": 3, "api": 1, "broker": 1, "topic": 1, "store": 1 },
+        "mentions": ["Kafka", "pedido-creado", "openapi", "cloudevents"],
+        "maxWarnings": 0,
+        "loop": { "attempts": 1, "repaired": false, "verification": "passed" },
+        "prompt": { "systemContains": ["integración empresarial", "NO produces coordenadas"], "userContains": ["Kafka"], "maxInputTokens": 8000 }
+      }
+    },
+    {
+      "id": "cola-estricta",
+      "kind": "generate",
+      "strict": true,
+      "instruction": "Un portal de clientes envía pedidos a un servicio de pedidos mediante una cola RabbitMQ llamada pedidos-entrantes; el servicio de pedidos consume la cola. Declara el contrato AsyncAPI 2.6.0 del mensaje.",
+      "notes": "Con strict los avisos de validate() también se devuelven al modelo: la primera respuesta no tiene errores pero sí dos avisos (contrato sin versión y petición-respuesta contra una cola); la segunda los corrige.",
+      "expect": {
+        "kinds": { "system": 2, "broker": 1, "queue": 1 },
+        "mentions": ["RabbitMQ", "asyncapi", "2.6.0"],
+        "maxWarnings": 0,
+        "loop": { "attempts": 2, "repaired": true, "retries": { "schema": 0, "rules": 1 }, "verification": "passed" }
+      }
+    },
+    {
+      "id": "explicar-pedidos",
+      "kind": "explain",
+      "document": "examples/pedidos-integracion.json",
+      "notes": "Explica un mapa de integración con pasarela, Kafka, patrones, un servidor MCP y un flujo declarado.",
+      "expect": {
+        "headings": ["Resumen", "Cómo funciona", "Piezas clave"],
+        "mentions": ["Kafka", "Facturación", "pedido-creado"],
+        "prompt": { "systemContains": ["Cuenta quién inicia cada comunicación"], "userContains": ["\"nodes\"", "\"interactions\""], "maxInputTokens": 9000 }
+      }
+    },
+    {
+      "id": "revisar-pedidos",
+      "kind": "review",
+      "document": "examples/pedidos-integracion.json",
+      "notes": "Revisión de un documento sin incidencias del validador: la sección correspondiente debe decir que no hay ninguna.",
+      "expect": {
+        "headings": ["Resumen", "Incidencias del validador", "Inconsistencias", "Riesgos", "Ausencias", "Recomendaciones"],
+        "mentions": ["Kafka", "Avro"],
+        "prompt": { "systemContains": ["cadenas de llamadas síncronas"], "userContains": ["\"nodes\""] }
+      }
+    }
+  ]
+}

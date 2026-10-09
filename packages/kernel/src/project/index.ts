@@ -6,6 +6,8 @@ export {
   HttpProjectStore,
   normalizeBaseUrl,
   SESSION_TOKEN_PREFIX,
+  type AccountChange,
+  type AdminAccount,
   type AuthProviders,
   type HttpProjectStoreOptions,
   type LoginGrant,

@@ -242,4 +242,10 @@ export const platformAiSpec: AiSpec<PlatformDocument> = {
   },
   retry: (issues) => `El modelo devuelto no pasó la validación. Corrige estos problemas y devuelve el modelo completo de nuevo:\n${issues}`,
   toDocument: (generated) => generatedToPlatform(generated as GeneratedPlatform),
+  // Para `iark explain` y `iark review`: la proyección compacta del documento y qué destacar y qué mirar en este módulo.
+  serialize: toGenerated,
+  explainGuide:
+    'Describe los entornos (dev, test, producción…), sus redes y qué está expuesto a Internet y qué es privado, los recursos de cada entorno (clústeres, bases de datos, colas), los servicios que corren sobre ellos con sus réplicas, las dependencias entre servicios y recursos, y los pipelines que los despliegan, entorno por entorno.',
+  reviewGuide:
+    'Mira: bases de datos, cachés o colas en redes públicas; servicios críticos en producción con una sola réplica o sin despliegue redundante; entornos que no son equivalentes (un recurso de producción sin contraparte en los demás); servicios que dependen de recursos de otro entorno; recursos o servicios sin responsable; certificados cercanos a caducar; recursos sin gestión como código (iac); pipelines que llegan a producción sin aprobación; ausencia de monitorización; costes o límites de CPU y memoria sin fijar en producción.',
 };

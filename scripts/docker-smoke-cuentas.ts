@@ -4,7 +4,8 @@
  * (`tests/helpers/fakeGithub.ts`) que el contenedor alcanza por `--network host`. No usa la red: solo Docker y el puerto local.
  *
  * Lo que comprueba (cada línea sale como «ok» o «FALLO»; el código de salida es 1 si algo falla):
- *   - la imagen: usuario `node`, `/data` de 1000:1000, sin `IARK_WORKSPACE` fijado y con HEALTHCHECK;
+ *   - la imagen: usuario `node`, `/data` de 1000:1000, sin `IARK_WORKSPACE` fijado y con HEALTHCHECK (que consulta `/healthz`, el «vivo»
+ *     que no depende del disco; `/readyz` es el «listo» para un balanceador o un monitor);
  *   - sin variables arranca la demo (API y sitio, sin proyectos ni cuentas); con `IARK_WORKSPACE` y sin autenticación se niega;
  *   - con cuentas, un volumen con nombre y el secreto por archivo (Docker secrets), con las mismas opciones de seguridad que
  *     `deploy/docker-compose.yml` (`--read-only --cap-drop ALL …`): el HEALTHCHECK sigue sano, inicio de sesión completo, crear un
@@ -17,7 +18,8 @@
  *     la imagen corre bien como root (`--build-arg IARK_RUN_AS=root`, probado con `--user 0`);
  *   - el secreto por archivo ilegible o vacío, el Client secret equivocado (`#iark_error=login_failed`, sin nada en el registro) y
  *     las variables que faltan dan lo que la guía de despliegue dice;
- *   - ni el secreto, ni las sesiones, ni los códigos de un solo uso aparecen en `docker logs` ni en el archivo de cuentas.
+ *   - `/healthz` y `/readyz` responden sin sesión (también con la autenticación activa) y con `X-Request-Id`; `/metrics` no existe si no se
+ *     activó (`--metrics`); y ni el secreto, ni las sesiones, ni los códigos de un solo uso aparecen en `docker logs` ni en el archivo de cuentas.
  *
  * Uso (desde la raíz del repositorio; hace falta Docker y Linux, por `--network host`):
  *   npx tsx scripts/docker-smoke-cuentas.ts                          # construye la imagen y la prueba
@@ -273,6 +275,7 @@ async function main(): Promise<number> {
       check(config.User === 'node', 'corre como el usuario «node» (no root)', `Config.User = ${config.User}`);
       check(!(config.Env ?? []).some((e) => e.startsWith('IARK_WORKSPACE=')), 'no fija IARK_WORKSPACE (la red de seguridad de escuchar sin autenticación sigue puesta)');
       check(Boolean(config.Healthcheck?.Test?.length), 'declara un HEALTHCHECK');
+      check((config.Healthcheck?.Test ?? []).join(' ').includes('/healthz'), 'y el HEALTHCHECK consulta /healthz (vivo, sin tocar el disco), no una ruta de la API', JSON.stringify(config.Healthcheck?.Test));
       check(asRoot('/tmp', 'stat -c "%u:%g %a" /data') === '1000:1000 755', '/data existe y es de 1000:1000 (node)');
       console.log(`  info  tamaño: ${(Number(dockerOut(['image', 'inspect', image, '--format', '{{.Size}}'])) / 1e6).toFixed(0)} MB`);
     });
@@ -281,6 +284,9 @@ async function main(): Promise<number> {
       const demo = await startService({ kind: 'demo' });
       await waitHealthy(demo.name);
       check((await get(demo.base, '/api/modules')).status === 200, 'GET /api/modules responde 200');
+      check(JSON.stringify((await get(demo.base, '/healthz')).body) === JSON.stringify({ status: 'ok' }), 'GET /healthz responde 200 {"status":"ok"}');
+      check((await get(demo.base, '/readyz')).status === 200, 'GET /readyz responde 200 (sin espacio de trabajo ni cuentas no hay disco que comprobar)');
+      check((await get(demo.base, '/metrics')).status === 404, 'GET /metrics responde 404: las métricas están apagadas por omisión');
       check((await get(demo.base, '/')).status === 200, 'el sitio se sirve en /');
       check((await get(demo.base, '/api/projects')).status === 404, '/api/projects responde 404 (sin espacio de trabajo no hay proyectos)');
       check(JSON.stringify((await get(demo.base, '/api/auth/providers')).body) === JSON.stringify({ providers: [], tokens: false }), '/api/auth/providers: ninguna forma de entrar');
@@ -323,7 +329,8 @@ async function main(): Promise<number> {
       const attempt = await loginWithGithub(svc.base, fake, ADMIN);
       check(!attempt.token && attempt.fragment.get('iark_error') === 'login_failed', 'GitHub rechaza las credenciales: la persona vuelve con #iark_error=login_failed', attempt.fragment.toString());
       const output = logs(svc.name);
-      check(!/login_failed|incorrect_client_credentials|GitHub no aceptó/.test(output), 'y el servicio no escribe nada en el registro (por eso la guía lo cuenta aparte)', output);
+      // El motivo sí sale en el registro, para quien opera el servicio (ver «Vuelves con #iark_error=login_failed» en la guía); el secreto, nunca.
+      check(/inicio de sesión: GitHub no lo aceptó \(rejected\)/.test(output) && !output.includes('un-secreto-que-no-es'), 'y el registro dice el motivo («GitHub no lo aceptó (rejected)») sin el secreto ni el código', output);
       docker(['stop', svc.name]);
     });
 
@@ -351,7 +358,12 @@ async function main(): Promise<number> {
       check(/inicio de sesión: GitHub/.test(startup) && startup.includes(`callback http://127.0.0.1:${port}/api/auth/github/callback`) && /solo por invitación/.test(startup), 'el arranque anuncia el inicio de sesión, la «callback URL» y la entrada por invitación', startup);
       check(JSON.stringify((await get(svc.base, '/api/auth/providers')).body) === JSON.stringify({ providers: [{ id: 'github', label: 'GitHub' }], tokens: false, signup: 'invite' }), '/api/auth/providers ofrece GitHub con entrada por invitación');
       check((await get(svc.base, '/api/projects')).status === 401, 'sin sesión, /api/projects responde 401');
-      check((await get(svc.base, '/api/modules')).status === 200, 'la API de módulos sigue pública (la usa el HEALTHCHECK)');
+      check((await get(svc.base, '/api/modules')).status === 200, 'la API de módulos sigue pública');
+      const alive = await fetch(`${svc.base}/healthz`);
+      check(alive.status === 200 && JSON.stringify(await alive.json()) === JSON.stringify({ status: 'ok' }) && Boolean(alive.headers.get('x-request-id')), '/healthz responde 200 sin sesión y con X-Request-Id (lo usa el HEALTHCHECK)');
+      const ready = await get(svc.base, '/readyz');
+      check(ready.status === 200 && ready.body?.status === 'ok' && ready.body?.checks?.workspace === 'ok' && ready.body?.checks?.accounts === 'ok', '/readyz responde 200 sin sesión: la carpeta de trabajo se puede escribir y las cuentas se pueden leer', JSON.stringify(ready.body));
+      check(!JSON.stringify(ready.body).includes('/data'), '/readyz no dice ninguna ruta', JSON.stringify(ready.body));
 
       const login = await loginWithGithub(svc.base, fake, ADMIN);
       const token = login.token;
