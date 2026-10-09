@@ -11,6 +11,7 @@ import { useActions } from './hooks/useActions';
 import { useProjectBinding } from './projects/useProjectBinding';
 import { MODULE_SOURCES } from '../modules-app/modules';
 import { getLoginNotice, setLoginNotice } from '../projects/login';
+import { HistoryDialog } from '../projects/HistoryDialog';
 import { ProjectsDialog } from '../projects/ProjectsDialog';
 import { isEmbedMode, useDocumentStore } from './store/documentStore';
 
@@ -25,6 +26,8 @@ export default function App() {
   /** El gestor de proyectos: cerrado, abierto, o abierto con «Dónde se guardan» desplegado (para volver a conectar). */
   // Si el inicio de sesión de GitHub no pudo terminar, se abre directamente «Dónde se guardan», que dice por qué y deja volver a intentarlo.
   const [showProjects, setShowProjects] = useState<false | 'list' | 'storage'>(() => (getLoginNotice()?.kind === 'error' ? 'storage' : false));
+  /** El historial de versiones del diagrama abierto. */
+  const [showHistory, setShowHistory] = useState(false);
 
   // Al volver de iniciar sesión con GitHub, se confirma con un aviso (el error, en cambio, se queda en el panel hasta que la persona lo descarte).
   useEffect(() => {
@@ -92,7 +95,7 @@ export default function App() {
   return (
     <ReactFlowProvider>
       <div className="h-full flex flex-col overflow-hidden theme">
-        {ui.showHeader && <ControlPanel onEmbedSave={(exit) => void embed.save(exit)} onEmbedExit={embed.exit} projects={projects.session ? { binding: projects, onManage: (panel) => setShowProjects(panel ?? 'list') } : undefined} />}
+        {ui.showHeader && <ControlPanel onEmbedSave={(exit) => void embed.save(exit)} onEmbedExit={embed.exit} projects={projects.session ? { binding: projects, onManage: (panel) => setShowProjects(panel ?? 'list'), onHistory: () => setShowHistory(true) } : undefined} />}
         <div className="flex h-full min-h-0 overflow-hidden">
           {ui.showSidebar && <SidePanel />}
           <div className="relative flex-1 min-w-0 h-full overflow-hidden">
@@ -105,6 +108,21 @@ export default function App() {
             </div>
           </div>
         </div>
+        {showHistory && projects.session?.attached && projects.session.diagram && projects.session.project && (
+          <HistoryDialog
+            session={projects.session}
+            projectId={projects.session.project.id}
+            diagram={projects.session.diagram}
+            loadModule={async (id) => {
+              const source = MODULE_SOURCES.find((s) => s.id === id);
+              if (!source) throw new Error(`Este editor no ofrece el módulo «${id}».`);
+              return source.load();
+            }}
+            onRestore={projects.restoreVersion}
+            onClose={() => setShowHistory(false)}
+            notify={(message) => Toast.info(message)}
+          />
+        )}
         {showProjects && projects.session && (
           <ProjectsDialog
             session={projects.session}

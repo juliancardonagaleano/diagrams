@@ -701,3 +701,205 @@ td.pj-admin-actions {
     flex: 1 1 100%;
   }
 }
+
+/* ───────────── Historial de versiones ───────────── */
+.pj-history-overlay {
+  z-index: 2100;
+}
+.pj-history {
+  width: min(1000px, 100%);
+}
+.pj-history-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pj-history-message {
+  padding: 12px 16px;
+}
+.pj-history-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.pj-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  border-right: 1px solid var(--pj-border);
+  overflow: hidden;
+}
+.pj-history-listhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 8px;
+}
+.pj-history-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+}
+.pj-dialog .pj-history-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+}
+.pj-dialog .pj-history-item[aria-current='true'] {
+  border-color: var(--pj-primary);
+  background: color-mix(in srgb, var(--pj-primary) 12%, var(--pj-bg));
+}
+.pj-history-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.pj-history-item small {
+  color: var(--pj-text-2);
+}
+.pj-chip.pj-named {
+  border-color: var(--pj-primary);
+  color: var(--pj-primary);
+  overflow-wrap: anywhere;
+}
+.pj-history-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 16px;
+  overflow: auto;
+}
+.pj-history-detail h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  font-size: 16px;
+}
+.pj-history-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 16px;
+  margin: 0;
+}
+.pj-history-meta dt {
+  color: var(--pj-text-2);
+  font-size: 12px;
+}
+.pj-history-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pj-history-summary {
+  margin: 0;
+}
+.pj-history-section h4 {
+  margin: 8px 0 4px;
+  font-size: 14px;
+}
+.pj-history-group h5 {
+  margin: 6px 0 2px;
+  color: var(--pj-text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pj-history-section ul {
+  margin: 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+.pj-history-fields {
+  color: var(--pj-text-2);
+  font-size: 12px;
+}
+.pj-history-sign {
+  display: inline-block;
+  width: 1.2em;
+  font-weight: 700;
+  text-align: center;
+}
+.pj-history-sign.pj-history-added {
+  color: var(--pj-ok);
+}
+.pj-history-sign.pj-history-removed {
+  color: var(--pj-error);
+}
+.pj-history-sign.pj-history-changed {
+  color: var(--pj-primary);
+}
+.pj-history-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--pj-border);
+}
+.pj-history-confirm {
+  display: block;
+  color: var(--pj-text);
+  white-space: normal;
+}
+.pj-history-confirm button {
+  margin: 4px 6px 0 0;
+}
+.pj-history-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.pj-history-name label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--pj-text-2);
+  font-size: 12px;
+}
+.pj-history-name input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+.pj-history-field-error {
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.pj-dialog button.pj-danger-outline {
+  border-color: var(--pj-error);
+  color: var(--pj-error);
+}
+
+/* En una pantalla pequeña la lista va encima del detalle y la ventana se desplaza hacia abajo: nada obliga a desplazarse de lado. */
+@media (max-width: 700px) {
+  .pj-history-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+  .pj-history-list {
+    max-height: 40vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--pj-border);
+  }
+  .pj-history-detail {
+    overflow: visible;
+  }
+}

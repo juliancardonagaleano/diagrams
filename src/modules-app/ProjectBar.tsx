@@ -1,9 +1,11 @@
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+import { HistoryDialog } from '../projects/HistoryDialog';
 import type { WorkbenchController, WorkbenchState } from './controller';
 
 /**
  * Barra del proyecto abierto: cuál es, qué diagrama se está editando, cómo va el guardado y cómo abrir el gestor.
- * Con un diagrama abierto, sus cambios se guardan solos; sin él, el documento es un borrador y se ofrece guardarlo.
+ * Con un diagrama abierto, sus cambios se guardan solos; sin él, el documento es un borrador y se ofrece guardarlo. Con un diagrama abierto en un
+ * almacén que guarda versiones, «Historial…» abre el historial de versiones de ese diagrama (ver, comparar, restaurar y nombrar).
  */
 export function ProjectBar({
   controller,
@@ -19,6 +21,7 @@ export function ProjectBar({
 }) {
   const session = controller.projects!;
   const projects = useSyncExternalStore(session.subscribe, session.getState);
+  const [showHistory, setShowHistory] = useState(false);
   const project = projects.projects.find((p) => p.id === projects.projectId);
   const moduleLabel = (id: string): string => controller.sources.find((s) => s.id === id)?.label ?? id;
   const attached = project?.diagrams.find((d) => d.id === projects.diagramId);
@@ -35,7 +38,7 @@ export function ProjectBar({
   const byModule = new Map<string, NonNullable<typeof project>['diagrams']>();
   for (const d of project?.diagrams ?? []) byModule.set(d.module, [...(byModule.get(d.module) ?? []), d]);
 
-  return (
+  const bar = (
     <div className="wb-projectbar" role="region" aria-label="Proyecto" data-testid="project-bar">
       <label>
         Proyecto
@@ -73,6 +76,11 @@ export function ProjectBar({
       <button type="button" onClick={() => onManage()} disabled={!projects.available && projects.projects.length === 0 && !projects.error}>
         Proyectos…
       </button>
+      {attached && session.canVersion && (
+        <button type="button" onClick={() => setShowHistory(true)} aria-haspopup="dialog" data-testid="history-open">
+          Historial…
+        </button>
+      )}
       {draft && project && (
         <button type="button" className="primary" onClick={() => run(() => controller.saveToProject())} data-testid="save-to-project">
           Guardar en «{project.name}»
@@ -139,5 +147,22 @@ export function ProjectBar({
         </span>
       )}
     </div>
+  );
+
+  return (
+    <>
+      {bar}
+      {showHistory && project && attached && (
+        <HistoryDialog
+          session={session}
+          projectId={project.id}
+          diagram={attached}
+          loadModule={(id) => controller.loadModule(id)}
+          onRestore={(versionId) => controller.restoreVersion(versionId)}
+          onClose={() => setShowHistory(false)}
+          notify={notify}
+        />
+      )}
+    </>
   );
 }

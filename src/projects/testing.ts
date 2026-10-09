@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { MemoryProjectStore, ProjectError, type ProjectErrorCode, type ProjectRole, type ProjectStore, type SiteRole } from '@iark/kernel';
+import { isVersioned, MemoryProjectStore, parseVersionId, ProjectError, type ProjectErrorCode, type ProjectRole, type ProjectStore, type SiteRole } from '@iark/kernel';
 
 /**
  * Apoyo de las pruebas: un `fetch` simulado que se comporta como la API `/api/projects` de `iark serve --workspace` (rutas,
@@ -11,6 +11,10 @@ import { MemoryProjectStore, ProjectError, type ProjectErrorCode, type ProjectRo
  * (providers, exchange con PKCE, logout), sesiones de persona (`iark_s_…`), proyectos por pertenencia con su `role` (lo ajeno es 404) y
  * compartir (`/api/projects/<p>/members`) y la administración de la instancia (`/api/admin/users`: cuentas, invitaciones, roles y desactivar, con los
  * mismos 403, 409 `self` y `listed-admin` y 404 que el servidor de verdad). Sin `accounts`, esas rutas dan 404 como en un servidor anterior a las cuentas.
+ *
+ * El historial de versiones (`/api/projects/<p>/diagrams/<d>/versions…`) lo sirve el propio almacén si guarda versiones (por omisión, el de
+ * memoria sí) con los mismos roles que el servidor (`viewer` lee, `editor` restaura y nombra, `admin` borra las nombradas) y deja en cada versión
+ * quién guardó (`@usuario` o el nombre del token). Con un almacén que no las guarda, esas rutas dan 404 sin `code`, como un servidor anterior al historial.
  */
 export interface FakeServer {
   fetch: typeof fetch;
@@ -89,7 +93,7 @@ export interface FakeMember {
   pending: boolean;
 }
 
-const STATUS: Record<ProjectErrorCode, number> = { 'not-found': 404, exists: 409, conflict: 409, invalid: 400, unavailable: 500, unauthorized: 401, forbidden: 403 };
+const STATUS: Record<ProjectErrorCode, number> = { 'not-found': 404, exists: 409, conflict: 409, invalid: 400, unavailable: 500, unauthorized: 401, forbidden: 403, unsupported: 501 };
 
 const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 /** El nombre de usuario que acepta la administración de cuentas del servidor (`src/cli/accounts/store.ts`). */
@@ -298,6 +302,8 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
     const body = bodyOf();
     const store = server.store;
     const forbidden = (error: string): Response => json(403, { error, code: 'forbidden' });
+    // Quién guarda, para el historial: la persona con sesión o el nombre del token (sin credenciales no se sabe).
+    const actor = caller ? `@${caller.login}` : server.token !== undefined ? server.name : undefined;
 
     // Una persona con sesión solo ve los proyectos a los que pertenece, con su rol en cada uno; lo ajeno es como si no existiera.
     const roleIn = (projectId: string): ProjectRole | undefined => (caller ? server.members.get(projectId)?.find((m) => sameLogin(m.login, caller.login))?.role : undefined);
@@ -378,7 +384,32 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
           }
         }
       } else if (parts[1] === 'diagrams') {
-        if (parts.length === 2 && method === 'POST') return needs(parts[0], 'editor') ?? json(201, await store.saveDiagram(parts[0], { module: body.module as string, name: body.name as string | undefined, text: String(body.text) }));
+        if (parts[3] === 'versions' && parts.length >= 4 && parts.length <= 6) {
+          if (!isVersioned(store)) return json(404, { error: 'No existe esa ruta.' }); // un servidor anterior al historial
+          const [projectId, , diagramId, , rawVersion, action] = parts;
+          const wanted: ProjectRole = method === 'GET' ? 'viewer' : method === 'DELETE' ? 'admin' : 'editor';
+          const denied = needs(projectId, wanted);
+          if (denied) return denied;
+          // Con un token, el rol es el del token: borrar una versión con nombre exige `admin`.
+          if (!caller && server.token !== undefined && method === 'DELETE' && server.role !== 'admin') return forbidden(`El rol «${server.role}» no permite esta operación (hace falta «admin»).`);
+          if (parts.length === 4) return method === 'GET' ? json(200, await store.listVersions(projectId, diagramId)) : json(405, { error: 'Método no permitido: use GET.' });
+          const id = parseVersionId(rawVersion);
+          if (id === undefined) return json(400, { error: `Identificador de versión inválido «${String(rawVersion).slice(0, 40)}».`, code: 'invalid' });
+          if (parts.length === 5) {
+            if (method === 'GET') {
+              const version = await store.getVersion(projectId, diagramId, id);
+              return version ? json(200, version) : json(404, { error: `No existe la versión ${id}.`, code: 'not-found' });
+            }
+            if (method === 'PATCH') return json(200, await store.labelVersion(projectId, diagramId, id, body.label as string));
+            if (method === 'DELETE') {
+              await store.deleteVersion(projectId, diagramId, id);
+              return json(200, { deleted: id });
+            }
+          }
+          if (parts.length === 6 && action === 'restore' && method === 'POST') return json(200, await store.restoreVersion(projectId, diagramId, id, { ifUpdatedAt: body.ifUpdatedAt as string | undefined, by: actor }));
+          return json(404, { error: 'Ruta de proyectos desconocida.' });
+        }
+        if (parts.length === 2 && method === 'POST') return needs(parts[0], 'editor') ?? json(201, await store.saveDiagram(parts[0], { module: body.module as string, name: body.name as string | undefined, text: String(body.text), by: actor }));
         if (parts.length === 3) {
           if (method === 'GET') {
             const denied = needs(parts[0], 'viewer');
@@ -386,7 +417,7 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
             const diagram = await store.getDiagram(parts[0], parts[2]);
             return diagram ? json(200, diagram) : json(404, { error: `No existe el diagrama «${parts[2]}».`, code: 'not-found' });
           }
-          if (method === 'PUT') return needs(parts[0], 'editor') ?? json(200, await store.saveDiagram(parts[0], { id: parts[2], text: String(body.text), ifUpdatedAt: body.ifUpdatedAt as string | undefined }));
+          if (method === 'PUT') return needs(parts[0], 'editor') ?? json(200, await store.saveDiagram(parts[0], { id: parts[2], text: String(body.text), ifUpdatedAt: body.ifUpdatedAt as string | undefined, by: actor }));
           if (method === 'PATCH') return needs(parts[0], 'editor') ?? json(200, await store.renameDiagram(parts[0], parts[2], String(body.name)));
           if (method === 'DELETE') {
             const denied = needs(parts[0], 'editor');
@@ -398,6 +429,7 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
       }
       return json(404, { error: 'No existe esa ruta.' });
     } catch (error) {
+      if (error instanceof ProjectError && error.info.serverCode === 'limit') return json(409, { error: error.message, code: 'limit' }); // el tope de versiones con nombre
       if (error instanceof ProjectError) return json(STATUS[error.code], { error: error.message, code: error.code });
       throw error;
     }

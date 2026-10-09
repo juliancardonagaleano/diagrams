@@ -4,6 +4,7 @@ import {
   createBundle,
   duplicateDiagram,
   importBundle,
+  isVersioned,
   parseBundle,
   ProjectError,
   snapshotProject,
@@ -11,6 +12,7 @@ import {
   type AdminAccount,
   type Diagram,
   type DiagramMeta,
+  type DiagramVersion,
   type HttpProjectStore,
   type ImportedProject,
   type ProjectErrorCode,
@@ -19,6 +21,8 @@ import {
   type ProjectStore,
   type ProjectSummary,
   type RemoteSession,
+  type VersionedProjectStore,
+  type VersionMeta,
 } from '@iark/kernel';
 import { hostOf, LAST_KEY } from './backend';
 
@@ -116,6 +120,24 @@ export const DEFAULT_POLL_MS = 30_000;
 function backendOf(store: ProjectStore): SessionBackend {
   const baseUrl = (store as { baseUrl?: unknown }).baseUrl;
   return store.kind === 'http' && typeof baseUrl === 'string' ? { kind: 'remote', url: baseUrl, host: hostOf(baseUrl) } : { kind: 'local' };
+}
+
+/** Lo que puede hacer quien llama con el historial de un proyecto, según su rol en él (el servidor lo vuelve a comprobar en cada petición). */
+export interface VersionRights {
+  /** Su rol en el proyecto, si se sabe (un servidor con roles); en este navegador o en un servidor abierto no hay roles y se le deja intentar todo. */
+  role?: ProjectRole;
+  restore: boolean;
+  label: boolean;
+  /** Borrar una versión con nombre: solo quien administra el proyecto. */
+  remove: boolean;
+}
+
+/** Lo que devuelve restaurar una versión: el diagrama como quedó (con su documento) y la versión que se creó. */
+export interface RestoreResult {
+  diagram: Diagram;
+  version: VersionMeta;
+  /** El diagrama ya tenía justo ese contenido: no se guardó nada. */
+  unchanged: boolean;
 }
 
 const codeOf = (error: unknown): ProjectErrorCode | undefined => (error instanceof ProjectError ? error.code : undefined);
@@ -536,6 +558,84 @@ export class ProjectSession {
     this.baseUpdatedAt = undefined;
     this.set({ diagramId: undefined, save: 'idle', ...NO_SAVE_ERROR });
     this.remember();
+  }
+
+  // ───────────── historial de versiones ─────────────
+
+  /**
+   * ¿Este almacén guarda el historial de versiones de los diagramas? El de este navegador y el cliente de un servidor, sí; otro almacén, no, y
+   * la interfaz no ofrece el historial. Que un servidor concreto sea anterior al historial solo se sabe al pedirlo (`unsupported`).
+   */
+  get canVersion(): boolean {
+    return isVersioned(this.store);
+  }
+
+  private get history(): VersionedProjectStore {
+    if (!isVersioned(this.store)) throw new ProjectError('unsupported', 'Este almacén no guarda el historial de versiones.');
+    return this.store;
+  }
+
+  /** Las versiones de un diagrama, la más reciente primero. */
+  async listVersions(projectId: string, diagramId: string): Promise<VersionMeta[]> {
+    return this.history.listVersions(projectId, diagramId);
+  }
+
+  /** Una versión con su documento, o `undefined` si ya no existe (se descartó al rotar el historial). */
+  async getVersion(projectId: string, diagramId: string, versionId: number): Promise<DiagramVersion | undefined> {
+    return this.history.getVersion(projectId, diagramId, versionId);
+  }
+
+  /** Pone o cambia el nombre de una versión (una versión con nombre no se sustituye ni se descarta sola). */
+  async labelVersion(projectId: string, diagramId: string, versionId: number, label: string): Promise<VersionMeta> {
+    return this.history.labelVersion(projectId, diagramId, versionId, label);
+  }
+
+  /** Borra una versión con nombre. */
+  async deleteVersion(projectId: string, diagramId: string, versionId: number): Promise<void> {
+    return this.history.deleteVersion(projectId, diagramId, versionId);
+  }
+
+  /** Qué puede hacer quien llama con el historial de ese proyecto, según su rol. Sin roles que consultar, se le deja intentar y decide el servidor. */
+  async versionRights(projectId: string): Promise<VersionRights> {
+    let role = this.state.projects.find((p) => p.id === projectId)?.role;
+    if (!role && this.credential === 'token') {
+      const me = await this.whoami().catch(() => undefined);
+      if (me?.role === 'viewer' || me?.role === 'editor' || me?.role === 'admin') role = me.role;
+    }
+    if (!role) return { restore: true, label: true, remove: true };
+    return { role, restore: role !== 'viewer', label: role !== 'viewer', remove: role === 'admin' };
+  }
+
+  /**
+   * Restaura una versión: su contenido pasa a ser el del diagrama y queda guardado como una versión NUEVA (el historial no pierde nada). Si es el
+   * diagrama abierto, antes se guarda lo pendiente (así el contenido de ahora queda en el historial y se puede deshacer restaurando la anterior)
+   * y se restaura con la marca que esta pestaña conoce: si otra persona guardó mientras tanto, `conflict`, sin tocar nada. Devuelve el diagrama
+   * como quedó para que el anfitrión lo cargue en su editor.
+   */
+  async restoreVersion(projectId: string, diagramId: string, versionId: number): Promise<RestoreResult> {
+    const open = projectId === this.state.projectId && diagramId === this.state.diagramId;
+    if (open) {
+      await this.flush();
+      if (this.state.save === 'conflict') throw new ProjectError('conflict', 'Hay un conflicto de guardado sin resolver: resuélvelo antes de restaurar una versión.');
+      if (this.pendingText !== undefined) throw new ProjectError('unavailable', 'Los últimos cambios no se han podido guardar y restaurar una versión los sustituiría: reintenta el guardado primero.');
+    }
+    let restored;
+    try {
+      restored = await this.history.restoreVersion(projectId, diagramId, versionId, { ifUpdatedAt: open ? this.baseUpdatedAt : undefined });
+    } catch (error) {
+      // Otra persona guardó el diagrama abierto mientras tanto: es el mismo conflicto de un guardado, y se resuelve donde siempre (la barra del proyecto).
+      if (open && codeOf(error) === 'conflict') this.set({ save: 'conflict', saveError: (error as Error).message, saveErrorCode: 'conflict' });
+      throw error;
+    }
+    const diagram = await this.store.getDiagram(projectId, diagramId);
+    if (!diagram) throw new ProjectError('not-found', 'El diagrama ya no existe en el proyecto.');
+    if (open) {
+      this.baseUpdatedAt = diagram.updatedAt;
+      this.set({ save: 'saved', savedAt: Date.now(), ...NO_SAVE_ERROR });
+    }
+    this.announce();
+    await this.refresh({ background: this.remote });
+    return { diagram, version: restored.version, unchanged: restored.unchanged };
   }
 
   // ───────────── guardado automático ─────────────

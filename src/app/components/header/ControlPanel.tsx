@@ -67,8 +67,8 @@ export interface ControlPanelProps {
   /** Callbacks del modo embebido. */
   onEmbedSave?: (exit: boolean) => void;
   onEmbedExit?: () => void;
-  /** Proyectos guardados (solo fuera del modo embebido). */
-  projects?: { binding: ProjectBinding; onManage: (panel?: 'storage') => void };
+  /** Proyectos guardados (solo fuera del modo embebido). `onHistory` abre el historial de versiones del diagrama abierto. */
+  projects?: { binding: ProjectBinding; onManage: (panel?: 'storage') => void; onHistory?: () => void };
 }
 
 const SAVE_LABEL = { idle: 'Guardado', pending: 'Guardando…', saving: 'Guardando…', saved: 'Guardado', error: 'No se pudo guardar', conflict: 'Conflicto de guardado' } as const;
@@ -104,6 +104,8 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
   const projectSession = projects?.binding.session;
   const attached = projectSession && projectSession.attached && projectSession.diagram?.module === C4_MODULE ? projectSession.diagram : undefined;
   const openProject = projectSession?.project;
+  /** El historial de versiones se ofrece con un diagrama C4 abierto en un almacén que las guarda. */
+  const canHistory = !!attached && !!projects?.onHistory && projectSession?.canVersion === true;
   const resolveConflict = (choice: 'overwrite' | 'reload'): void => {
     void projects?.binding.resolveConflict(choice).catch((error: Error) => Toast.error(error.message));
   };
@@ -147,6 +149,7 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
     ? [
         { key: 'projects', label: 'Proyectos…', onClick: () => projects.onManage(), closeMenu: true },
         ...(openProject && !attached ? [{ key: 'save-project', label: `Guardar en el proyecto «${openProject.name}»`, onClick: saveToProject }] : []),
+        ...(canHistory ? [{ key: 'history', label: 'Historial de versiones…', onClick: () => projects.onHistory?.(), closeMenu: true }] : []),
         ...(attached ? [{ key: 'detach-project', label: 'Dejar de guardar en el proyecto', onClick: () => void projectSession?.release() }] : []),
         { key: 'dp', label: '', divider: true },
       ]
@@ -317,6 +320,11 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
         {forbidden && !withSession && (
           <Button size="small" type="warning" onClick={() => projects?.onManage('storage')} data-testid="reconnect">
             Cambiar de token
+          </Button>
+        )}
+        {canHistory && (
+          <Button size="small" onClick={() => projects?.onHistory?.()} aria-haspopup="dialog" data-testid="history-open">
+            Historial…
           </Button>
         )}
         {remote && attached && projectState?.save === 'error' && projectState.saveErrorCode !== 'unauthorized' && (
