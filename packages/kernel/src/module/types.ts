@@ -101,6 +101,22 @@ export interface AiSpec<TDoc> {
   carry?(base: TDoc, generated: TDoc): TDoc;
   /** Acabado del documento generado (p. ej. autolayout). Opcional. */
   finish?(document: TDoc): Promise<TDoc> | TDoc;
+  /**
+   * Proyección compacta del documento para pasárselo a un modelo en `explain` y `review` (sin coordenadas ni datos derivados;
+   * normalmente la misma que se usa al refinar). El kernel la serializa a JSON quitando los `null`. Opcional: sin ella se envía
+   * el documento entero.
+   */
+  serialize?(document: TDoc): unknown;
+  /**
+   * Qué conviene destacar al narrar un diagrama de este módulo a quien no lo conoce (`iark explain`): el orden de lectura, el
+   * vocabulario propio. Texto libre en español que se añade a las reglas generales. Opcional: sin él, solo rigen las generales.
+   */
+  explainGuide?: string;
+  /**
+   * Qué mirar al revisar un diagrama de este módulo (`iark review`): inconsistencias típicas, riesgos y ausencias propias de la
+   * especialidad. Texto libre en español que se añade a las reglas generales. Opcional: sin él, solo rige la revisión general.
+   */
+  reviewGuide?: string;
 }
 
 /** Elemento del documento al que otros módulos pueden apuntar. */
