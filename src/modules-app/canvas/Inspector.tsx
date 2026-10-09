@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { DEFAULT_LINK_TYPE, formatUrn, type EditResult, type EditorGraph, type EditorSpec, type EntityRef, type FieldSpec } from '@iark/kernel';
 import type { Backlink } from '../links';
 import { linkTypeOptions, resolveRef } from '../links';
@@ -34,6 +34,8 @@ interface Props {
   onCommit?(result: EditResult<unknown>): string | undefined;
   /** Abre un adjunto del módulo (un contrato) en su editor. */
   onOpenAttachment?(id: string): void;
+  /** Contenido añadido al final de las propiedades de un elemento (el formulario para crear una relación sin arrastrar). */
+  children?: ReactNode;
 }
 
 /** Lo que un campo que apunta a un adjunto necesita para abrirlo o crear uno nuevo. */
@@ -119,8 +121,10 @@ function Backlinks({ moduleId, elementId, links }: { moduleId: string; elementId
   if (!items || items.length === 0) return null;
   return (
     <div className="cv-field" data-testid="backlinks">
-      <label>Referenciado por</label>
-      <ul className="cv-backlinks">
+      <span className="cv-field-label" id="cv-backlinks-label">
+        Referenciado por
+      </span>
+      <ul className="cv-backlinks" aria-labelledby="cv-backlinks-label">
         {items.map((b) => (
           <li key={b.urn}>
             <button type="button" className="cv-tool" onClick={() => links.follow(b.urn)} title={`Ir a ${b.urn}`}>
@@ -237,11 +241,11 @@ function bindAttachments(spec: EditorSpec<unknown>, document: unknown, id: strin
 }
 
 /** Panel de propiedades común: los campos de cada tipo los declara el módulo (`EditorSpec.fields`). */
-export function Inspector({ spec, document, id, selection, readOnly, graph, moduleId, links, onPatch, onRemove, onRemoveSelection, onPick, onCommit, onOpenAttachment }: Props) {
+export function Inspector({ spec, document, id, selection, readOnly, graph, moduleId, links, onPatch, onRemove, onRemoveSelection, onPick, onCommit, onOpenAttachment, children }: Props) {
   if (selection && selection.length > 1) {
     return (
       <aside className="cv-inspector" aria-label="Propiedades" data-testid="inspector">
-        <h3>{selection.length} elementos seleccionados</h3>
+        <h2>{selection.length} elementos seleccionados</h2>
         <ul className="cv-selection" data-testid="selection-list">
           {selection.map((s) => (
             <li key={s.id}>
@@ -261,16 +265,21 @@ export function Inspector({ spec, document, id, selection, readOnly, graph, modu
     );
   }
   const item = spec.read(document, id);
-  if (!item) return <div className="cv-inspector cv-empty">Selecciona un elemento o una relación para ver sus propiedades.</div>;
+  if (!item)
+    return (
+      <aside className="cv-inspector cv-empty" aria-label="Propiedades" data-testid="inspector-empty">
+        Selecciona un elemento o una relación para ver sus propiedades.
+      </aside>
+    );
   const notation = item.type === 'node' ? spec.nodeKinds.find((k) => k.kind === item.kind) : spec.edgeKinds.find((k) => k.kind === item.kind);
   const edge = item.type === 'edge' ? graph?.edges.find((e) => e.id === id) : undefined;
   const fields = spec.fields({ type: item.type, kind: item.kind, ...(edge ? { id, source: edge.source, target: edge.target } : {}) }, document, item.values);
   const attachment = fields.some((f) => f.type === 'select' && f.opensAttachment) ? bindAttachments(spec, document, id, onCommit, onOpenAttachment) : undefined;
   return (
     <aside className="cv-inspector" aria-label="Propiedades" data-testid="inspector">
-      <h3>
+      <h2>
         {notation?.label ?? item.kind} <small>{id}</small>
-      </h3>
+      </h2>
       {fields.map((f) => {
         // Con las herramientas de enlace, el selector del banco de trabajo se ocupa del destino y del tipo del enlace a la vez.
         if (f.key === 'ref' && links) {
@@ -280,6 +289,7 @@ export function Inspector({ spec, document, id, selection, readOnly, graph, modu
         return <Field key={`${id}:${f.key}`} field={f} value={item.values[f.key]} readOnly={readOnly} attachment={attachment} onCommit={(value) => onPatch(id, { [f.key]: value })} />;
       })}
       {links && moduleId && item.type === 'node' && <Backlinks moduleId={moduleId} elementId={id} links={links} />}
+      {children}
       {!readOnly && (
         <button type="button" className="cv-danger" onClick={() => onRemove(id)}>
           Borrar (Supr)

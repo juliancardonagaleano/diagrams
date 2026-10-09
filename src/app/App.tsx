@@ -95,7 +95,7 @@ export default function App() {
         {ui.showHeader && <ControlPanel onEmbedSave={(exit) => void embed.save(exit)} onEmbedExit={embed.exit} projects={projects.session ? { binding: projects, onManage: (panel) => setShowProjects(panel ?? 'list') } : undefined} />}
         <div className="flex h-full min-h-0 overflow-hidden">
           {ui.showSidebar && <SidePanel />}
-          <div className="relative flex-1 min-w-0 h-full overflow-hidden">
+          <main id="c4-lienzo" tabIndex={-1} aria-label="Lienzo del diagrama" className="relative flex-1 min-w-0 h-full overflow-hidden">
             <Canvas />
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 max-w-[calc(100%-24px)]">
               <FloatingToolbar onEmbedSave={(exit) => void embed.save(exit)} />
@@ -103,7 +103,7 @@ export default function App() {
             <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-24px)]">
               <Breadcrumb />
             </div>
-          </div>
+          </main>
         </div>
         {showProjects && projects.session && (
           <ProjectsDialog

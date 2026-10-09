@@ -87,7 +87,7 @@ test('volver a añadir a una vista C2 un elemento (botón del ojo) recoloca la v
   await expect(page.locator('.c4-breadcrumb')).toHaveAttribute('data-level', 'C2');
   const before = await page.locator('.react-flow__node').count();
 
-  const eye = page.locator('.c4-card[data-element-id="db"] .c4-card-header button');
+  const eye = page.locator('.c4-card[data-element-id="db"] .c4-card-header').getByRole('button', { name: /de la vista activa$|a la vista activa$/ });
   await eye.click(); // quitar "Base de datos" de la vista
   await expect(page.locator('.react-flow__node')).toHaveCount(before - 1);
   await eye.click(); // volver a añadirla, sin posición: la vista se recoloca y se encuadra de nuevo
