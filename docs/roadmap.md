@@ -38,7 +38,7 @@ El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 | Observabilidad | **Hecho** (v1, apagada por omisión): `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz`, `/readyz` y métricas de Prometheus en `iark serve` | [observabilidad.md](observabilidad.md) |
 | Interfaz es/en | **En parte**: infraestructura, gestor de proyectos y sus diálogos, errores por código y encabezados traducidos; faltan los paneles y el lienzo | [desarrollo.md](desarrollo.md#internacionalización) |
 | Pruebas | **Hecho**: unitarias, e2e estables y prueba real de la imagen (`docker:smoke`) | [desarrollo.md](desarrollo.md) |
-| Endurecimiento | **En curso** (Fase 1) | [abajo](#fase-1-endurecer-en-curso) |
+| Endurecimiento | **Hecho**, salvo marcar `test` como check obligatorio de `master` (lo hace quien administra el repositorio) | [abajo](#fase-1-endurecer) |
 
 ## Plan de robustecimiento en cuatro fases
 
@@ -46,12 +46,12 @@ Cada fase termina en una **puerta**: una condición que se puede comprobar y que
 
 | Fase | Estado | Puerta |
 |---|---|---|
-| **1 · Endurecer** | **En curso** | Sin hallazgos de seguridad altos y `master` protegido |
-| **2 · Abrir** | Pendiente | Un módulo de terceros carga sin tocar el repositorio |
-| **3 · Profundizar** | **En curso** | Cada módulo importa formatos reales (**cumplida**, acción 13) |
-| **4 · Escalar** | Pendiente | Instancia gestionada operada y medida |
+| **1 · Endurecer** | **Hecha** (falta solo proteger `master` en Settings → Branches) | Sin hallazgos de seguridad altos y `master` protegido |
+| **2 · Abrir** | **Hecha** en el CLI y en `iark serve` (el sitio web no carga módulos de terceros) | Un módulo de terceros carga sin tocar el repositorio |
+| **3 · Profundizar** | **Hecha** en lo que el código puede hacer; quedan pruebas que solo hacen personas (IA con claves, lector de pantalla) y retirar el editor C4 clásico | Cada módulo importa formatos reales (**cumplida**, acción 13) |
+| **4 · Escalar** | **Hecha** en el código (cuentas SQLite, observabilidad, administración y cuotas, tiempo real y trabajo sin conexión, es/en en parte); queda operarla en una plataforma real y decidir Postgres | Instancia gestionada operada y medida |
 
-### Fase 1 «Endurecer» (en curso)
+### Fase 1 «Endurecer»
 
 Que lo que ya existe sea seguro y repetible de mantener antes de abrirlo a terceros.
 
@@ -84,7 +84,7 @@ Que cada módulo sea útil con los archivos reales de quien lo usa.
 - **Accesibilidad** (**hecha la auditoría y los arreglos que una herramienta automática ve; falta la prueba con personas y lectores de pantalla**; acción 10): la spec `tests/e2e/accesibilidad.spec.ts` audita con axe-core el editor clásico, el banco (seis módulos), la suite y la trazabilidad en los dos temas y pasó de 443 violaciones a 0 con dos exclusiones nominales de Semi UI; el lienzo se recorre y se edita con teclado (flechas, Mayús + flechas, Intro), tiene nombres accesibles, una lista de elementos y una forma de crear relaciones sin arrastrar; los pares de color de los temas los mide una prueba; hay `prefers-reduced-motion` y reflujo a 320 px ([accesibilidad.md](accesibilidad.md)). **Falta**: probar con un lector de pantalla real (NVDA, VoiceOver, TalkBack) y con dispositivos táctiles —nadie lo ha hecho—, revisar los casos «incompletos» de axe, el modo de alto contraste de Windows, volver a comprobar el teclado cuando entre `onlyRenderVisibleElements`, y quitar las dos exclusiones al sustituir los menús y diálogos de Semi UI. No se afirma conformidad con WCAG 2.2 AA.
 - **Rendimiento** (hecho en lo medido, con pendientes; ver [rendimiento.md](rendimiento.md)): `npm run perf` mide diagramas de hasta 2000 nodos; el autolayout corre en un hilo de trabajo (el hilo principal ya no se congela), con estado «Calculando…» y «Cancelar», modo rápido de ELK desde 600 nodos y recorte de nodos fuera de pantalla desde 150; ELK sale de la carga inicial (`chunkSizeWarningLimit` baja de 2000 a 1600 kB, con un tope de 500 kB por trozo y excepciones razonadas fijado por un e2e). C4 en el lienzo común del banco de trabajo hereda todo eso (la cancelación llega hasta ELK) y su hilo principal se libera (con 1000 nodos, de 120 s a 33 s bloqueados). **Falta**: el editor clásico de C4 (`src/app/`, aún sin retirar) sigue sin «Calculando…», sin cancelar y sin recorte; `smartLayout` de C4 sigue evaluando candidatos en el hilo principal y tarda 89 s en asentar con 1000 nodos; simplificar los nodos a zoom lejano; el encuadre de diagramas enormes (zoom mínimo 0,1); medir la interacción (arrastrar, zoom) y la calidad del modo rápido.
 
-**Puerta**: cada módulo importa formatos reales. **Cumplida** (acción 13): los seis módulos importan al menos un formato real además de Mermaid, probado con archivos de ejemplo escritos para el proyecto, con la CLI empaquetada de verdad y con el servicio. La fase sigue en curso por el resto de sus tareas (retirar el editor C4 clásico, ahora que C4 ya está en el lienzo común del banco de trabajo; accesibilidad, rendimiento y la prueba real de la IA con claves).
+**Puerta**: cada módulo importa formatos reales. **Cumplida** (acción 13): los seis módulos importan al menos un formato real además de Mermaid, probado con archivos de ejemplo escritos para el proyecto, con la CLI empaquetada de verdad y con el servicio. Las tareas de la fase están hechas; quedan las pruebas que solo pueden hacer personas (la IA con claves reales, un lector de pantalla) y retirar el editor C4 clásico, ahora que C4 ya está en el lienzo común del banco de trabajo.
 
 ### Fase 4 «Escalar»
 
@@ -100,7 +100,7 @@ Que una instancia gestionada se pueda operar y medir.
 
 ## Pendientes
 
-Los pendientes menores y límites conocidos al 2026-10-08, con la fase en la que se resuelven (propuesta; se revisa al empezar cada fase).
+Los pendientes menores y límites conocidos al 2026-10-09, con la fase en la que se resuelven (propuesta; se revisa al empezar cada fase).
 
 | Área | Pendiente | Fase |
 |---|---|---|
