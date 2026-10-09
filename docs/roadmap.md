@@ -123,7 +123,6 @@ Los pendientes menores y límites conocidos al 2026-10-09, con la fase en la que
 | IA desde repo | Un archivo versionado pero ignorado por `.gitignore` no se ve en una carpeta local (en un clon el `.gitignore` no se aplica) | 3 |
 | IA desde repo | Falta un manifiesto de auditoría del envío; el intérprete de `.gitignore` sigue siendo O(n·m) por regla y sin presupuesto global de trabajo | 3 |
 | Plataforma | `counterpartResource` (re-apuntado de dependencias al promover) usa `counterpartOf` si existe, pero su deducción por nombre y clase sigue siendo propia: falta que reutilice el emparejado de la comparación (`pairResources`) | 3 |
-| Plataforma | El lienzo no marca en los nodos que un recurso tiene equivalente declarado (solo lo dicen el selector y la comparación) | 3 |
 | Importadores | Los módulos locales de Terraform no se resuelven; los ids de ArchiMate salen del nombre y dependen del idioma elegido (`lang`) | 3 |
 | Importadores | OpenAPI, AsyncAPI y CloudFormation no siguen referencias a otros archivos o URL (se avisa), CloudFormation no evalúa condiciones ni expande `Transform`, y un chart de Helm sin renderizar no interpreta `templates/` (para eso, `helm template` + importador de Kubernetes) | 3 |
 | Importadores | Los formatos nuevos se han probado con archivos de ejemplo escritos para el proyecto y no con modelos de herramientas reales (Camunda, Marquez, Threat Dragon, SAM…); Threat Dragon v1 no se lee | 3 |
