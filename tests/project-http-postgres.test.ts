@@ -185,7 +185,7 @@ describe.skipIf(!postgresAvailable())('iark serve con los proyectos en Postgres'
       const beto = await signIn(cloud, BETO);
       const carla = await signIn(cloud, CARLA);
       const p = await newProject(cloud, beto, 'Compartido');
-      cloud.accounts.store.setMember(p, cloud.accounts.store.findByLogin('carla')!.id, 'editor');
+      await cloud.accounts.store.setMember(p, (await cloud.accounts.store.findByLogin('carla'))!.id, 'editor');
       expect((await newDiagram(cloud, carla, p, 'a', 1000)).status).toBe(201);
       expect((await newDiagram(cloud, cloud.tokens!.admin, p, 'b', 1000)).status).toBe(201);
       expect((await newDiagram(cloud, carla, p, 'c', 1000)).status).toBe(409);
