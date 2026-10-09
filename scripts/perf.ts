@@ -9,7 +9,7 @@
  *   npm run perf -- chunks             # solo el tamaño de los trozos de dist/app (necesita npm run build:app)
  *
  * Opciones: --modules a,b  --sizes 100,500  --runs 3 (repeticiones por caso)  --timeout 180 (segundos por caso)
- *           --modes smart,fast (modos de layout: C4 smart/fast/interactive; el resto default —el esfuerzo que elige el lienzo según el tamaño— y, si se piden, normal/fast; por omisión: smart, fast, interactive y default)  --port 4185  --json salida.json  --elk thread (lienzo: ELK en el hilo principal)
+ *           --modes smart,fast (modos de layout: C4 smart/fast/interactive; el resto default —el esfuerzo que elige el lienzo según el tamaño— y, si se piden, normal/fast; por omisión: smart, fast, interactive y default)  --port 4185  --json salida.json  --elk thread (lienzo: ELK en el hilo principal)  --c4 bench (lienzo: C4 en el banco de trabajo)
  *
  * Mide de uno en uno y en serie. Cierra otros procesos pesados antes de medir y repite: anota la dispersión, no un solo número.
  */
@@ -35,6 +35,8 @@ interface Options {
   json?: string;
   /** `--elk thread`: en el lienzo, ELK en el hilo principal (`?elk=thread`), para comparar con el hilo de trabajo con la misma compilación. */
   elk?: 'thread';
+  /** `--c4 bench`: C4 en el lienzo común del banco de trabajo en vez de en el editor clásico. */
+  c4?: 'bench';
 }
 
 function parseArgs(argv: string[]): Options {
@@ -55,6 +57,7 @@ function parseArgs(argv: string[]): Options {
     port: Number(flags.get('port') ?? process.env.E2E_PORT ?? 4185),
     json: flags.get('json'),
     elk: flags.get('elk') === 'thread' ? 'thread' : undefined,
+    c4: flags.get('c4') === 'bench' ? 'bench' : undefined,
   };
 }
 
@@ -154,7 +157,7 @@ async function startPreview(port: number): Promise<ChildProcess> {
 }
 
 async function canvasReport(options: Options): Promise<unknown[]> {
-  console.log(`\n## Lienzo en Chromium${options.elk ? ' con ELK en el hilo principal (?elk=thread)' : ''} (${options.runs} repeticiones por caso; mediana y mínimo–máximo)\n`);
+  console.log(`\n## Lienzo en Chromium${options.c4 ? ' (C4 en el banco de trabajo)' : ''}${options.elk ? ' con ELK en el hilo principal (?elk=thread)' : ''} (${options.runs} repeticiones por caso; mediana y mínimo–máximo)\n`);
   console.log('| Módulo | Nodos | Aristas | Primer nodo | Asentado | Layout (página) | Tarea más larga | Bloqueado (>50 ms) | Mayor hueco del pulso | Nodos en el DOM | Montón JS | RSS del navegador | Estado «calculando» |');
   console.log('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|');
   const server = await startPreview(options.port);
@@ -171,7 +174,7 @@ async function canvasReport(options: Options): Promise<unknown[]> {
         }
         const results: CanvasResult[] = [];
         for (let i = 0; i < options.runs; i++) {
-          results.push(await measureCanvas(browser, `http://localhost:${options.port}`, { module, size, elk: options.elk }, options.timeoutS * 1000));
+          results.push(await measureCanvas(browser, `http://localhost:${options.port}`, { module, size, elk: options.elk, c4: options.c4 }, options.timeoutS * 1000));
           if (!results[i].ready) break;
         }
         all.push(...results);

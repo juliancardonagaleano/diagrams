@@ -20,6 +20,8 @@ export interface CanvasCase {
   size: number;
   /** `thread` abre la página con `?elk=thread`: el cálculo corre en el hilo principal, como antes del hilo de trabajo (misma compilación, para comparar). */
   elk?: 'thread';
+  /** C4 se puede abrir en el editor clásico (`index.html`, por omisión) o en el lienzo común del banco de trabajo (`modulos.html?module=c4`). */
+  c4?: 'editor' | 'bench';
 }
 
 export interface CanvasResult extends CanvasCase {
@@ -101,12 +103,13 @@ export async function launchBrowser(): Promise<Browser> {
 export async function measureCanvas(browser: Browser, baseUrl: string, spec: CanvasCase, readyTimeoutMs: number): Promise<CanvasResult> {
   const generated = generateDocument(spec.module, spec.size);
   const c4 = spec.module === 'c4';
+  const c4Classic = c4 && spec.c4 !== 'bench';
   const text = JSON.stringify(generated.document);
   const c4Doc = c4 ? (generated.document as { model: { relationships: unknown[] }; views: Array<{ elements: unknown[] }> }) : undefined;
   const c4Counts = c4Doc ? { nodes: c4Doc.views[0].elements.length, edges: c4Doc.model.relationships.length } : undefined;
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   try {
-    const stored = c4
+    const stored = c4Classic
       ? { key: 'iark-diagrams', value: JSON.stringify({ state: { doc: generated.document, activeViewId: generated.viewId, lastSavedAt: 1 }, version: 0 }) }
       : { key: `iark.workbench.${spec.module}`, value: text };
     await context.addInitScript(
@@ -126,7 +129,7 @@ export async function measureCanvas(browser: Browser, baseUrl: string, spec: Can
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     const forced = spec.elk === 'thread' ? 'elk=thread' : '';
-    await page.goto(c4 ? `${baseUrl}/${forced ? `?${forced}` : ''}` : `${baseUrl}/modulos.html?module=${spec.module}${forced ? `&${forced}` : ''}`, { waitUntil: 'commit' });
+    await page.goto(c4Classic ? `${baseUrl}/${forced ? `?${forced}` : ''}` : `${baseUrl}/modulos.html?module=${spec.module}${forced ? `&${forced}` : ''}`, { waitUntil: 'commit' });
     const ready = await page
       .waitForFunction(() => (window as unknown as { __perf?: { ready?: number } }).__perf?.ready !== undefined, undefined, { timeout: readyTimeoutMs, polling: 250 })
       .then(
