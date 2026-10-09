@@ -24,7 +24,7 @@ export interface CloudServer {
   stop(): Promise<void>;
 }
 
-export async function startCloudServer(options: { cors?: string; people?: Array<{ name: string; role: 'viewer' | 'editor' | 'admin' }> } = {}): Promise<CloudServer> {
+export async function startCloudServer(options: { cors?: string; people?: Array<{ name: string; role: 'viewer' | 'editor' | 'admin' }>; env?: Record<string, string> } = {}): Promise<CloudServer> {
   const workspace = mkdtempSync(join(tmpdir(), 'iark-e2e-nube-'));
   const args = ['node_modules/tsx/dist/cli.mjs', 'src/cli/index.ts', 'serve', '--workspace', workspace, '-p', '0'];
   if (options.cors) args.push('--cors', options.cors);
@@ -34,7 +34,7 @@ export async function startCloudServer(options: { cors?: string; people?: Array<
   const tokens: Record<string, string> = {};
   for (const person of options.people ?? []) tokens[person.name] = createToken(tokenFile!, person).token;
   if (tokenFile) args.push('--tokens', tokenFile);
-  const child: ChildProcess = spawn(process.execPath, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
+  const child: ChildProcess = spawn(process.execPath, args, { cwd: process.cwd(), env: { ...process.env, ...options.env }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   const url = await new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`El servidor no arrancó en 30 s:\n${output}`)), 30_000);
