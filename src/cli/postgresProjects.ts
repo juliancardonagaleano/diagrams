@@ -265,6 +265,8 @@ function freeId(base: string, taken: ReadonlySet<string>): string {
 /** El pool ya dice qué falla sin la contraseña (`DatabaseError`); aquí solo se convierte en el `unavailable` que entiende el resto del servicio. */
 function toProjectError(error: unknown): unknown {
   if (error instanceof DatabaseError) return new ProjectError('unavailable', error.message);
+  // el servicio se está apagando y el pool ya se cerró mientras entraba una última petición
+  if (error instanceof Error && /pool after calling end/i.test(error.message)) return new ProjectError('unavailable', 'La conexión a la base de datos está cerrada.');
   return error;
 }
 
