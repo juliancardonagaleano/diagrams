@@ -82,7 +82,7 @@ export class MemoryProjectStore implements ProjectStore {
 
   private project(id: string): StoredProject {
     const project = this.projects.get(id);
-    if (!project) throw new ProjectError('not-found', `No existe el proyecto «${id}».`);
+    if (!project) throw new ProjectError('not-found', `No existe el proyecto «${id}».`, { reason: 'project-missing', params: { name: id } });
     return project;
   }
 
@@ -108,7 +108,7 @@ export class MemoryProjectStore implements ProjectStore {
 
   async createProject(input: { name: string; description?: string }): Promise<ProjectSummary> {
     const name = cleanName(input.name, 'del proyecto');
-    if ([...this.projects.values()].some((p) => sameName(p.name, name))) throw new ProjectError('exists', `Ya existe un proyecto llamado «${name}».`);
+    if ([...this.projects.values()].some((p) => sameName(p.name, name))) throw new ProjectError('exists', `Ya existe un proyecto llamado «${name}».`, { reason: 'project-exists', params: { name } });
     const now = this.now();
     const id = uniqueSlug(`p${++this.counter}`, this.projects.keys());
     const description = input.description?.trim() || undefined;
@@ -120,7 +120,7 @@ export class MemoryProjectStore implements ProjectStore {
   async renameProject(id: string, rawName: string): Promise<ProjectSummary> {
     const project = this.project(id);
     const name = cleanName(rawName, 'del proyecto');
-    if ([...this.projects.values()].some((p) => p.id !== id && sameName(p.name, name))) throw new ProjectError('exists', `Ya existe un proyecto llamado «${name}».`);
+    if ([...this.projects.values()].some((p) => p.id !== id && sameName(p.name, name))) throw new ProjectError('exists', `Ya existe un proyecto llamado «${name}».`, { reason: 'project-exists', params: { name } });
     project.name = name;
     project.updatedAt = this.now();
     return this.summary(project);
@@ -143,15 +143,15 @@ export class MemoryProjectStore implements ProjectStore {
   /** Guarda un diagrama (crea o actualiza) y anota la versión. `restoredFrom` y `coalesce: false` son de una restauración. */
   private save(projectId: string, input: SaveDiagramInput, extra: { restoredFrom?: number; coalesce?: boolean }): DiagramMeta {
     const project = this.project(projectId);
-    if (typeof input.text !== 'string') throw new ProjectError('invalid', 'El documento del diagrama debe ser un texto.');
+    if (typeof input.text !== 'string') throw new ProjectError('invalid', 'El documento del diagrama debe ser un texto.', { reason: 'document-not-text' });
     const now = this.now();
     const by = cleanBy(input.by);
     if (input.id !== undefined) {
       const current = project.diagrams.get(input.id);
-      if (!current) throw new ProjectError('not-found', `No existe el diagrama «${input.id}» en el proyecto «${project.name}».`);
-      if (input.module !== undefined && input.module !== current.module) throw new ProjectError('invalid', `Un diagrama no cambia de módulo (es de «${current.module}»).`);
+      if (!current) throw new ProjectError('not-found', `No existe el diagrama «${input.id}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: input.id, project: project.name } });
+      if (input.module !== undefined && input.module !== current.module) throw new ProjectError('invalid', `Un diagrama no cambia de módulo (es de «${current.module}»).`, { reason: 'diagram-module-fixed', params: { module: current.module } });
       if (input.ifUpdatedAt !== undefined && input.ifUpdatedAt !== current.updatedAt) {
-        throw new ProjectError('conflict', `El diagrama «${current.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`);
+        throw new ProjectError('conflict', `El diagrama «${current.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`, { reason: 'diagram-changed', params: { name: current.name } });
       }
       this.record(project, current.id, { next: input.text, savedAt: now, by, previous: { text: current.text, at: current.updatedAt }, ...extra });
       const updated: Diagram = { ...current, text: input.text, updatedAt: now };
@@ -161,7 +161,7 @@ export class MemoryProjectStore implements ProjectStore {
     }
     const module = requireModuleId(input.module);
     const name = cleanName(input.name ?? 'Sin título', 'del diagrama');
-    if ([...project.diagrams.values()].some((d) => sameName(d.name, name))) throw new ProjectError('exists', `Ya hay un diagrama llamado «${name}» en el proyecto «${project.name}».`);
+    if ([...project.diagrams.values()].some((d) => sameName(d.name, name))) throw new ProjectError('exists', `Ya hay un diagrama llamado «${name}» en el proyecto «${project.name}».`, { reason: 'diagram-exists', params: { name, project: project.name } });
     const id = uniqueSlug(`d${++this.counter}`, project.diagrams.keys());
     const created: Diagram = { id, module, name, text: input.text, createdAt: now, updatedAt: now };
     this.record(project, id, { next: input.text, savedAt: now, by });
@@ -173,9 +173,9 @@ export class MemoryProjectStore implements ProjectStore {
   async renameDiagram(projectId: string, diagramId: string, rawName: string): Promise<DiagramMeta> {
     const project = this.project(projectId);
     const current = project.diagrams.get(diagramId);
-    if (!current) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`);
+    if (!current) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: diagramId, project: project.name } });
     const name = cleanName(rawName, 'del diagrama');
-    if ([...project.diagrams.values()].some((d) => d.id !== diagramId && sameName(d.name, name))) throw new ProjectError('exists', `Ya hay un diagrama llamado «${name}» en el proyecto «${project.name}».`);
+    if ([...project.diagrams.values()].some((d) => d.id !== diagramId && sameName(d.name, name))) throw new ProjectError('exists', `Ya hay un diagrama llamado «${name}» en el proyecto «${project.name}».`, { reason: 'diagram-exists', params: { name, project: project.name } });
     const now = this.now();
     const updated: Diagram = { ...current, name, updatedAt: now };
     project.diagrams.set(diagramId, updated);
@@ -185,7 +185,7 @@ export class MemoryProjectStore implements ProjectStore {
 
   async deleteDiagram(projectId: string, diagramId: string): Promise<void> {
     const project = this.project(projectId);
-    if (!project.diagrams.delete(diagramId)) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`);
+    if (!project.diagrams.delete(diagramId)) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: diagramId, project: project.name } });
     project.histories.delete(diagramId);
     project.updatedAt = this.now();
   }
@@ -221,7 +221,7 @@ export class MemoryProjectStore implements ProjectStore {
     if (!this.versionPolicy) throw unsupportedVersions();
     const project = this.project(projectId);
     const diagram = project.diagrams.get(diagramId);
-    if (!diagram) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`);
+    if (!diagram) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: diagramId, project: project.name } });
     return { project, diagram, history: project.histories.get(diagramId) ?? { lastId: 0, versions: [], texts: new Map() } };
   }
 
@@ -243,7 +243,7 @@ export class MemoryProjectStore implements ProjectStore {
     const found = findVersion(history.versions, versionId);
     const text = history.texts.get(versionId) ?? '';
     if (options.ifUpdatedAt !== undefined && options.ifUpdatedAt !== diagram.updatedAt) {
-      throw new ProjectError('conflict', `El diagrama «${diagram.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`);
+      throw new ProjectError('conflict', `El diagrama «${diagram.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`, { reason: 'diagram-changed', params: { name: diagram.name } });
     }
     if (describeContent(diagram.text).hash === found.hash) {
       const latest = history.versions[history.versions.length - 1];

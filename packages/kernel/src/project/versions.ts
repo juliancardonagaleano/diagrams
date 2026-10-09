@@ -64,7 +64,7 @@ export function resolveVersionPolicy(partial: Partial<VersionPolicy> = {}): Vers
   const pick = (name: keyof VersionPolicy, min: number, max: number, label: string): number => {
     const value = partial[name] ?? DEFAULT_VERSION_POLICY[name];
     if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
-      throw new ProjectError('invalid', `${label} debe ser un entero entre ${min} y ${max} (se recibió ${String(value)}).`);
+      throw new ProjectError('invalid', `${label} debe ser un entero entre ${min} y ${max} (se recibió ${String(value)}).`, { reason: 'policy-range', params: { setting: name, min, max, value: String(value) } });
     }
     return value;
   };
@@ -144,7 +144,7 @@ export function isVersioned(store: ProjectStore): store is VersionedProjectStore
 }
 
 /** El error de un almacén que no guarda historial. */
-export const unsupportedVersions = (): ProjectError => new ProjectError('unsupported', 'Este almacén no guarda historial de versiones.');
+export const unsupportedVersions = (): ProjectError => new ProjectError('unsupported', 'Este almacén no guarda historial de versiones.', { reason: 'versions-unsupported' });
 
 // ───────────── contenido: tamaño y hash ─────────────
 
@@ -219,7 +219,7 @@ export function parseVersionId(value: unknown): number | undefined {
 
 export function requireVersionId(value: unknown): number {
   const id = parseVersionId(value);
-  if (id === undefined) throw new ProjectError('invalid', `Identificador de versión inválido «${String(value).slice(0, 40)}» (es un número entero positivo).`);
+  if (id === undefined) throw new ProjectError('invalid', `Identificador de versión inválido «${String(value).slice(0, 40)}» (es un número entero positivo).`, { reason: 'version-id-invalid', params: { value: String(value).slice(0, 40) } });
   return id;
 }
 
@@ -366,7 +366,7 @@ export function applyPlan(existing: readonly VersionMeta[], plan: VersionPlan): 
 /** La versión con ese id, o `not-found`. */
 export function findVersion(versions: readonly VersionMeta[], id: number): VersionMeta {
   const found = versions.find((v) => v.id === id);
-  if (!found) throw new ProjectError('not-found', `No existe la versión ${id} de este diagrama (¿se descartó al rotar el historial?).`);
+  if (!found) throw new ProjectError('not-found', `No existe la versión ${id} de este diagrama (¿se descartó al rotar el historial?).`, { reason: 'version-missing', params: { id } });
   return found;
 }
 
@@ -375,7 +375,11 @@ export function planLabel(versions: readonly VersionMeta[], id: number, rawLabel
   const label = cleanVersionLabel(rawLabel);
   const current = findVersion(versions, id);
   if (current.label === undefined && versions.filter((v) => v.label !== undefined).length >= maxNamedVersions(policy)) {
-    throw new ProjectError('invalid', `Este diagrama ya tiene ${maxNamedVersions(policy)} versiones con nombre, el máximo: borra alguna antes de nombrar otra.`, { serverCode: 'limit' });
+    throw new ProjectError('invalid', `Este diagrama ya tiene ${maxNamedVersions(policy)} versiones con nombre, el máximo: borra alguna antes de nombrar otra.`, {
+      serverCode: 'limit',
+      reason: 'version-limit',
+      params: { max: maxNamedVersions(policy) },
+    });
   }
   return { ...current, label };
 }
@@ -384,7 +388,10 @@ export function planLabel(versions: readonly VersionMeta[], id: number, rawLabel
 export function planDelete(versions: readonly VersionMeta[], id: number): VersionMeta {
   const current = findVersion(versions, id);
   if (current.label === undefined) {
-    throw new ProjectError('invalid', `La versión ${id} no tiene nombre: solo se borran las versiones con nombre (las automáticas se descartan solas al rotar el historial).`);
+    throw new ProjectError('invalid', `La versión ${id} no tiene nombre: solo se borran las versiones con nombre (las automáticas se descartan solas al rotar el historial).`, {
+      reason: 'version-unnamed',
+      params: { id },
+    });
   }
   return current;
 }
