@@ -105,9 +105,9 @@ function newId(prefix: string): string {
 function toProjectError(error: unknown): unknown {
   if (error instanceof ProjectError) return error;
   const name = (error as { name?: string } | null)?.name;
-  if (name === 'QuotaExceededError') return new ProjectError('unavailable', 'No hay espacio de almacenamiento en el navegador: exporta o borra proyectos que ya no uses.');
+  if (name === 'QuotaExceededError') return new ProjectError('unavailable', 'No hay espacio de almacenamiento en el navegador: exporta o borra proyectos que ya no uses.', { reason: 'storage-full' });
   if (name === 'InvalidStateError' || name === 'SecurityError' || name === 'UnknownError' || name === 'AbortError') {
-    return new ProjectError('unavailable', 'El almacenamiento del navegador no está disponible (¿ventana privada o permisos bloqueados?).');
+    return new ProjectError('unavailable', 'El almacenamiento del navegador no está disponible (¿ventana privada o permisos bloqueados?).', { reason: 'storage-unavailable' });
   }
   return error;
 }
@@ -137,7 +137,7 @@ export class IndexedDbProjectStore implements ProjectStore {
   }
 
   private open(): Promise<IDBDatabase> {
-    if (!this.factory) return Promise.reject(new ProjectError('unavailable', 'Este navegador no ofrece IndexedDB: los proyectos no se pueden guardar aquí.'));
+    if (!this.factory) return Promise.reject(new ProjectError('unavailable', 'Este navegador no ofrece IndexedDB: los proyectos no se pueden guardar aquí.', { reason: 'storage-no-idb' }));
     this.db ??= new Promise<IDBDatabase>((resolve, reject) => {
       let opening: IDBOpenDBRequest;
       try {
@@ -170,7 +170,7 @@ export class IndexedDbProjectStore implements ProjectStore {
         resolve(db);
       };
       opening.onerror = () => reject(toProjectError(opening.error));
-      opening.onblocked = () => reject(new ProjectError('unavailable', 'Otra pestaña bloquea el almacenamiento de proyectos; ciérrala y reintenta.'));
+      opening.onblocked = () => reject(new ProjectError('unavailable', 'Otra pestaña bloquea el almacenamiento de proyectos; ciérrala y reintenta.', { reason: 'storage-blocked' }));
     }).catch((error) => {
       this.db = undefined;
       throw toProjectError(error);
@@ -227,7 +227,7 @@ export class IndexedDbProjectStore implements ProjectStore {
 
   private async projectOf(tx: IDBTransaction, id: string): Promise<ProjectRecord> {
     const project = (await request(tx.objectStore('projects').get(id))) as ProjectRecord | undefined;
-    if (!project) throw new ProjectError('not-found', `No existe el proyecto «${id}».`);
+    if (!project) throw new ProjectError('not-found', `No existe el proyecto «${id}».`, { reason: 'project-missing', params: { name: id } });
     return project;
   }
 
@@ -255,7 +255,7 @@ export class IndexedDbProjectStore implements ProjectStore {
     return this.run(['projects', 'diagrams'], 'readwrite', async (tx) => {
       const store = tx.objectStore('projects');
       const all = (await request(store.getAll())) as ProjectRecord[];
-      if (all.some((p) => sameName(p.name, name))) throw new ProjectError('exists', `Ya existe un proyecto llamado «${name}».`);
+      if (all.some((p) => sameName(p.name, name))) throw new ProjectError('exists', `Ya existe un proyecto llamado «${name}».`, { reason: 'project-exists', params: { name } });
       const now = this.now();
       const project: ProjectRecord = { id: newId('p'), name, ...(input.description?.trim() ? { description: input.description.trim() } : {}), createdAt: now, updatedAt: now };
       await request(store.add(project));
@@ -269,7 +269,7 @@ export class IndexedDbProjectStore implements ProjectStore {
       const store = tx.objectStore('projects');
       const project = await this.projectOf(tx, id);
       const all = (await request(store.getAll())) as ProjectRecord[];
-      if (all.some((p) => p.id !== id && sameName(p.name, name))) throw new ProjectError('exists', `Ya existe un proyecto llamado «${name}».`);
+      if (all.some((p) => p.id !== id && sameName(p.name, name))) throw new ProjectError('exists', `Ya existe un proyecto llamado «${name}».`, { reason: 'project-exists', params: { name } });
       const updated = { ...project, name, updatedAt: this.now(project.updatedAt) };
       await request(store.put(updated));
       return this.summary(updated, await this.diagramsOf(tx, id));
@@ -300,7 +300,7 @@ export class IndexedDbProjectStore implements ProjectStore {
   }
 
   async saveDiagram(projectId: string, input: SaveDiagramInput): Promise<DiagramMeta> {
-    if (typeof input.text !== 'string') throw new ProjectError('invalid', 'El documento del diagrama debe ser un texto.');
+    if (typeof input.text !== 'string') throw new ProjectError('invalid', 'El documento del diagrama debe ser un texto.', { reason: 'document-not-text' });
     return this.run(['projects', 'diagrams', 'documents', ...VERSION_STORES], 'readwrite', (tx) => this.saveIn(tx, projectId, input, {}));
   }
 
@@ -315,10 +315,10 @@ export class IndexedDbProjectStore implements ProjectStore {
 
     if (input.id !== undefined) {
       const current = (await request(diagrams.get(input.id))) as DiagramRecord | undefined;
-      if (!current || current.projectId !== projectId) throw new ProjectError('not-found', `No existe el diagrama «${input.id}» en el proyecto «${project.name}».`);
-      if (input.module !== undefined && input.module !== current.module) throw new ProjectError('invalid', `Un diagrama no cambia de módulo (es de «${current.module}»).`);
+      if (!current || current.projectId !== projectId) throw new ProjectError('not-found', `No existe el diagrama «${input.id}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: input.id, project: project.name } });
+      if (input.module !== undefined && input.module !== current.module) throw new ProjectError('invalid', `Un diagrama no cambia de módulo (es de «${current.module}»).`, { reason: 'diagram-module-fixed', params: { module: current.module } });
       if (input.ifUpdatedAt !== undefined && input.ifUpdatedAt !== current.updatedAt) {
-        throw new ProjectError('conflict', `El diagrama «${current.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`);
+        throw new ProjectError('conflict', `El diagrama «${current.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`, { reason: 'diagram-changed', params: { name: current.name } });
       }
       const updated: DiagramRecord = { ...current, updatedAt: this.now(current.updatedAt) };
       if (this.versionPolicy) {
@@ -333,7 +333,7 @@ export class IndexedDbProjectStore implements ProjectStore {
 
     const module = requireModuleId(input.module);
     const name = cleanName(input.name ?? 'Sin título', 'del diagrama');
-    if ((await this.diagramsOf(tx, projectId)).some((d) => sameName(d.name, name))) throw new ProjectError('exists', `Ya hay un diagrama llamado «${name}» en el proyecto «${project.name}».`);
+    if ((await this.diagramsOf(tx, projectId)).some((d) => sameName(d.name, name))) throw new ProjectError('exists', `Ya hay un diagrama llamado «${name}» en el proyecto «${project.name}».`, { reason: 'diagram-exists', params: { name, project: project.name } });
     const now = this.now();
     const created: DiagramRecord = { id: newId('d'), projectId, module, name, createdAt: now, updatedAt: now };
     await request(documents.add({ id: created.id, text: input.text } satisfies DocumentRecord));
@@ -349,8 +349,8 @@ export class IndexedDbProjectStore implements ProjectStore {
       const project = await this.projectOf(tx, projectId);
       const diagrams = tx.objectStore('diagrams');
       const current = (await request(diagrams.get(diagramId))) as DiagramRecord | undefined;
-      if (!current || current.projectId !== projectId) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`);
-      if ((await this.diagramsOf(tx, projectId)).some((d) => d.id !== diagramId && sameName(d.name, name))) throw new ProjectError('exists', `Ya hay un diagrama llamado «${name}» en el proyecto «${project.name}».`);
+      if (!current || current.projectId !== projectId) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: diagramId, project: project.name } });
+      if ((await this.diagramsOf(tx, projectId)).some((d) => d.id !== diagramId && sameName(d.name, name))) throw new ProjectError('exists', `Ya hay un diagrama llamado «${name}» en el proyecto «${project.name}».`, { reason: 'diagram-exists', params: { name, project: project.name } });
       const updated: DiagramRecord = { ...current, name, updatedAt: this.now(current.updatedAt) };
       await request(diagrams.put(updated));
       await request(tx.objectStore('projects').put({ ...project, updatedAt: updated.updatedAt }));
@@ -364,7 +364,7 @@ export class IndexedDbProjectStore implements ProjectStore {
       const project = await this.projectOf(tx, projectId);
       const diagrams = tx.objectStore('diagrams');
       const current = (await request(diagrams.get(diagramId))) as DiagramRecord | undefined;
-      if (!current || current.projectId !== projectId) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`);
+      if (!current || current.projectId !== projectId) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: diagramId, project: project.name } });
       await request(tx.objectStore('documents').delete(diagramId));
       await request(diagrams.delete(diagramId));
       await this.forgetHistory(tx, diagramId);
@@ -425,7 +425,7 @@ export class IndexedDbProjectStore implements ProjectStore {
     if (!this.versionPolicy) throw unsupportedVersions();
     const project = await this.projectOf(tx, projectId);
     const diagram = (await request(tx.objectStore('diagrams').get(diagramId))) as DiagramRecord | undefined;
-    if (!diagram || diagram.projectId !== projectId) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`);
+    if (!diagram || diagram.projectId !== projectId) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: diagramId, project: project.name } });
     return diagram;
   }
 
@@ -453,7 +453,7 @@ export class IndexedDbProjectStore implements ProjectStore {
       const versions = await this.versionsOf(tx, diagramId);
       const found = findVersion(versions, versionId);
       if (options.ifUpdatedAt !== undefined && options.ifUpdatedAt !== diagram.updatedAt) {
-        throw new ProjectError('conflict', `El diagrama «${diagram.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`);
+        throw new ProjectError('conflict', `El diagrama «${diagram.name}» cambió desde que se abrió (otra pestaña o proceso lo guardó).`, { reason: 'diagram-changed', params: { name: diagram.name } });
       }
       const current = (await request(tx.objectStore('documents').get(diagramId))) as DocumentRecord | undefined;
       const { id, module, name, createdAt, updatedAt } = diagram;

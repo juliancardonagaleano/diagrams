@@ -1,4 +1,5 @@
 import { normalizeBaseUrl } from '@iark/kernel';
+import { t } from '../i18n';
 
 /**
  * Dónde guardan sus proyectos las pantallas de la app web: en este navegador (IndexedDB) o en un servidor propio
@@ -148,7 +149,7 @@ export function saveBackend(server: { url: string; token?: string; label?: strin
   if (token) {
     const target = remember ? areas.local : areas.session;
     if (!write(target, tokenKey(url), token)) {
-      return { saved: false, tokenIn: 'none', problem: remember ? 'El navegador no deja guardar el token en este equipo (¿datos del sitio bloqueados?).' : 'El navegador no deja guardar el token ni siquiera para esta pestaña (¿datos del sitio bloqueados?).' };
+      return { saved: false, tokenIn: 'none', problem: remember ? t('backend.noTokenDevice') : t('backend.noTokenTab') };
     }
     remove(remember ? areas.session : areas.local, tokenKey(url));
     tokenIn = remember ? 'local' : 'session';
@@ -159,7 +160,7 @@ export function saveBackend(server: { url: string; token?: string; label?: strin
   const label = server.label?.trim();
   const config = { kind: options.active === false ? 'local' : 'remote', url, ...(label ? { label } : {}) };
   if (!write(areas.local, BACKEND_KEY, JSON.stringify(config))) {
-    return { saved: false, tokenIn: 'none', problem: 'El navegador no deja guardar la configuración (¿datos del sitio bloqueados?): al recargar volverían los proyectos de este navegador.' };
+    return { saved: false, tokenIn: 'none', problem: t('backend.noConfig') };
   }
   return { saved: true, tokenIn };
 }

@@ -143,6 +143,16 @@ Los del banco de trabajo (botón «Atajos» del lienzo) y los del editor clásic
 
 Las **relaciones no son paradas del tabulador** (`edgesFocusable={false}`): había que pasar por todas antes de llegar a los elementos. Se eligen en la «Lista» (banco), en la pestaña «Relaciones» (editor clásico) o con el ratón.
 
+## Idioma de la interfaz
+
+La interfaz puede estar en español o en inglés (ver [desarrollo.md](desarrollo.md#internacionalización)). Lo que importa a la accesibilidad:
+
+- **`<html lang>` siempre dice el idioma de la interfaz** (WCAG 3.1.1): se actualiza al arrancar y al cambiarlo. Las opciones del selector llevan su propio `lang` (3.1.2), porque cada idioma se escribe en sí mismo («Español», «English») para que quien no lee el actual encuentre el suyo.
+- **El selector es un `<select>` nativo** con nombre accesible («Idioma» / «Language»), operable con teclado y lector sin código propio; cambia al elegir, sin recargar y sin perder el foco, y en el encabezado del editor, del banco y de la suite está en el orden de tabulación del propio encabezado (sin `tabindex` propio). Su borde cumple 3:1 (1.4.11) con los colores del banco o de Semi.
+- **Los nombres accesibles también se traducen**: `aria-label`, `title`, `placeholder`, las regiones y los avisos de lo migrado (gestor, historial, administración, encabezados) salen en el idioma activo, y los plurales («1 versión» / «2 versiones»; «1 module» / «2 modules») siguen las reglas del idioma.
+- **Lo que no se tradujo sigue en español aunque el resto esté en inglés**: el lienzo y sus textos para lectores, las fichas del panel lateral, las pestañas y paneles del banco… Un lector configurado en inglés leería esas partes con la voz equivocada, porque no llevan `lang="es"` propio. Está anotado como pendiente en la [hoja de ruta](roadmap.md).
+- Las pruebas de accesibilidad del repositorio corren en español. No se ha repetido la auditoría con axe en inglés (`tests/e2e/accesibilidad.spec.ts` necesita `@axe-core/playwright`, que no estaba instalado en el entorno donde se hizo este cambio) ni se ha probado con un lector de pantalla en inglés.
+
 ## Lo que no se ha podido comprobar
 
 - **Ningún lector de pantalla real** (NVDA, JAWS, VoiceOver, TalkBack, Orca). Los nombres, roles y mensajes están comprobados por estructura (árbol de accesibilidad y pruebas), no por cómo los lee cada lector: la longitud del nombre de un nodo, el orden de lectura y los anuncios de `aria-live` pueden resultar pesados o repetitivos.

@@ -1,3 +1,4 @@
+import { t, tp } from '../i18n';
 import { analyzeText, diffDocuments, hasChanges, type Analysis, type AnyModule, type DocumentDiff } from '@iark/kernel';
 
 /**
@@ -14,13 +15,13 @@ export type VersionChange =
 function parsed(module: AnyModule, text: string, which: string): { ok: true; document: unknown } | { ok: false; reason: string } {
   const analysis: Analysis = analyzeText(module, text);
   if (analysis.status === 'ok') return { ok: true, document: analysis.document };
-  if (analysis.status === 'empty') return { ok: false, reason: `${which} está vacío.` };
-  if (analysis.status === 'syntax') return { ok: false, reason: `${which} no es JSON válido: ${analysis.error}` };
-  return { ok: false, reason: `${which} no cumple el esquema del módulo «${module.id}» (${analysis.issues.length} ${analysis.issues.length === 1 ? 'problema' : 'problemas'}).` };
+  if (analysis.status === 'empty') return { ok: false, reason: t('hist.diff.empty', { which }) };
+  if (analysis.status === 'syntax') return { ok: false, reason: t('hist.diff.syntax', { which, detail: analysis.error }) };
+  return { ok: false, reason: tp('hist.diff.schema', analysis.issues.length, { which, module: module.id }) };
 }
 
 /** Compara el documento `before` con el `after`, ambos como texto, con el motor de diff del módulo. */
-export function changesBetween(module: AnyModule, before: string, after: string, labels: { before: string; after: string } = { before: 'La versión', after: 'El contenido actual' }): VersionChange {
+export function changesBetween(module: AnyModule, before: string, after: string, labels: { before: string; after: string } = { before: t('hist.diff.version'), after: t('hist.diff.current') }): VersionChange {
   const first = parsed(module, before, labels.before);
   if (!first.ok) return { status: 'unreadable', reason: first.reason };
   const second = parsed(module, after, labels.after);

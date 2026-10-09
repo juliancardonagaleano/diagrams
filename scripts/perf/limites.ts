@@ -17,15 +17,17 @@ export const CHUNK_LIMITS: ChunkLimits = {
   },
   /**
    * Carga inicial de JS por página (lo que arranca antes de pintar). Antes de sacar ELK del trozo de C4: 2705, 2379, 1795 y 1805 kB.
-   * Medida del 2026-10-09 (tras la PR #121 y los diálogos de proyectos en carga perezosa, `src/projects/lazy.tsx`):
-   * 1407, 1083, 505 y 515 kB. `suite.html` y `trazabilidad.html` suben sobre los 388/397 kB de la medida anterior porque
-   * `domain-c4` creció de ≈255 a ≈393 kB con el lienzo común del editor C4 (#116) y ambas páginas lo cargan; se subieron
-   * solo lo justo (un 3 % de margen); partir `domain-c4` queda para cuando vuelvan a crecer (es un cambio mayor que un tope).
+   * Medida del 2026-10-09 (tras #124, la internacionalización, y con los diálogos de proyectos en carga perezosa,
+   * `src/projects/lazy.tsx`): 1513, 1190, 609 y 515 kB. Sube sobre la medida anterior (1309, 985, 388 y 397 kB) por dos motivos:
+   * `domain-c4` creció de ≈255 a ≈393 kB con el lienzo común del editor C4 (#116; lo cargan las cuatro páginas) y el trozo `lang`
+   * (≈102 kB: los dos catálogos, es y en, de `src/i18n`) se carga entero en las páginas que usan textos traducidos. Los topes
+   * dejan un 3 % de margen sobre lo medido. Para bajarlos: cargar el catálogo `en` solo cuando se pide (≈50 kB) y partir
+   * `domain-c4` entre lo que usan las páginas sin editor y lo que solo usa el editor.
    */
   maxInitialBytes: {
-    'index.html': 1_450_000,
-    'modulos.html': 1_100_000,
-    'suite.html': 520_000,
+    'index.html': 1_560_000,
+    'modulos.html': 1_230_000,
+    'suite.html': 630_000,
     'trazabilidad.html': 530_000,
   },
 };

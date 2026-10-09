@@ -7,6 +7,8 @@ import { ELEMENT_TYPE_LABELS, type ElementType, type LayoutDirection, type Layou
 import { formatQuality } from '@core/layout/quality';
 import { useFitCamera } from '../canvas/camera';
 import { duracion } from '../../../modules-app/a11y/movimiento';
+import { t } from '../../../i18n';
+import { useLang } from '../../../i18n/react';
 
 const ADD_BUTTONS: Array<{ type: ElementType; glyph: string }> = [
   { type: 'person', glyph: '👤' },
@@ -17,21 +19,23 @@ const ADD_BUTTONS: Array<{ type: ElementType; glyph: string }> = [
 
 export const DIRECTION_GLYPH: Record<LayoutDirection, string> = { DOWN: '↓', RIGHT: '→', UP: '↑', LEFT: '←' };
 
-export const DIRECTIONS: Array<{ value: LayoutDirectionOption; label: string; glyph: string }> = [
-  { value: 'auto', label: 'Automática (C1 ↓, C2/C3 →)', glyph: 'A' },
-  { value: 'DOWN', label: 'Arriba → abajo', glyph: '↓' },
-  { value: 'RIGHT', label: 'Izquierda → derecha', glyph: '→' },
-  { value: 'LEFT', label: 'Derecha → izquierda', glyph: '←' },
-  { value: 'UP', label: 'Abajo → arriba', glyph: '↑' },
+// Las etiquetas son `get`: se leen al pintar, así que siguen al idioma de la interfaz.
+export const DIRECTIONS: Array<{ value: LayoutDirectionOption; readonly label: string; glyph: string }> = [
+  { value: 'auto', get label() { return t('ed.dir.auto'); }, glyph: 'A' },
+  { value: 'DOWN', get label() { return t('ed.dir.down'); }, glyph: '↓' },
+  { value: 'RIGHT', get label() { return t('ed.dir.right'); }, glyph: '→' },
+  { value: 'LEFT', get label() { return t('ed.dir.left'); }, glyph: '←' },
+  { value: 'UP', get label() { return t('ed.dir.up'); }, glyph: '↑' },
 ];
 
-export const DISTRIBUTIONS: Array<{ value: LayoutDistribution; label: string }> = [
-  { value: 'auto', label: 'Distribución automática (centrada si sale limpia)' },
-  { value: 'centered', label: 'Centrada y uniforme' },
-  { value: 'elk', label: 'Colocación de ELK' },
+export const DISTRIBUTIONS: Array<{ value: LayoutDistribution; readonly label: string }> = [
+  { value: 'auto', get label() { return t('ed.dist.auto'); } },
+  { value: 'centered', get label() { return t('ed.dist.centered'); } },
+  { value: 'elk', get label() { return t('ed.dist.elk'); } },
 ];
 
 export function FloatingToolbar({ onEmbedSave }: { onEmbedSave?: (exit: boolean) => void }) {
+  useLang(); // se repinta al cambiar de idioma (las etiquetas de la dirección y la distribución salen del catálogo)
   const { zoomIn, zoomOut, zoomTo, screenToFlowPosition } = useReactFlow();
   const zoom = useFlowStore((s) => s.transform[2]);
   const readOnly = useDocumentStore((s) => s.readOnly);

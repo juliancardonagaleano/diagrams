@@ -8,6 +8,17 @@ function fromIframe(iframe: HTMLIFrameElement, data: unknown, origin = 'http://l
 }
 
 describe('createIarkEmbed (SDK de anfitrión)', () => {
+  it('el idioma del anfitrión viaja como ?lang= en la dirección del iframe, y sin él no se añade', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const con = createIarkEmbed({ container, url: 'http://localhost/app/', lang: 'en' });
+    expect(new URL(con.iframe.src).searchParams.get('lang')).toBe('en');
+    con.destroy();
+    const sin = createIarkEmbed({ container, url: 'http://localhost/app/' });
+    expect(new URL(sin.iframe.src).searchParams.has('lang')).toBe(false);
+    sin.destroy();
+  });
+
   it('crea el iframe con los parámetros de embebido y responde al handshake con load', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

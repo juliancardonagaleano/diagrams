@@ -8,7 +8,7 @@ export async function findProject(store: ProjectStore, idOrName: string): Promis
   if (direct) return direct;
   const wanted = idOrName.trim().toLocaleLowerCase();
   const found = (await store.listProjects()).find((p) => p.name.toLocaleLowerCase() === wanted);
-  if (!found) throw new ProjectError('not-found', `No existe el proyecto «${idOrName}».`);
+  if (!found) throw new ProjectError('not-found', `No existe el proyecto «${idOrName}».`, { reason: 'project-missing', params: { name: idOrName } });
   return found;
 }
 
@@ -16,14 +16,14 @@ export async function findProject(store: ProjectStore, idOrName: string): Promis
 export function findDiagram(project: ProjectSummary, idOrName: string): DiagramMeta {
   const wanted = idOrName.trim().toLocaleLowerCase();
   const found = project.diagrams.find((d) => d.id === idOrName) ?? project.diagrams.find((d) => d.name.toLocaleLowerCase() === wanted);
-  if (!found) throw new ProjectError('not-found', `No existe el diagrama «${idOrName}» en el proyecto «${project.name}».`);
+  if (!found) throw new ProjectError('not-found', `No existe el diagrama «${idOrName}» en el proyecto «${project.name}».`, { reason: 'diagram-missing-in', params: { diagram: idOrName, project: project.name } });
   return found;
 }
 
 /** El proyecto con todos sus documentos (lo que se exporta y lo que se comprueba). */
 export async function snapshotProject(store: ProjectStore, projectId: string): Promise<ProjectSnapshot> {
   const project = await store.getProject(projectId);
-  if (!project) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
+  if (!project) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`, { reason: 'project-missing', params: { name: projectId } });
   const diagrams = [];
   for (const meta of project.diagrams) {
     const diagram = await store.getDiagram(projectId, meta.id);
@@ -38,10 +38,10 @@ export async function snapshotProject(store: ProjectStore, projectId: string): P
  */
 export async function duplicateDiagram(store: ProjectStore, projectId: string, diagramId: string, options: { toProjectId?: string; name?: string } = {}): Promise<DiagramMeta> {
   const source = await store.getDiagram(projectId, diagramId);
-  if (!source) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}».`);
+  if (!source) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}».`, { reason: 'diagram-missing', params: { diagram: diagramId } });
   const targetId = options.toProjectId ?? projectId;
   const target = await store.getProject(targetId);
-  if (!target) throw new ProjectError('not-found', `No existe el proyecto «${targetId}».`);
+  if (!target) throw new ProjectError('not-found', `No existe el proyecto «${targetId}».`, { reason: 'project-missing', params: { name: targetId } });
   const base = options.name !== undefined ? cleanName(options.name, 'del diagrama') : `${source.name} (copia)`;
   const name = options.name !== undefined ? base : uniqueName(base, target.diagrams.map((d) => d.name));
   return store.saveDiagram(targetId, { module: source.module, name, text: source.text });

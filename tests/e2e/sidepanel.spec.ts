@@ -44,8 +44,9 @@ test('no se pueden crear relaciones duplicadas ni auto-referenciadas desde el pa
   const addButton = page.getByRole('button', { name: 'Añadir relación' });
   // Semi UI no usa el atributo `placeholder` real (lo renderiza como texto dentro del propio
   // combobox), así que se localizan por posición: el primero es "Origen", el segundo "Destino".
-  const origen = page.getByRole('combobox').nth(0);
-  const destino = page.getByRole('combobox').nth(1);
+  // Los de Semi UI llevan `role="combobox"` explícito; el selector de idioma del encabezado (un `<select>` nativo) no cuenta.
+  const origen = page.locator('[role="combobox"]:not([data-testid="lang-select"])').nth(0);
+  const destino = page.locator('[role="combobox"]:not([data-testid="lang-select"])').nth(1);
 
   // Origen = destino: queda deshabilitado.
   await origen.click();

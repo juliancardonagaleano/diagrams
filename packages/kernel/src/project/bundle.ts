@@ -87,25 +87,28 @@ export function parseBundle(text: string): ProjectBundle {
   try {
     json = JSON.parse(text);
   } catch (error) {
-    throw new ProjectError('invalid', `El archivo no es JSON válido: ${(error as Error).message}`);
+    throw new ProjectError('invalid', `El archivo no es JSON válido: ${(error as Error).message}`, { reason: 'bundle-not-json', params: { detail: (error as Error).message } });
   }
   if (json && typeof json === 'object' && (json as { format?: unknown }).format !== PROJECT_BUNDLE_FORMAT) {
-    throw new ProjectError('invalid', `No es un proyecto de IArk: falta "format": "${PROJECT_BUNDLE_FORMAT}". (Un diagrama suelto se abre con «Abrir archivo…».)`);
+    throw new ProjectError('invalid', `No es un proyecto de IArk: falta "format": "${PROJECT_BUNDLE_FORMAT}". (Un diagrama suelto se abre con «Abrir archivo…».)`, { reason: 'bundle-not-project', params: { format: PROJECT_BUNDLE_FORMAT } });
   }
   const parsed = bundleSchema.safeParse(json);
   if (!parsed.success) {
     const issues = parsed.error.issues.slice(0, 5).map((i) => `${i.path.map(String).join('.') || '(raíz)'}: ${i.message}`);
-    throw new ProjectError('invalid', `El archivo del proyecto no es válido:\n${issues.join('\n')}`);
+    throw new ProjectError('invalid', `El archivo del proyecto no es válido:\n${issues.join('\n')}`, { reason: 'bundle-invalid', params: { issues: issues.join('\n') } });
   }
   const bundle = parsed.data;
   if (bundle.version > PROJECT_BUNDLE_VERSION) {
-    throw new ProjectError('invalid', `Este proyecto se guardó con una versión más nueva del formato (${bundle.version}); esta instalación entiende hasta la ${PROJECT_BUNDLE_VERSION}.`);
+    throw new ProjectError('invalid', `Este proyecto se guardó con una versión más nueva del formato (${bundle.version}); esta instalación entiende hasta la ${PROJECT_BUNDLE_VERSION}.`, {
+      reason: 'bundle-newer',
+      params: { found: bundle.version, supported: PROJECT_BUNDLE_VERSION },
+    });
   }
   const ids = new Set<string>();
   for (const [index, diagram] of bundle.diagrams.entries()) {
-    if (ids.has(diagram.id)) throw new ProjectError('invalid', `El diagrama ${index + 1} repite el id «${diagram.id}».`);
+    if (ids.has(diagram.id)) throw new ProjectError('invalid', `El diagrama ${index + 1} repite el id «${diagram.id}».`, { reason: 'bundle-duplicate-id', params: { index: index + 1, id: diagram.id } });
     ids.add(diagram.id);
-    if (diagram.document === undefined && diagram.text === undefined) throw new ProjectError('invalid', `El diagrama «${diagram.name}» no trae ni "document" ni "text".`);
+    if (diagram.document === undefined && diagram.text === undefined) throw new ProjectError('invalid', `El diagrama «${diagram.name}» no trae ni "document" ni "text".`, { reason: 'bundle-no-content', params: { name: diagram.name } });
   }
   return bundle as ProjectBundle;
 }

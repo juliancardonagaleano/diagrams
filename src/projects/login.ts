@@ -1,4 +1,6 @@
 import { HttpProjectStore, normalizeBaseUrl, ProjectError, SESSION_TOKEN_PREFIX, type AuthProviders, type PublicUser } from '@iark/kernel';
+import { t, tAny, type MessageKey } from '../i18n';
+import { projectErrorText } from '../i18n/errores';
 import { browserAreas, hostOf, loadBackend, saveBackend, type StorageAreas } from './backend';
 
 /**
@@ -110,16 +112,16 @@ export function setLoginNotice(next: LoginNotice | undefined): void {
 }
 
 /** Qué le pasa a la persona según el motivo con que el servidor la devolvió (`#iark_error=`). Un motivo desconocido no se repite: es el genérico. */
-const SERVER_REASONS: Record<string, string> = {
-  access_denied: 'No aceptaste el acceso en GitHub, así que no se inició la sesión. Puedes volver a intentarlo cuando quieras.',
-  not_invited: 'Esta instancia es solo por invitación: pide a quien la administra que te invite con tu usuario de GitHub.',
-  disabled: 'Tu cuenta está desactivada en esta instancia. Pide a quien la administra que la reactive.',
-  github_unavailable: 'GitHub no responde ahora mismo. Espera un momento y vuelve a intentarlo.',
-  login_failed: 'No se pudo completar el inicio de sesión con GitHub. Vuelve a intentarlo; si sigue fallando, avisa a quien administra el servidor.',
+const SERVER_REASONS: Record<string, MessageKey> = {
+  access_denied: 'login.reason.access_denied',
+  not_invited: 'login.reason.not_invited',
+  disabled: 'login.reason.disabled',
+  github_unavailable: 'login.reason.github_unavailable',
+  login_failed: 'login.reason.login_failed',
 };
 
 export function loginErrorMessage(reason: string): string {
-  return Object.hasOwn(SERVER_REASONS, reason) ? SERVER_REASONS[reason] : SERVER_REASONS.login_failed;
+  return tAny(Object.hasOwn(SERVER_REASONS, reason) ? SERVER_REASONS[reason] : SERVER_REASONS.login_failed);
 }
 
 // ───────────── 1. salir hacia GitHub ─────────────
@@ -128,7 +130,7 @@ export function loginErrorMessage(reason: string): string {
 export async function createPkcePair(env: LoginEnv = {}): Promise<{ verifier: string; challenge: string }> {
   const cryptoApi = env.crypto ?? (typeof crypto === 'undefined' ? undefined : crypto);
   if (!cryptoApi?.getRandomValues || !cryptoApi.subtle) {
-    throw new ProjectError('unavailable', 'Este navegador no ofrece criptografía a esta página (hace falta https, o localhost): ábrela por https para iniciar sesión con GitHub.');
+    throw new ProjectError('unavailable', 'Este navegador no ofrece criptografía a esta página (hace falta https, o localhost): ábrela por https para iniciar sesión con GitHub.', { reason: 'login-no-crypto' });
   }
   const verifier = base64Url(cryptoApi.getRandomValues(new Uint8Array(32)));
   const digest = await cryptoApi.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
@@ -143,7 +145,7 @@ export async function createPkcePair(env: LoginEnv = {}): Promise<{ verifier: st
 export async function startGithubLogin(input: { server: string; remember: boolean; label?: string }, env: LoginEnv = {}): Promise<string> {
   const server = normalizeBaseUrl(input.server);
   const area = sessionArea(env);
-  if (!area) throw new ProjectError('unavailable', 'El navegador no deja guardar datos de esta pestaña (¿datos del sitio bloqueados?): sin ellos no se puede terminar el inicio de sesión al volver de GitHub.');
+  if (!area) throw new ProjectError('unavailable', 'El navegador no deja guardar datos de esta pestaña (¿datos del sitio bloqueados?): sin ellos no se puede terminar el inicio de sesión al volver de GitHub.', { reason: 'login-no-storage' });
   const { verifier, challenge } = await createPkcePair(env);
   const here = new URL((env.location ?? window.location).href);
   here.hash = '';
@@ -152,7 +154,7 @@ export async function startGithubLogin(input: { server: string; remember: boolea
   try {
     area.setItem(PENDING_KEY, JSON.stringify(pending));
   } catch {
-    throw new ProjectError('unavailable', 'El navegador no deja guardar datos de esta pestaña (¿datos del sitio bloqueados?): sin ellos no se puede terminar el inicio de sesión al volver de GitHub.');
+    throw new ProjectError('unavailable', 'El navegador no deja guardar datos de esta pestaña (¿datos del sitio bloqueados?): sin ellos no se puede terminar el inicio de sesión al volver de GitHub.', { reason: 'login-no-storage' });
   }
   const target = `${server}/api/auth/github/login?${new URLSearchParams({ redirect: here.toString(), challenge })}`;
   (env.navigate ?? ((url: string) => window.location.assign(url)))(target);
@@ -214,16 +216,16 @@ export async function completeGithubLogin(env: LoginEnv = {}): Promise<LoginOutc
 
   if (reason !== null) return failed(Object.hasOwn(SERVER_REASONS, reason) ? reason : 'login_failed', loginErrorMessage(reason), pending?.url);
   if (!pending || !code) {
-    return failed('stale', 'No se pudo terminar el inicio de sesión: esta pestaña no lo había empezado (¿abriste el enlace en otro navegador o se borraron los datos del sitio?). Pulsa «Iniciar sesión con GitHub» otra vez.');
+    return failed('stale', t('login.stale'));
   }
   if (now - pending.startedAt > PENDING_MAX_AGE_MS || pending.startedAt > now + 60_000) {
-    return failed('expired', 'Pasaron más de 10 minutos desde que saliste hacia GitHub y el inicio de sesión caducó. Pulsa «Iniciar sesión con GitHub» otra vez.', pending.url);
+    return failed('expired', t('login.expired'), pending.url);
   }
   let server: string;
   try {
     server = normalizeBaseUrl(pending.url);
   } catch {
-    return failed('stale', 'No se pudo terminar el inicio de sesión: la dirección del servidor que se anotó no es válida. Pulsa «Iniciar sesión con GitHub» otra vez.');
+    return failed('stale', t('login.badAddress'));
   }
 
   // El código solo se entrega al servidor que se eligió al empezar (el de `pending`), nunca a una dirección que venga en la URL.
@@ -233,12 +235,12 @@ export async function completeGithubLogin(env: LoginEnv = {}): Promise<LoginOutc
     grant = await store.exchangeLoginCode({ code, verifier: pending.verifier });
   } catch (error) {
     if (error instanceof ProjectError) {
-      if (error.info.status === 429) return failed('rate_limited', 'Demasiados intentos fallidos desde esta dirección: espera un momento y vuelve a iniciar sesión.', server);
-      if (error.info.network) return failed('unreachable', `No se pudo hablar con ${hostOf(server)} para terminar el inicio de sesión (${error.message}). Comprueba la conexión y vuelve a intentarlo.`, server);
-      if (error.code === 'invalid') return failed('invalid_grant', 'El servidor no aceptó el código del inicio de sesión (caducó o ya se había usado). Pulsa «Iniciar sesión con GitHub» otra vez.', server);
-      return failed('server', `El servidor no pudo terminar el inicio de sesión: ${error.message}`, server);
+      if (error.info.status === 429) return failed('rate_limited', t('login.rateLimited'), server);
+      if (error.info.network) return failed('unreachable', t('login.unreachable', { host: hostOf(server), detail: projectErrorText(error) }), server);
+      if (error.code === 'invalid') return failed('invalid_grant', t('login.invalidGrant'), server);
+      return failed('server', t('login.serverFailed', { detail: projectErrorText(error) }), server);
     }
-    return failed('server', 'Falló algo inesperado al terminar el inicio de sesión. Vuelve a intentarlo.', server);
+    return failed('server', t('login.unexpected'), server);
   }
 
   const areas = env.areas ?? browserAreas();
@@ -250,10 +252,10 @@ export async function completeGithubLogin(env: LoginEnv = {}): Promise<LoginOutc
     // Sin dónde guardarla la sesión no serviría de nada: se cierra en el servidor para no dejarla abierta sin dueña.
     store.setToken(grant.token);
     await store.logout().catch(() => undefined);
-    return failed('storage', `Entraste con GitHub, pero el navegador no deja guardar la sesión. ${saved.problem ?? ''} Se cerró la sesión en el servidor.`.trim(), server);
+    return failed('storage', saved.problem ? t('login.noStorage', { problem: saved.problem }) : t('login.noStorageBare'), server);
   }
   const who = grant.user.name ?? grant.user.login;
-  const message = `Sesión iniciada como ${who} (@${grant.user.login}) en ${hostOf(server)}.`;
+  const message = t('login.ok', { who, login: grant.user.login, host: hostOf(server) });
   setLoginNotice({ kind: 'ok', message });
   return { status: 'ok', url: server, user: grant.user, expiresAt: grant.expiresAt, remember: pending.remember, message };
 }

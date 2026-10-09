@@ -1,0 +1,16 @@
+/* Selector de idioma (`LanguageSelect`): usa los colores del banco (`--wb-*`) o, en el editor C4, los de Semi; los valores de reserva cumplen 3:1 en el borde (1.4.11). */
+.iark-lang {
+  font: inherit;
+  font-size: 13px;
+  min-height: 28px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--wb-control-border, var(--semi-color-border, #6b7686));
+  background: var(--wb-surface, var(--semi-color-bg-2, Canvas));
+  color: var(--wb-text, var(--semi-color-text-0, CanvasText));
+  cursor: pointer;
+}
+.iark-lang:focus-visible {
+  outline: 2px solid var(--wb-focus, var(--semi-color-primary, #175e7a));
+  outline-offset: 2px;
+}

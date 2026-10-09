@@ -29,7 +29,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | Documento | Qué cuenta |
 |---|---|
 | [suite-web.md](suite-web.md) | Banco de trabajo, widget, trazabilidad, shell y servicio: qué es cada superficie. |
-| [embebido.md](embebido.md) | Embeber en otra aplicación: iframe + `postMessage`, SDK de anfitrión, protocolo de módulos, Web Component `<iark-module>` y federación por manifiesto. |
+| [embebido.md](embebido.md) | Embeber en otra aplicación: iframe + `postMessage`, SDK de anfitrión, protocolo de módulos, Web Component `<iark-module>`, federación por manifiesto e idioma (`lang`). |
 | [servicio.md](servicio.md) | `iark serve`: rutas de la API, imagen Docker y servidor para varias personas con tokens (roles, CORS, HTTPS, límites). |
 | [cuentas-github.md](cuentas-github.md) | Servicio gestionado con inicio de sesión de GitHub: flujo, quién ve qué, compartir proyectos y administrar cuentas. |
 | [observabilidad.md](observabilidad.md) | Operar `iark serve`: `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz` y `/readyz`, métricas de Prometheus, rotación de registros y datos personales. |
@@ -46,7 +46,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 
 | Documento | Qué cuenta |
 |---|---|
-| [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, paquetes publicables (`packages:build`, `packages:check`, publicar en npm), decisiones de diseño y trampas conocidas. |
+| [desarrollo.md](desarrollo.md) | Instalación y scripts, estructura del repositorio, pruebas, paquetes publicables (`packages:build`, `packages:check`, publicar en npm), decisiones de diseño, **internacionalización de la interfaz (es/en)** y trampas conocidas. |
 | [accesibilidad.md](accesibilidad.md) | Accesibilidad (WCAG 2.2 AA): qué se midió con axe y qué se arregló, atajos de teclado del lienzo, exclusiones nominales, lo que no se ha podido comprobar sin lector de pantalla y la lista de comprobación manual. |
 | [rendimiento.md](rendimiento.md) | Diagramas grandes: cuánto tardan el autolayout y el lienzo (antes y después), qué se hizo (ELK en un hilo de trabajo, recorte de nodos fuera de pantalla, trozos de la compilación), cómo medirlo (`npm run perf`) y qué fijan las pruebas. |
 | [versionado-documentos.md](versionado-documentos.md) | Cómo evoluciona un esquema sin romper lo guardado: `documentVersion` y migraciones por módulo (`iark migrate`), `contractVersion` del contrato `DomainModule` (el que cumple un [módulo de terceros](plugins.md)) y negociación de la versión del protocolo embebido y del manifiesto. |
@@ -61,6 +61,7 @@ El README tenía 1.294 líneas; todo su contenido se movió aquí (y el README q
 | Sección del README anterior | Ahora |
 |---|---|
 | Instalación · Pruebas · Estructura del proyecto · Decisiones de diseño | [desarrollo.md](desarrollo.md) (y un resumen en el [README](../README.md)) |
+| Idioma de la interfaz (español e inglés) · cómo añadir un texto o un idioma · qué falta por traducir | [desarrollo.md](desarrollo.md#internacionalización) |
 | Despliegue (GitHub Pages) | [despliegue-pages.md](despliegue-pages.md) |
 | Formato JSON · Notación del lienzo · Niveles C1 › C2 › C3 · Autolayout inteligente · Direcciones y distribución | [modulos/c4.md](modulos/c4.md) |
 | Conversión a `.drawio` · Importar un `.drawio` · Importar un DSL de Structurizr · Mermaid | [importadores.md](importadores.md) |

@@ -1,4 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
+import { projectErrorText } from '../i18n/errores';
+import { useT } from '../i18n/react';
 import { HistoryDialog } from '../projects/lazy';
 import { NewerVersionNotice } from '../projects/NewerVersionNotice';
 import { OfflineActions } from '../projects/OfflineActions';
@@ -22,6 +24,7 @@ export function ProjectBar({
   onManage(panel?: 'storage'): void;
   notify(message: string): void;
 }) {
+  const { t } = useT();
   const session = controller.projects!;
   const projects = useSyncExternalStore(session.subscribe, session.getState);
   const [showHistory, setShowHistory] = useState(false);
@@ -30,13 +33,13 @@ export function ProjectBar({
   const attached = project?.diagrams.find((d) => d.id === projects.diagramId);
   const draft = !!project && !attached && !!controller.currentDocument();
   const remote = session.remote;
-  const where = remote ? ' · servidor' : '';
+  const where = remote ? ` · ${t('bar.status.onServer')}` : '';
   const rejected = projects.errorCode === 'unauthorized' || projects.syncErrorCode === 'unauthorized' || projects.saveErrorCode === 'unauthorized';
   const forbidden = projects.saveErrorCode === 'forbidden';
   // Con una sesión de persona (inicio de sesión de GitHub) no se «rechaza un token»: la sesión caducó, y un 403 es el rol en el proyecto, no un token que cambiar.
   const withSession = session.credential === 'session';
-  const rejectedText = withSession ? 'Tu sesión caducó' : 'El servidor no aceptó el token';
-  const run = (work: () => Promise<void>): void => void work().catch((error: Error) => notify(error.message));
+  const rejectedText = withSession ? t('bar.status.sessionExpired') : t('bar.status.tokenRejected');
+  const run = (work: () => Promise<void>): void => void work().catch((error: Error) => notify(projectErrorText(error)));
   // Con un servidor, el trabajo sin conexión y los conflictos tienen su propio texto y su propia resolución (tres salidas, con confirmación).
   const indicator = offlineIndicator(projects);
   const queuedConflict = (projects.offline?.conflicts ?? 0) > 0;
@@ -44,33 +47,35 @@ export function ProjectBar({
     ? remote
       ? projects.errorCode === 'unauthorized'
         ? rejectedText
-        : 'Servidor no disponible'
-      : 'Almacenamiento no disponible'
+        : t('bar.status.serverDown')
+      : t('bar.status.storageDown')
     : attached
       ? projects.save === 'pending' || projects.save === 'saving'
-        ? 'Guardando…'
+        ? t('bar.status.saving')
         : projects.save === 'error'
           ? projects.saveErrorCode === 'unauthorized'
-            ? `${rejectedText}: ${withSession ? 'los últimos cambios no se han guardado' : (projects.saveError ?? 'no se guardaron los últimos cambios')}`
+            ? withSession
+              ? t('bar.status.rejectedSession')
+              : t('bar.status.rejectedToken', { detail: projects.saveError ?? t('bar.status.notSaved') })
             : projects.saveErrorCode === 'forbidden'
-              ? `Sin permiso para guardar en el servidor: ${projects.saveError ?? 'el rol de este token no lo permite'}`
-              : `No se pudo guardar: ${projects.saveError ?? 'error desconocido'}`
+              ? t('bar.status.forbidden', { detail: projects.saveError ?? t('bar.status.forbiddenDetail') })
+              : t('bar.status.failed', { detail: projects.saveError ?? t('bar.status.unknownError') })
           : projects.save === 'conflict'
-            ? 'Hay un conflicto de guardado'
-            : `Guardado en «${project?.name}»${where}${projects.syncError ? ' (sin conexión con el servidor)' : ''}`
+            ? t('bar.status.conflict')
+            : `${t('bar.status.saved', { name: project?.name ?? '' })}${where}${projects.syncError ? ` (${t('bar.status.syncLost')})` : ''}`
       : draft
-        ? 'Borrador: aún no está en el proyecto'
+        ? t('bar.status.draft')
         : '';
 
   const byModule = new Map<string, NonNullable<typeof project>['diagrams']>();
   for (const d of project?.diagrams ?? []) byModule.set(d.module, [...(byModule.get(d.module) ?? []), d]);
 
   const bar = (
-    <div className="wb-projectbar" role="region" aria-label="Proyecto" data-testid="project-bar" data-live={projects.eventsState ?? 'off'}>
+    <div className="wb-projectbar" role="region" aria-label={t('bar.region')} data-testid="project-bar" data-live={projects.eventsState ?? 'off'}>
       <label>
-        Proyecto
-        <select aria-label="Proyecto" value={projects.projectId ?? ''} onChange={(e) => run(() => controller.enterProject(e.target.value || undefined))} disabled={!projects.available}>
-          <option value="">Sin proyecto (borrador)</option>
+        {t('bar.project')}
+        <select aria-label={t('bar.project')} value={projects.projectId ?? ''} onChange={(e) => run(() => controller.enterProject(e.target.value || undefined))} disabled={!projects.available}>
+          <option value="">{t('bar.noProject')}</option>
           {projects.projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -80,14 +85,14 @@ export function ProjectBar({
       </label>
       {project && (
         <label>
-          Diagrama
+          {t('bar.diagram')}
           <select
-            aria-label="Diagrama"
+            aria-label={t('bar.diagram')}
             value={attached?.id ?? ''}
             onChange={(e) => e.target.value && run(() => controller.openDiagram(project.id, e.target.value))}
             disabled={project.diagrams.length === 0 && !draft}
           >
-            {!attached && <option value="">{project.diagrams.length === 0 ? 'Sin diagramas todavía' : 'Borrador (sin guardar en el proyecto)'}</option>}
+            {!attached && <option value="">{project.diagrams.length === 0 ? t('bar.noDiagrams') : t('bar.draftOption')}</option>}
             {[...byModule].map(([module, list]) => (
               <optgroup key={module} label={moduleLabel(module)}>
                 {list.map((d) => (
@@ -101,16 +106,16 @@ export function ProjectBar({
         </label>
       )}
       <button type="button" onClick={() => onManage()} disabled={!projects.available && projects.projects.length === 0 && !projects.error}>
-        Proyectos…
+        {t('bar.manage')}
       </button>
       {attached && session.canVersion && (
         <button type="button" onClick={() => setShowHistory(true)} aria-haspopup="dialog" data-testid="history-open">
-          Historial…
+          {t('bar.history')}
         </button>
       )}
       {draft && project && (
         <button type="button" className="primary" onClick={() => run(() => controller.saveToProject())} data-testid="save-to-project">
-          Guardar en «{project.name}»
+          {t('bar.saveTo', { name: project.name })}
         </button>
       )}
       <span className="wb-save" role="status" data-testid="save-status" data-save={indicator ? indicator.kind : attached ? projects.save : draft ? 'draft' : 'none'}>
@@ -118,39 +123,39 @@ export function ProjectBar({
       </span>
       {rejected && remote && (
         <button type="button" className="primary" onClick={() => onManage('storage')} data-testid="reconnect">
-          {withSession ? 'Iniciar sesión' : 'Volver a conectar'}
+          {withSession ? t('bar.signIn') : t('bar.reconnect')}
         </button>
       )}
       {forbidden && remote && !rejected && !withSession && (
         <button type="button" onClick={() => onManage('storage')} data-testid="reconnect">
-          Cambiar de token
+          {t('bar.changeToken')}
         </button>
       )}
       {attached && projects.save === 'error' && projects.saveErrorCode !== 'unauthorized' && (
         <button type="button" onClick={() => run(() => session.retry())}>
-          Reintentar
+          {t('common.retry')}
         </button>
       )}
       {remote && <OfflineActions session={session} resolve={(choice, key, name) => controller.resolveConflict(choice, { key, name })} />}
       {remote && attached && <NewerVersionNotice session={session} load={() => controller.loadNewer()} notify={notify} />}
       {attached && projects.save === 'conflict' && !queuedConflict && (
         <span className="wb-conflict" role="alert" data-testid="save-conflict">
-          {remote ? 'Otra persona u otro equipo guardó' : 'Otra pestaña guardó'} «{attached.name}» mientras lo editabas.
+          {remote ? t('bar.conflict.remote', { name: attached.name }) : t('bar.conflict.local', { name: attached.name })}
           <button type="button" onClick={() => run(() => controller.resolveConflict('overwrite'))}>
-            Quedarme con mi versión
+            {t('bar.conflict.keep')}
           </button>
           <button type="button" onClick={() => run(() => controller.resolveConflict('reload'))}>
-            Cargar la otra
+            {t('bar.conflict.reload')}
           </button>
         </span>
       )}
       {state.replaced && (
         <span className="wb-conflict" role="status" data-testid="replaced-note">
-          Se reemplazó el contenido de «{state.replaced.label}».
+          {t('bar.replaced', { label: state.replaced.label })}
           <button type="button" onClick={() => controller.undoReplace()} data-testid="undo-replace">
-            Deshacer
+            {t('bar.undo')}
           </button>
-          <button type="button" onClick={() => controller.dismissReplaced()} aria-label="Descartar aviso">
+          <button type="button" onClick={() => controller.dismissReplaced()} aria-label={t('bar.dismissNotice')}>
             ✕
           </button>
         </span>

@@ -8,7 +8,7 @@ Hay dos protocolos, los dos por `postMessage`: el del **editor C4** (`index.html
 
 ## Embebido en otra aplicación (iframe + postMessage)
 
-Abre la app con `?embed=1&proto=json[&origin=https://mi-host][&theme=dark][&ui=min][&configure=1]` dentro de un `<iframe>`. El protocolo sigue el patrón de draw.io: el iframe emite `init`, el anfitrión responde `load`, y a partir de ahí intercambian mensajes JSON (objeto o cadena).
+Abre la app con `?embed=1&proto=json[&origin=https://mi-host][&theme=dark][&lang=en][&ui=min][&configure=1]` dentro de un `<iframe>`. `lang` (`es` o `en`) fija el idioma de la interfaz del iframe (ver [Idioma](#idioma)). El protocolo sigue el patrón de draw.io: el iframe emite `init`, el anfitrión responde `load`, y a partir de ahí intercambian mensajes JSON (objeto o cadena).
 
 **iframe → anfitrión (`event`)**
 
@@ -114,7 +114,22 @@ Las acciones que esperan respuesta (`load`, `export`, `validate`, `run`, `capabi
 <script>document.querySelector('iark-module').document = miDocumento;</script>
 ```
 
-Atributos: `manifest` (descubre el editor del módulo en la instancia) o `src` (URL directa de `modulos.html`), `module`, `theme`, `ui`, `readonly`, `autosave`, `view`. El documento va por la propiedad `document` (objeto o JSON). Eventos DOM: `iark-init`, `iark-load`, `iark-change`, `iark-view-change`, `iark-save`, `iark-exit`, `iark-error`, `iark-result`. Métodos: `export`, `run`, `validate`, `capabilities`, `setView`, `save`; esperan a que el widget esté listo. Demo: [`examples/web-component-host.html`](../examples/web-component-host.html). Se empaqueta como `dist/embed/iark-module-element.{js,global.js}` y como el subpath `iark-diagrams/element`.
+Atributos: `manifest` (descubre el editor del módulo en la instancia) o `src` (URL directa de `modulos.html`), `module`, `theme`, `lang`, `ui`, `readonly`, `autosave`, `view`. El documento va por la propiedad `document` (objeto o JSON). Eventos DOM: `iark-init`, `iark-load`, `iark-change`, `iark-view-change`, `iark-save`, `iark-exit`, `iark-error`, `iark-result`. Métodos: `export`, `run`, `validate`, `capabilities`, `setView`, `save`; esperan a que el widget esté listo. Demo: [`examples/web-component-host.html`](../examples/web-component-host.html). Se empaqueta como `dist/embed/iark-module-element.{js,global.js}` y como el subpath `iark-diagrams/element`.
+
+## Idioma
+
+La interfaz embebida habla español o inglés y **elige el anfitrión**: ni el editor C4 ni el banco muestran selector de idioma dentro de un iframe, ni recuerdan otra elección. Se pide con `lang`:
+
+```js
+createIarkEmbed({ container: '#editor', url, lang: 'en' });          // editor C4
+createIarkModuleEmbed({ container: '#banco', url, module: 'security', lang: 'en' }); // banco de módulos
+```
+
+```html
+<iark-module manifest="…/.well-known/iark.json" module="security" lang="en"></iark-module>
+```
+
+`lang` viaja como `?lang=en` en la dirección del iframe (no es una acción del protocolo: los esquemas de `postMessage` no cambian). Acepta `es`, `en` y variantes con región (`en-US`); un valor desconocido se ignora. Sin `lang`, el iframe decide por el idioma del navegador, y si no es ninguno de los dos, español. En `<iark-module>`, cambiar el atributo `lang` con el widget abierto lo vuelve a abrir (el idioma va en la dirección). Qué partes de la interfaz están traducidas y cuáles no: [desarrollo.md](desarrollo.md#internacionalización).
 
 ## Federación por manifiesto
 

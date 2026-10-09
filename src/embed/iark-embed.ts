@@ -28,6 +28,8 @@ export interface IarkEmbedOptions {
   title?: string;
   readOnly?: boolean;
   theme?: 'light' | 'dark';
+  /** Idioma de la interfaz del editor embebido (`es` o `en`; se admiten también `en-US`…). Manda el anfitrión: el iframe no recuerda otra elección. Si se omite, decide el navegador. */
+  lang?: string;
   ui?: 'full' | 'min';
   hideSidePanel?: boolean;
   /** Ejecutar autolayout al cargar. */
@@ -83,6 +85,7 @@ export function createIarkEmbed(options: IarkEmbedOptions): IarkEmbed {
   url.searchParams.set('origin', window.location.origin);
   if (options.ui) url.searchParams.set('ui', options.ui);
   if (options.theme) url.searchParams.set('theme', options.theme);
+  if (options.lang) url.searchParams.set('lang', options.lang);
   const targetOrigin = options.origin ?? url.origin;
 
   const iframe = document.createElement('iframe');

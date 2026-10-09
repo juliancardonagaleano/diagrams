@@ -19,6 +19,13 @@ function setup(options: Partial<Parameters<typeof createIarkModuleEmbed>[0]> = {
 }
 
 describe('createIarkModuleEmbed (SDK de anfitrión de módulos)', () => {
+  it('el idioma del anfitrión viaja como ?lang= en la dirección del iframe, y sin él no se añade', () => {
+    const con = setup({ module: 'security', lang: 'en' });
+    expect(new URL(con.embed.iframe.src).searchParams.get('lang')).toBe('en');
+    const sin = setup({ module: 'security' });
+    expect(new URL(sin.embed.iframe.src).searchParams.has('lang')).toBe(false);
+  });
+
   it('crea el iframe con los parámetros de embebido y el módulo, y responde al init con load', async () => {
     const onInit = vi.fn();
     const onLoad = vi.fn();

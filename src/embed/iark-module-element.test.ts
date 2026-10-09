@@ -35,6 +35,18 @@ afterEach(() => {
 });
 
 describe('<iark-module>', () => {
+  it('el atributo lang fija el idioma del widget y cambiarlo vuelve a abrir el iframe con el idioma nuevo', async () => {
+    const el = create({ src: 'http://localhost/app/modulos.html', module: 'security', lang: 'en' });
+    await flush();
+    const first = iframeOf(el)!;
+    expect(new URL(first.src).searchParams.get('lang')).toBe('en');
+    el.setAttribute('lang', 'es');
+    await flush();
+    const second = iframeOf(el)!;
+    expect(second).not.toBe(first);
+    expect(new URL(second.src).searchParams.get('lang')).toBe('es');
+  });
+
   it('se registra y monta el banco de trabajo del atributo src con el módulo y el tema', async () => {
     expect(customElements.get('iark-module')).toBeTruthy();
     const el = create({ src: 'http://localhost/app/modulos.html', module: 'security', theme: 'dark', ui: 'min' });

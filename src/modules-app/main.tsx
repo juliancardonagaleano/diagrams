@@ -11,6 +11,10 @@ import { currentHostOriginSources, resolveHostOrigin } from '../embed/hostOrigin
 import { MODULE_PROTOCOL_VERSION } from '../embed/moduleProtocol';
 import { getProjectSession } from '../projects/factory';
 import { completeGithubLogin } from '../projects/login';
+import { initLang } from '../i18n';
+
+// El idioma de la interfaz (?lang= > lo elegido > el del navegador) se decide antes de pintar; también pone `<html lang>`.
+initLang();
 
 /**
  * Banco de trabajo de los módulos de la suite (`modulos.html`). Con `?embed=1&proto=json&module=<id>&origin=<origen del
