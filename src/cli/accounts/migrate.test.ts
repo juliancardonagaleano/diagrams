@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { describeImport, importJsonAccounts } from './migrate';
-import { loadSqlite } from './sqliteStore';
+import { loadSqlite, MIGRATIONS } from './sqliteStore';
 import { JsonAccountStore, SqliteAccountStore, type AccountsFile } from './store';
 
 const folders: string[] = [];
@@ -228,7 +228,7 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
     const file = join(dir, 'a-mano.json');
     const file1: AccountsFile = {
       version: 1,
-      users: [{ id: 'u_1', login: 'ana', githubId: 7, siteRole: 'admin', createdAt: '2026-01-01T00:00:00Z', lastLoginAt: '2026-01-02T01:00:00+01:00' }],
+      users: [{ id: 'u_1', login: 'ana', githubId: 7, siteRole: 'admin', quota: { bytes: 2048, diagramsPerProject: 0 }, createdAt: '2026-01-01T00:00:00Z', lastLoginAt: '2026-01-02T01:00:00+01:00' }],
       sessions: [{ hash: 'a'.repeat(64), userId: 'u_1', createdAt: '2026-01-01T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z' }],
       projects: { p: [{ userId: 'u_1', role: 'admin', addedAt: '2026-01-01T00:00:00Z' }], vacio: [] },
     };
@@ -237,7 +237,7 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
     const report = importJsonAccounts(target, file);
     expect(report.counts).toEqual({ users: 1, sessions: 1, memberships: 1, projects: 1 });
     const dump = target.snapshot();
-    expect(dump.users[0]).toMatchObject({ createdAt: '2026-01-01T00:00:00.000Z', lastLoginAt: '2026-01-02T00:00:00.000Z', siteRole: 'admin' });
+    expect(dump.users[0]).toMatchObject({ createdAt: '2026-01-01T00:00:00.000Z', lastLoginAt: '2026-01-02T00:00:00.000Z', siteRole: 'admin', quota: { bytes: 2048, diagramsPerProject: 0 } }); // la cuota personal viaja con la cuenta
     expect(dump.sessions[0]).toMatchObject({ createdAt: '2026-01-01T00:00:00.000Z', expiresAt: '2099-01-01T00:00:00.000Z' });
     expect(Object.keys(dump.projects)).toEqual(['p']);
     expect(existsSync(file)).toBe(true);
@@ -286,7 +286,7 @@ describe('SqliteAccountStore: copia de seguridad, comprobación e información',
     store.shareProject('p', 'carla', 'viewer', 'guest');
     store.updateUser(store.signIn({ id: 2, login: 'beto' }, OPEN).id, { disabled: true });
     store.createSession(ana.id, 60_000);
-    expect(store.info()).toMatchObject({ schemaVersion: 1, latestSchemaVersion: 1, journalMode: 'wal', synchronous: 'full', foreignKeys: true, users: 3, pending: 1, disabled: 1, sessions: 1, activeSessions: 1, memberships: 2, projects: 1 });
+    expect(store.info()).toMatchObject({ schemaVersion: MIGRATIONS.length, latestSchemaVersion: MIGRATIONS.length, journalMode: 'wal', synchronous: 'full', foreignKeys: true, users: 3, pending: 1, disabled: 1, sessions: 1, activeSessions: 1, memberships: 2, projects: 1 });
     expect(store.info().importedFrom).toBeUndefined();
   });
 });

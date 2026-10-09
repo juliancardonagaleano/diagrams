@@ -6,6 +6,7 @@ import { commandInfos, moduleCapabilities, type AnyModule, type ModuleRegistry, 
 import { createAdminApi } from './accounts/admin';
 import { createAuthApi } from './accounts/routes';
 import type { Accounts } from './accounts/service';
+import { createUsageApi, QUOTA_KINDS, Quotas } from './accounts/usage';
 import { COMPUTE_ACTIONS, inlineExecutor, unwrapOutcome, type ComputeExecutor, type ComputeJob } from './compute';
 import { HttpError } from './httpError';
 import { directoryWritable, fileReadable, Readiness, type Check } from './observability/health';
@@ -67,6 +68,7 @@ import type { TokenStore } from './tokens';
  *   GET  /api/whoami                                    con una sesión: { auth: true, name, role: <rol en la instancia>, user }
  *   GET|PUT|DELETE /api/projects/<p>/members[/<login>]  quién pertenece a un proyecto y con qué rol (ver `accounts/members.ts`)
  *   GET|PUT|DELETE /api/admin/users[/<login>]           las cuentas de la instancia, solo para quien la administra (ver `accounts/admin.ts`)
+ *   GET  /api/usage                                     el uso y la cuota de la persona que llama, con el desglose por proyecto (ver `accounts/usage.ts`)
  */
 export interface ServeOptions {
   registry: ModuleRegistry;
@@ -104,6 +106,8 @@ export interface ServeOptions {
   observability?: Observability;
   /** El token Bearer de `GET /metrics` (`--metrics-token`). Sin él, las métricas (si están activadas) solo se sirven a conexiones de loopback. */
   metricsToken?: string;
+  /** Cuánto tiempo (ms) se reutiliza lo medido de un proyecto para las cuotas. Por omisión 30000; 0 = siempre se mide (pruebas). */
+  usageTtlMs?: number;
   /** Cuánto tiempo (ms) se reutiliza el resultado de `/readyz`. Por omisión 5000; 0 = siempre se comprueba (pruebas). */
   readyCacheMs?: number;
 }
@@ -123,10 +127,10 @@ function apiParts(pathname: string): string[] | undefined {
   });
 }
 
-/** Las rutas que exigen token cuando lo hay: la API de proyectos, `/api/whoami`, `/api/auth` y `/api/admin`. */
+/** Las rutas que exigen token cuando lo hay: la API de proyectos, `/api/whoami`, `/api/usage`, `/api/auth` y `/api/admin`. */
 function isAuthRoute(pathname: string): boolean {
   const parts = apiParts(pathname);
-  return !!parts && (parts[0] === 'projects' || parts[0] === 'auth' || parts[0] === 'admin' || (parts[0] === 'whoami' && parts.length === 1));
+  return !!parts && (parts[0] === 'projects' || parts[0] === 'auth' || parts[0] === 'admin' || ((parts[0] === 'whoami' || parts[0] === 'usage') && parts.length === 1));
 }
 
 /** Las rutas de cálculo: `POST /api/trace` y `/api/<módulo>/<validate|views|export|import|diff|run…>`. Con autenticación exigen credencial (salvo `--public-compute`). */
@@ -182,6 +186,8 @@ export function createSuiteServer(options: ServeOptions): Server {
   /** Con autenticación y sin `publicCompute`, las rutas de cálculo piden una credencial válida (de cualquier rol). */
   const computeAuth = options.publicCompute ? undefined : auth;
   const executor = options.compute ?? inlineExecutor(options.registry);
+  /** Las cuotas de uso: solo con cuentas y espacio de trabajo (ver `accounts/usage.ts`). */
+  const quotas = options.accounts && options.projects ? new Quotas({ accounts: options.accounts, store: options.projects, ttlMs: options.usageTtlMs }) : undefined;
 
   const send = (res: ServerResponse, status: number, body: string | Buffer, headers: Record<string, string> = {}): void => {
     obs.contextOf(res)?.sent(typeof body === 'string' ? Buffer.byteLength(body) : body.length, headers);
@@ -240,6 +246,14 @@ export function createSuiteServer(options: ServeOptions): Server {
           { name: 'iark_sessions_active', help: 'Sesiones de GitHub vigentes (solo el recuento).', type: 'gauge', samples: [{ value: stats.sessions }] },
         );
       }
+    }
+    if (quotas) {
+      // Sin etiquetas por persona (cardinalidad acotada y nada de datos personales): solo el tipo de tope.
+      const limits = quotas.defaults;
+      families.push(
+        { name: 'iark_quota_rejections_total', help: 'Operaciones rechazadas por superar una cuota, por tipo de tope (bytes, projects, diagrams).', type: 'counter', samples: QUOTA_KINDS.map((kind) => ({ labels: { kind }, value: quotas.rejected[kind] })) },
+        { name: 'iark_quota_limit', help: 'Topes de la instancia por omisión, por tipo (bytes, projects, diagrams); 0 es sin tope.', type: 'gauge', samples: [{ labels: { kind: 'bytes' }, value: limits.bytes }, { labels: { kind: 'projects' }, value: limits.projects }, { labels: { kind: 'diagrams' }, value: limits.diagramsPerProject }] },
+      );
     }
     if (options.tokens) {
       const available = options.tokens.lookup(undefined).status !== 'unavailable';
@@ -300,8 +314,9 @@ export function createSuiteServer(options: ServeOptions): Server {
     return text;
   };
 
-  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, readBody: observedBody, send, sendJson });
-  const adminApi = createAdminApi({ accounts: options.accounts, auth, readBody: observedBody, sendJson });
+  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, quotas, readBody: observedBody, send, sendJson });
+  const adminApi = createAdminApi({ accounts: options.accounts, auth, quotas, readBody: observedBody, sendJson });
+  const usageApi = createUsageApi({ accounts: options.accounts, auth, quotas, sendJson });
   const authApi = createAuthApi({
     accounts: options.accounts,
     auth,
@@ -351,6 +366,7 @@ export function createSuiteServer(options: ServeOptions): Server {
     if (parts[0] === 'projects') return projectsApi(req, res, url, parts.slice(1));
     if (parts[0] === 'auth') return authApi(req, res, url, parts.slice(1));
     if (parts[0] === 'admin') return adminApi(req, res, url, parts.slice(1));
+    if (parts[0] === 'usage') return usageApi(req, res, url, parts.slice(1));
     if (parts.length === 1 && parts[0] === 'whoami') {
       requireMethod(req, 'GET');
       if (!auth) return sendJson(res, 200, { auth: false });

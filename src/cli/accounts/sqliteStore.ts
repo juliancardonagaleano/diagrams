@@ -6,6 +6,7 @@ import {
   AccountError,
   generateSessionToken,
   hashSessionToken,
+  applyQuotaChange,
   isProjectRole,
   isSiteRole,
   loginKey,
@@ -29,6 +30,7 @@ import {
   type SignInPolicy,
   type SiteRole,
   type UserChange,
+  type UserQuota,
 } from './model';
 
 /**
@@ -155,6 +157,17 @@ export const MIGRATIONS: readonly SqliteMigration[] = [
         ) STRICT;
 
         PRAGMA application_id = ${SQLITE_APPLICATION_ID};
+      `);
+    },
+  },
+  {
+    version: 2,
+    description: 'cuota personal por cuenta (bytes, proyectos y diagramas por proyecto; NULL = el valor de la instancia, 0 = sin tope)',
+    up(db) {
+      db.exec(`
+        ALTER TABLE users ADD COLUMN quota_bytes    INTEGER CHECK (quota_bytes IS NULL OR quota_bytes >= 0);
+        ALTER TABLE users ADD COLUMN quota_projects INTEGER CHECK (quota_projects IS NULL OR quota_projects >= 0);
+        ALTER TABLE users ADD COLUMN quota_diagrams INTEGER CHECK (quota_diagrams IS NULL OR quota_diagrams >= 0);
       `);
     },
   },
@@ -300,12 +313,20 @@ interface UserRow {
   disabled: number;
   created_at: string;
   last_login_at: string | null;
+  quota_bytes: number | null;
+  quota_projects: number | null;
+  quota_diagrams: number | null;
 }
 
-const USER_COLUMNS = 'u.id, u.login, u.github_id, u.name, u.avatar_url, u.site_role, u.disabled, u.created_at, u.last_login_at';
+const USER_COLUMNS = 'u.id, u.login, u.github_id, u.name, u.avatar_url, u.site_role, u.disabled, u.created_at, u.last_login_at, u.quota_bytes, u.quota_projects, u.quota_diagrams';
 
 const toUser = (row: Row): AccountUser => {
   const r = row as unknown as UserRow;
+  const quota: UserQuota = {
+    ...(r.quota_bytes !== null ? { bytes: Number(r.quota_bytes) } : {}),
+    ...(r.quota_projects !== null ? { projects: Number(r.quota_projects) } : {}),
+    ...(r.quota_diagrams !== null ? { diagramsPerProject: Number(r.quota_diagrams) } : {}),
+  };
   return {
     id: r.id,
     login: r.login,
@@ -314,6 +335,7 @@ const toUser = (row: Row): AccountUser => {
     ...(r.avatar_url !== null ? { avatarUrl: r.avatar_url } : {}),
     siteRole: r.site_role,
     ...(r.disabled ? { disabled: true } : {}),
+    ...(Object.keys(quota).length > 0 ? { quota } : {}),
     createdAt: r.created_at,
     ...(r.last_login_at !== null ? { lastLoginAt: r.last_login_at } : {}),
   };
@@ -626,6 +648,10 @@ export class SqliteAccountStore implements AccountStore {
       this.run('UPDATE users SET disabled = ? WHERE id = ?', change.disabled ? 1 : 0, userId);
       if (change.disabled) this.run('DELETE FROM sessions WHERE user_id = ?', userId);
     }
+    if (change.quota !== undefined) {
+      const quota = applyQuotaChange(this.userRow('u.id = ?', userId)?.quota, change.quota);
+      this.run('UPDATE users SET quota_bytes = ?, quota_projects = ?, quota_diagrams = ? WHERE id = ?', quota?.bytes ?? null, quota?.projects ?? null, quota?.diagramsPerProject ?? null, userId);
+    }
   }
 
   updateUser(id: string, change: UserChange): AccountUser {
@@ -829,8 +855,9 @@ export class SqliteAccountStore implements AccountStore {
       if (!this.isEmpty()) throw new AccountError('conflict', 'La base de cuentas ya tiene datos: una importación no se mezcla con ellos.');
       for (const u of file.users) {
         this.run(
-          'INSERT INTO users (id, login, login_key, github_id, name, avatar_url, site_role, disabled, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO users (id, login, login_key, github_id, name, avatar_url, site_role, disabled, created_at, last_login_at, quota_bytes, quota_projects, quota_diagrams) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           u.id, u.login, loginKey(u.login), u.githubId ?? null, u.name ?? null, u.avatarUrl ?? null, u.siteRole, u.disabled ? 1 : 0, canonicalIso(u.createdAt), u.lastLoginAt !== undefined ? canonicalIso(u.lastLoginAt) : null,
+          u.quota?.bytes ?? null, u.quota?.projects ?? null, u.quota?.diagramsPerProject ?? null,
         );
       }
       for (const s of file.sessions) this.run('INSERT INTO sessions (hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', s.hash, s.userId, canonicalIso(s.createdAt), canonicalIso(s.expiresAt));

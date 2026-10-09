@@ -262,6 +262,8 @@ interface LoadedDiagram {
   name: string;
   createdAt: string;
   updatedMs: number;
+  /** Bytes del archivo del documento. */
+  size: number;
   /** Tiene entrada en el sidecar (si no, el nombre y la fecha de creación se deducen del archivo). */
   fromSidecar: boolean;
 }
@@ -458,6 +460,7 @@ export class FolderProjectStore implements ProjectStore {
           name: entry?.name ?? c.id,
           createdAt: entry?.createdAt ?? iso(updatedMs),
           updatedMs,
+          size: fileStat.size,
           fromSidecar: entry !== undefined,
         };
       }),
@@ -927,6 +930,17 @@ export class FolderProjectStore implements ProjectStore {
         planDelete(index.versions, versionId);
         await this.writeIndex(dir!, { ...index, versions: index.versions.filter((v) => v.id !== versionId) }); // también borra el documento de la versión
       });
+    });
+  }
+
+  /**
+   * Lo que ocupan los documentos actuales de un proyecto (cuántos diagramas y sus bytes), sin leerlos: solo el tamaño de cada archivo. Es la
+   * otra mitad de lo que cuentan las cuotas de `iark serve --accounts` (la primera, `versionUsage`: ver `accounts/usage.ts`).
+   */
+  documentUsage(projectId: string): Promise<{ diagrams: number; bytes: number }> {
+    return this.guard(async () => {
+      const loaded = await this.requireProject(projectId);
+      return { diagrams: loaded.diagrams.length, bytes: loaded.diagrams.reduce((total, d) => total + d.size, 0) };
     });
   }
 

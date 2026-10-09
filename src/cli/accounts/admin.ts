@@ -3,17 +3,21 @@ import { allow, bodyObject, isJson, type ReadBody } from '../httpBody';
 import { HttpError } from '../httpError';
 import type { Authenticator, Identity } from '../serveAuth';
 import { accountHttpError } from './errors';
-import type { Accounts } from './service';
-import { AccountError, isSiteRole, parseLogin, SITE_ROLES, type AccountUser, type SiteRole, type UserChange } from './store';
+import type { Accounts, QuotaLimits } from './service';
+import { AccountError, isQuotaValue, isSiteRole, parseLogin, QUOTA_FIELDS, SITE_ROLES, type AccountUser, type SiteRole, type UserChange, type UserQuota, type UserQuotaChange } from './store';
+import type { Quotas } from './usage';
 
 /**
  * Administración de las cuentas de la instancia (`/api/admin`, con `--accounts`). Solo para quien administra la instancia: una persona con
  * rol `admin` (por figurar en `--admins`, o porque otro administrador se lo dio) o un token de `--tokens` con rol `admin`; los demás, 403.
  *
- *   GET    /api/admin/users             → [{ id, login, name?, avatarUrl?, siteRole, disabled, pending, listed?, createdAt, lastLoginAt?, projects }]
- *   PUT    /api/admin/users/<login>     { siteRole?, disabled? } → la cuenta (201 si crea una invitación, 200 si cambia una que ya existe)
+ *   GET    /api/admin/users             → [{ id, login, name?, avatarUrl?, siteRole, disabled, pending, listed?, createdAt, lastLoginAt?, projects, quota?, limits, usage }]
+ *   PUT    /api/admin/users/<login>     { siteRole?, disabled?, quota? } → la cuenta (201 si crea una invitación, 200 si cambia una que ya existe)
  *   DELETE /api/admin/users/<login>     cancela la invitación de quien todavía no ha entrado → { removed: "<login>" }
  *
+ * `quota` es la cuota PERSONAL fijada por un administrador (`{ bytes?, projects?, diagramsPerProject? }`; un campo ausente es «el valor de la instancia»); `limits`, los
+ * topes que valen ahora para esa cuenta (los de la instancia con los suyos por encima; `0` es «sin tope»); `usage`, lo que ocupa (`bytes` en documentos y versiones,
+ * `projects` que posee; ver `usage.ts`). En un `PUT`, `quota` es un cambio: un número fija el campo, `null` lo quita y lo que falta no se toca.
  * `siteRole` es el rol que tiene ahora (`admin`, `member` o `guest`); `pending`, una invitación sin reclamar; `listed`, que figura en `--admins`
  * (su rol lo manda la lista y no se puede bajar desde aquí); `projects`, a cuántos proyectos pertenece. Con un nombre de usuario que no existe,
  * `PUT` crea una invitación (rol `member` por omisión) que reclamará quien entre con ese nombre. Desactivar una cuenta cierra sus sesiones.
@@ -32,16 +36,34 @@ export interface AdminUserJson {
   createdAt: string;
   lastLoginAt?: string;
   projects: number;
+  /** La cuota personal que le fijó un administrador, si la hay. */
+  quota?: UserQuota;
+  /** Los topes que valen para ella ahora. */
+  limits: QuotaLimits;
+  /** Lo que ocupa (ausente si no se pudo medir). */
+  usage?: { bytes: number; documentBytes: number; versionBytes: number; versions: number; projects: number };
 }
 
 export interface AdminApiContext {
   accounts: Accounts | undefined;
   auth: Authenticator | undefined;
+  /** Las cuotas de uso: sin ellas, no se informa del uso. */
+  quotas?: Quotas;
   readBody: ReadBody;
   sendJson(res: ServerResponse, status: number, value: unknown, headers?: Record<string, string>): void;
 }
 
-function adminUserJson(accounts: Accounts, user: AccountUser, projects: number): AdminUserJson {
+async function adminUserJson(accounts: Accounts, quotas: Quotas | undefined, user: AccountUser, projects: number): Promise<AdminUserJson> {
+  let usage: AdminUserJson['usage'];
+  if (quotas && user.githubId !== undefined) {
+    try {
+      const { items: _items, ...totals } = await quotas.person(user.id);
+      void _items;
+      usage = totals;
+    } catch {
+      usage = undefined; // el espacio de trabajo no responde: /readyz lo dice; la lista de cuentas debe seguir saliendo
+    }
+  }
   return {
     id: user.id,
     login: user.login,
@@ -54,7 +76,22 @@ function adminUserJson(accounts: Accounts, user: AccountUser, projects: number):
     createdAt: user.createdAt,
     ...(user.lastLoginAt ? { lastLoginAt: user.lastLoginAt } : {}),
     projects,
+    ...(user.quota ? { quota: user.quota } : {}),
+    limits: accounts.limitsFor(user),
+    ...(usage ? { usage } : {}),
   };
+}
+
+/** El `quota` del cuerpo de un `PUT`: un objeto con enteros de 0 en adelante o `null` en los campos que se conocen. */
+function quotaChange(value: unknown): UserQuotaChange {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, '"quota" debe ser un objeto: { "bytes"?, "projects"?, "diagramsPerProject"? }.', { code: 'invalid' });
+  const change: UserQuotaChange = {};
+  for (const [field, amount] of Object.entries(value)) {
+    if (!(QUOTA_FIELDS as readonly string[]).includes(field)) throw new HttpError(400, `"quota.${field.slice(0, 40)}" no existe: los campos son ${QUOTA_FIELDS.join(', ')}.`, { code: 'invalid' });
+    if (amount !== null && !isQuotaValue(amount)) throw new HttpError(400, `"quota.${field}" debe ser un entero de 0 en adelante (0 es «sin tope») o null para volver al valor de la instancia.`, { code: 'invalid' });
+    change[field as keyof UserQuota] = amount as number | null;
+  }
+  return change;
 }
 
 /** ¿Administra la instancia? Un token con rol `admin` o una persona con rol `admin`. */
@@ -72,7 +109,9 @@ export function createAdminApi(ctx: AdminApiContext): (req: IncomingMessage, res
       if (method !== 'GET') return allow('GET');
       const counts = store.membershipCounts();
       const users = store.users().sort((a, b) => a.login.localeCompare(b.login, undefined, { sensitivity: 'base' }));
-      return sendJson(res, 200, users.map((u) => adminUserJson(accounts, u, counts.get(u.id) ?? 0)));
+      const rows: AdminUserJson[] = [];
+      for (const u of users) rows.push(await adminUserJson(accounts, ctx.quotas, u, counts.get(u.id) ?? 0));
+      return sendJson(res, 200, rows);
     }
 
     const login = parts[1];
@@ -87,6 +126,7 @@ export function createAdminApi(ctx: AdminApiContext): (req: IncomingMessage, res
         if (typeof body.disabled !== 'boolean') throw new HttpError(400, '"disabled" debe ser verdadero o falso.', { code: 'invalid' });
         change.disabled = body.disabled;
       }
+      if (body.quota !== undefined) change.quota = quotaChange(body.quota);
       const existing = store.findByLogin(parseLogin(login));
       if (existing) {
         const stored = existing.siteRole;
@@ -100,7 +140,7 @@ export function createAdminApi(ctx: AdminApiContext): (req: IncomingMessage, res
       }
       const { user, created } = store.upsertUser(login, change);
       const projects = store.membershipCounts().get(user.id) ?? 0;
-      return sendJson(res, created ? 201 : 200, adminUserJson(accounts, user, projects), created ? { Location: `/api/admin/users/${encodeURIComponent(user.login)}` } : {});
+      return sendJson(res, created ? 201 : 200, await adminUserJson(accounts, ctx.quotas, user, projects), created ? { Location: `/api/admin/users/${encodeURIComponent(user.login)}` } : {});
     }
     if (method === 'DELETE') {
       const user = store.findByLogin(parseLogin(login));

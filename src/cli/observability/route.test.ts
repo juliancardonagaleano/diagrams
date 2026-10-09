@@ -4,7 +4,7 @@ import { classifyRoute } from './route';
 /** Todas las plantillas que puede devolver `classifyRoute`: un conjunto cerrado, que es lo que protege la cardinalidad de las métricas y del registro. */
 const TEMPLATES = new Set([
   '/', '/assets/*', '/*', '/healthz', '/readyz', '/metrics', '/.well-known/iark.json',
-  '/api', '/api/*', '/api/modules', '/api/whoami', '/api/trace',
+  '/api', '/api/*', '/api/modules', '/api/whoami', '/api/usage', '/api/trace',
   '/api/projects', '/api/projects/import', '/api/projects/:project', '/api/projects/:project/diagrams', '/api/projects/:project/bundle', '/api/projects/:project/check',
   '/api/projects/:project/members', '/api/projects/:project/diagrams/:diagram', '/api/projects/:project/members/:login', '/api/projects/*',
   '/api/projects/:project/diagrams/:diagram/versions', '/api/projects/:project/diagrams/:diagram/versions/:version', '/api/projects/:project/diagrams/:diagram/versions/:version/restore',
@@ -24,6 +24,7 @@ describe('classifyRoute: la plantilla de una petición', () => {
     ['GET', '/.well-known/iark.json', '/.well-known/iark.json', {}],
     ['GET', '/api/modules', '/api/modules', {}],
     ['GET', '/api/whoami', '/api/whoami', {}],
+    ['GET', '/api/usage', '/api/usage', {}],
     ['POST', '/api/trace', '/api/trace', {}],
     ['GET', '/api/projects', '/api/projects', {}],
     ['POST', '/api/projects/import', '/api/projects/import', {}],
@@ -76,6 +77,7 @@ describe('classifyRoute: la plantilla de una petición', () => {
   it('marca qué rutas exigen credencial, cuáles son de cálculo y cuáles las comprueban máquinas', () => {
     expect(classifyRoute('GET', '/api/projects').protected).toBe(true);
     expect(classifyRoute('GET', '/api/whoami').protected).toBe(true);
+    expect(classifyRoute('GET', '/api/usage').protected).toBe(true);
     expect(classifyRoute('POST', '/api/auth/logout').protected).toBe(true);
     expect(classifyRoute('GET', '/api/admin/users').protected).toBe(true);
     expect(classifyRoute('POST', '/api/auth/exchange').protected).toBe(false);
@@ -104,7 +106,7 @@ describe('classifyRoute: la plantilla de una petición', () => {
       seed = (seed * 1664525 + 1013904223) % 4294967296;
       return seed / 4294967296;
     };
-    const words = ['api', 'projects', 'auth', 'admin', 'users', 'github', 'diagrams', 'members', 'bundle', 'run', 'validate', 'export', 'import', 'diff', 'schema', 'capabilities', 'trace', 'whoami', 'modules', 'assets', 'metrics', 'healthz', '..', '.', '%2e%2e', '%00', '%0a', '%E2%80%A8', '%zz', 'ñandú', '', 'x'.repeat(300), '{"a":1}', 'token=abc', 'ana', 'tienda', '0', '-1'];
+    const words = ['api', 'projects', 'auth', 'admin', 'users', 'github', 'diagrams', 'members', 'bundle', 'run', 'validate', 'export', 'import', 'diff', 'schema', 'capabilities', 'trace', 'whoami', 'usage', 'modules', 'assets', 'metrics', 'healthz', '..', '.', '%2e%2e', '%00', '%0a', '%E2%80%A8', '%zz', 'ñandú', '', 'x'.repeat(300), '{"a":1}', 'token=abc', 'ana', 'tienda', '0', '-1'];
     const seen = new Set<string>();
     for (let i = 0; i < 1000; i++) {
       const depth = 1 + Math.floor(random() * 6);

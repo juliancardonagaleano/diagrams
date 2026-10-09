@@ -4,9 +4,11 @@ import { basename, dirname, join } from 'node:path';
 import {
   ACCOUNTS_FILE_VERSION,
   AccountError,
+  applyQuotaChange,
   generateSessionToken,
   hashSessionToken,
   isProjectRole,
+  isQuotaValue,
   isSiteRole,
   loginKey,
   MAX_MEMBERS_PER_PROJECT,
@@ -15,6 +17,7 @@ import {
   newUserId,
   parseLogin,
   PROJECT_ROLES,
+  QUOTA_FIELDS,
   ROLE_RANK,
   SITE_ROLES,
   type AccountsFile,
@@ -29,6 +32,7 @@ import {
   type SignInPolicy,
   type SiteRole,
   type UserChange,
+  type UserQuota,
 } from './model';
 
 /**
@@ -37,7 +41,7 @@ import {
  *
  *   { "version": 1,
  *     "users":    [{ "id": "u_…", "login": "ana", "githubId": 583231, "name": "Ana", "avatarUrl": "https://…", "siteRole": "member",
- *                    "disabled"?: true, "createdAt": "<ISO>", "lastLoginAt"?: "<ISO>" }],
+ *                    "disabled"?: true, "quota"?: { "bytes"?: n, "projects"?: n, "diagramsPerProject"?: n }, "createdAt": "<ISO>", "lastLoginAt"?: "<ISO>" }],
  *     "sessions": [{ "hash": "<sha256 del token en hex>", "userId": "u_…", "createdAt": "<ISO>", "expiresAt": "<ISO>" }],
  *     "projects": { "<id del proyecto>": [{ "userId": "u_…", "role": "viewer" | "editor" | "admin", "addedAt": "<ISO>" }] } }
  *
@@ -45,6 +49,8 @@ import {
  *   se abre ni se reemplaza) y no se vuelve a leer, así que no debe editarse con el servicio en marcha. Se escribe de forma atómica
  *   (temporal + `rename`), con modo 0600, y un cambio que no se pudo guardar se deshace en memoria. Solo hay un proceso escritor:
  *   no admite varias réplicas sobre el mismo archivo (para eso está el almacén SQLite, `sqliteStore.ts`, y `iark accounts migrate`).
+ * - `quota` (opcional) es la cuota personal que fijó un administrador (ver `quotas.ts`); el formato sigue siendo la versión 1 porque es un campo
+ *   nuevo y opcional: un archivo sin él se lee igual. Un IArk anterior a las cuotas lo ignora al leer y lo pierde al reescribir el archivo.
  * Solo usa `node:` (nada de dependencias).
  */
 
@@ -60,6 +66,22 @@ const optionalText = (value: unknown, at: string, what: string): string | undefi
   if (typeof value !== 'string') throw corrupt(`${at}: «${what}» debe ser un texto`);
   return value;
 };
+
+/** Una copia de la cuenta: lo que se devuelve no comparte nada con lo que guarda el almacén (tampoco su cuota). */
+const copyUser = (user: AccountUser): AccountUser => (user.quota ? { ...user, quota: { ...user.quota } } : { ...user });
+
+/** La cuota personal de una cuenta: un objeto con enteros de 0 en adelante en los campos que se conocen (lo demás, error). */
+function parseQuota(value: unknown, at: string): UserQuota | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw corrupt(`${at}: "quota" debe ser un objeto`);
+  const quota: UserQuota = {};
+  for (const [field, amount] of Object.entries(value)) {
+    if (!(QUOTA_FIELDS as readonly string[]).includes(field)) throw corrupt(`${at}: "quota.${field.slice(0, 40)}" no es un campo de la cuota`);
+    if (!isQuotaValue(amount)) throw corrupt(`${at}: "quota.${field}" debe ser un entero de 0 en adelante`);
+    quota[field as keyof UserQuota] = amount;
+  }
+  return Object.keys(quota).length > 0 ? quota : undefined;
+}
 
 /** Interpreta el contenido del archivo. Estricto a propósito: ante la menor duda lo rechaza entero y el servicio no arranca. Los motivos nunca citan el contenido. */
 export function parseAccountsFile(text: string): AccountsFile {
@@ -83,7 +105,7 @@ export function parseAccountsFile(text: string): AccountsFile {
   const parsedUsers = users.map((entry: unknown, index): AccountUser => {
     const at = `users[${index}]`;
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw corrupt(`${at} debe ser un objeto`);
-    const { id, login, githubId, name, avatarUrl, siteRole, disabled, createdAt, lastLoginAt } = entry as Record<string, unknown>;
+    const { id, login, githubId, name, avatarUrl, siteRole, disabled, quota, createdAt, lastLoginAt } = entry as Record<string, unknown>;
     if (typeof id !== 'string' || !id) throw corrupt(`${at}: falta "id"`);
     if (typeof login !== 'string' || !login.trim()) throw corrupt(`${at}: falta "login"`);
     if (githubId !== undefined && (typeof githubId !== 'number' || !Number.isSafeInteger(githubId) || githubId <= 0)) throw corrupt(`${at}: "githubId" debe ser un entero positivo`);
@@ -91,6 +113,7 @@ export function parseAccountsFile(text: string): AccountsFile {
     if (disabled !== undefined && typeof disabled !== 'boolean') throw corrupt(`${at}: "disabled" debe ser verdadero o falso`);
     if (!isIso(createdAt)) throw corrupt(`${at}: "createdAt" debe ser una fecha ISO 8601`);
     if (lastLoginAt !== undefined && !isIso(lastLoginAt)) throw corrupt(`${at}: "lastLoginAt" debe ser una fecha ISO 8601`);
+    const parsedQuota = parseQuota(quota, at);
     if (ids.has(id)) throw corrupt(`${at}: id repetido`);
     if (githubId !== undefined && githubIds.has(githubId)) throw corrupt(`${at}: githubId repetido`);
     if (logins.has(loginKey(login))) throw corrupt(`${at}: login repetido`);
@@ -105,6 +128,7 @@ export function parseAccountsFile(text: string): AccountsFile {
       ...(optionalText(avatarUrl, at, 'avatarUrl') !== undefined ? { avatarUrl: avatarUrl as string } : {}),
       siteRole,
       ...(disabled ? { disabled: true } : {}),
+      ...(parsedQuota ? { quota: parsedQuota } : {}),
       createdAt,
       ...(lastLoginAt !== undefined ? { lastLoginAt } : {}),
     };
@@ -267,18 +291,18 @@ export class JsonAccountStore implements AccountStore {
   }
 
   users(): AccountUser[] {
-    return this.state.users.map((u) => ({ ...u }));
+    return this.state.users.map(copyUser);
   }
 
   findUser(id: string): AccountUser | undefined {
     const found = this.usersById.get(id);
-    return found ? { ...found } : undefined;
+    return found ? copyUser(found) : undefined;
   }
 
   findByLogin(login: string): AccountUser | undefined {
     const key = loginKey(login);
     const found = this.state.users.find((u) => loginKey(u.login) === key);
-    return found ? { ...found } : undefined;
+    return found ? copyUser(found) : undefined;
   }
 
   /**
@@ -312,7 +336,7 @@ export class JsonAccountStore implements AccountStore {
       if (profile.avatarUrl) user.avatarUrl = profile.avatarUrl;
       else delete user.avatarUrl;
       user.lastLoginAt = this.now().toISOString();
-      return { ...user };
+      return copyUser(user);
     });
   }
 
@@ -340,11 +364,11 @@ export class JsonAccountStore implements AccountStore {
     if (!isSiteRole(siteRole)) throw new AccountError('invalid', `Rol inválido: use ${SITE_ROLES.join(', ')}.`);
     return this.commit(() => {
       const existing = this.state.users.find((u) => loginKey(u.login) === loginKey(login));
-      if (existing) return { ...existing };
+      if (existing) return copyUser(existing);
       this.assertRoomForInvitation();
       const user: AccountUser = { id: newUserId(), login, siteRole, createdAt: this.now().toISOString() };
       this.state.users.push(user);
-      return { ...user };
+      return copyUser(user);
     });
   }
 
@@ -360,6 +384,11 @@ export class JsonAccountStore implements AccountStore {
         this.state.sessions = this.state.sessions.filter((s) => s.userId !== user.id);
       } else delete user.disabled;
     }
+    if (change.quota !== undefined) {
+      const quota = applyQuotaChange(user.quota, change.quota);
+      if (quota) user.quota = quota;
+      else delete user.quota;
+    }
   }
 
   /** Cambia el rol de la instancia o activa o desactiva una cuenta (desactivarla cierra todas sus sesiones). */
@@ -368,7 +397,7 @@ export class JsonAccountStore implements AccountStore {
       const user = this.usersById.get(id);
       if (!user) throw new AccountError('not-found', 'No existe esa cuenta.');
       this.applyUserChange(user, change);
-      return { ...user };
+      return copyUser(user);
     });
   }
 
@@ -387,7 +416,7 @@ export class JsonAccountStore implements AccountStore {
         this.state.users.push(user);
       }
       this.applyUserChange(user, change);
-      return { user: { ...user }, created };
+      return { user: copyUser(user), created };
     });
   }
 
@@ -436,7 +465,7 @@ export class JsonAccountStore implements AccountStore {
     const session = this.sessionsByHash.get(hashSessionToken(token));
     if (!session || Date.parse(session.expiresAt) <= this.now().getTime()) return undefined;
     const user = this.usersById.get(session.userId);
-    return user && !user.disabled ? { ...user } : undefined;
+    return user && !user.disabled ? copyUser(user) : undefined;
   }
 
   /** Cierra la sesión de ese token (no falla si ya no existía). */
@@ -477,7 +506,7 @@ export class JsonAccountStore implements AccountStore {
     const found: Array<{ user: AccountUser; role: ProjectRole; addedAt: string }> = [];
     for (const member of this.state.projects[projectId] ?? []) {
       const user = this.usersById.get(member.userId);
-      if (user) found.push({ user: { ...user }, role: member.role, addedAt: member.addedAt });
+      if (user) found.push({ user: copyUser(user), role: member.role, addedAt: member.addedAt });
     }
     return found.sort((a, b) => ROLE_RANK[b.role] - ROLE_RANK[a.role] || a.user.login.localeCompare(b.user.login, undefined, { sensitivity: 'base' }));
   }
@@ -544,11 +573,11 @@ export class JsonAccountStore implements AccountStore {
       if (found) {
         this.assertKeepsAdmin(members, found, role);
         found.role = role;
-        return { user: { ...user }, added: false, invited };
+        return { user: copyUser(user), added: false, invited };
       }
       if (members.length >= MAX_MEMBERS_PER_PROJECT) throw new AccountError('limit', `Un proyecto admite hasta ${MAX_MEMBERS_PER_PROJECT} personas.`);
       members.push({ userId: user.id, role, addedAt: this.now().toISOString() });
-      return { user: { ...user }, added: true, invited };
+      return { user: copyUser(user), added: true, invited };
     });
   }
 
@@ -602,7 +631,7 @@ export class JsonAccountStore implements AccountStore {
   snapshot(): AccountsFile {
     const projects: Record<string, MemberRecord[]> = Object.create(null);
     for (const [projectId, members] of Object.entries(this.state.projects)) if (members.length > 0) projects[projectId] = members.map((m) => ({ ...m }));
-    return { version: ACCOUNTS_FILE_VERSION, users: this.state.users.map((u) => ({ ...u })), sessions: this.state.sessions.map((s) => ({ ...s })), projects };
+    return { version: ACCOUNTS_FILE_VERSION, users: this.state.users.map(copyUser), sessions: this.state.sessions.map((s) => ({ ...s })), projects };
   }
 
   /** El archivo no mantiene nada abierto: no hay nada que cerrar. */

@@ -705,7 +705,7 @@ describe('/metrics', () => {
     const text = await metricsOf(w);
     const samples = parseMetrics(text);
     const labelNames = new Set(samples.flatMap((s) => Object.keys(s.labels)));
-    expect([...labelNames].sort()).toEqual(['action', 'le', 'log', 'method', 'outcome', 'reason', 'result', 'route', 'state', 'status_class', 'version']);
+    expect([...labelNames].sort()).toEqual(['action', 'kind', 'le', 'log', 'method', 'outcome', 'reason', 'result', 'route', 'state', 'status_class', 'version']);
     for (const secret of [ana, beto, verified.token!, verified.verifier, w.tokens!.admin, METRICS_TOKEN, 'tienda-secreta', 'Tienda secreta', 'CONTENIDO-SECRETO', 'SECRETO', 'intruso', 'iark_token-inventado', '127.0.0.1', '203.0.113.50']) {
       expect(text, secret).not.toContain(secret);
     }

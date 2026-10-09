@@ -31,6 +31,7 @@ import { registerProject } from './project';
 import { registerAuth } from './auth';
 import { registerAccounts } from './accounts/cli';
 import { setupAccounts } from './accounts/setup';
+import { formatBytes } from './accounts/usage';
 import { TokenError, TokenStore } from './tokens';
 import { FolderProjectStore } from './workspace';
 import { addBudgetOptions, EFFORTS, parseEffort, parseProvider, reportGeneration, tokenLimitOptions, withAiErrors } from './ai';
@@ -593,7 +594,9 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
     .option('--signup <modo>', '«invite» (por omisión): solo entran las personas invitadas y los administradores; «open»: entra cualquiera con cuenta de GitHub (o IARK_SIGNUP)', process.env.IARK_SIGNUP || undefined)
     .option('--admins <lista>', 'administradores de la instancia, separados por comas: nombres de usuario de GitHub o, mejor, sus identificadores numéricos (o IARK_ADMINS)', process.env.IARK_ADMINS || undefined)
     .option('--session-days <n>', 'días que dura una sesión (o IARK_SESSION_DAYS); por omisión 30', (v: string) => Number(v), process.env.IARK_SESSION_DAYS ? Number(process.env.IARK_SESSION_DAYS) : undefined)
-    .option('--max-projects <n>', 'proyectos que puede administrar cada persona (o IARK_MAX_PROJECTS); por omisión 25', (v: string) => Number(v), process.env.IARK_MAX_PROJECTS ? Number(process.env.IARK_MAX_PROJECTS) : undefined)
+    .option('--max-projects <n>', 'cuota: proyectos que puede poseer cada persona (o IARK_MAX_PROJECTS); por omisión 25; 0 quita el tope', (v: string) => Number(v), process.env.IARK_MAX_PROJECTS ? Number(process.env.IARK_MAX_PROJECTS) : undefined)
+    .option('--max-diagrams <n>', 'cuota: diagramas que admite cada proyecto (o IARK_MAX_DIAGRAMS); por omisión 200; 0 quita el tope', (v: string) => Number(v), process.env.IARK_MAX_DIAGRAMS ? Number(process.env.IARK_MAX_DIAGRAMS) : undefined)
+    .option('--max-bytes <tamaño>', 'cuota: espacio total de los proyectos de cada persona, documentos de los diagramas más historial de versiones (o IARK_MAX_BYTES): bytes o 256M, 2G…; por omisión 256M; 0 quita el tope. Un administrador puede fijar otra cuota a una persona (docs/cuentas-github.md)', process.env.IARK_MAX_BYTES || undefined)
     .option(
       '--frame-ancestors <orígenes>',
       'orígenes que pueden incrustar por iframe las cargas embebidas (?embed=1), separados por comas, o * (o la variable IARK_FRAME_ANCESTORS). Por omisión *, porque el producto es embebible; si no incrusta desde fuera, fíjelo a los orígenes que necesite. El propio origen siempre puede',
@@ -654,6 +657,9 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         info(`  espacio de trabajo: ${projects.root} · proyectos: /api/projects`);
         if (accounts) {
           info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}, almacén ${accounts.store.kind}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
+          const q = accounts.quotas;
+          const shown = (value: number, unit = ''): string => (value === 0 ? 'sin tope' : `${value}${unit}`);
+          info(`  cuotas por persona: espacio ${q.bytes === 0 ? 'sin tope' : formatBytes(q.bytes)} · proyectos ${shown(q.projects)} · diagramas por proyecto ${shown(q.diagramsPerProject)} (ajustables a cada persona desde la administración; /api/usage)`);
           if (!loopback) info(tlsNote('GitHub solo devuelve a la persona a la dirección pública, y las sesiones viajan por ella.'));
         }
       }

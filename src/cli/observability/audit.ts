@@ -43,6 +43,8 @@ export interface AuditChange {
   role?: string;
   siteRole?: string;
   disabled?: boolean;
+  /** Los topes de espacio que un administrador fijó a una persona (`user.quota`): solo números; `null` es «vuelve al valor de la instancia». */
+  quota?: Record<string, number | null>;
 }
 
 /** Lo que decide quien deduce o anota la acción; el resto (fecha, identificador de la petición, estado) lo pone `AuditLog`. */
@@ -163,6 +165,17 @@ function bodyObject(body: string | undefined): Record<string, unknown> | undefin
   }
 }
 
+/** De la cuota del cuerpo, solo los campos conocidos y solo números (o `null`): nada de texto libre en el registro. */
+function quotaOf(value: unknown): Record<string, number | null> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const picked: Record<string, number | null> = {};
+  for (const key of ['bytes', 'projects', 'diagramsPerProject']) {
+    const amount = (value as Record<string, unknown>)[key];
+    if (amount === null || (typeof amount === 'number' && Number.isSafeInteger(amount) && amount >= 0)) picked[key] = amount;
+  }
+  return Object.keys(picked).length > 0 ? picked : undefined;
+}
+
 const targetOf = (params: RouteParams, created?: RouteParams): AuditTarget => ({ project: created?.project ?? params.project, diagram: created?.diagram ?? params.diagram, version: params.version, login: params.login });
 
 /** Las filas de auditoría de una petición terminada (ninguna, la mayoría de las veces). */
@@ -187,9 +200,11 @@ export function deriveAudit(request: FinishedRequest): AuditDraft[] {
       const siteRole = body && isSiteRole(body.siteRole) ? body.siteRole : undefined;
       const disabled = body && typeof body.disabled === 'boolean' ? body.disabled : undefined;
       if (result === 'ok' && request.status === 201) return [{ action: 'user.invite', ...base, target, change: { siteRole } }];
+      const quota = quotaOf(body?.quota);
       const rows: AuditDraft[] = [];
       if (siteRole) rows.push({ action: 'user.role', ...base, target, change: { siteRole } });
       if (disabled !== undefined) rows.push({ action: disabled ? 'user.disable' : 'user.enable', ...base, target, change: { disabled } });
+      if (quota) rows.push({ action: 'user.quota', ...base, target, change: { quota } });
       return rows.length > 0 ? rows : [{ action, ...base, target }];
     }
     return [{ action, ...base, target }];

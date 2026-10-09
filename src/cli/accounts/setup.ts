@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { CliError, info } from '../io';
 import { GithubOAuth } from './github';
 import { describeImport, importJsonAccounts } from './migrate';
-import { Accounts, normalizePublicUrl, parseAdminList, type SignupMode } from './service';
+import { Accounts, normalizePublicUrl, parseAdminList, type QuotaLimits, type SignupMode } from './service';
+import { parseByteSize } from './usage';
 import { ACCOUNT_STORE_KINDS, AccountError, isAccountStoreKind, JsonAccountStore, SqliteAccountStore, type AccountStore, type AccountStoreKind } from './store';
 
 /**
@@ -23,7 +24,12 @@ export interface AccountsCliOptions {
   signup?: string;
   admins?: string;
   sessionDays?: number;
+  /** Proyectos que puede poseer cada persona; `0`, sin tope. */
   maxProjects?: number;
+  /** Diagramas que admite cada proyecto; `0`, sin tope. */
+  maxDiagrams?: number;
+  /** Bytes en total de los proyectos de cada persona (documentos y versiones): un número o un tamaño (`256M`, `2G`); `0`, sin tope. */
+  maxBytes?: string | number;
 }
 
 export interface AccountsSetupContext {
@@ -88,7 +94,18 @@ export function setupAccounts(opts: AccountsCliOptions, context: AccountsSetupCo
   const signup = (opts.signup ?? 'invite').trim().toLowerCase();
   if (signup !== 'open' && signup !== 'invite') throw new CliError(`--signup debe ser «invite» (solo entran las personas invitadas) u «open» (entra cualquiera con cuenta de GitHub), no «${signup.slice(0, 40)}».`, 2);
   if (opts.sessionDays !== undefined && !(Number.isFinite(opts.sessionDays) && opts.sessionDays > 0 && opts.sessionDays <= 365)) throw new CliError('--session-days debe ser un número de días entre 1 y 365.', 2);
-  if (opts.maxProjects !== undefined && !(Number.isInteger(opts.maxProjects) && opts.maxProjects >= 1)) throw new CliError('--max-projects debe ser un entero de al menos 1.', 2);
+  for (const [flag, value] of [['--max-projects', opts.maxProjects], ['--max-diagrams', opts.maxDiagrams]] as const) {
+    if (value !== undefined && !(Number.isSafeInteger(value) && value >= 0)) throw new CliError(`${flag} debe ser un entero de 0 en adelante (0 quita el tope).`, 2);
+  }
+  let maxBytes: number | undefined;
+  if (opts.maxBytes !== undefined && opts.maxBytes !== '') {
+    try {
+      maxBytes = parseByteSize(opts.maxBytes);
+    } catch (error) {
+      throw new CliError(`--max-bytes (IARK_MAX_BYTES): ${(error as Error).message}`, 2);
+    }
+  }
+  const quotas: Partial<QuotaLimits> = { ...(maxBytes !== undefined ? { bytes: maxBytes } : {}), ...(opts.maxProjects !== undefined ? { projects: opts.maxProjects } : {}), ...(opts.maxDiagrams !== undefined ? { diagramsPerProject: opts.maxDiagrams } : {}) };
 
   let publicUrl: string;
   let admins: string[];
@@ -122,6 +139,6 @@ export function setupAccounts(opts: AccountsCliOptions, context: AccountsSetupCo
     admins,
     sessionTtlMs: opts.sessionDays === undefined ? undefined : opts.sessionDays * 24 * 3600 * 1000,
     allowedOrigins: context.cors,
-    maxProjectsPerUser: opts.maxProjects,
+    quotas,
   });
 }

@@ -383,11 +383,11 @@ describe('iark serve con inicio de sesión de GitHub (CLI empaquetado)', () => {
 
       const text = iark(['accounts', 'info', '--accounts', db]);
       expect(text.status, text.stderr).toBe(0);
-      expect(text.stdout).toMatch(/esquema: 1 de 1 · diario: wal \(sincronización full\) · integridad: ok/);
+      expect(text.stdout).toMatch(/esquema: 2 de 2 · diario: wal \(sincronización full\) · integridad: ok/);
       expect(text.stdout).toMatch(/cuentas: 3 \(1 invitaciones pendientes, 0 desactivadas\) · sesiones: 1 vigentes de 1/);
       expect(text.stdout).toMatch(/importada de .*cuentas\.json/);
       const data = JSON.parse(iark(['accounts', 'info', '--json'], { IARK_ACCOUNTS: db }).stdout);
-      expect(data).toMatchObject({ schemaVersion: 1, journalMode: 'wal', users: 3, pending: 1, sessions: 1, memberships: 2, projects: 1, integrity: ['ok'], importedFrom: { source: json } });
+      expect(data).toMatchObject({ schemaVersion: 2, journalMode: 'wal', users: 3, pending: 1, sessions: 1, memberships: 2, projects: 1, integrity: ['ok'], importedFrom: { source: json } });
 
       const copy = join(dir, 'copias', 'cuentas-copia.db');
       const backup = iark(['accounts', 'backup', copy, '--accounts', db]);

@@ -5,7 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { accountStoreContract, ana, beto, INVITE, OPEN } from '../../../tests/helpers/accountStoreContract';
 import { loadSqlite, MIGRATIONS, SQLITE_APPLICATION_ID, SqliteAccountStore, type SqliteMigration } from './sqliteStore';
-import { AccountError, MAX_PENDING_USERS } from './store';
+import { AccountError, hashSessionToken, MAX_PENDING_USERS } from './store';
 
 accountStoreContract('sqlite', { fileName: 'cuentas.db', open: (path, options) => SqliteAccountStore.open(path, options) });
 
@@ -109,8 +109,9 @@ describe('SqliteAccountStore: el archivo y sus ajustes', () => {
 });
 
 describe('SqliteAccountStore: migraciones del esquema', () => {
+  const NEXT = MIGRATIONS.length + 1;
   const v2: SqliteMigration = {
-    version: 2,
+    version: NEXT,
     description: 'una nota por cuenta',
     up(db) {
       db.exec("ALTER TABLE users ADD COLUMN note TEXT; UPDATE users SET note = 'migrada'");
@@ -131,7 +132,7 @@ describe('SqliteAccountStore: migraciones del esquema', () => {
     expect(migrated.lookupSession(token)?.login).toBe('ana');
     expect(migrated.roleOf(user.id, 'tienda')).toBe('admin');
     const db = raw(path);
-    expect(pragma(db, 'user_version')).toBe(2);
+    expect(pragma(db, 'user_version')).toBe(NEXT);
     expect((db.prepare('SELECT note FROM users').get() as { note: string }).note).toBe('migrada');
     migrated.close();
 
@@ -139,11 +140,35 @@ describe('SqliteAccountStore: migraciones del esquema', () => {
     expect(up).toHaveBeenCalledTimes(1);
   });
 
+  it('una base del esquema 1 (anterior a las cuotas) se migra al 2 sin perder nada: las cuentas no tienen cuota y se les puede fijar una', () => {
+    const path = join(tmp(), 'cuentas.db');
+    // La base tal como la dejó la versión anterior de IArk: solo la migración 1, con una cuenta, una sesión y un proyecto.
+    const legacy = raw(path);
+    legacy.exec('PRAGMA journal_mode = WAL');
+    MIGRATIONS[0]!.up(legacy);
+    legacy.exec('PRAGMA user_version = 1');
+    legacy.exec("INSERT INTO users (id, login, login_key, github_id, site_role, created_at) VALUES ('u_viejo', 'ana', 'ana', 101, 'member', '2026-01-01T00:00:00.000Z')");
+    legacy.prepare('INSERT INTO sessions (hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(hashSessionToken('iark_s_viejo'), 'u_viejo', '2026-01-01T00:00:00.000Z', '2099-01-01T00:00:00.000Z');
+    legacy.exec("INSERT INTO members (project_id, user_id, role, added_at) VALUES ('tienda', 'u_viejo', 'admin', '2026-01-01T00:00:00.000Z')");
+    legacy.close();
+
+    const migrated = open(path);
+    const db = raw(path);
+    expect(pragma(db, 'user_version')).toBe(2);
+    expect(migrated.lookupSession('iark_s_viejo')).toMatchObject({ id: 'u_viejo', login: 'ana', githubId: 101 });
+    expect(migrated.findUser('u_viejo')?.quota).toBeUndefined();
+    expect(migrated.roleOf('u_viejo', 'tienda')).toBe('admin');
+    expect(migrated.updateUser('u_viejo', { quota: { bytes: 4096 } }).quota).toEqual({ bytes: 4096 });
+    // las columnas son NULL (el valor de la instancia) donde no se fijó nada, y la base no admite un tope negativo
+    expect(db.prepare('SELECT quota_bytes, quota_projects, quota_diagrams FROM users').get()).toMatchObject({ quota_bytes: 4096, quota_projects: null, quota_diagrams: null });
+    expect(() => db.exec('UPDATE users SET quota_projects = -1')).toThrowError(/CHECK/);
+  });
+
   it('una migración que falla se deshace entera: la versión y el esquema quedan como estaban', () => {
     const path = join(tmp(), 'cuentas.db');
     open(path).close();
     const broken: SqliteMigration = {
-      version: 2,
+      version: NEXT,
       description: 'se rompe a la mitad',
       up(db) {
         db.exec('CREATE TABLE a_medias (x TEXT)');
@@ -152,7 +177,7 @@ describe('SqliteAccountStore: migraciones del esquema', () => {
     };
     expect(() => open(path, { migrations: [...MIGRATIONS, broken] })).toThrowError('fallo a propósito');
     const db = raw(path);
-    expect(pragma(db, 'user_version')).toBe(1);
+    expect(pragma(db, 'user_version')).toBe(MIGRATIONS.length);
     expect(db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'a_medias'").get()).toMatchObject({ n: 0 });
     open(path); // y la base sigue sirviendo
   });
@@ -161,7 +186,7 @@ describe('SqliteAccountStore: migraciones del esquema', () => {
     const path = join(tmp(), 'cuentas.db');
     open(path, { migrations: [...MIGRATIONS, v2] }).close();
     const before = readFileSync(path);
-    expect(() => SqliteAccountStore.open(path)).toThrowError(expect.objectContaining({ code: 'corrupt', message: expect.stringMatching(/versión más nueva.*esquema 2.*hasta el 1/s) }));
+    expect(() => SqliteAccountStore.open(path)).toThrowError(expect.objectContaining({ code: 'corrupt', message: expect.stringMatching(new RegExp(`versión más nueva.*esquema ${NEXT}.*hasta el ${MIGRATIONS.length}`, 's')) }));
     expect(readFileSync(path).equals(before)).toBe(true);
   });
 
