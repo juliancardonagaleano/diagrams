@@ -20,7 +20,7 @@ import {
   SITE_ROLES,
   type AccountsFile,
   type AccountStats,
-  type AccountStore,
+  type SyncAccountStore,
   type AccountStoreOptions,
   type AccountUser,
   type GithubProfile,
@@ -390,7 +390,7 @@ export interface SqliteInfo {
   importedFrom?: ImportProvenance;
 }
 
-export class SqliteAccountStore implements AccountStore {
+export class SqliteAccountStore implements SyncAccountStore {
   readonly kind = 'sqlite' as const;
   private readonly now: () => Date;
   private readonly statements = new Map<string, StatementSync>();

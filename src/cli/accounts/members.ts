@@ -59,7 +59,7 @@ export function createMembersApi(ctx: MembersApiContext): (req: IncomingMessage,
 
     if (rest.length === 0) {
       if (method !== 'GET') return allow('GET');
-      return sendJson(res, 200, store.membersOf(projectId).map((m) => memberJson(m.user, m.role, youId)));
+      return sendJson(res, 200, (await store.membersOf(projectId)).map((m) => memberJson(m.user, m.role, youId)));
     }
     if (rest.length > 1) throw new HttpError(404, 'Ruta de miembros desconocida: use /members o /members/<usuario de GitHub>.');
     const login = rest[0];
@@ -68,14 +68,14 @@ export function createMembersApi(ctx: MembersApiContext): (req: IncomingMessage,
     if (method === 'PUT') {
       const role = (await bodyObject(ctx.readBody, req)).role;
       if (!isProjectRole(role)) throw new HttpError(400, `Falta "role": use ${PROJECT_ROLES.join(', ')}.`, { code: 'invalid' });
-      const { user, added } = store.shareProject(projectId, login, role, accounts.signup === 'open' ? 'member' : 'guest');
+      const { user, added } = await store.shareProject(projectId, login, role, accounts.signup === 'open' ? 'member' : 'guest');
       return sendJson(res, added ? 201 : 200, memberJson(user, role, youId), added ? { Location: `/api/projects/${projectId}/members/${encodeURIComponent(user.login)}` } : {});
     }
     if (method === 'DELETE') {
       // Se busca entre los miembros (no se valida el nombre): así también se puede quitar una cuenta apartada con `nombre~id`.
-      const target = store.membersOf(projectId).find((m) => loginKey(m.user.login) === loginKey(login));
+      const target = (await store.membersOf(projectId)).find((m) => loginKey(m.user.login) === loginKey(login));
       if (!target) throw new HttpError(404, `«${shown}» no pertenece a este proyecto.`, { code: 'not-found' });
-      store.removeMember(projectId, target.user.id);
+      await store.removeMember(projectId, target.user.id);
       return sendJson(res, 200, { removed: target.user.login });
     }
     return allow('PUT, DELETE');

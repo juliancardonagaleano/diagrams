@@ -72,7 +72,7 @@ describe('cardinalidad', () => {
 });
 
 describe('Metrics', () => {
-  it('render: todas las líneas son del formato, cada familia declara su TYPE una vez y el texto acaba en salto de línea', () => {
+  it('render: todas las líneas son del formato, cada familia declara su TYPE una vez y el texto acaba en salto de línea', async () => {
     const metrics = new Metrics('1.2.3');
     metrics.start();
     try {
@@ -81,7 +81,8 @@ describe('Metrics', () => {
       metrics.authFailures.inc({ reason: 'invalid' });
       metrics.auditEvents.inc({ action: 'project.create', result: 'ok' });
       metrics.addCollector(() => [{ name: 'iark_extra', help: 'extra', type: 'gauge', samples: [{ labels: { state: 'a' }, value: 2 }, { value: 3 }] }]);
-      const text = metrics.render();
+      metrics.addCollector(async () => [{ name: 'iark_extra_async', help: 'extra asíncrona', type: 'gauge', samples: [{ value: 7 }] }]); // un colector puede consultar algo (las cuentas)
+      const text = await metrics.render();
       expect(text.endsWith('\n')).toBe(true);
       const lines = text.trimEnd().split('\n');
       for (const line of lines) expect(line, line).toMatch(LINE);
@@ -91,6 +92,7 @@ describe('Metrics', () => {
       expect(lines).toContain('iark_http_rate_limited_total 1');
       expect(lines).toContain('iark_build_info{version="1.2.3"} 1');
       expect(lines).toContain('iark_extra{state="a"} 2');
+      expect(lines).toContain('iark_extra_async 7');
       for (const name of ['process_start_time_seconds', 'process_uptime_seconds', 'process_resident_memory_bytes', 'process_cpu_seconds_total', 'nodejs_eventloop_lag_seconds', 'nodejs_eventloop_lag_p99_seconds', 'nodejs_eventloop_lag_max_seconds', 'iark_http_requests_in_flight']) {
         expect(types, name).toContain(name);
       }
@@ -108,11 +110,11 @@ describe('Metrics', () => {
       while (Date.now() < end); // bloquea el bucle
       await new Promise((resolve) => setTimeout(resolve, 30));
       const max = (text: string): number => Number(/^nodejs_eventloop_lag_max_seconds (\S+)$/m.exec(text)![1]);
-      const first = max(metrics.render());
+      const first = max(await metrics.render());
       expect(first).toBeGreaterThan(0.05);
       expect(first).toBeLessThan(5);
       await new Promise((resolve) => setTimeout(resolve, 60));
-      expect(max(metrics.render())).toBeLessThan(first);
+      expect(max(await metrics.render())).toBeLessThan(first);
     } finally {
       metrics.stop();
     }

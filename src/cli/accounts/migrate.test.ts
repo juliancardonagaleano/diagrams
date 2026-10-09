@@ -3,8 +3,9 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { describeImport, importJsonAccounts } from './migrate';
+import { describeImport, importAccounts } from './migrate';
 import { loadSqlite, MIGRATIONS } from './sqliteStore';
+import { OPEN, INVITE, realJson } from '../../../tests/helpers/realAccounts';
 import { JsonAccountStore, SqliteAccountStore, type AccountsFile } from './store';
 
 const folders: string[] = [];
@@ -26,52 +27,14 @@ const openSqlite = (path: string, now?: () => Date): SqliteAccountStore => {
 };
 const sha = (path: string): string => createHash('sha256').update(readFileSync(path)).digest('hex');
 
-const OPEN = { signup: 'open', admin: false } as const;
-const INVITE = { signup: 'invite', admin: false } as const;
-
-/**
- * Un JSON de cuentas de verdad, escrito por el almacén JSON a lo largo de una vida de la instancia: personas que entraron, un cambio de nombre
- * de usuario, invitaciones (de instancia y de proyecto), una cuenta desactivada, proyectos con todos los roles y sesiones vigentes y caducadas.
- */
-function realJson(dir: string) {
-  let now = Date.parse('2026-09-01T10:00:00Z');
-  const tick = (): void => void (now += 3600_000);
-  const file = join(dir, 'cuentas.json');
-  const store = JsonAccountStore.open(file, { now: () => new Date(now) });
-  const ana = store.signIn({ id: 583231, login: 'ana', name: 'Ana Pérez', avatarUrl: 'https://avatars.example.test/583231' }, OPEN);
-  tick();
-  const beto = store.signIn({ id: 202, login: 'Beto' }, OPEN);
-  tick();
-  const dani = store.signIn({ id: 303, login: 'dani' }, OPEN);
-  store.updateUser(dani.id, { disabled: true });
-  tick();
-  store.registerProject('tienda', ana.id);
-  store.registerProject('banca', beto.id);
-  store.setMember('tienda', beto.id, 'editor');
-  store.setMember('banca', ana.id, 'viewer');
-  store.shareProject('tienda', 'carla', 'viewer', 'guest'); // invitación de proyecto: guest, pendiente
-  store.shareProject('banca', 'eva', 'editor', 'member'); // invitación de proyecto en una instancia abierta
-  store.invite('fede', 'guest'); // invitación de instancia, sin proyectos
-  store.signIn({ id: 404, login: 'ana' }, OPEN); // alguien toma «ana»: la cuenta antigua pasa a «ana~583231»
-  const sessions: Record<string, string> = {};
-  sessions.ana = store.createSession(ana.id, 30 * 24 * 3600_000).token;
-  tick();
-  sessions.beto = store.createSession(beto.id, 3600_000).token;
-  sessions.betoOtra = store.createSession(beto.id, 30 * 24 * 3600_000).token;
-  const snapshot = store.snapshot();
-  // «ahora» para la base nueva: dos días después, cuando la sesión de una hora ya caducó y la de 30 días no
-  const later = new Date(now + 2 * 24 * 3600_000);
-  return { file, snapshot, sessions, now: () => later, counts: { users: snapshot.users.length, sessions: snapshot.sessions.length } };
-}
-
 describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
-  it('no se pierde nada: cuentas, invitaciones, sesiones (los tokens siguen valiendo) y pertenencias, idénticas al JSON', () => {
+  it('no se pierde nada: cuentas, invitaciones, sesiones (los tokens siguen valiendo) y pertenencias, idénticas al JSON', async () => {
     const dir = tmp();
     const { file, snapshot, sessions, now } = realJson(dir);
     const before = readFileSync(file);
     const target = openSqlite(join(dir, 'cuentas.db'), now);
 
-    const report = importJsonAccounts(target, file, { now });
+    const report = await importAccounts(target, file, { now });
     expect(report.status).toBe('imported');
     expect(report.counts).toEqual({ users: 7, sessions: 3, memberships: 6, projects: 2 });
     expect(target.snapshot()).toEqual(snapshot);
@@ -97,14 +60,14 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
     // y la base anota de dónde salió
     expect(target.meta('imported_json_sha256')).toBe(sha(file));
     expect(target.info().importedFrom).toMatchObject({ sha256: sha(file), source: file });
-    expect(describeImport(report)).toMatch(/Cuentas importadas de .*7 cuentas, 3 sesiones y 6 pertenencias a 2 proyectos.*El JSON original no se ha tocado/);
+    expect(describeImport(report)).toMatch(/Cuentas importadas de .*7 cuentas, 3 sesiones y 6 pertenencias a 2 proyectos.*El origen no se ha tocado/);
   });
 
-  it('es idempotente: repetirla con el mismo JSON no hace nada (ni otra copia), aunque la base ya haya avanzado', () => {
+  it('es idempotente: repetirla con el mismo JSON no hace nada (ni otra copia), aunque la base ya haya avanzado', async () => {
     const dir = tmp();
     const { file } = realJson(dir);
     const target = openSqlite(join(dir, 'cuentas.db'));
-    expect(importJsonAccounts(target, file).status).toBe('imported');
+    expect((await importAccounts(target, file)).status).toBe('imported');
     const backups = readdirSync(dir).filter((f) => f.includes('.bak-'));
     expect(backups).toHaveLength(1);
 
@@ -114,7 +77,7 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
     target.setMember('tienda', target.findByLogin('beto')!.id, 'viewer');
     const advanced = target.snapshot();
 
-    const again = importJsonAccounts(target, file);
+    const again = await importAccounts(target, file);
     expect(again.status).toBe('already-imported');
     expect(readdirSync(dir).filter((f) => f.includes('.bak-'))).toEqual(backups);
     expect(target.snapshot()).toEqual(advanced); // no pisó lo nuevo con el JSON viejo
@@ -122,16 +85,16 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
 
     // y también tras cerrar y volver a abrir (el arranque de un servicio)
     target.close();
-    expect(importJsonAccounts(openSqlite(join(dir, 'cuentas.db')), file).status).toBe('already-imported');
+    expect((await importAccounts(openSqlite(join(dir, 'cuentas.db')), file)).status).toBe('already-imported');
   });
 
-  it('no mezcla: una base que ya tiene otras cuentas, o salió de otro JSON, se deja como está', () => {
+  it('no mezcla: una base que ya tiene otras cuentas, o salió de otro JSON, se deja como está', async () => {
     const dir = tmp();
     const { file } = realJson(dir);
     const used = openSqlite(join(dir, 'usada.db'));
     used.signIn({ id: 1, login: 'zoe' }, OPEN);
     const before = used.snapshot();
-    const report = importJsonAccounts(used, file);
+    const report = await importAccounts(used, file);
     expect(report.status).toBe('target-not-empty');
     expect(used.snapshot()).toEqual(before);
     expect(readdirSync(dir).filter((f) => f.includes('.bak-'))).toEqual([]); // y no se hizo copia de lo que no se importó
@@ -139,64 +102,64 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
 
     // importada de un JSON y luego otro JSON distinto
     const target = openSqlite(join(dir, 'cuentas.db'));
-    importJsonAccounts(target, file);
+    await importAccounts(target, file);
     const other = join(dir, 'otro.json');
     JsonAccountStore.open(other).signIn({ id: 9, login: 'otro' }, OPEN);
-    expect(importJsonAccounts(target, other).status).toBe('target-not-empty');
+    expect((await importAccounts(target, other)).status).toBe('target-not-empty');
     expect(target.users().map((u) => u.login)).not.toContain('otro');
   });
 
-  it('un simulacro cuenta lo que importaría sin escribir nada: ni copia, ni base nueva', () => {
+  it('un simulacro cuenta lo que importaría sin escribir nada: ni copia, ni base nueva', async () => {
     const dir = tmp();
     const { file, counts } = realJson(dir);
-    const dry = importJsonAccounts(undefined, file, { dryRun: true });
+    const dry = await importAccounts(undefined, file, { dryRun: true });
     expect(dry).toMatchObject({ status: 'dry-run', counts: { users: counts.users, sessions: counts.sessions, memberships: 6, projects: 2 } });
     expect(describeImport(dry)).toMatch(/Simulacro.*No se ha escrito nada/);
     expect(readdirSync(dir)).toEqual(['cuentas.json']);
 
     const target = openSqlite(join(dir, 'cuentas.db'));
-    expect(importJsonAccounts(target, file, { dryRun: true }).status).toBe('dry-run');
+    expect((await importAccounts(target, file, { dryRun: true })).status).toBe('dry-run');
     expect(target.isEmpty()).toBe(true);
     expect(readdirSync(dir).filter((f) => f.includes('.bak-'))).toEqual([]);
-    expect(() => importJsonAccounts(undefined, file)).toThrowError(/sin base de destino solo se puede simular/);
+    await expect(importAccounts(undefined, file)).rejects.toThrowError(/sin base de destino solo se puede simular/);
   });
 
-  it('sin archivo de origen no hay nada que importar (una instalación nueva); sin copia de seguridad si se pide', () => {
+  it('sin archivo de origen no hay nada que importar (una instalación nueva); sin copia de seguridad si se pide', async () => {
     const dir = tmp();
     const target = openSqlite(join(dir, 'cuentas.db'));
-    expect(importJsonAccounts(target, join(dir, 'no-existe.json'))).toEqual({ status: 'no-source', source: join(dir, 'no-existe.json') });
+    expect(await importAccounts(target, join(dir, 'no-existe.json'))).toEqual({ status: 'no-source', source: join(dir, 'no-existe.json') });
     const { file } = realJson(dir);
-    expect(importJsonAccounts(target, file, { backup: false })).toMatchObject({ status: 'imported' });
+    expect(await importAccounts(target, file, { backup: false })).toMatchObject({ status: 'imported' });
     expect(readdirSync(dir).filter((f) => f.includes('.bak-'))).toEqual([]);
   });
 
-  it('un JSON dañado no se importa a medias: error claro, la base vacía y sin copia', () => {
+  it('un JSON dañado no se importa a medias: error claro, la base vacía y sin copia', async () => {
     const dir = tmp();
     const file = join(dir, 'cuentas.json');
     writeFileSync(file, '{"version":1,"users":[{"id":"u1"}],"sessions":[],"projects":{}}');
     const target = openSqlite(join(dir, 'cuentas.db'));
-    expect(() => importJsonAccounts(target, file)).toThrowError(expect.objectContaining({ code: 'corrupt' }));
+    await expect(importAccounts(target, file)).rejects.toThrowError(expect.objectContaining({ code: 'corrupt' }));
     expect(target.isEmpty()).toBe(true);
     expect(readdirSync(dir).filter((f) => f.includes('.bak-'))).toEqual([]);
   });
 
-  it('si la importación falla a mitad, la base queda vacía y se puede repetir', () => {
+  it('si la importación falla a mitad, la base queda vacía y se puede repetir', async () => {
     const dir = tmp();
     const { file, snapshot } = realJson(dir);
     const path = join(dir, 'cuentas.db');
     const target = openSqlite(path);
     const db = new (loadSqlite().DatabaseSync)(path);
     db.exec("CREATE TRIGGER sin_pertenencias BEFORE INSERT ON members BEGIN SELECT RAISE(ABORT, 'fallo inyectado'); END");
-    expect(() => importJsonAccounts(target, file)).toThrowError(expect.objectContaining({ code: 'unavailable' }));
+    await expect(importAccounts(target, file)).rejects.toThrowError(expect.objectContaining({ code: 'unavailable' }));
     expect(target.isEmpty()).toBe(true); // ni las cuentas ni las sesiones que ya habían entrado
     expect(target.meta('imported_json_sha256')).toBeUndefined();
     db.exec('DROP TRIGGER sin_pertenencias');
     db.close();
-    expect(importJsonAccounts(target, file).status).toBe('imported');
+    expect((await importAccounts(target, file)).status).toBe('imported');
     expect(target.snapshot()).toEqual(snapshot);
   });
 
-  it('si lo guardado no cuadra con el archivo, se deshace: la comprobación antes de confirmar muerde', () => {
+  it('si lo guardado no cuadra con el archivo, se deshace: la comprobación antes de confirmar muerde', async () => {
     const dir = tmp();
     const { file } = realJson(dir);
     const path = join(dir, 'cuentas.db');
@@ -204,12 +167,12 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
     const db = new (loadSqlite().DatabaseSync)(path);
     // un disparador que se traga las sesiones importadas: la transacción no falla, pero lo guardado ya no cuadra
     db.exec('CREATE TRIGGER se_traga_sesiones BEFORE INSERT ON sessions BEGIN SELECT RAISE(IGNORE); END');
-    expect(() => importJsonAccounts(target, file)).toThrowError(expect.objectContaining({ code: 'corrupt', message: expect.stringMatching(/no cuadra/) }));
+    await expect(importAccounts(target, file)).rejects.toThrowError(expect.objectContaining({ code: 'corrupt', message: expect.stringMatching(/no cuadra/) }));
     expect(target.isEmpty()).toBe(true);
     db.close();
   });
 
-  it('dos servicios que arrancan a la vez con la importación puesta: uno importa y el otro ve que ya está hecho', () => {
+  it('dos servicios que arrancan a la vez con la importación puesta: uno importa y el otro ve que ya está hecho', async () => {
     const dir = tmp();
     const { file, snapshot } = realJson(dir);
     const path = join(dir, 'cuentas.db');
@@ -218,12 +181,12 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
     // la segunda comprobó «sin importar y vacía» justo antes de que la primera importara; su transacción ya ve la base llena
     vi.spyOn(second, 'meta').mockReturnValueOnce(undefined);
     vi.spyOn(second, 'isEmpty').mockReturnValueOnce(true);
-    expect(importJsonAccounts(first, file).status).toBe('imported');
-    expect(importJsonAccounts(second, file).status).toBe('already-imported'); // y reconoce que salió de este mismo archivo
+    expect((await importAccounts(first, file)).status).toBe('imported');
+    expect((await importAccounts(second, file)).status).toBe('already-imported'); // y reconoce que salió de este mismo archivo
     expect(first.snapshot()).toEqual(snapshot);
   });
 
-  it('los instantes se guardan en su forma canónica; los proyectos sin personas no se importan', () => {
+  it('los instantes se guardan en su forma canónica; los proyectos sin personas no se importan', async () => {
     const dir = tmp();
     const file = join(dir, 'a-mano.json');
     const file1: AccountsFile = {
@@ -234,7 +197,7 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
     };
     writeFileSync(file, JSON.stringify(file1));
     const target = openSqlite(join(dir, 'cuentas.db'));
-    const report = importJsonAccounts(target, file);
+    const report = await importAccounts(target, file);
     expect(report.counts).toEqual({ users: 1, sessions: 1, memberships: 1, projects: 1 });
     const dump = target.snapshot();
     expect(dump.users[0]).toMatchObject({ createdAt: '2026-01-01T00:00:00.000Z', lastLoginAt: '2026-01-02T00:00:00.000Z', siteRole: 'admin', quota: { bytes: 2048, diagramsPerProject: 0 } }); // la cuota personal viaja con la cuenta
@@ -245,7 +208,7 @@ describe('iark accounts migrate: del JSON de verdad a SQLite', () => {
 });
 
 describe('SqliteAccountStore: copia de seguridad, comprobación e información', () => {
-  it('backupTo hace una copia coherente de la base viva (con el diario WAL sin volcar), con modo 0600, que se abre y no sobrescribe', () => {
+  it('backupTo hace una copia coherente de la base viva (con el diario WAL sin volcar), con modo 0600, que se abre y no sobrescribe', async () => {
     const dir = tmp();
     const live = openSqlite(join(dir, 'cuentas.db'));
     const user = live.signIn({ id: 1, login: 'ana' }, OPEN);
@@ -266,7 +229,7 @@ describe('SqliteAccountStore: copia de seguridad, comprobación e información',
     expect(() => live.backupTo(copy)).toThrowError(expect.objectContaining({ code: 'conflict', message: expect.stringMatching(/ya existe/) }));
   });
 
-  it('checkFile dice que está sano sin escribir en el archivo, y avisa de lo que no es una base', () => {
+  it('checkFile dice que está sano sin escribir en el archivo, y avisa de lo que no es una base', async () => {
     const dir = tmp();
     const path = join(dir, 'cuentas.db');
     openSqlite(path).close();
@@ -278,7 +241,7 @@ describe('SqliteAccountStore: copia de seguridad, comprobación e información',
     expect(() => SqliteAccountStore.checkFile(join(dir, 'basura.db'))).toThrowError(expect.objectContaining({ code: 'corrupt' }));
   });
 
-  it('info cuenta lo que hay', () => {
+  it('info cuenta lo que hay', async () => {
     const dir = tmp();
     const store = openSqlite(join(dir, 'cuentas.db'));
     const ana = store.signIn({ id: 1, login: 'ana' }, OPEN);

@@ -135,19 +135,18 @@ export class Accounts {
    * Quién posee un proyecto a efectos de las cuotas: su persona administradora más antigua (la que lo creó, mientras siga siendo administradora).
    * Un proyecto sin ninguna persona (el que se copió a mano a la carpeta) no lo posee nadie.
    */
-  ownerOf(projectId: string): AccountUser | undefined {
-    const admins = this.store.membersOf(projectId).filter((m) => m.role === 'admin');
+  async ownerOf(projectId: string): Promise<AccountUser | undefined> {
+    const admins = (await this.store.membersOf(projectId)).filter((m) => m.role === 'admin');
     admins.sort((a, b) => (a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : a.user.id < b.user.id ? -1 : 1));
     return admins[0]?.user;
   }
 
   /** Los proyectos que posee una persona (ver `ownerOf`). */
-  ownedProjects(userId: string): string[] {
-    const owned: string[] = [];
-    for (const [projectId, role] of this.store.rolesOf(userId)) {
-      if (role === 'admin' && this.ownerOf(projectId)?.id === userId) owned.push(projectId);
-    }
-    return owned.sort();
+  async ownedProjects(userId: string): Promise<string[]> {
+    const administered = [...(await this.store.rolesOf(userId))].filter(([, role]) => role === 'admin').map(([projectId]) => projectId);
+    // Una consulta por proyecto que administra: en paralelo, para que con una base de red no se sumen los viajes.
+    const owners = await Promise.all(administered.map((projectId) => this.ownerOf(projectId)));
+    return administered.filter((_, index) => owners[index]?.id === userId).sort();
   }
 
   /** Cuántos administradores hay en la lista de la instancia. */

@@ -31,6 +31,7 @@ import { registerProject } from './project';
 import { registerAuth } from './auth';
 import { registerAccounts } from './accounts/cli';
 import { setupAccounts } from './accounts/setup';
+import { closeDatabase } from './postgres/shared';
 import { formatBytes } from './accounts/usage';
 import { TokenError, TokenStore } from './tokens';
 import { FolderProjectStore } from './workspace';
@@ -593,9 +594,9 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         'Hace falta para escuchar fuera de loopback con --workspace',
       process.env.IARK_TOKENS || undefined,
     )
-    .option('--accounts <archivo>', 'activa el inicio de sesión con GitHub: archivo donde el servicio guarda las cuentas, las sesiones y a qué proyectos pertenece cada persona (o IARK_ACCOUNTS). Pide también --github-client-id, el secreto en IARK_GITHUB_CLIENT_SECRET, --public-url y --workspace', process.env.IARK_ACCOUNTS || undefined)
-    .option('--accounts-store <almacén>', '«json» (por omisión): un archivo para una sola instancia; «sqlite»: una base transaccional (node:sqlite) que varias instancias pueden compartir sobre un disco local (o IARK_ACCOUNTS_STORE). Un JSON existente se pasa a SQLite con `iark accounts migrate`', process.env.IARK_ACCOUNTS_STORE || undefined)
-    .option('--accounts-import <archivo>', 'con --accounts-store sqlite: al arrancar, si la base está vacía, importa este JSON de cuentas (con copia de seguridad; no hace nada si no existe o ya se importó) (o IARK_ACCOUNTS_IMPORT)', process.env.IARK_ACCOUNTS_IMPORT || undefined)
+    .option('--accounts <archivo>', 'activa el inicio de sesión con GitHub: archivo donde el servicio guarda las cuentas, las sesiones y a qué proyectos pertenece cada persona (o IARK_ACCOUNTS); con --accounts-store postgres no se usa. Pide también --github-client-id, el secreto en IARK_GITHUB_CLIENT_SECRET, --public-url y --workspace', process.env.IARK_ACCOUNTS || undefined)
+    .option('--accounts-store <almacén>', '«json» (por omisión): un archivo para una sola instancia; «sqlite»: una base transaccional (node:sqlite) que varias instancias pueden compartir sobre un disco local; «postgres»: una base de red (Supabase, Neon…) para varias réplicas o un servidor sin disco persistente; no lleva ruta: la conexión sale solo del entorno (IARK_DATABASE_URL, docs/postgres.md) (o IARK_ACCOUNTS_STORE). Un JSON o una base SQLite existentes se pasan a SQLite o Postgres con `iark accounts migrate`', process.env.IARK_ACCOUNTS_STORE || undefined)
+    .option('--accounts-import <archivo>', 'con --accounts-store sqlite o postgres: al arrancar, si la base está vacía, importa este JSON de cuentas (o una base SQLite) (con copia de seguridad; no hace nada si no existe o ya se importó) (o IARK_ACCOUNTS_IMPORT)', process.env.IARK_ACCOUNTS_IMPORT || undefined)
     .option('--github-client-id <id>', 'Client ID de la OAuth App de GitHub (o IARK_GITHUB_CLIENT_ID); el Client secret va solo en IARK_GITHUB_CLIENT_SECRET o IARK_GITHUB_CLIENT_SECRET_FILE', process.env.IARK_GITHUB_CLIENT_ID || undefined)
     .option('--github-url <url>', 'con GitHub Enterprise Server, su dirección (o IARK_GITHUB_URL); por omisión https://github.com', process.env.IARK_GITHUB_URL || undefined)
     .option('--github-api-url <url>', 'con GitHub Enterprise Server, su API (o IARK_GITHUB_API_URL); por omisión https://api.github.com', process.env.IARK_GITHUB_API_URL || undefined)
@@ -626,7 +627,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       const cors = typeof opts.cors === 'string' ? opts.cors.split(',').map((o: string) => o.trim()).filter(Boolean) : [];
       const workspaceStore = resolveWorkspaceStore(opts.workspaceStore, opts.workspace);
       const hasWorkspace = workspaceStore === 'postgres' || !!opts.workspace;
-      const accounts = setupAccounts(opts, { workspace: hasWorkspace, cors });
+      const accounts = await setupAccounts(opts, { workspace: hasWorkspace, cors });
       const loopback = isLoopbackHost(opts.host);
       // Fuera de loopback el servicio habla HTTP: con `--trust-proxy` quien lo opera dice que hay un proxy delante, y el aviso pasa a ser un recordatorio.
       const tlsNote = (why: string): string =>
@@ -677,7 +678,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         info(`  espacio de trabajo: ${projects instanceof FolderProjectStore ? projects.root : projects.description} · proyectos: /api/projects`);
         info(streams === 0 ? '  cambios en tiempo real: desactivados (--max-streams 0); los clientes sondean cada 30 s' : `  cambios en tiempo real: /api/events (hasta ${streams ?? 8} canal(es) por persona)`);
         if (accounts) {
-          info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${accounts.store.userCount}, almacén ${accounts.store.kind}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
+          info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${await accounts.store.userCount()}, almacén ${accounts.store.kind}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
           const q = accounts.quotas;
           const shown = (value: number, unit = ''): string => (value === 0 ? 'sin tope' : `${value}${unit}`);
           info(`  cuotas por persona: espacio ${q.bytes === 0 ? 'sin tope' : formatBytes(q.bytes)} · proyectos ${shown(q.projects)} · diagramas por proyecto ${shown(q.diagramsPerProject)} (ajustables a cada persona desde la administración; /api/usage)`);
@@ -697,10 +698,8 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
             () =>
               void (pool?.close() ?? Promise.resolve())
                 .then(() => observed.observability.close())
-                .then(() => {
-                  accounts?.store.close(); // cierra la base de cuentas (SQLite) con limpieza: vuelca el diario WAL al archivo
-                  return projects?.kind === 'postgres' ? releaseDatabase() : undefined; // cierra el pool de Postgres cuando ya no hay peticiones en curso
-                })
+                .then(() => accounts?.store.close()) // cierra la base de cuentas con limpieza: SQLite vuelca el diario WAL al archivo; Postgres suelta su conexión
+                .then(() => (projects?.kind === 'postgres' ? releaseDatabase() : undefined)) // cierra el pool de Postgres cuando ya no hay peticiones en curso
                 .then(() => resolveClosed()),
           );
         process.once('SIGINT', stop);
@@ -783,6 +782,7 @@ export async function run(argv = process.argv, registry?: ModuleRegistry): Promi
     const program = buildProgram(startup.registry, startup.settings);
     await program.parseAsync(argv);
   } catch (error) {
+    await closeDatabase(); // si el comando falló con la base de Postgres abierta, no se queda esperando a que la conexión caduque
     if (error instanceof CliError) {
       process.stderr.write(`${error.message}\n`);
       process.exitCode = error.exitCode;

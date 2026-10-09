@@ -170,7 +170,7 @@ export class Quotas {
 
   /** Lo que ocupa una persona: la suma de los proyectos que posee. `fresh` mide de nuevo todos (o solo ese proyecto, si se da su id). */
   async person(userId: string, options: { fresh?: boolean | string } = {}): Promise<PersonUsage> {
-    const owned = this.accounts.ownedProjects(userId);
+    const owned = await this.accounts.ownedProjects(userId);
     const items: ProjectUsage[] = [];
     for (const id of owned) {
       try {
@@ -215,8 +215,8 @@ export class Quotas {
   }
 
   /** La clave de `exclusive` para lo que cuesta una persona (o ninguna, si el proyecto no tiene dueño). */
-  keyFor(projectId: string): string {
-    return this.accounts.ownerOf(projectId)?.id ?? `p:${projectId}`;
+  async keyFor(projectId: string): Promise<string> {
+    return (await this.accounts.ownerOf(projectId))?.id ?? `p:${projectId}`;
   }
 
   private reject(kind: QuotaKind, message: string, used: number, limit: number): never {
@@ -228,12 +228,12 @@ export class Quotas {
    * Crear (o importar) un proyecto: la persona no puede pasar de su tope de proyectos. Solo mira las cuentas (no toca el disco), así que se decide
    * antes de leer el cuerpo de la petición.
    */
-  assertCanCreateProject(userId: string): void {
-    const user = this.accounts.store.findUser(userId);
+  async assertCanCreateProject(userId: string): Promise<void> {
+    const user = await this.accounts.store.findUser(userId);
     if (!user) return;
     const limit = this.limitsFor(user).projects;
     if (limit === 0) return;
-    const used = this.accounts.ownedProjects(user.id).length;
+    const used = (await this.accounts.ownedProjects(user.id)).length;
     if (used < limit) return;
     const own = user.quota?.projects !== undefined;
     this.reject(
@@ -249,7 +249,7 @@ export class Quotas {
    * la cuota de bytes de quien posee el proyecto. `actorId` es quien guarda: solo cambia el mensaje (su cuota o la de quien posee el proyecto).
    */
   async assertCanSave(projectId: string, input: { diagramId?: string; text: string; actorId?: string }): Promise<void> {
-    const owner = this.accounts.ownerOf(projectId);
+    const owner = await this.accounts.ownerOf(projectId);
     const limits: QuotaLimits = owner ? this.limitsFor(owner) : { ...this.defaults, bytes: 0, projects: 0 };
     if (input.diagramId === undefined && limits.diagramsPerProject > 0) {
       const summary = await this.store.getProject(projectId);
@@ -267,7 +267,7 @@ export class Quotas {
 
   /** Importar un proyecto: caben sus diagramas (y su historial, de una versión por diagrama) en el espacio de quien lo importa, y no pasan del tope por proyecto. */
   async assertCanImport(userId: string, bundle: ProjectBundle): Promise<void> {
-    const user = this.accounts.store.findUser(userId);
+    const user = await this.accounts.store.findUser(userId);
     if (!user) return;
     const limits = this.limitsFor(user);
     if (limits.diagramsPerProject > 0 && bundle.diagrams.length > limits.diagramsPerProject) {
@@ -332,9 +332,9 @@ export function createUsageApi(ctx: UsageApiContext): (req: IncomingMessage, res
     if (!accounts || !auth || !quotas) throw new HttpError(404, 'Este servicio no tiene cuotas por persona: hacen falta cuentas de GitHub (--accounts) y un espacio de trabajo.');
     if (parts.length !== 0) throw new HttpError(404, 'Ruta desconocida: use /api/usage.');
     if (req.method !== 'GET') throw new HttpError(405, 'Este endpoint solo admite GET.', { allow: 'GET' });
-    const identity = auth.identify(req);
+    const identity = await auth.identify(req);
     if (identity.kind !== 'user') throw new HttpError(404, 'Las cuotas son por persona: esta credencial es un token de servicio, sin cuenta ni cuota.', { code: 'not-found' });
-    const user = accounts.store.findUser(identity.user.id);
+    const user = await accounts.store.findUser(identity.user.id);
     if (!user) throw new HttpError(404, 'No existe la cuenta de esta sesión.', { code: 'not-found' });
     const person = await quotas.person(user.id, { fresh: true });
     ctx.sendJson(res, 200, { ...quotaReport(quotas, user, person), projects: person.items });

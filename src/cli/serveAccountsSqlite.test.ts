@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Observability } from './observability';
-import { loadSqlite, SqliteAccountStore } from './accounts/sqliteStore';
+import { loadSqlite } from './accounts/sqliteStore';
 import { hashSessionToken } from './accounts/store';
 import { ANA, BETO, call, CARLA, cleanupCloud, signIn, startCloud } from '../../tests/helpers/cloud';
 
@@ -94,7 +94,7 @@ describe('iark serve con el almacén sqlite: dos servidores sobre la misma base'
     expect(await (await call(again.base, beto).get('/api/projects')).json()).toEqual([expect.objectContaining({ id, role: 'admin' })]);
     const carla = await signIn(again, CARLA); // la invitación de antes del reinicio sigue ahí: entra como `member`
     expect(await (await call(again.base, carla).get('/api/whoami')).json()).toMatchObject({ user: { login: 'carla', siteRole: 'member' } });
-    expect(again.accounts.store).toBeInstanceOf(SqliteAccountStore);
+    expect(again.accounts.store.kind).toBe('sqlite');
   });
 
   it('en la base solo queda el hash del token de sesión, nunca el token', async () => {
@@ -128,7 +128,7 @@ describe('iark serve con el almacén sqlite: dos servidores sobre la misma base'
     expect(before.text).toContain('iark_accounts{state="pending"} 0');
 
     // con la conexión a la base cerrada, el archivo sigue ahí pero no se puede leer: /readyz lo dice, y /metrics no se cae
-    cloud.accounts.store.close();
+    await cloud.accounts.store.close();
     expect(await ready()).toEqual({ status: 503, checks: expect.objectContaining({ accounts: 'fail' }) });
     const during = await metrics();
     expect(during.status).toBe(200);

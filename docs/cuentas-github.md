@@ -2,7 +2,7 @@
 
 [← Índice de la documentación](indice.md)
 
-Con `--accounts`, el mismo `iark serve --workspace` ofrece **«Iniciar sesión con GitHub»** en lugar de repartir tokens a mano: cada persona entra con su cuenta de GitHub, el servicio guarda quién es y a qué proyectos pertenece, y le da una **sesión** (un token que caduca) que se usa exactamente como un token de `iark auth`: `Authorization: Bearer <sesión>`. Lo que hace falta es una OAuth App de GitHub (la crea quien aloja el servicio: [guía de despliegue](despliegue-nube.md), con los valores exactos de cada campo), un lugar donde guardar las cuentas (un archivo JSON o, mejor para un servicio de verdad, una base SQLite: ver [Dónde se guardan las cuentas](#dónde-se-guardan-las-cuentas-json-o-sqlite)) y la dirección pública del servicio. `--tokens` sigue existiendo y puede usarse a la vez (cuentas de servicio, scripts y CLI con un rol para toda la carpeta).
+Con `--accounts`, el mismo `iark serve --workspace` ofrece **«Iniciar sesión con GitHub»** en lugar de repartir tokens a mano: cada persona entra con su cuenta de GitHub, el servicio guarda quién es y a qué proyectos pertenece, y le da una **sesión** (un token que caduca) que se usa exactamente como un token de `iark auth`: `Authorization: Bearer <sesión>`. Lo que hace falta es una OAuth App de GitHub (la crea quien aloja el servicio: [guía de despliegue](despliegue-nube.md), con los valores exactos de cada campo), un lugar donde guardar las cuentas (un archivo JSON o, mejor para un servicio de verdad, una base SQLite o, sin disco persistente o con varias máquinas, Postgres: ver [Dónde se guardan las cuentas](#dónde-se-guardan-las-cuentas-json-sqlite-o-postgres)) y la dirección pública del servicio. `--tokens` sigue existiendo y puede usarse a la vez (cuentas de servicio, scripts y CLI con un rol para toda la carpeta).
 
 ```bash
 export IARK_GITHUB_CLIENT_SECRET=…            # solo por entorno o por IARK_GITHUB_CLIENT_SECRET_FILE: nunca por la línea de comandos
@@ -14,9 +14,10 @@ iark serve --host 0.0.0.0 --port 8787 --static dist/app \
 
 | Opción | Variable | Qué hace |
 |---|---|---|
-| `--accounts <archivo>` | `IARK_ACCOUNTS` | Dónde guarda el servicio las cuentas, las sesiones y la pertenencia a proyectos: un archivo JSON (modo 0600, escritura atómica; un solo proceso) o, con `--accounts-store sqlite`, una base SQLite (modo 0600, transaccional; admite varios procesos). Solo lo escribe el servicio: no lo edite con él en marcha |
-| `--accounts-store json\|sqlite` | `IARK_ACCOUNTS_STORE` | Qué almacén usa `--accounts`: `json` (por omisión en el CLI, como siempre) o `sqlite`. **La imagen Docker y el `docker-compose.yml` de `deploy/` usan `sqlite`**. Detalle y migración abajo |
-| `--accounts-import <archivo.json>` | `IARK_ACCOUNTS_IMPORT` | Solo con `sqlite`: si la base está vacía, importa en el arranque este JSON de cuentas (sin tocarlo; deja una copia de seguridad). Es la forma de actualizar sin pasos a mano; si el archivo no existe o la base ya se importó de él, no hace nada |
+| `--accounts <archivo>` | `IARK_ACCOUNTS` | Dónde guarda el servicio las cuentas, las sesiones y la pertenencia a proyectos: un archivo JSON (modo 0600, escritura atómica; un solo proceso) o, con `--accounts-store sqlite`, una base SQLite (modo 0600, transaccional; admite varios procesos). Solo lo escribe el servicio: no lo edite con él en marcha. **No se usa con `postgres`** (las cuentas van a la base de `IARK_DATABASE_URL`; si se da, se avisa y se ignora) |
+| `--accounts-store json\|sqlite\|postgres` | `IARK_ACCOUNTS_STORE` | Qué almacén usa el servicio: `json` (por omisión en el CLI, como siempre), `sqlite` o `postgres`. **La imagen Docker y el `docker-compose.yml` de `deploy/` usan `sqlite`**. Detalle y migración abajo |
+| — | `IARK_DATABASE_URL` o `IARK_DATABASE_URL_FILE` | Solo con `postgres`: la conexión a la base (`postgres://usuario:clave@host:puerto/base`). **No existe opción de línea de comandos**: lleva la contraseña. El resto de la configuración (TLS, pool, esquema) y el pooler de Supabase: [postgres.md](postgres.md) |
+| `--accounts-import <archivo>` | `IARK_ACCOUNTS_IMPORT` | Solo con `sqlite` o `postgres`: si la base está vacía, importa en el arranque este JSON de cuentas (o una base SQLite) sin tocarlo (deja una copia de seguridad). Es la forma de actualizar sin pasos a mano; si el archivo no existe o la base ya se importó de él, no hace nada |
 | `--github-client-id <id>` | `IARK_GITHUB_CLIENT_ID` | Client ID de la OAuth App |
 | — | `IARK_GITHUB_CLIENT_SECRET` o `IARK_GITHUB_CLIENT_SECRET_FILE` | Client secret de la OAuth App. **No existe opción de línea de comandos**: se vería en la lista de procesos |
 | `--public-url <url>` | `IARK_PUBLIC_URL` | Dirección pública del servicio (https; solo `localhost` puede ser http). La «Authorization callback URL» de la OAuth App es `<esa dirección>/api/auth/github/callback` |
@@ -34,19 +35,19 @@ Con cuentas, el servicio puede escuchar fuera de loopback sin `--tokens` (hace f
 
 **Desplegarlo**: la imagen Docker ya sirve como servicio gestionado y [`deploy/`](../deploy/) trae un `docker-compose.yml` de producción (DIAgrams + Caddy con HTTPS automático, volumen de datos y el secreto de la OAuth App como Docker secret). La guía [`docs/despliegue-nube.md`](despliegue-nube.md) lleva de cero a un servicio en marcha: registrar la OAuth App, DNS y firewall, primer arranque, entrar como administradora, usar el sitio de GitHub Pages contra la instancia, copias de seguridad, actualizar y los errores más frecuentes.
 
-## Dónde se guardan las cuentas: JSON o SQLite
+## Dónde se guardan las cuentas: JSON, SQLite o Postgres
 
-Las cuentas, las sesiones y a quién se compartió cada proyecto se guardan en un **almacén** a elegir con `--accounts-store`. Los dos hacen exactamente lo mismo de cara al servicio y a la API (hay una batería de pruebas común que los obliga, y otra que los compara paso a paso); lo que cambia es cómo se protegen los datos:
+Las cuentas, las sesiones y a quién se compartió cada proyecto se guardan en un **almacén** a elegir con `--accounts-store`. Los tres hacen exactamente lo mismo de cara al servicio y a la API (hay una batería de pruebas común que los obliga, y otra que los compara paso a paso); lo que cambia es cómo se protegen los datos:
 
-| | `json` (por omisión en el CLI) | `sqlite` (imagen Docker y `deploy/`) |
-|---|---|---|
-| Archivo | Un JSON, modo 0600, escritura atómica | Una base SQLite (`cuentas.db` + `-wal` y `-shm`), modo 0600 |
-| Varios procesos sobre el mismo archivo | **No** (cada uno tiene su copia en memoria y se pisan) | **Sí**: cada cambio es una transacción |
-| Un fallo a mitad de un cambio | Se deshace en memoria; el archivo no cambia | `ROLLBACK`: no queda nada a medias |
-| Topes (500 invitaciones, 20 sesiones por cuenta, 100 miembros) y «el proyecto no se queda sin administrador» | Se cumplen en un proceso | Se cumplen también entre procesos: se comprueban dentro de la transacción |
-| Un corte de luz | Lo escrito atómicamente sigue ahí | Lo confirmado sigue ahí (`synchronous=FULL`) |
-| Esquema | Un JSON versionado (`version: 1`; la cuota personal es un campo opcional más, sin cambiar la versión) | `PRAGMA user_version` con migraciones numeradas (la 2 añade la cuota personal); una base de una versión más nueva no se abre |
-| Necesita | Nada | Node 22.13 o superior (`node:sqlite`, integrado: sin dependencias nuevas) y un disco **local** |
+| | `json` (por omisión en el CLI) | `sqlite` (imagen Docker y `deploy/`) | `postgres` (Supabase u otra base gestionada) |
+|---|---|---|---|
+| Dónde | Un JSON, modo 0600, escritura atómica | Una base SQLite (`cuentas.db` + `-wal` y `-shm`), modo 0600 | Cuatro tablas `cuentas_*` del esquema `iark` de la base de `IARK_DATABASE_URL`, con seguridad por filas y sin permisos para `PUBLIC` ni los roles de Supabase |
+| Varios procesos sobre lo mismo | **No** (cada uno tiene su copia en memoria y se pisan) | **Sí**, sobre un disco local: cada cambio es una transacción | **Sí**, también en máquinas distintas |
+| Un fallo a mitad de un cambio | Se deshace en memoria; el archivo no cambia | `ROLLBACK`: no queda nada a medias | `ROLLBACK`: no queda nada a medias |
+| Topes (500 invitaciones, 20 sesiones por cuenta, 100 miembros) y «el proyecto no se queda sin administrador» | Se cumplen en un proceso | Se cumplen también entre procesos: se comprueban dentro de la transacción | Se cumplen también entre procesos y máquinas: se comprueban dentro de la transacción, tras un candado de asesoramiento |
+| Un corte de luz | Lo escrito atómicamente sigue ahí | Lo confirmado sigue ahí (`synchronous=FULL`) | Lo confirmado sigue ahí (lo garantiza la base) |
+| Esquema | Un JSON versionado (`version: 1`; la cuota personal es un campo opcional más, sin cambiar la versión) | `PRAGMA user_version` con migraciones numeradas (la 2 añade la cuota personal); una base de una versión más nueva no se abre | Migraciones numeradas (`iark.migraciones`, espacio `cuentas`); una base de una versión más nueva no arranca |
+| Necesita | Nada | Node 22.13 o superior (`node:sqlite`, integrado: sin dependencias nuevas) y un disco **local** | Una base Postgres (probado con la 16) y `IARK_DATABASE_URL`; el cliente `pg` ya va incluido |
 
 **Cómo funciona el almacén SQLite** (`src/cli/accounts/sqliteStore.ts`):
 
@@ -74,33 +75,62 @@ iark serve … --accounts ./iark-accounts.db --accounts-store sqlite            
 
 ### `iark accounts`: mantenimiento de la base
 
-Funciona con el servicio en marcha (la base admite varios procesos). La base se indica con `--accounts <archivo>` o con `IARK_ACCOUNTS`.
+Funciona con el servicio en marcha (la base admite varios procesos). La base SQLite se indica con `--accounts <archivo>` o con `IARK_ACCOUNTS`; con Postgres, solo `migrate` existe (la conexión sale de `IARK_DATABASE_URL`).
 
 | Comando | Qué hace |
 |---|---|
-| `iark accounts migrate --from <cuentas.json> [--dry-run] [--no-backup]` | Importa el JSON (ver arriba). El origen también puede venir de `IARK_ACCOUNTS_IMPORT` |
+| `iark accounts migrate --from <cuentas.json\|cuentas.db> [--accounts-store sqlite\|postgres] [--dry-run] [--no-backup]` | Importa el JSON (o una base SQLite) a SQLite o a Postgres (ver arriba). El origen también puede venir de `IARK_ACCOUNTS_IMPORT` y el destino de `IARK_ACCOUNTS_STORE=postgres` |
 | `iark accounts backup <destino>` | Una copia **coherente** de la base viva (`VACUUM INTO`, modo 0600, no sobrescribe un destino que existe) y comprueba su integridad. Es la forma de copiarla: un `tar` o `cp` de `cuentas.db` con el servicio en marcha puede dejar el `-wal` fuera de la copia o a medias |
 | `iark accounts info [--json]` | Versión del esquema, modo del diario, integridad, cuántas cuentas, invitaciones, sesiones y pertenencias hay y, si se importó de un JSON, de cuál |
 
 `info` y `backup` no inventan una base: con una ruta mal escrita fallan (código 2) en vez de crear una vacía.
 
-## Camino a Postgres y réplicas: una decisión pendiente, no tomada
+## Postgres y réplicas: lo que hay y lo que no
 
-El almacén SQLite cubre un servicio en **una máquina** con uno o varios procesos (varias instancias de `iark serve`, o `iark accounts …` a la vez, sobre el mismo disco local). **No se ha implementado nada de lo que sigue**: es lo que cambiaría si quien aloja el servicio decide crecer más allá de una máquina, y esa decisión es suya (coste, operación y cuándo compensa). Mientras no se tome, la respuesta es no hacerlo.
+`--accounts-store postgres` guarda las cuentas en una base Postgres gestionada (Supabase, Neon, RDS…). Es lo que permite alojar el servicio en una máquina **sin disco persistente** (Render, Fly, Cloud Run…) y tener **varias instancias** de `iark serve` sobre las mismas cuentas, también en máquinas distintas.
 
-**Cuándo plantearlo**: varias réplicas en máquinas distintas detrás de un balanceador (alta disponibilidad, despliegues sin corte), o una base gestionada con copias y réplicas propias. Para una instancia de un equipo, SQLite sobra.
+```bash
+export IARK_DATABASE_URL='postgres://usuario:clave@host:6543/postgres'   # del entorno o de IARK_DATABASE_URL_FILE: nunca de la línea de comandos
+export IARK_GITHUB_CLIENT_SECRET=…
+iark serve --workspace ./iark-workspace --accounts-store postgres \
+  --github-client-id Iv1.abc123 --public-url https://iark.ejemplo.org --admins 583231
+```
 
-**Qué cambiaría en el código** (el contrato `AccountStore`, `src/cli/accounts/model.ts`, ya está pensado para tener otra implementación):
+Sin `--accounts <ruta>`: no hay archivo. La guía paso a paso con Supabase y Render está en [despliegue-nube.md](despliegue-nube.md); la configuración de la conexión, el esquema y los poolers, en [postgres.md](postgres.md).
 
-1. **La interfaz pasaría a ser asíncrona.** Hoy todo es síncrono (el almacén JSON vive en memoria y `node:sqlite` es síncrono). Un cliente de red (Postgres) no puede serlo: cada método devolvería una promesa, y con él `Accounts` y `Authenticator.identify` (que hoy es síncrono y se llama en cada petición), los manejadores de `routes.ts`, `members.ts`, `admin.ts` y de proyectos. Es el cambio mayor, mecánico pero que toca todos los puntos de uso.
-2. **Un `PostgresAccountStore`** que cumpla la misma batería de pruebas de contrato (`tests/helpers/accountStoreContract.ts`, que ya corren el JSON y el SQLite), y una opción más de `--accounts-store` (p. ej. `postgres`, con la cadena de conexión por variable de entorno, **nunca por la línea de comandos**, como el secreto de la OAuth App).
-3. **Las transacciones y los candados** equivalentes: lo que hoy es `BEGIN IMMEDIATE` sería `BEGIN` con `SELECT … FOR UPDATE` (o aislamiento `SERIALIZABLE` con reintento) sobre las filas que se comprueban, y los topes globales (500 invitaciones) necesitarían un candado de asesoramiento (`pg_advisory_xact_lock`) o una fila-contador.
-4. **Migraciones y operación**: el mismo esquema versionado (las `MIGRATIONS` numeradas son casi SQL estándar), una herramienta de migraciones que no corra dos veces a la vez (candado de asesoramiento), un pool de conexiones, la comprobación `accounts` de `/readyz` (ver [observabilidad](observabilidad.md)), que hoy lee la base SQLite o el JSON y habría que cambiar por una consulta a Postgres (el `HEALTHCHECK` de la imagen consulta `/healthz`, que no depende de la base), copias y restauración (las de Postgres, no `iark accounts backup`) y una importación desde SQLite (`iark accounts migrate` aceptaría `--from` de una base).
-5. **El estado que hoy vive en la memoria de cada proceso**, y que SQLite no resuelve porque no es de las cuentas: el `state` del inicio de sesión de GitHub y los códigos de un solo uso (`routes.ts`: `logins` y `codes`), y los frenos de intentos fallidos (`WindowLimiter`). Con varias instancias detrás de un balanceador, o bien el inicio de sesión (`/api/auth/*`) necesita **afinidad de sesión** (que las tres peticiones del flujo lleguen a la misma instancia) o ese estado debe pasar a un almacén compartido (la propia base, o Redis). **Esto vale ya hoy para varias instancias sobre un mismo SQLite**: las sesiones ya abiertas, los roles, los proyectos compartidos y los topes valen en todas, pero el flujo de entrada necesita afinidad.
-6. **El espacio de trabajo** (`--workspace`, un directorio por proyecto) también tendría que ser compartido (disco de red con las garantías que necesite el almacén de proyectos) o pasar a otro almacén: es independiente de las cuentas y no se ha tocado.
-7. **Un límite que no cambia con SQLite**: las cuotas de uso (ver [Cuotas de uso](#cuotas-de-uso)) se comprueban en `accounts/usage.ts` antes de escribir en el espacio de trabajo, fuera de la transacción de las cuentas, y los guardados de una misma persona se serializan solo dentro de un proceso. Con varias instancias sobre la misma carpeta, dos guardados o dos creaciones simultáneos de la misma persona en réplicas distintas pueden pasarse del tope por lo que se guarda a la vez. Y la medida que se muestra puede ir hasta 30 s por detrás de lo que otra réplica haya escrito.
+**Cómo funciona el almacén Postgres** (`src/cli/accounts/postgresStore.ts`):
 
-**Qué decide quien aloja**: si basta con una máquina (recomendado hasta que haga falta otra cosa), si quiere una base gestionada (Postgres) y de quién es la operación de esa base, y si acepta la afinidad de sesión del balanceador como solución al punto 5 o prefiere el estado compartido.
+- **Cada escritura es una transacción** que empieza tomando un candado de asesoramiento (`pg_advisory_xact_lock('cuentas:escritura')`, que dura lo que la transacción): entrar, reclamar una invitación, compartir un proyecto, cambiar un rol, desactivar una cuenta, importar… Con él, dos peticiones a la vez —de la misma instancia o de otra máquina— no pueden saltarse un tope (500 invitaciones, 100 miembros por proyecto), dejar dos cuentas para la misma persona ni dejar un proyecto sin administrador (esto último, además, con un bloqueo de las filas de administración). Las cuentas se escriben poco; un candado único es más simple y no se ha medido nada que pida uno más fino.
+- **Abrir una sesión no toma ese candado** (es lo más frecuente: cada inicio de sesión): bloquea solo la fila de su cuenta (`SELECT … FOR UPDATE`), lo que basta para respetar el tope de 20 sesiones por cuenta aunque se abran a la vez desde dos máquinas, y para ordenarlas respecto a desactivar o borrar la cuenta. Cerrar una sesión y las lecturas son una sola sentencia.
+- Del token de una sesión solo se guarda su hash sha256 (igual que en los otros almacenes). Los instantes son `timestamptz` y el reloj es el del proceso.
+- **Solo hace falta lo que admite el pooler de transacción de Supabase** (puerto 6543): sin sentencias preparadas con nombre, sin `SET` de sesión, sin `LISTEN`, y candados `xact` (ver [postgres.md](postgres.md#compatibilidad-con-los-poolers-supabase-supavisor-pgbouncer)).
+- **Si la base no responde o está saturada**, las peticiones que la necesitan (casi todas: identificar la sesión consulta la base) responden `503` con `Retry-After: 5` y un mensaje que no dice nada de la base; el motivo (sin la contraseña) va al registro del servidor. La comprobación `accounts` de `/readyz` hace una consulta de verdad y falla; `/metrics` sigue saliendo, sin los contadores de cuentas mientras tanto. Una persona que intenta entrar justo entonces vuelve a la página con el error genérico de inicio de sesión.
+- Si los cambios son más lentos de lo esperable es por la distancia a la base: cada escritura son varios viajes. Ponga el servicio en la misma región que la base.
+
+### Pasar a Postgres
+
+El mismo comando que a SQLite, con otro destino. El origen puede ser el JSON de antes o una base SQLite (se distingue por su cabecera, no por el nombre):
+
+```bash
+iark accounts migrate --from ./iark-accounts.db --accounts-store postgres --dry-run   # solo comprueba el origen y cuenta (no se conecta a la base)
+iark accounts migrate --from ./iark-accounts.db --accounts-store postgres             # importa (la conexión sale de IARK_DATABASE_URL)
+iark serve … --accounts-store postgres                                                # y se arranca con Postgres
+```
+
+- Las mismas garantías que a SQLite: una sola transacción, comprobación de los recuentos antes de confirmar, copia del origen a `<archivo>.bak-<fecha>` (`--no-backup` la omite) y el origen no se toca. Se importa por lotes (una sentencia por tabla), así que no cuesta un viaje por fila.
+- **Idempotente**: la base anota el sha256 del origen (`cuentas_meta`). Repetirlo no hace nada; con una base que ya tiene otras cuentas no mezcla (sale con código 1). Para rehacerlo, con el servicio parado: `truncate iark.cuentas_users, iark.cuentas_sessions, iark.cuentas_members, iark.cuentas_meta;` (con otro `IARK_DATABASE_SCHEMA`, ese esquema) y repetir.
+- `--accounts-import <archivo>` (`IARK_ACCOUNTS_IMPORT`) lo hace en el primer arranque, igual que con SQLite. Si dos instancias arrancan a la vez con la importación puesta, el candado de escritura deja pasar a una y la otra ve que ya está hecho.
+- Para volver atrás basta arrancar con el almacén anterior y el origen (perdiendo lo que cambió en Postgres después de migrar).
+- `iark accounts backup` e `info` son solo de SQLite: con Postgres, las copias y la restauración son las de la base (en Supabase, sus copias diarias o `pg_dump`) y se dice al intentarlo.
+
+### Lo que sigue sin existir
+
+Que las cuentas estén en Postgres **no** convierte el servicio en uno sin estado. Lo siguiente no se ha implementado:
+
+- **El estado del inicio de sesión vive en la memoria de cada proceso**: el `state` de la redirección a GitHub, los códigos de un solo uso que se cambian por una sesión (`routes.ts`: `logins` y `codes`) y los frenos de intentos fallidos (`WindowLimiter`). **Con una sola instancia no hay ningún problema.** Con **varias réplicas** detrás de un balanceador hace falta **afinidad de sesión** para `/api/auth/*`: las tres peticiones del flujo (`/api/auth/github/login`, `/callback` y `/exchange`) deben llegar a la misma instancia, o el inicio de sesión falla con «el inicio de sesión caducó o no se empezó desde este navegador». Las sesiones ya abiertas, los roles, los proyectos compartidos y los topes valen en todas las instancias sin más. Los frenos de intentos cuentan por instancia (con N réplicas el freno efectivo es N veces el configurado). Pasar ese estado a la base o a Redis es trabajo futuro.
+- **Las cuotas se miden fuera de la transacción.** Las comprobaciones de `accounts/usage.ts` (espacio, proyectos, diagramas) se hacen antes de escribir en el espacio de trabajo, no dentro de las transacciones de las cuentas, y los guardados de una misma persona se serializan solo dentro de un proceso. Con varias instancias, dos guardados o dos creaciones simultáneos de la misma persona en instancias distintas pueden pasarse del tope por lo que se guarda a la vez. La medida que se muestra puede ir hasta 30 s por detrás de lo que otra instancia haya escrito. Los topes de las propias cuentas (invitaciones, miembros, sesiones, última persona administradora) **sí** son exactos.
+- **El espacio de trabajo** (`--workspace`) es independiente de las cuentas: con `postgres` solo pasan a la base las cuentas, las sesiones y la pertenencia a proyectos. Los proyectos siguen donde se hayan configurado (una carpeta, o el almacén de proyectos si está disponible: ver [proyectos.md](proyectos.md)); en una máquina sin disco persistente, una carpeta se perdería al reiniciar.
+- **Probado con un Postgres local (16), no con Supabase de verdad**: ni su CA, ni su pooler de transacción, ni su esquema `public` expuesto. Las pruebas de concurrencia usan varias conexiones y varios procesos de verdad contra ese Postgres.
 
 ## Cómo es el inicio de sesión
 

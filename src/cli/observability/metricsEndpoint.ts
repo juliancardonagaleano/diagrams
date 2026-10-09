@@ -32,14 +32,14 @@ export interface MetricsEndpointOptions {
 
 const digest = (value: string): Buffer => createHash('sha256').update(value, 'utf8').digest();
 
-export type MetricsHandler = (req: IncomingMessage, res: ServerResponse, send: (res: ServerResponse, status: number, body: string, headers?: Record<string, string>) => void) => void;
+export type MetricsHandler = (req: IncomingMessage, res: ServerResponse, send: (res: ServerResponse, status: number, body: string, headers?: Record<string, string>) => void) => Promise<void>;
 
 export function createMetricsEndpoint(options: MetricsEndpointOptions): MetricsHandler {
   const expected = options.token === undefined ? undefined : digest(options.token);
   const limiter = options.limiter ?? new FailureLimiter();
   const trustProxy = options.trustProxy ?? false;
 
-  return (req, res, send) => {
+  return async (req, res, send) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Este endpoint solo admite GET.', { allow: 'GET, HEAD' });
     if (expected) {
       const address = clientAddress(req, trustProxy);
@@ -58,6 +58,6 @@ export function createMetricsEndpoint(options: MetricsEndpointOptions): MetricsH
         throw new HttpError(403, 'Host no permitido: este servicio solo atiende en localhost, 127.0.0.1 o [::1] (protección contra «DNS rebinding»).', { code: 'forbidden' });
       }
     }
-    send(res, 200, req.method === 'HEAD' ? '' : options.metrics.render(), { 'Content-Type': METRICS_CONTENT_TYPE });
+    send(res, 200, req.method === 'HEAD' ? '' : await options.metrics.render(), { 'Content-Type': METRICS_CONTENT_TYPE });
   };
 }

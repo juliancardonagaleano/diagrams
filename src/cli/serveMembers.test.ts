@@ -82,7 +82,7 @@ describe('miembros de un proyecto: ver y compartir', () => {
     const shared = await call(invite.base, ana).put(`/api/projects/${id}/members/dani`, { role: 'editor' });
     expect(shared.status).toBe(201);
     expect(await shared.json()).toEqual({ login: 'dani', role: 'editor', pending: true });
-    expect(invite.accounts.store.findByLogin('dani')).toMatchObject({ siteRole: 'guest' });
+    expect(await invite.accounts.store.findByLogin('dani')).toMatchObject({ siteRole: 'guest' });
     expect(await members(invite, ana, id)).toEqual([
       { login: 'ana', name: 'Ana Pérez', role: 'admin', pending: false, you: true },
       { login: 'dani', role: 'editor', pending: true },
@@ -97,7 +97,7 @@ describe('miembros de un proyecto: ver y compartir', () => {
     const beto = await signIn(open, BETO);
     const other = await create(open, beto);
     await call(open.base, beto).put(`/api/projects/${other}/members/dani`, { role: 'viewer' });
-    expect(open.accounts.store.findByLogin('dani')).toMatchObject({ siteRole: 'member' });
+    expect(await open.accounts.store.findByLogin('dani')).toMatchObject({ siteRole: 'member' });
   });
 
   it('quitar una invitación de invitado cancela la invitación: esa persona ya no puede entrar a la instancia', async () => {
@@ -108,7 +108,7 @@ describe('miembros de un proyecto: ver y compartir', () => {
     const removed = await call(cloud.base, ana).del(`/api/projects/${id}/members/dani`);
     expect(removed.status).toBe(200);
     expect(await removed.json()).toEqual({ removed: 'dani' });
-    expect(cloud.accounts.store.findByLogin('dani')).toBeUndefined();
+    expect(await cloud.accounts.store.findByLogin('dani')).toBeUndefined();
     const attempt = await loginWithGithub(cloud.base, cloud.fake, DANI);
     expect(attempt.token).toBeUndefined();
     expect(attempt.fragment.get('iark_error')).toBe('not_invited');
@@ -127,11 +127,11 @@ describe('miembros de un proyecto: ver y compartir', () => {
 
   it('los miembros respetan los topes: personas por proyecto (409 limit) y datos inválidos (400)', async () => {
     const { cloud, beto } = await team();
-    for (let i = 0; i < MAX_MEMBERS_PER_PROJECT - 1; i++) cloud.accounts.store.shareProject('tienda', `persona${i}`, 'viewer', 'member');
+    for (let i = 0; i < MAX_MEMBERS_PER_PROJECT - 1; i++) await cloud.accounts.store.shareProject('tienda', `persona${i}`, 'viewer', 'member');
     const full = await call(cloud.base, beto).put('/api/projects/tienda/members/una-mas', { role: 'viewer' });
     expect(full.status).toBe(409);
     expect(await full.json()).toMatchObject({ code: 'limit' });
-    expect(cloud.accounts.store.findByLogin('una-mas')).toBeUndefined();
+    expect(await cloud.accounts.store.findByLogin('una-mas')).toBeUndefined();
 
     const api = call(cloud.base, beto);
     for (const [path, body] of [
@@ -168,7 +168,7 @@ describe('miembros de un proyecto: ver y compartir', () => {
 describe('miembros de un proyecto: quién puede qué', () => {
   it('ver la lista basta con ser viewer; compartir y quitar piden ser admin del proyecto, y se decide antes de leer el cuerpo', async () => {
     const { cloud, beto, carla } = await team();
-    cloud.accounts.store.setMember('tienda', cloud.accounts.store.findByLogin('carla')!.id, 'editor');
+    await cloud.accounts.store.setMember('tienda', (await cloud.accounts.store.findByLogin('carla'))!.id, 'editor');
     const api = call(cloud.base, carla);
     expect((await api.get('/api/projects/tienda/members')).status).toBe(200);
     for (const res of [await api.put('/api/projects/tienda/members/dani', { role: 'viewer' }), await api.del('/api/projects/tienda/members/beto'), await api.put('/api/projects/tienda/members/carla', { role: 'admin' })]) {
@@ -177,7 +177,7 @@ describe('miembros de un proyecto: quién puede qué', () => {
     }
     const plain = await fetch(`${cloud.base}/api/projects/tienda/members/dani`, { method: 'PUT', headers: { Authorization: `Bearer ${carla}`, 'Content-Type': 'text/plain' }, body: '¿?' });
     expect(plain.status).toBe(403); // y no 415 ni 400
-    expect(cloud.accounts.store.findByLogin('dani')).toBeUndefined();
+    expect(await cloud.accounts.store.findByLogin('dani')).toBeUndefined();
     expect((await members(cloud, beto)).map((m: { login: string }) => m.login)).toEqual(['beto', 'carla']);
   });
 
@@ -189,7 +189,7 @@ describe('miembros de un proyecto: quién puede qué', () => {
     const missing = await api.get('/api/projects/nada/members');
     expect(missing.status).toBe(404);
     expect((await responses[0].json()).error.replace('tienda', '')).toBe((await missing.json()).error.replace('nada', ''));
-    expect(cloud.accounts.store.roleOf(cloud.accounts.store.findByLogin('carla')!.id, 'tienda')).toBeUndefined();
+    expect(await cloud.accounts.store.roleOf((await cloud.accounts.store.findByLogin('carla'))!.id, 'tienda')).toBeUndefined();
   });
 
   it('quitar a alguien le cierra el proyecto al instante, aunque conserve su sesión', async () => {
@@ -253,8 +253,8 @@ describe('miembros de un proyecto: tokens y servidores sin cuentas', () => {
     expect((await call(cloud.base, viewer).put('/api/projects/tienda/members/carla', { role: 'viewer' })).status).toBe(403);
     expect((await call(cloud.base, viewer).del('/api/projects/tienda/members/beto')).status).toBe(403);
     expect((await call(cloud.base, viewer).get('/api/projects/tienda/members')).status).toBe(200);
-    expect(cloud.accounts.store.findByLogin('carla')).toMatchObject({ githubId: 303 });
-    expect(cloud.accounts.store.membersOf('tienda').map((m) => m.user.login)).toEqual(['beto']);
+    expect(await cloud.accounts.store.findByLogin('carla')).toMatchObject({ githubId: 303 });
+    expect((await cloud.accounts.store.membersOf('tienda')).map((m) => m.user.login)).toEqual(['beto']);
   });
 
   it('sin cuentas (tokens solos o ninguna autenticación) los miembros no existen: 404', async () => {
@@ -291,7 +291,7 @@ describe('administrar cuentas: /api/admin/users', () => {
     expect(denied.status).toBe(403);
     expect(await denied.json()).toMatchObject({ code: 'forbidden' });
     for (const res of [await call(cloud.base, beto).put('/api/admin/users/carla', {}), await call(cloud.base, beto).del('/api/admin/users/carla')]) expect(res.status).toBe(403);
-    expect(cloud.accounts.store.findByLogin('carla')).toBeUndefined();
+    expect(await cloud.accounts.store.findByLogin('carla')).toBeUndefined();
     const anonymous = await fetch(`${cloud.base}/api/admin/users`);
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers.get('www-authenticate')).toMatch(/Bearer/);
@@ -337,7 +337,7 @@ describe('administrar cuentas: /api/admin/users', () => {
     const dani = await loginWithGithub(cloud.base, cloud.fake, DANI);
     expect(dani.user).toMatchObject({ siteRole: 'guest' });
     expect((await call(cloud.base, dani.token).post('/api/projects', { name: 'Suyo' })).status).toBe(403);
-    expect(cloud.accounts.store.users().filter((u) => u.githubId === undefined)).toEqual([]);
+    expect((await cloud.accounts.store.users()).filter((u) => u.githubId === undefined)).toEqual([]);
   });
 
   it('cambiar el rol de la instancia surte efecto en la siguiente petición; desactivar una cuenta cierra sus sesiones y le impide volver', async () => {
@@ -372,14 +372,14 @@ describe('administrar cuentas: /api/admin/users', () => {
       expect(res.status, JSON.stringify(body)).toBe(409);
       expect(await res.json()).toMatchObject({ code: 'self' });
     }
-    expect(cloud.accounts.store.findByLogin('beto')).toMatchObject({ siteRole: 'admin' });
+    expect(await cloud.accounts.store.findByLogin('beto')).toMatchObject({ siteRole: 'admin' });
     expect((await other.put('/api/admin/users/beto', { siteRole: 'admin', disabled: false })).status).toBe(200); // sin cambios no hay problema
     for (const body of [{ siteRole: 'member' }, { siteRole: 'guest' }, { disabled: true }]) {
       const res = await other.put('/api/admin/users/ana', body);
       expect(res.status, JSON.stringify(body)).toBe(409);
       expect(await res.json()).toMatchObject({ code: 'listed-admin' });
     }
-    expect(cloud.accounts.store.findByLogin('ana')).toMatchObject({ siteRole: 'member' }); // el rol efectivo lo da la lista
+    expect(await cloud.accounts.store.findByLogin('ana')).toMatchObject({ siteRole: 'member' }); // el rol efectivo lo da la lista
     expect((await call(cloud.base, ana).get('/api/admin/users')).status).toBe(200);
     // un token admin (cuenta de servicio) sí puede, pero tampoco a quien figura en la lista
     const service = await startCloud({ signup: 'open', tokens: true });
@@ -400,7 +400,7 @@ describe('administrar cuentas: /api/admin/users', () => {
     expect(removed.status).toBe(200);
     expect(await removed.json()).toEqual({ removed: 'dani' });
     expect((await members(cloud, beto)).map((m: { login: string }) => m.login)).toEqual(['beto']);
-    expect(cloud.accounts.store.findByLogin('dani')).toBeUndefined();
+    expect(await cloud.accounts.store.findByLogin('dani')).toBeUndefined();
   });
 
   it('datos inválidos, rutas, métodos y JSON obligatorio', async () => {
@@ -418,7 +418,7 @@ describe('administrar cuentas: /api/admin/users', () => {
     }
     expect((await api.put('/api/admin/users/carla', '[]')).status).toBe(400);
     expect((await api.del('/api/admin/users/no%20es%20usuario')).status).toBe(400);
-    expect(cloud.accounts.store.findByLogin('carla')).toMatchObject({ siteRole: 'member', githubId: 303 });
+    expect(await cloud.accounts.store.findByLogin('carla')).toMatchObject({ siteRole: 'member', githubId: 303 });
     const post = await api.post('/api/admin/users', {});
     expect(post.status).toBe(405);
     expect(post.headers.get('allow')).toBe('GET');
@@ -434,11 +434,11 @@ describe('administrar cuentas: /api/admin/users', () => {
   it('hay un tope de invitaciones sin aceptar (409 `limit`)', async () => {
     const cloud = await startCloud({ signup: 'open' });
     const ana = await signIn(cloud, ANA);
-    for (let i = 0; i < 500; i++) cloud.accounts.store.invite(`persona${i}`);
+    for (let i = 0; i < 500; i++) await cloud.accounts.store.invite(`persona${i}`);
     const res = await call(cloud.base, ana).put('/api/admin/users/una-mas', {});
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: 'limit' });
-    expect(cloud.accounts.store.findByLogin('una-mas')).toBeUndefined();
+    expect(await cloud.accounts.store.findByLogin('una-mas')).toBeUndefined();
   });
 
   it('las respuestas no se guardan en cachés y CORS anuncia `Authorization` para /api/admin', async () => {
