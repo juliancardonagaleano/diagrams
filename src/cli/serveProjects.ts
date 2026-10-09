@@ -144,8 +144,8 @@ function toHttpError(error: unknown): unknown {
   if (error instanceof AccountError) return accountHttpError(error);
   if (!(error instanceof ProjectError)) return error;
   if (error.code === 'unavailable') {
-    process.stderr.write(`error del espacio de trabajo: ${error.message}\n`); // la ruta del disco no se le cuenta a quien llama
-    return new HttpError(500, 'El espacio de trabajo no está disponible (permisos, disco o carpeta).', { code: error.code });
+    process.stderr.write(`error del espacio de trabajo: ${error.message}\n`); // la ruta del disco o el servidor de la base no se le cuentan a quien llama
+    return new HttpError(500, 'El espacio de trabajo no está disponible (permisos, disco, carpeta o base de datos).', { code: error.code });
   }
   // Un tope que no cabe (demasiadas versiones con nombre) tiene su propio `code`, como `limit` al compartir: no es un contenido inválido.
   if (error.info.serverCode === 'limit') return new HttpError(409, error.message, { code: 'limit' });

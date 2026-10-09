@@ -2,7 +2,7 @@
 
 [← Índice de la documentación](indice.md)
 
-Un proyecto agrupa diagramas de cualquier módulo de la suite para guardarlos, comprobarlos y trazarlos juntos. Hay tres sitios donde viven: una **carpeta de trabajo** (CLI y `iark serve`, pensada para ir en git), **este navegador** (IndexedDB, desde el banco de trabajo y el editor C4) y un **servidor propio** al que se conecta el navegador (con tokens o con inicio de sesión de GitHub). Las tres comparten el mismo archivo único de proyecto (`iark.project/1`).
+Un proyecto agrupa diagramas de cualquier módulo de la suite para guardarlos, comprobarlos y trazarlos juntos. Hay tres sitios donde viven: una **carpeta de trabajo** (CLI y `iark serve`, pensada para ir en git), **este navegador** (IndexedDB, desde el banco de trabajo y el editor C4) y un **servidor propio** al que se conecta el navegador (con tokens o con inicio de sesión de GitHub); ese servidor puede guardarlos en su carpeta o, si no tiene disco persistente, en una **base Postgres** ([abajo](#proyectos-en-postgres-un-servicio-sin-disco-persistente)). Todos comparten el mismo archivo único de proyecto (`iark.project/1`).
 
 ## Proyectos (espacio de trabajo en carpeta)
 
@@ -55,7 +55,7 @@ Los errores de uso (proyecto o diagrama que no existe, nombre repetido, document
 
 ### API HTTP de proyectos
 
-`iark serve --workspace <carpeta>` (o `IARK_WORKSPACE`) añade la API de proyectos sobre la misma carpeta; sin ella esas rutas responden 404 «Este servicio no tiene espacio de trabajo (use --workspace <carpeta>)». El manifiesto de la instancia anuncia entonces `"projects": "../api/projects"` y `"projectsAuth": "none"` (`"bearer"` con tokens: ver [Servidor para varias personas](servicio.md#servidor-para-varias-personas-nube-autoalojada)). Todo es JSON salvo el archivo único del proyecto; los ids son los de la carpeta (`tienda-web`, `seguridad-ejemplo`).
+`iark serve --workspace <carpeta>` (o `IARK_WORKSPACE`) añade la API de proyectos sobre la misma carpeta (o, con `--workspace-store postgres`, sobre una base: [abajo](#proyectos-en-postgres-un-servicio-sin-disco-persistente)); sin ninguna de las dos esas rutas responden 404 «Este servicio no tiene espacio de trabajo (use --workspace <carpeta>)». El manifiesto de la instancia anuncia entonces `"projects": "../api/projects"` y `"projectsAuth": "none"` (`"bearer"` con tokens: ver [Servidor para varias personas](servicio.md#servidor-para-varias-personas-nube-autoalojada)). Todo es JSON salvo el archivo único del proyecto; los ids son los de la carpeta (`tienda-web`, `seguridad-ejemplo`).
 
 | Ruta | Descripción |
 |---|---|
@@ -86,6 +86,44 @@ Códigos: `not-found` 404, `exists` 409, `conflict` 409, `invalid` 400, `limit` 
 
 Con `--tokens` esta lista cambia (no hay `Host` ni `Origin` que comprobar, pero sí token y rol): ver [Servidor para varias personas](servicio.md#servidor-para-varias-personas-nube-autoalojada).
 
+## Proyectos en Postgres (un servicio sin disco persistente)
+
+`iark serve` guarda los proyectos en una carpeta, y una plataforma como Render, con disco **efímero**, la vacía en cada despliegue o reinicio: el servicio perdería todos los proyectos. Con `--workspace-store postgres` (o `IARK_WORKSPACE_STORE=postgres`) los proyectos, sus diagramas y su historial de versiones viven en una base **Postgres** (Supabase, Neon, RDS…) y el servicio no necesita disco. La API HTTP, los roles, las cuentas, las cuotas y la interfaz son exactamente los mismos; lo único que cambia es dónde se guarda.
+
+```bash
+export IARK_DATABASE_URL='postgres://usuario:clave@host:5432/postgres'   # solo por entorno: ver postgres.md
+iark serve --workspace-store postgres --host 0.0.0.0 --tokens tokens.json   # o --accounts …
+```
+
+- **Sin carpeta, y la conexión solo del entorno.** Con `postgres` no se indica `--workspace` (ni `IARK_WORKSPACE`: si están las dos cosas, el servicio no arranca y lo dice). La cadena de conexión lleva la contraseña, así que nunca va en la línea de comandos: `IARK_DATABASE_URL` (o `IARK_DATABASE_URL_FILE`), con `IARK_DATABASE_SSL`, `IARK_DATABASE_CA_FILE`, `IARK_DATABASE_POOL` y `IARK_DATABASE_SCHEMA` ([Postgres](postgres.md#configuración-solo-por-entorno)). Al arrancar crea o actualiza sus tablas (migraciones del almacén «proyectos») y, al apagar con `SIGTERM`, cierra la conexión.
+- **Qué guarda.** Tres tablas en el esquema `iark` (no `public`): `proyectos`, `diagramas` y `versiones`. El documento de cada diagrama (y el de cada versión) es una columna `text` con **el JSON exacto**, no `jsonb`: `jsonb` reordenaría las claves y cambiaría los espacios, y con ellos el hash y los bytes. Lo que se guarda es, carácter por carácter, lo que se lee (también un borrador que no es JSON, el BOM y los saltos de línea). Los bytes de cada documento y de cada versión se guardan aparte para medir las cuotas sin leer los documentos.
+- **La misma semántica que la carpeta.** Pasa las mismas pruebas de contrato que el almacén de carpeta y el de memoria: ids que salen del nombre (`tienda-web`, `tienda-web-2`…), nombres que no se repiten sin distinguir mayúsculas, el tope de 16 MB por documento, `ifUpdatedAt` (conflicto `409` si alguien guardó en medio), y todo el [historial de versiones](#historial-de-versiones) (coalescencia, retención, nombrar, borrar, restaurar) con la misma política y las mismas variables `IARK_VERSIONS…`.
+- **Varias réplicas.** Cada operación que escribe es **una transacción**. Guardar un diagrama bloquea su fila y comprueba `ifUpdatedAt` con lo que hay en la base en ese instante: dos guardados con la misma marca, aunque lleguen a procesos distintos, dejan uno guardado y el otro en conflicto; los diagramas distintos no se esperan entre sí. Crear, renombrar y borrar proyectos y diagramas están serializados por proyecto (no hay dos ids iguales ni dos nombres repetidos), y un índice único de nombres es la última red.
+- **Salud.** `/readyz` comprueba la base con una consulta (la comprobación `workspace` pasa a significar «la base contesta») en lugar de mirar que la carpeta sea escribible. Si la base se cae, la API responde `500` «El espacio de trabajo no está disponible» sin decir dónde está la base, y el detalle (sin contraseña) va al registro de errores.
+- **Cuotas.** `iark serve --accounts` mide los proyectos de Postgres igual que los de carpeta (`documentUsage` suma los bytes de los documentos y `versionUsage` los de las versiones; el medidor y `/api/usage` no cambian). Los proyectos sin dueña conservan solo el tope de diagramas por proyecto.
+
+### Pasar una carpeta de trabajo a Postgres
+
+```bash
+IARK_DATABASE_URL=… iark workspace import --from ./iark-workspace --dry-run   # solo cuenta lo que pasaría (no toca la base)
+IARK_DATABASE_URL=… iark workspace import --from ./iark-workspace
+```
+
+Lee la carpeta con el mismo almacén de siempre y escribe en la base **conservando los ids** de proyectos y diagramas (las pertenencias de `--accounts`, los enlaces y los scripts siguen valiendo), los nombres, las descripciones, las **fechas** y el **historial de versiones** con sus ids, etiquetas y autores. Cada proyecto entra en una sola transacción: o entero o nada. Es **idempotente**: un proyecto que ya está en la base (mismo id, sin distinguir mayúsculas) se omite, así que se puede repetir sin miedo; `--replace` lo borra y lo vuelve a crear desde la carpeta. Si otro proyecto de la base ya se llama igual (con otro id) se omite y se avisa; si dos diagramas de la carpeta tenían el mismo nombre (editada a mano) el segundo se numera (`Nombre (2)`). Un proyecto que falla no impide los demás (el comando termina con código 1 y lo cuenta). La carpeta solo se lee, nunca se modifica.
+
+Para llevar **un solo proyecto**, o en sentido contrario (de Postgres a una carpeta o a otro servicio), sirve el archivo único: `GET /api/projects/<p>/bundle` descarga el proyecto y `POST /api/projects/import` lo crea (o «Exportar» e «Importar» en la interfaz). El archivo único **no lleva el historial** y el proyecto importado recibe un id nuevo.
+
+### Límites
+
+- **`iark project …` del CLI sigue operando sobre carpetas** (`-w, --workspace <carpeta>`): no se conecta a Postgres. Para trabajar desde la línea de comandos con los proyectos de un servicio hay que usar su API (`GET /api/projects/<p>/bundle`, `POST /api/projects/import`) o la interfaz web conectada a ese servidor.
+- **Las cuotas se miden fuera de la transacción del guardado.** La comprobación previa (`2 × nuevo − actual`) y el uso que se muestra son una medida con caché de 30 s, no parte de la transacción: con varias réplicas, dos guardados simultáneos de la misma persona pueden pasarse del tope por lo que guardan a la vez (dentro de un proceso van de uno en uno).
+- **Documentos grandes.** El tope es el de siempre, 16 MB por documento, y cada guardado escribe el documento **y** la versión que anota (casi el doble de bytes), más el documento anterior si hay que registrarlo como línea base. El plan gratuito de Supabase tiene 500 MB de base: con documentos de megabytes y hasta 150 versiones por diagrama se llena pronto. Mantenga las cuotas por persona (`--max-bytes`, 256 MB por omisión) y baje `IARK_VERSIONS_KEEP` si hace falta. Un documento de varios megabytes por una conexión lenta puede pasar de los 20 s que se espera a cada consulta y fallar con «Postgres no está disponible»; vuelva a guardar. El carácter NUL (U+0000) sin escapar no cabe en un `text` de Postgres y se rechaza (un JSON válido lo lleva escapado, `\u0000`).
+- **Los avisos en tiempo real (`/api/events`) son de un proceso**, como con la carpeta: con varias instancias, cada una avisa solo de lo que pasa por ella (el pooler de transacción de Supabase no admite `LISTEN`); los clientes de las demás se enteran al sondear (cada 30 s). Con una sola instancia, como en Render, funcionan igual.
+- **Los relojes.** `updatedAt` y las fechas de las versiones salen del reloj del proceso que guarda; por diagrama `updatedAt` es siempre estrictamente creciente aunque dos réplicas tengan relojes distintos, pero la ventana de coalescencia del historial se mide con ellos.
+- **No edite las tablas a mano.** El hash y los bytes de cada documento y el contador de versiones se guardan al escribir; cambiar `documento` con SQL los deja desfasados (el historial lo tomaría por contenido distinto). Para cambiar proyectos use la API.
+- **La importación** no puede conservar el contador de ids de versiones ya descartadas (la carpeta no lo expone): sigue desde la mayor versión que se importó, así que el id de una versión descartada antes de importar podría reutilizarse. Un proyecto de la carpeta con un documento que lleve NUL no entra.
+- Probado contra un Postgres 16 local. Con Supabase de verdad (TLS con su CA, su pooler) no se ha probado desde aquí: ver los límites de [Postgres](postgres.md#probar-contra-un-postgres-de-verdad).
+
 ## Historial de versiones
 
 Cada guardado de un diagrama deja una **versión**: una copia inmutable de su documento que se puede ver, comparar con el diagrama de ahora, **restaurar** y **nombrar**. Funciona igual en los tres sitios donde viven los proyectos (carpeta de trabajo, este navegador y servidor propio) y desde la API, el CLI y la interfaz.
@@ -105,6 +143,7 @@ Cada guardado de un diagrama deja una **versión**: una copia inmutable de su do
 | Almacén | Dónde | Configuración |
 |---|---|---|
 | Carpeta de trabajo (`iark project`, `iark serve --workspace`) | `<proyecto>/.versiones/<diagrama>/` | Variables de entorno de abajo |
+| Postgres (`iark serve --workspace-store postgres`) | La tabla `versiones` del esquema `iark`, con el documento de cada versión | Las mismas variables de entorno de abajo ([Proyectos en Postgres](#proyectos-en-postgres-un-servicio-sin-disco-persistente)) |
 | Este navegador | IndexedDB, en los almacenes `versions`, `versionTexts` y `versionState` de la misma base de los proyectos | Política por omisión |
 | Servidor propio | El del servidor (el navegador usa la API) | Las variables de entorno del servidor |
 
