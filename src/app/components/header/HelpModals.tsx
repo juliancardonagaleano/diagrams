@@ -1,33 +1,36 @@
 import { Modal } from '@douyinfe/semi-ui';
+import { useT } from '../../../i18n/react';
+import { t } from '../../../i18n';
 
-const SHORTCUTS: Array<[string, string]> = [
-  ['Ctrl/⌘ + Z', 'Deshacer'],
-  ['Ctrl/⌘ + Y · Ctrl/⌘ + Shift + Z', 'Rehacer'],
-  ['Ctrl/⌘ + S', 'Guardar JSON (o Guardar en modo embebido)'],
-  ['Ctrl/⌘ + E', 'Exportar .drawio'],
-  ['Ctrl/⌘ + O', 'Abrir JSON'],
-  ['Ctrl/⌘ + L', 'Autolayout de la vista activa'],
-  ['Supr / Retroceso', 'Quitar de la vista el elemento seleccionado (o borrar la relación)'],
-  ['Tabulador · flechas', 'Recorrer los elementos del lienzo: Tabulador por orden, flechas hacia el vecino en esa dirección'],
-  ['Mayús + flechas', 'Mover el elemento enfocado un paso de la cuadrícula'],
-  ['Intro · F2', 'Seleccionar el elemento enfocado y pasar a su ficha del panel lateral'],
-  ['Doble clic en sistema / contenedor', 'Bajar al nivel inferior (C1 → C2 → C3)'],
-  ['Alt + ↓ / Alt + ↑', 'Bajar al nivel del elemento seleccionado / subir de nivel'],
-  ['Ctrl/⌘ + rueda', 'Zoom'],
-  ['Rueda / Shift + rueda', 'Desplazar vertical / horizontal'],
-  ['Botón central o derecho + arrastrar', 'Desplazar el lienzo'],
-  ['Arrastrar desde un punto de conexión', 'Crear una relación'],
+const SHORTCUTS: Array<[() => string, () => string]> = [
+  [() => 'Ctrl/⌘ + Z', () => t('ed.sc.undo')],
+  [() => 'Ctrl/⌘ + Y · Ctrl/⌘ + Shift + Z', () => t('ed.sc.redo')],
+  [() => 'Ctrl/⌘ + S', () => t('ed.sc.save')],
+  [() => 'Ctrl/⌘ + E', () => t('ed.sc.export')],
+  [() => 'Ctrl/⌘ + O', () => t('ed.sc.open')],
+  [() => 'Ctrl/⌘ + L', () => t('ed.sc.layout')],
+  [() => t('ed.key.delete'), () => t('ed.sc.remove')],
+  [() => t('ed.key.walk'), () => t('ed.sc.walk')],
+  [() => t('ed.key.shiftArrows'), () => t('ed.sc.nudge')],
+  [() => t('ed.key.enter'), () => t('ed.sc.select')],
+  [() => t('ed.key.dblclick'), () => t('ed.sc.drill')],
+  [() => 'Alt + ↓ / Alt + ↑', () => t('ed.sc.level')],
+  [() => t('ed.key.wheel'), () => t('ed.sc.zoom')],
+  [() => t('ed.key.wheelScroll'), () => t('ed.sc.scroll')],
+  [() => t('ed.key.middle'), () => t('ed.sc.pan')],
+  [() => t('ed.key.dragHandle'), () => t('ed.sc.connect')],
 ];
 
 export function ShortcutsModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { t } = useT();
   return (
-    <Modal title="Atajos de teclado" visible={visible} onCancel={onClose} footer={null} size="small">
+    <Modal title={t('ed.h.shortcuts')} visible={visible} onCancel={onClose} footer={null} size="small">
       <table className="w-full text-sm">
         <tbody>
-          {SHORTCUTS.map(([k, v]) => (
-            <tr key={k} className="border-b border-color">
-              <td className="py-1.5 pr-4 font-mono text-xs whitespace-nowrap">{k}</td>
-              <td className="py-1.5 text-color-2">{v}</td>
+          {SHORTCUTS.map(([key, text], index) => (
+            <tr key={index} className="border-b border-color">
+              <td className="py-1.5 pr-4 font-mono text-xs whitespace-nowrap">{key()}</td>
+              <td className="py-1.5 text-color-2">{text()}</td>
             </tr>
           ))}
         </tbody>
@@ -37,18 +40,15 @@ export function ShortcutsModal({ visible, onClose }: { visible: boolean; onClose
 }
 
 export function AboutModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { tr } = useT();
   return (
     <Modal title="IArk - DIAgrams" visible={visible} onCancel={onClose} footer={null} size="small">
       <div className="space-y-2 text-sm">
-        <p>IArk - DIAgrams: suite de diagramación de arquitectura con seis especialidades (C4, integración, datos, empresarial, plataforma y seguridad). Este editor trabaja con el modelo C4 (Contexto, Contenedores, Componentes) con autolayout, exportación a draw.io y generación asistida por IA; las demás especialidades se editan en el banco de trabajo (<code>modulos.html</code>).</p>
+        <p>{tr('ed.about.p1')}</p>
         <ul className="list-disc pl-5 text-color-2">
-          <li>El documento se guarda como JSON limpio, convertible 1‑a‑1 a <code>.drawio</code>; un <code>.drawio</code>, un DSL de Structurizr o un diagrama de Mermaid se pueden importar (Archivo ▸ Importar), y cada vista se puede exportar a Mermaid.</li>
-          <li>
-            El mismo motor funciona como CLI: <code>npx iark generate "…"</code>, <code>layout</code>, <code>convert</code>, <code>import</code>.
-          </li>
-          <li>
-            Se puede embeber en otra aplicación por iframe con <code>?embed=1&amp;proto=json</code> y postMessage.
-          </li>
+          <li>{tr('ed.about.l1')}</li>
+          <li>{tr('ed.about.l2')}</li>
+          <li>{tr('ed.about.l3')}</li>
         </ul>
       </div>
     </Modal>

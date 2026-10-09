@@ -11,6 +11,7 @@ import { OfflineActions } from '../../../projects/OfflineActions';
 import { offlineIndicator } from '../../../projects/offlineText';
 import { C4_MODULE, type ProjectBinding } from '../../projects/useProjectBinding';
 import { DIRECTIONS, DISTRIBUTIONS } from './FloatingToolbar';
+import { LanguageSelect, useT } from '../../../i18n/react';
 
 const Logo = () => (
   <div className="flex items-center gap-2 select-none" aria-hidden="true">
@@ -80,9 +81,10 @@ export interface ControlPanelProps {
   projects?: { binding: ProjectBinding; onManage: (panel?: 'storage') => void; onHistory?: () => void };
 }
 
-const SAVE_LABEL = { idle: 'Guardado', pending: 'Guardando…', saving: 'Guardando…', saved: 'Guardado', error: 'No se pudo guardar', conflict: 'Conflicto de guardado', offline: 'Sin conexión' } as const;
+const SAVE_KEY = { idle: 'ed.save.saved', pending: 'ed.save.saving', saving: 'ed.save.saving', saved: 'ed.save.saved', error: 'ed.save.error', conflict: 'ed.save.conflict', offline: 'ed.save.offline' } as const;
 
 export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPanelProps) {
+  const { t } = useT();
   const name = useDocumentStore((s) => s.doc.workspace.name);
   const setWorkspaceName = useDocumentStore((s) => s.setWorkspaceName);
   const ui = useDocumentStore((s) => s.ui);
@@ -110,8 +112,8 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
   const [showMermaid, setShowMermaid] = useState(false);
   const [, tick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 15000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => tick((n) => n + 1), 15000);
+    return () => clearInterval(timer);
   }, []);
 
   // Descartar el documento actual (Nuevo/Cargar ejemplo/Abrir JSON/Importar .drawio o DSL) sin guardar antes pide
@@ -129,10 +131,10 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
     // Con un diagrama de proyecto abierto, sustituir el documento también sustituye lo guardado en el proyecto.
     if (attached && openProject) {
       Modal.confirm({
-        title: 'Reemplazar el diagrama del proyecto',
-        content: `El diagrama «${attached.name}» del proyecto «${openProject.name}» se guarda solo: lo que cargues lo reemplazará en el proyecto. ¿Deseas continuar?`,
-        okText: 'Reemplazar',
-        cancelText: 'Cancelar',
+        title: t('ed.replace.title'),
+        content: t('ed.replace.content', { diagram: attached.name, project: openProject.name }),
+        okText: t('ed.replace.ok'),
+        cancelText: t('common.cancel'),
         okType: 'danger',
         onOk: proceed,
       });
@@ -143,10 +145,10 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
       return;
     }
     Modal.confirm({
-      title: 'Descartar cambios sin guardar',
-      content: 'Hay cambios sin guardar en el diagrama actual. ¿Deseas continuar de todos modos?',
-      okText: 'Continuar',
-      cancelText: 'Cancelar',
+      title: t('ed.discard.title'),
+      content: t('ed.discard.content'),
+      okText: t('ed.discard.ok'),
+      cancelText: t('common.cancel'),
       okType: 'danger',
       onOk: proceed,
     });
@@ -157,78 +159,78 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
     const { module, text, name: docName } = projects!.binding.current();
     void projectSession
       .createDiagram({ module, name: docName, text })
-      .then((meta) => Toast.success(`Guardado como «${meta.name}» en el proyecto «${openProject.name}». Los cambios se guardan solos.`))
+      .then((meta) => Toast.success(t('ed.savedToProject', { name: meta.name, project: openProject.name })))
       .catch((error: Error) => Toast.error(error.message));
   };
 
   const projectItems: MenuProps['items'] = projects
     ? [
-        { key: 'projects', label: 'Proyectos…', onClick: () => projects.onManage(), closeMenu: true },
-        ...(openProject && !attached ? [{ key: 'save-project', label: `Guardar en el proyecto «${openProject.name}»`, onClick: saveToProject }] : []),
-        ...(canHistory ? [{ key: 'history', label: 'Historial de versiones…', onClick: () => projects.onHistory?.(), closeMenu: true }] : []),
-        ...(attached ? [{ key: 'detach-project', label: 'Dejar de guardar en el proyecto', onClick: () => void projectSession?.release() }] : []),
+        { key: 'projects', label: t('ed.f.projects'), onClick: () => projects.onManage(), closeMenu: true },
+        ...(openProject && !attached ? [{ key: 'save-project', label: t('ed.f.saveInProject', { project: openProject.name }), onClick: saveToProject }] : []),
+        ...(canHistory ? [{ key: 'history', label: t('ed.f.history'), onClick: () => projects.onHistory?.(), closeMenu: true }] : []),
+        ...(attached ? [{ key: 'detach-project', label: t('ed.f.detach'), onClick: () => void projectSession?.release() }] : []),
         { key: 'dp', label: '', divider: true },
       ]
     : [];
 
   const fileMenu: MenuProps['items'] = isEmbedMode
     ? [
-        { key: 'save', label: 'Guardar', onClick: () => onEmbedSave?.(false), shortcut: 'Ctrl+S' },
-        { key: 'save-exit', label: 'Guardar y salir', onClick: () => onEmbedSave?.(true) },
+        { key: 'save', label: t('ed.f.save'), onClick: () => onEmbedSave?.(false), shortcut: 'Ctrl+S' },
+        { key: 'save-exit', label: t('ed.f.saveExit'), onClick: () => onEmbedSave?.(true) },
         { key: 'd1', label: '', divider: true },
-        { key: 'export', label: 'Exportar .drawio (notación C4)…', onClick: () => void actions.exportDrawio('c4') },
-        { key: 'export-card', label: 'Exportar .drawio (tarjetas)…', onClick: () => void actions.exportDrawio('card') },
-        { key: 'export-mermaid', label: 'Exportar Mermaid (.mmd)…', onClick: () => void actions.exportMermaid('c4') },
-        { key: 'preview-mermaid', label: 'Vista previa de Mermaid…', onClick: () => setShowMermaid(true), closeMenu: true },
-        { key: 'json', label: 'Descargar JSON…', onClick: actions.saveJson },
+        { key: 'export', label: t('ed.f.exportC4More'), onClick: () => void actions.exportDrawio('c4') },
+        { key: 'export-card', label: t('ed.f.exportCardMore'), onClick: () => void actions.exportDrawio('card') },
+        { key: 'export-mermaid', label: t('ed.f.exportMermaidMore'), onClick: () => void actions.exportMermaid('c4') },
+        { key: 'preview-mermaid', label: t('ed.f.previewMermaid'), onClick: () => setShowMermaid(true), closeMenu: true },
+        { key: 'json', label: t('ed.f.downloadJson'), onClick: actions.saveJson },
         { key: 'd2', label: '', divider: true },
-        { key: 'exit', label: 'Salir sin guardar', onClick: onEmbedExit },
+        { key: 'exit', label: t('ed.f.exitNoSave'), onClick: onEmbedExit },
       ]
     : [
         ...projectItems,
-        { key: 'new', label: 'Nuevo diagrama', onClick: () => confirmDiscard(newDocument) },
-        { key: 'sample', label: 'Cargar ejemplo (banca en línea)', onClick: () => confirmDiscard(loadSample) },
-        { key: 'open', label: 'Abrir JSON…', onClick: () => confirmDiscard(actions.openJson), shortcut: 'Ctrl+O' },
-        { key: 'import-drawio', label: 'Importar .drawio…', onClick: () => confirmDiscard(actions.importDrawio) },
-        { key: 'import-dsl', label: 'Importar Structurizr DSL…', onClick: () => confirmDiscard(actions.importDsl) },
-        { key: 'import-mermaid', label: 'Importar Mermaid…', onClick: () => confirmDiscard(actions.importMermaid) },
+        { key: 'new', label: t('ed.f.new'), onClick: () => confirmDiscard(newDocument) },
+        { key: 'sample', label: t('ed.f.sample'), onClick: () => confirmDiscard(loadSample) },
+        { key: 'open', label: t('ed.f.openJson'), onClick: () => confirmDiscard(actions.openJson), shortcut: 'Ctrl+O' },
+        { key: 'import-drawio', label: t('ed.f.importDrawio'), onClick: () => confirmDiscard(actions.importDrawio) },
+        { key: 'import-dsl', label: t('ed.f.importDsl'), onClick: () => confirmDiscard(actions.importDsl) },
+        { key: 'import-mermaid', label: t('ed.f.importMermaid'), onClick: () => confirmDiscard(actions.importMermaid) },
         { key: 'd1', label: '', divider: true },
-        { key: 'save', label: 'Guardar JSON', onClick: actions.saveJson, shortcut: 'Ctrl+S' },
-        { key: 'export', label: 'Exportar .drawio (notación C4)', onClick: () => void actions.exportDrawio('c4'), shortcut: 'Ctrl+E' },
-        { key: 'export-card', label: 'Exportar .drawio (tarjetas)', onClick: () => void actions.exportDrawio('card') },
-        { key: 'export-mermaid', label: 'Exportar Mermaid (.mmd)', onClick: () => void actions.exportMermaid('c4') },
-        { key: 'export-mermaid-flow', label: 'Exportar Mermaid (diagrama de flujo)', onClick: () => void actions.exportMermaid('flowchart') },
-        { key: 'copy-mermaid', label: 'Copiar vista como Mermaid', onClick: () => void actions.exportMermaid('c4', 'clipboard') },
-        { key: 'preview-mermaid', label: 'Vista previa de Mermaid…', onClick: () => setShowMermaid(true), closeMenu: true },
+        { key: 'save', label: t('ed.f.saveJson'), onClick: actions.saveJson, shortcut: 'Ctrl+S' },
+        { key: 'export', label: t('ed.f.exportC4'), onClick: () => void actions.exportDrawio('c4'), shortcut: 'Ctrl+E' },
+        { key: 'export-card', label: t('ed.f.exportCard'), onClick: () => void actions.exportDrawio('card') },
+        { key: 'export-mermaid', label: t('ed.f.exportMermaid'), onClick: () => void actions.exportMermaid('c4') },
+        { key: 'export-mermaid-flow', label: t('ed.f.exportMermaidFlow'), onClick: () => void actions.exportMermaid('flowchart') },
+        { key: 'copy-mermaid', label: t('ed.f.copyMermaid'), onClick: () => void actions.exportMermaid('c4', 'clipboard') },
+        { key: 'preview-mermaid', label: t('ed.f.previewMermaid'), onClick: () => setShowMermaid(true), closeMenu: true },
       ];
 
   const editMenu: MenuProps['items'] = [
-    { key: 'undo', label: 'Deshacer', onClick: actions.undo, disabled: pastStates === 0 || readOnly, shortcut: 'Ctrl+Z' },
-    { key: 'redo', label: 'Rehacer', onClick: actions.redo, disabled: futureStates === 0 || readOnly, shortcut: 'Ctrl+Y' },
+    { key: 'undo', label: t('ed.e.undo'), onClick: actions.undo, disabled: pastStates === 0 || readOnly, shortcut: 'Ctrl+Z' },
+    { key: 'redo', label: t('ed.e.redo'), onClick: actions.redo, disabled: futureStates === 0 || readOnly, shortcut: 'Ctrl+Y' },
     { key: 'd1', label: '', divider: true },
-    { key: 'delete', label: 'Eliminar selección', onClick: actions.deleteSelection, disabled: selection.kind === 'none' || readOnly, shortcut: 'Supr' },
+    { key: 'delete', label: t('ed.e.delete'), onClick: actions.deleteSelection, disabled: selection.kind === 'none' || readOnly, shortcut: t('ed.e.deleteKey') },
     { key: 'd2', label: '', divider: true },
-    { key: 'layout', label: 'Autolayout de la vista', onClick: () => void actions.autoLayout(), disabled: readOnly, shortcut: 'Ctrl+L' },
+    { key: 'layout', label: t('ed.e.layout'), onClick: () => void actions.autoLayout(), disabled: readOnly, shortcut: 'Ctrl+L' },
   ];
 
   const viewMenu: MenuProps['items'] = [
-    { key: 'header', label: 'Cabecera', checked: ui.showHeader, onClick: () => setUi({ showHeader: !ui.showHeader }) },
-    { key: 'sidebar', label: 'Panel lateral', checked: ui.showSidebar, onClick: () => setUi({ showSidebar: !ui.showSidebar }) },
-    { key: 'issues', label: 'Panel de problemas', checked: ui.showIssues, onClick: () => setUi({ showIssues: !ui.showIssues }) },
+    { key: 'header', label: t('ed.v.header'), checked: ui.showHeader, onClick: () => setUi({ showHeader: !ui.showHeader }) },
+    { key: 'sidebar', label: t('ed.v.sidebar'), checked: ui.showSidebar, onClick: () => setUi({ showSidebar: !ui.showSidebar }) },
+    { key: 'issues', label: t('ed.v.issues'), checked: ui.showIssues, onClick: () => setUi({ showIssues: !ui.showIssues }) },
     { key: 'd1', label: '', divider: true },
-    { key: 'grid', label: 'Cuadrícula', checked: ui.showGrid, onClick: () => setUi({ showGrid: !ui.showGrid }) },
-    { key: 'minimap', label: 'Minimapa', checked: ui.showMinimap, onClick: () => setUi({ showMinimap: !ui.showMinimap }) },
+    { key: 'grid', label: t('ed.v.grid'), checked: ui.showGrid, onClick: () => setUi({ showGrid: !ui.showGrid }) },
+    { key: 'minimap', label: t('ed.v.minimap'), checked: ui.showMinimap, onClick: () => setUi({ showMinimap: !ui.showMinimap }) },
     { key: 'd2', label: '', divider: true },
-    { key: 'theme', label: 'Tema oscuro', checked: ui.theme === 'dark', onClick: () => setUi({ theme: ui.theme === 'dark' ? 'light' : 'dark' }) },
+    { key: 'theme', label: t('ed.v.dark'), checked: ui.theme === 'dark', onClick: () => setUi({ theme: ui.theme === 'dark' ? 'light' : 'dark' }) },
     { key: 'd3', label: '', divider: true },
-    { key: 'style-c4', label: 'Notación C4 clásica', checked: ui.nodeStyle === 'c4', onClick: () => setUi({ nodeStyle: 'c4' }) },
-    { key: 'style-card', label: 'Tarjetas (estilo drawdb)', checked: ui.nodeStyle === 'card', onClick: () => setUi({ nodeStyle: 'card' }) },
+    { key: 'style-c4', label: t('ed.v.styleC4'), checked: ui.nodeStyle === 'c4', onClick: () => setUi({ nodeStyle: 'c4' }) },
+    { key: 'style-card', label: t('ed.v.styleCard'), checked: ui.nodeStyle === 'card', onClick: () => setUi({ nodeStyle: 'card' }) },
   ];
 
   const settingsMenu: MenuProps['items'] = [
     ...DIRECTIONS.map((d) => ({
       key: `dir-${d.value}`,
-      label: `Dirección del autolayout: ${d.label}`,
+      label: t('ed.s.direction', { value: d.label }),
       checked: ui.direction === d.value,
       onClick: () => setUi({ direction: d.value }),
     })),
@@ -242,16 +244,16 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
     { key: 'd1', label: '', divider: true },
     ...(['auto', 'compact', 'spacious'] as const).map((d) => ({
       key: `density-${d}`,
-      label: `Densidad del autolayout: ${d === 'auto' ? 'automática (según relaciones)' : d === 'compact' ? 'compacta' : 'amplia'}`,
+      label: t('ed.s.density', { value: d === 'auto' ? t('ed.s.density.auto') : d === 'compact' ? t('ed.s.density.compact') : t('ed.s.density.spacious') }),
       checked: ui.density === d,
       onClick: () => setUi({ density: d }),
     })),
   ];
 
   const helpMenu: MenuProps['items'] = [
-    { key: 'shortcuts', label: 'Atajos de teclado', onClick: () => setShowShortcuts(true) },
-    { key: 'about', label: 'Acerca del diagramador', onClick: () => setShowAbout(true) },
-    { key: 'c4', label: 'Modelo C4 (c4model.com)', onClick: () => window.open('https://c4model.com', '_blank', 'noopener') },
+    { key: 'shortcuts', label: t('ed.h.shortcuts'), onClick: () => setShowShortcuts(true) },
+    { key: 'about', label: t('ed.h.about'), onClick: () => setShowAbout(true) },
+    { key: 'c4', label: t('ed.h.c4'), onClick: () => window.open('https://c4model.com', '_blank', 'noopener') },
   ];
 
   // Con un servidor el estado lo dice («· servidor») y un token rechazado se avisa aparte, con el botón para volver a conectar.
@@ -261,7 +263,7 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
   const forbidden = remote && !rejected && projectState?.saveErrorCode === 'forbidden';
   // Con una sesión de persona (inicio de sesión de GitHub) no se «rechaza un token»: la sesión caducó, y un 403 es el rol en el proyecto, no un token que cambiar.
   const withSession = projectSession?.credential === 'session';
-  const rejectedText = withSession ? 'Tu sesión caducó' : 'El servidor no aceptó el token';
+  const rejectedText = withSession ? t('bar.status.sessionExpired') : t('bar.status.tokenRejected');
   // Con un servidor, el trabajo sin conexión y los conflictos tienen su propio texto y su propia resolución (tres salidas, con confirmación).
   const indicator = projectState ? offlineIndicator(projectState) : undefined;
   const queuedConflict = (projectState?.offline?.conflicts ?? 0) > 0;
@@ -270,15 +272,19 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
     : remote && projectState && !projectState.available
       ? projectState.errorCode === 'unauthorized'
         ? rejectedText
-        : 'Servidor no disponible'
+        : t('bar.status.serverDown')
       : attached && projectState
         ? projectState.save === 'error' && projectState.saveErrorCode === 'unauthorized'
           ? rejectedText
           : projectState.save === 'error' && projectState.saveErrorCode === 'forbidden'
-            ? 'Sin permiso para guardar en el servidor'
-            : `${SAVE_LABEL[projectState.save]}${projectState.save === 'saved' || projectState.save === 'idle' ? ` en «${openProject?.name}»${remote ? ' · servidor' : ''}` : ''}`
+            ? t('ed.save.forbidden')
+            : projectState.save === 'saved' || projectState.save === 'idle'
+              ? t(remote ? 'ed.save.savedInServer' : 'ed.save.savedIn', { state: t(SAVE_KEY[projectState.save]), project: openProject?.name ?? '' })
+              : t(SAVE_KEY[projectState.save])
         : undefined;
-  const status = statusMessage ?? projectStatus ?? (modified ? 'Cambios sin guardar' : relativeTime(lastSavedAt));
+  const chipText = openProject ? (attached ? t('ed.chip.projectDiagram', { project: openProject.name, diagram: attached.name }) : t('ed.chip.project', { project: openProject.name })) : t('ed.chip.none');
+  const projectChip = remote ? t('ed.chip.server', { text: chipText }) : chipText;
+  const status = statusMessage ?? projectStatus ?? (modified ? t('ed.save.unsaved') : relativeTime(lastSavedAt));
 
   return (
     <header className="flex justify-between items-center border-b border-color px-3 py-1.5 gap-3 theme">
@@ -290,7 +296,7 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
           document.getElementById('c4-lienzo')?.focus();
         }}
       >
-        Saltar al lienzo
+        {t('ed.skip')}
       </a>
       <div className="flex items-center gap-3 min-w-0">
         <Logo />
@@ -301,21 +307,21 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
               <Input
                 autoFocus
                 size="small"
-                aria-label="Nombre del diagrama"
+                aria-label={t('ed.diagramName')}
                 defaultValue={name}
                 className="w-64"
                 onBlur={(e) => {
-                  setWorkspaceName(e.target.value.trim() || 'Diagrama C4');
+                  setWorkspaceName(e.target.value.trim() || t('ed.defaultName'));
                   setEditingTitle(false);
                 }}
                 onEnterPress={(e) => {
-                  setWorkspaceName((e.target as HTMLInputElement).value.trim() || 'Diagrama C4');
+                  setWorkspaceName((e.target as HTMLInputElement).value.trim() || t('ed.defaultName'));
                   setEditingTitle(false);
                 }}
               />
             ) : (
               <h1 className="m-0 min-w-0 text-xl font-medium truncate">
-                <button type="button" ref={titleButton} className="c4-title-button cursor-text hover-1 rounded px-1 -mx-1" onClick={() => !readOnly && setEditingTitle(true)} title={readOnly ? undefined : 'Renombrar diagrama'} aria-disabled={readOnly || undefined}>
+                <button type="button" ref={titleButton} className="c4-title-button cursor-text hover-1 rounded px-1 -mx-1" onClick={() => !readOnly && setEditingTitle(true)} title={readOnly ? undefined : t('ed.renameDiagram')} aria-disabled={readOnly || undefined}>
                   {name}
                 </button>
               </h1>
@@ -325,56 +331,55 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
             </Tag>
             {readOnly && (
               <Tag size="small" color="orange">
-                solo lectura
+                {t('ed.readOnly')}
               </Tag>
             )}
             {projects && (
-              <Tag size="small" color={attached ? 'blue' : 'grey'} onClick={() => projects.onManage()} className="cursor-pointer" data-testid="project-chip" aria-label="Abrir los proyectos">
-                {openProject ? `Proyecto: ${openProject.name}${attached ? ` › ${attached.name}` : ''}` : 'Sin proyecto'}
-                {remote ? ' · servidor' : ''}
+              <Tag size="small" color={attached ? 'blue' : 'grey'} onClick={() => projects.onManage()} className="cursor-pointer" data-testid="project-chip" aria-label={t('ed.openProjects')}>
+                {projectChip}
               </Tag>
             )}
           </div>
           <div className="flex items-center gap-1 -ml-1">
-            <Menu label="Archivo" items={fileMenu} />
-            <Menu label="Editar" items={editMenu} />
-            <Menu label="Ver" items={viewMenu} />
-            <Menu label="Ajustes" items={settingsMenu} />
-            <Menu label="Ayuda" items={helpMenu} />
+            <Menu label={t('ed.menu.file')} items={fileMenu} />
+            <Menu label={t('ed.menu.edit')} items={editMenu} />
+            <Menu label={t('ed.menu.view')} items={viewMenu} />
+            <Menu label={t('ed.menu.settings')} items={settingsMenu} />
+            <Menu label={t('ed.menu.help')} items={helpMenu} />
           </div>
         </div>
       </div>
       <div className="flex items-center gap-3 flex-none">
         {rejected && (
           <Button size="small" type="warning" onClick={() => projects?.onManage('storage')} data-testid="reconnect">
-            {withSession ? 'Iniciar sesión' : 'Volver a conectar'}
+            {withSession ? t('ed.signIn') : t('ed.reconnect')}
           </Button>
         )}
         {forbidden && !withSession && (
           <Button size="small" type="warning" onClick={() => projects?.onManage('storage')} data-testid="reconnect">
-            Cambiar de token
+            {t('ed.changeToken')}
           </Button>
         )}
         {canHistory && (
           <Button size="small" onClick={() => projects?.onHistory?.()} aria-haspopup="dialog" data-testid="history-open">
-            Historial…
+            {t('ed.historyButton')}
           </Button>
         )}
         {remote && attached && projectState?.save === 'error' && projectState.saveErrorCode !== 'unauthorized' && (
           <Button size="small" onClick={() => void projectSession?.retry()} data-testid="retry-save">
-            Reintentar
+            {t('common.retry')}
           </Button>
         )}
         {remote && projectSession && <OfflineActions session={projectSession} resolve={(choice, key, name) => projects!.binding.resolveConflict(choice, { key, name })} />}
         {remote && attached && projectSession && <NewerVersionNotice session={projectSession} load={() => projects!.binding.loadNewer()} notify={(message) => Toast.error(message)} />}
         {attached && projectState?.save === 'conflict' && !queuedConflict && (
           <span className="flex items-center gap-2 text-sm" role="alert" data-testid="save-conflict">
-            {remote ? 'Otra persona u otro equipo guardó' : 'Otra pestaña guardó'} «{attached.name}» mientras lo editabas.
+            {remote ? t('ed.conflict.remote', { name: attached.name }) : t('ed.conflict.local', { name: attached.name })}
             <Button size="small" onClick={() => resolveConflict('overwrite')}>
-              Quedarme con mi versión
+              {t('ed.conflict.keepMine')}
             </Button>
             <Button size="small" onClick={() => resolveConflict('reload')}>
-              Cargar la otra
+              {t('ed.conflict.loadOther')}
             </Button>
           </span>
         )}
@@ -387,23 +392,24 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
         >
           {status}
         </span>
+        {!isEmbedMode && <LanguageSelect className="iark-lang c4-lang" />}
         {isEmbedMode ? (
           <>
-            <Tooltip content="Cerrar sin guardar">
-              <Button icon={<IconExit />} theme="borderless" aria-label="Salir" onClick={onEmbedExit}>
-                Salir
+            <Tooltip content={t('ed.exitTip')}>
+              <Button icon={<IconExit />} theme="borderless" aria-label={t('ed.exit')} onClick={onEmbedExit}>
+                {t('ed.exit')}
               </Button>
             </Tooltip>
-            <Button icon={<IconSave />} aria-label="Guardar" onClick={() => onEmbedSave?.(false)} disabled={readOnly}>
-              Guardar
+            <Button icon={<IconSave />} aria-label={t('ed.f.save')} onClick={() => onEmbedSave?.(false)} disabled={readOnly}>
+              {t('ed.f.save')}
             </Button>
-            <Button icon={<IconSave />} theme="solid" type="primary" aria-label="Guardar y salir" onClick={() => onEmbedSave?.(true)} disabled={readOnly}>
-              Guardar y salir
+            <Button icon={<IconSave />} theme="solid" type="primary" aria-label={t('ed.f.saveExit')} onClick={() => onEmbedSave?.(true)} disabled={readOnly}>
+              {t('ed.f.saveExit')}
             </Button>
           </>
         ) : (
-          <Button icon={<IconDownload />} theme="solid" type="primary" size="large" className="!rounded-md" aria-label="Exportar .drawio" onClick={() => void actions.exportDrawio()}>
-            Exportar .drawio
+          <Button icon={<IconDownload />} theme="solid" type="primary" size="large" className="!rounded-md" aria-label={t('ed.exportDrawio')} onClick={() => void actions.exportDrawio()}>
+            {t('ed.exportDrawio')}
           </Button>
         )}
       </div>

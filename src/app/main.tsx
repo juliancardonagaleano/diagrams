@@ -13,6 +13,10 @@ import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { isEmbedMode } from './store/documentStore';
 import { completeGithubLogin } from '../projects/login';
+import { initLang } from '../i18n';
+
+// El idioma de la interfaz (?lang= > lo elegido > el del navegador) se decide antes de pintar; también pone `<html lang>`.
+initLang();
 
 // Si la página acaba de volver de GitHub (`#iark_code=…`), la sesión se termina de crear **antes** de montar nada: la sesión de proyectos que
 // crea el editor lee la configuración al nacer. No espera nada si no se viene de un inicio de sesión; en modo embebido guarda el anfitrión.

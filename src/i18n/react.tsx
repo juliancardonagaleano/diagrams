@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useSyncExternalStore, type ChangeEvent, type ReactNode } from 'react';
+import './lang.css';
 import { LANGS, LANG_NAMES, formatDate, formatNumber, getLang, richParts, setLang, subscribeLang, t, tp, type Lang, type MessageArgs, type MessageKey, type PluralKey } from './index';
 
 /** El idioma actual; la pantalla que lo llama se vuelve a pintar cuando la persona lo cambia. */

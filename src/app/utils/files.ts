@@ -1,4 +1,5 @@
 export { extractJson } from '@iark/kernel';
+import { t } from '../../i18n';
 
 export function downloadText(filename: string, content: string, mime = 'application/octet-stream'): void {
   const blob = new Blob([content], { type: mime });
@@ -39,13 +40,13 @@ export function safeFilename(name: string, ext: string): string {
 }
 
 export function relativeTime(ts: number | null): string {
-  if (!ts) return 'Sin guardar';
+  if (!ts) return t('ed.time.never');
   const diff = Math.max(0, Date.now() - ts);
   const s = Math.round(diff / 1000);
-  if (s < 10) return 'Guardado ahora mismo';
-  if (s < 60) return `Guardado hace ${s} s`;
+  if (s < 10) return t('ed.time.now');
+  if (s < 60) return t('ed.time.seconds', { count: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `Guardado hace ${m} min`;
+  if (m < 60) return t('ed.time.minutes', { count: m });
   const h = Math.round(m / 60);
-  return `Guardado hace ${h} h`;
+  return t('ed.time.hours', { count: h });
 }
