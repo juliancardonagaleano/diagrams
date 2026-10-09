@@ -76,20 +76,22 @@ describe('sesión con un almacén remoto', () => {
   });
 
   describe('un corte de red al guardar', () => {
-    it('deja el estado de error con el texto pendiente y se puede reintentar a mano', async () => {
+    it('deja el cambio como «sin conexión» (guardado en la cola) y se puede reintentar a mano', async () => {
       const { server, session, project, meta } = await setup();
       server.down = true;
       session.queueSave('v1');
       await vi.advanceTimersByTimeAsync(60);
-      expect(session.getState()).toMatchObject({ save: 'error', saveErrorCode: 'unavailable' });
+      expect(session.getState()).toMatchObject({ save: 'offline', saveErrorCode: 'unavailable' });
       expect(session.getState().saveError).toMatch(/No se pudo conectar con http:\/\/localhost:8787/);
-      expect(session.dirty).toBe(true);
+      expect(session.getState().offline).toMatchObject({ waiting: 1, conflicts: 0 });
+      expect(session.unsentCount).toBe(1);
       // la lista que se veía sigue ahí, y el almacén sigue «disponible»
       expect(session.getState().available).toBe(true);
 
       server.down = false;
-      await session.retry();
+      await session.retryNow();
       expect(session.getState().save).toBe('saved');
+      expect(session.unsentCount).toBe(0);
       expect((await server.store.getDiagram(project.id, meta.id))?.text).toBe('v1');
       session.dispose();
     });
@@ -99,37 +101,38 @@ describe('sesión con un almacén remoto', () => {
       server.down = true;
       session.queueSave('v1');
       await vi.advanceTimersByTimeAsync(60);
-      expect(session.getState().save).toBe('error');
+      expect(session.getState().save).toBe('offline');
 
       // sigue sin red: el aviso `online` no consigue nada, pero tampoco rompe nada
       window.dispatchEvent(new Event('online'));
       await vi.advanceTimersByTimeAsync(0);
-      expect(session.getState().save).toBe('error');
+      expect(session.getState().save).toBe('offline');
 
-      // ventana oculta: el foco no cuenta
+      // ventana oculta: el foco no cuenta (y pasa el hueco mínimo entre intentos para que no sea eso lo que lo frene)
       server.down = false;
+      await vi.advanceTimersByTimeAsync(1000);
       hidden(true);
       window.dispatchEvent(new Event('focus'));
       document.dispatchEvent(new Event('visibilitychange'));
       await vi.advanceTimersByTimeAsync(0);
-      expect(session.getState().save).toBe('error');
+      expect(session.getState().save).toBe('offline');
 
+      // `online` va por delante del foco y no espera el hueco mínimo entre intentos
       hidden(false);
-      window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new Event('online'));
       await vi.advanceTimersByTimeAsync(0);
       expect(session.getState().save).toBe('saved');
       expect((await server.store.getDiagram(project.id, meta.id))?.text).toBe('v1');
 
-      // y con `online`
+      // y con el foco, pasado el hueco mínimo entre intentos
       server.down = true;
       session.queueSave('v2');
       await vi.advanceTimersByTimeAsync(60);
-      expect(session.getState().save).toBe('error');
+      expect(session.getState().save).toBe('offline');
       server.down = false;
-      window.dispatchEvent(new Event('online'));
-      await vi.advanceTimersByTimeAsync(0);
-      expect(session.getState().save).toBe('saved');
+      await vi.advanceTimersByTimeAsync(6000); // más que el hueco entre intentos (el reintento con espera también habrá saltado)
       expect((await server.store.getDiagram(project.id, meta.id))?.text).toBe('v2');
+      expect(session.getState().save).toBe('saved');
       session.dispose();
     });
 

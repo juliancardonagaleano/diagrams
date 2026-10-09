@@ -53,7 +53,7 @@ export interface FakeServer {
   /** Añade una cuenta ya existente (que entró, o una invitación con `pending: true`) sin pasar por GitHub. */
   addAccount(account: Partial<FakeAccount> & { login: string }): FakeAccount;
   /** Responde con ese estado y cuerpo a las próximas `times` peticiones que coincidan (`MÉTODO /ruta`), sin llegar a la lógica del servidor. */
-  inject(match: RegExp, status: number, body: unknown, times?: number): void;
+  inject(match: RegExp, status: number, body: unknown, times?: number, headers?: Record<string, string>): void;
 }
 
 /** Una cuenta de la instancia en el servidor simulado (lo que `GET /api/admin/users` cuenta de ella, menos el número de proyectos, que se deduce de `members`). */
@@ -99,7 +99,7 @@ const sameLogin = (a: string, b: string): boolean => a.toLowerCase() === b.toLow
 export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 'name' | 'noProjects' | 'accounts' | 'maxMembers' | 'maxProjects' | 'maxPending'>> & { store?: ProjectStore } = {}): FakeServer {
   const people = new Map<string, FakePerson>();
   const codes = new Map<string, { person: FakePerson; challenge: string }>();
-  const injected: Array<{ match: RegExp; status: number; body: unknown; times: number }> = [];
+  const injected: Array<{ match: RegExp; status: number; body: unknown; times: number; headers?: Record<string, string> }> = [];
   let accountSeq = 0;
   const server: FakeServer = {
     store: options.store ?? new MemoryProjectStore(),
@@ -127,8 +127,8 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
       server.directory.push(created);
       return created;
     },
-    inject(match, status, body, times = 1) {
-      injected.push({ match, status, body, times });
+    inject(match, status, body, times = 1, headers) {
+      injected.push({ match, status, body, times, headers });
     },
     openSession(person) {
       signIn(person);
@@ -238,7 +238,7 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
     if (forced) {
       forced.times -= 1;
       if (forced.times <= 0) injected.splice(injected.indexOf(forced), 1);
-      return json(forced.status, forced.body);
+      return json(forced.status, forced.body, forced.headers);
     }
     if (init.mode === 'no-cors') return new Response(null, { status: 200 }); // llega, pero opaca: no se puede leer
     if (server.corsBlocked) throw new TypeError('Failed to fetch');

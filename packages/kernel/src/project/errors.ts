@@ -25,6 +25,8 @@ export interface ProjectErrorInfo {
    * `invalid-grant`…): deja que una pantalla distinga, por ejemplo, un tope de proyectos de un contenido inválido.
    */
   serverCode?: string;
+  /** Con un 429 («demasiados intentos fallidos»), los segundos que pidió esperar el servidor (`Retry-After`), si los dio. Quien reintenta debe respetarlos. */
+  retryAfterSec?: number;
 }
 
 export class ProjectError extends Error {

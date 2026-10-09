@@ -2,7 +2,8 @@
  * Gestor de proyectos. Sirve en dos pantallas con temas distintos (el banco de trabajo, con `--wb-*`, y el editor C4, con
  * las variables de Semi UI): cada color toma la variable de la pantalla que esté y, si no hay ninguna, un valor propio.
  */
-.pj-overlay {
+.pj-overlay,
+.pj-offline-actions {
   --pj-bg: var(--wb-surface, var(--semi-color-bg-2, #ffffff));
   --pj-bg-2: var(--wb-surface-2, var(--semi-color-fill-0, #f0f2f5));
   --pj-border: var(--wb-border, var(--semi-color-border, #d9dde3));
@@ -15,6 +16,9 @@
   --pj-warning-bg: var(--wb-warning-bg, #fff4e0);
   --pj-ok: var(--wb-ok, var(--semi-color-success, #1a7f43));
   --pj-ok-bg: var(--wb-ok-bg, color-mix(in srgb, var(--pj-ok) 14%, var(--pj-bg)));
+  --pj-warning: var(--wb-warning, var(--semi-color-warning, #9a5b00));
+}
+.pj-overlay {
   position: fixed;
   inset: 0;
   z-index: 2000;
@@ -698,6 +702,116 @@ td.pj-admin-actions {
   }
   .pj-admin-tools label,
   .pj-admin-tools label.pj-grow {
+    flex: 1 1 100%;
+  }
+}
+
+/* ───────────── Trabajo sin conexión: indicador, avisos y conflictos ───────────── */
+.pj-offline-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  max-width: 100%;
+  color: var(--pj-text);
+  font: inherit;
+}
+.pj-offline-actions > button {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--pj-border);
+  background: var(--pj-bg);
+  color: var(--pj-text);
+  font: inherit;
+  cursor: pointer;
+}
+.pj-offline-actions > button:hover:not(:disabled) {
+  background: var(--pj-bg-2);
+}
+.pj-offline-actions > button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.pj-offline-actions > button.pj-primary {
+  background: var(--pj-primary);
+  border-color: var(--pj-primary);
+  color: var(--pj-primary-text);
+}
+.pj-offline-actions :focus-visible {
+  outline: 2px solid var(--pj-primary);
+  outline-offset: 1px;
+}
+.pj-offline-full {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--pj-warning-bg);
+  color: var(--pj-text);
+  border: 1px solid var(--pj-warning);
+}
+.pj-conflict {
+  width: min(680px, 100%);
+}
+.pj-conflict-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+  overflow: auto;
+}
+.pj-conflict-body p {
+  margin: 0;
+}
+.pj-conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pj-conflict-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--pj-border);
+  border-left: 3px solid var(--pj-warning);
+  border-radius: 8px;
+  background: var(--pj-bg-2);
+}
+.pj-conflict-item small {
+  color: var(--pj-text-2);
+}
+.pj-conflict-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.pj-conflict-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 6px 8px;
+}
+.pj-conflict-copy label {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pj-conflict .pj-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .pj-conflict-choices button,
+  .pj-conflict .pj-confirm button {
     flex: 1 1 100%;
   }
 }
