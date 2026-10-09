@@ -4,7 +4,7 @@ import { classifyRoute } from './route';
 /** Todas las plantillas que puede devolver `classifyRoute`: un conjunto cerrado, que es lo que protege la cardinalidad de las métricas y del registro. */
 const TEMPLATES = new Set([
   '/', '/assets/*', '/*', '/healthz', '/readyz', '/metrics', '/.well-known/iark.json',
-  '/api', '/api/*', '/api/modules', '/api/whoami', '/api/trace',
+  '/api', '/api/*', '/api/modules', '/api/whoami', '/api/trace', '/api/events', '/api/events/*',
   '/api/projects', '/api/projects/import', '/api/projects/:project', '/api/projects/:project/diagrams', '/api/projects/:project/bundle', '/api/projects/:project/check',
   '/api/projects/:project/members', '/api/projects/:project/diagrams/:diagram', '/api/projects/:project/members/:login', '/api/projects/*',
   '/api/projects/:project/diagrams/:diagram/versions', '/api/projects/:project/diagrams/:diagram/versions/:version', '/api/projects/:project/diagrams/:diagram/versions/:version/restore',
@@ -25,6 +25,8 @@ describe('classifyRoute: la plantilla de una petición', () => {
     ['GET', '/api/modules', '/api/modules', {}],
     ['GET', '/api/whoami', '/api/whoami', {}],
     ['POST', '/api/trace', '/api/trace', {}],
+    ['GET', '/api/events', '/api/events', {}],
+    ['GET', '/api/events/otra', '/api/events/*', {}],
     ['GET', '/api/projects', '/api/projects', {}],
     ['POST', '/api/projects/import', '/api/projects/import', {}],
     ['GET', '/api/projects/tienda', '/api/projects/:project', { project: 'tienda' }],

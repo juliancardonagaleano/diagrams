@@ -1,5 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import { HistoryDialog } from '../projects/HistoryDialog';
+import { NewerVersionNotice } from '../projects/NewerVersionNotice';
 import { OfflineActions } from '../projects/OfflineActions';
 import { offlineIndicator } from '../projects/offlineText';
 import type { WorkbenchController, WorkbenchState } from './controller';
@@ -65,7 +66,7 @@ export function ProjectBar({
   for (const d of project?.diagrams ?? []) byModule.set(d.module, [...(byModule.get(d.module) ?? []), d]);
 
   const bar = (
-    <div className="wb-projectbar" role="region" aria-label="Proyecto" data-testid="project-bar">
+    <div className="wb-projectbar" role="region" aria-label="Proyecto" data-testid="project-bar" data-live={projects.eventsState ?? 'off'}>
       <label>
         Proyecto
         <select aria-label="Proyecto" value={projects.projectId ?? ''} onChange={(e) => run(() => controller.enterProject(e.target.value || undefined))} disabled={!projects.available}>
@@ -131,6 +132,7 @@ export function ProjectBar({
         </button>
       )}
       {remote && <OfflineActions session={session} resolve={(choice, key, name) => controller.resolveConflict(choice, { key, name })} />}
+      {remote && attached && <NewerVersionNotice session={session} load={() => controller.loadNewer()} notify={notify} />}
       {attached && projects.save === 'conflict' && !queuedConflict && (
         <span className="wb-conflict" role="alert" data-testid="save-conflict">
           {remote ? 'Otra persona u otro equipo guardó' : 'Otra pestaña guardó'} «{attached.name}» mientras lo editabas.

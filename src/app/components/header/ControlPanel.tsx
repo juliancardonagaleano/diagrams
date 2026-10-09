@@ -6,6 +6,7 @@ import { isEmbedMode, useDocumentStore, useTemporalStore } from '../../store/doc
 import { relativeTime } from '../../utils/files';
 import { AboutModal, ShortcutsModal } from './HelpModals';
 import { MermaidPreviewModal } from './MermaidPreviewModal';
+import { NewerVersionNotice } from '../../../projects/NewerVersionNotice';
 import { OfflineActions } from '../../../projects/OfflineActions';
 import { offlineIndicator } from '../../../projects/offlineText';
 import { C4_MODULE, type ProjectBinding } from '../../projects/useProjectBinding';
@@ -365,6 +366,7 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
           </Button>
         )}
         {remote && projectSession && <OfflineActions session={projectSession} resolve={(choice, key, name) => projects!.binding.resolveConflict(choice, { key, name })} />}
+        {remote && attached && projectSession && <NewerVersionNotice session={projectSession} load={() => projects!.binding.loadNewer()} notify={(message) => Toast.error(message)} />}
         {attached && projectState?.save === 'conflict' && !queuedConflict && (
           <span className="flex items-center gap-2 text-sm" role="alert" data-testid="save-conflict">
             {remote ? 'Otra persona u otro equipo guardó' : 'Otra pestaña guardó'} «{attached.name}» mientras lo editabas.
@@ -381,6 +383,7 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
           role="status"
           data-testid="save-status"
           data-save={indicator ? indicator.kind : attached ? projectState?.save : undefined}
+          data-live={remote ? (projectState?.eventsState ?? 'off') : undefined}
         >
           {status}
         </span>

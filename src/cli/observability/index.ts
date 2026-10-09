@@ -58,6 +58,11 @@ export class RequestContext {
   body: string | undefined;
   /** Filas de auditoría que anotaron los manejadores. */
   readonly drafts: AuditDraft[] = [];
+  /**
+   * Solo si la respuesta es un canal que se queda abierto (los cambios en tiempo real, `GET /api/events`): lo que se envió por él. Un canal así no cuenta
+   * como petición en curso ni su duración (horas) como latencia; en el registro de accesos deja una línea al cerrarse, con `stream` y cuántos mensajes.
+   */
+  stream: { events: number; bytes: number } | undefined;
   readonly startedAt = process.hrtime.bigint();
   private finished = false;
 
@@ -86,6 +91,13 @@ export class RequestContext {
     if (!reason) return;
     this.authFailure ??= reason;
     this.owner.metrics?.authFailures.inc({ reason });
+  }
+
+  /** Esta respuesta es un canal abierto (ver `stream`): deja de contar como petición en curso. `summary` lo va rellenando quien lo envía. */
+  streaming(summary: { events: number; bytes: number }): void {
+    if (this.stream) return;
+    this.stream = summary;
+    if (this.owner.metrics) this.owner.metrics.inFlight -= 1;
   }
 
   /** Se envió una respuesta: cuántos bytes de cuerpo y qué cabeceras (`Location` dice qué se creó). */
@@ -193,12 +205,13 @@ export class Observability {
 
   /** Lo hace `RequestContext.finish`: escribe el registro de accesos, la auditoría y las métricas de una petición terminada. */
   finishRequest(context: RequestContext, status: number, seconds: number, aborted: boolean): void {
-    const { req, trustProxy, bytes, location, body, errorCode, drafts, route, method, id, actor } = context;
+    const { req, trustProxy, location, body, errorCode, drafts, route, method, id, actor, stream } = context;
+    const bytes = context.bytes + (stream?.bytes ?? 0);
     // Cada paso va aparte: que falle uno (un destino que lanza) no deja sin escribir los otros.
     this.guarded(() => {
       if (!this.metrics) return;
-      this.metrics.inFlight -= 1;
-      this.metrics.observeRequest(method, route.template, status, seconds);
+      if (!stream) this.metrics.inFlight -= 1; // un canal abierto ya dejó de contar al abrirse (`streaming`)
+      this.metrics.observeRequest(method, route.template, status, seconds, !stream);
     });
     // Las comprobaciones de las máquinas (/healthz, /readyz, /metrics) solo dejan línea cuando fallan: a diario serían miles sin información.
     this.guarded(() => {
@@ -215,6 +228,7 @@ export class Observability {
           bytes,
           remote: clientAddress(req, trustProxy),
           ...(actor.kind === 'anonymous' ? {} : { actor }),
+          ...(stream ? { stream: true, events: stream.events } : {}),
           ...(aborted ? { aborted: true } : {}),
         }),
       );
