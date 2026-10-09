@@ -257,9 +257,69 @@ export class ElkWorkerRunner {
 // Declarado aquí porque estos paquetes se compilan también sin la librería DOM; en el navegador es el `Worker` de siempre.
 declare const Worker: new (url: URL, options?: { type?: 'module' | 'classic'; name?: string }) => ElkWorkerLike;
 
+/** Lo que el hilo de trabajo de ELK (`elk-worker.min.js`) entiende y contesta: su protocolo propio, el mismo que usa `elkjs/lib/elk-api`. */
+interface NativeElkMessage {
+  id: number;
+  cmd: 'register' | 'layout';
+  algorithms?: string[];
+  graph?: ElkNode;
+  layoutOptions?: Record<string, string>;
+  options?: { logging: boolean; measureExecutionTime: boolean };
+}
+interface NativeElkReply {
+  id: number;
+  data?: ElkNode;
+  error?: unknown;
+}
+
+/** Los algoritmos que ELK registra por omisión (los mismos que `new ELK()`); `layered` es el que usamos. */
+const ELK_ALGORITHMS = ['layered', 'stress', 'mrtree', 'radial', 'force', 'disco', 'sporeOverlap', 'sporeCompaction', 'rectpacking'];
+
+const errorFrom = (error: unknown): { name: string; message: string } => {
+  if (error && typeof error === 'object') {
+    const { name, message } = error as { name?: unknown; message?: unknown };
+    return { name: typeof name === 'string' ? name : 'Error', message: typeof message === 'string' ? message : String(error) };
+  }
+  return { name: 'Error', message: String(error) };
+};
+
+/**
+ * Habla el protocolo propio de ELK con un `Worker` que ejecuta `elk-worker.min.js` y lo presenta con el nuestro (`ElkWorkerRequest` /
+ * `ElkWorkerResponse`). El motor registra los algoritmos al arrancar, antes del primer cálculo (los mensajes llegan en orden).
+ */
+export function nativeElkWorker(native: ElkWorkerLike): ElkWorkerLike {
+  let listener: ElkWorkerLike['onmessage'] = null;
+  native.onmessage = (event) => {
+    const reply = event.data as NativeElkReply;
+    if (reply.id === 0) return; // la respuesta al registro de algoritmos
+    if (reply.error !== undefined) listener?.({ data: { id: reply.id, ok: false, error: errorFrom(reply.error) } satisfies ElkWorkerResponse });
+    else listener?.({ data: { id: reply.id, ok: true, graph: reply.data as ElkNode } satisfies ElkWorkerResponse });
+  };
+  native.postMessage({ id: 0, cmd: 'register', algorithms: ELK_ALGORITHMS } satisfies NativeElkMessage);
+  return {
+    postMessage: (message) => {
+      const { id, graph } = message as ElkWorkerRequest;
+      native.postMessage({ id, cmd: 'layout', graph, layoutOptions: {}, options: { logging: false, measureExecutionTime: false } } satisfies NativeElkMessage);
+    },
+    terminate: () => native.terminate(),
+    get onmessage() {
+      return listener;
+    },
+    set onmessage(handler) {
+      listener = handler;
+    },
+    get onerror() {
+      return native.onerror;
+    },
+    set onerror(handler) {
+      native.onerror = handler;
+    },
+  };
+}
+
 /** Crea el hilo de trabajo de ELK. La forma `new Worker(new URL(…, import.meta.url))` es la que Vite reconoce para empaquetarlo aparte. */
 function createBrowserWorker(): ElkWorkerLike {
-  return new Worker(new URL('./elkWorker.ts', import.meta.url), { type: 'module', name: 'iark-elk' });
+  return nativeElkWorker(new Worker(new URL('./elkWorker.ts', import.meta.url), { type: 'module', name: 'iark-elk' }));
 }
 
 /** `?elk=thread` en la dirección fuerza el hilo principal (diagnóstico y comparación: ver docs/rendimiento.md). */

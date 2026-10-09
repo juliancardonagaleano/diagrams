@@ -44,12 +44,13 @@ export default defineConfig({
     // OUT_DIR permite compilar a otra carpeta (p. ej. el despliegue a Pages) sin pisar el dist/app que usan preview y E2E.
     outDir: process.env.OUT_DIR ?? 'dist/app',
     emptyOutDir: true,
-    // Los únicos trozos por encima de 500 kB son inevitables: `domain-c4` (≈1,7 MB: el módulo C4 más ELK, ≈1,4 MB, y el kernel
-    // que comparten todos los módulos), `elk` (la copia 0.9.3 de ELK que trae mermaid, ≈1,5 MB, solo se descarga al usar el
-    // layout `elk` de mermaid) y `chunk-*` del parser de mermaid (≈660 kB, también bajo demanda). Partirlos no reduce lo que
-    // se descarga (ELK es un único archivo minificado) y el trozo de C4 ya se carga a la vez que el editor. El límite queda
-    // en 2000 kB en vez de desactivar el aviso: si un trozo nuevo o el editor (`main`, hoy ≈430 kB) crece hasta 2 MB, avisa.
-    chunkSizeWarningLimit: 2000,
+    // Tope de aviso de Vite: 1600 kB, por ELK. Todo trozo salvo ELK y el parser de mermaid se queda por debajo de los 500 kB de
+    // siempre, y eso lo fija tests/e2e/tamano-trozos.spec.ts (con la lista de excepciones y su motivo en scripts/perf/limites.ts), no
+    // este aviso, que solo admite un número. ELK (elkjs, ≈1,46 MB) es un único archivo minificado que no se puede partir y sale en
+    // tres sitios, todos bajo demanda: el hilo de trabajo del autolayout (`elkWorker`), la salida de emergencia en el hilo principal
+    // cuando no hay `Worker` (`elk-hilo-principal`) y la copia 0.9.3 que trae mermaid para su layout `elk` (`elk-<hash>`). Ninguno
+    // está en la carga inicial de ninguna página (antes, ELK iba dentro de `domain-c4`, que todas las páginas descargaban).
+    chunkSizeWarningLimit: 1600,
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
@@ -70,6 +71,8 @@ export default defineConfig({
         // zod sondearía `new Function('')`, que la CSP de `iark serve` (sin `'unsafe-eval'`) anota como violación.
         codeSplitting: {
           groups: [
+            // ELK en el hilo principal (solo si no hay `Worker`): su propio trozo, que se descarga solo cuando hace falta.
+            { name: 'elk-hilo-principal', test: /^(?!.*mermaid).*node_modules[\\/]elkjs[\\/]lib[\\/]elk\.bundled/, priority: 3 },
             { name: 'zod', test: /node_modules[\\/]zod[\\/]|kernel[\\/]src[\\/]util[\\/]zodJitless/, priority: 2 },
             { name: 'domain-c4', test: /packages[\\/]domain-c4[\\/]/ },
           ],
@@ -77,6 +80,8 @@ export default defineConfig({
       },
     },
   },
+  // El hilo de trabajo del autolayout (packages/kernel/src/graph/elkWorker.ts) se empaqueta aparte, como módulo.
+  worker: { format: 'es' },
   server: {
     port: 5173,
   },

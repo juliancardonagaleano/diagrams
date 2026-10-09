@@ -1,6 +1,6 @@
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { abortError, elkPlace, ElkWorkerRunner, isAbortError, layoutElk, runElkInThread, setElkRunner, type ElkRunner, type ElkWorkerLike, type ElkWorkerRequest, type ElkWorkerResponse } from './elk';
+import { abortError, elkPlace, ElkWorkerRunner, isAbortError, layoutElk, nativeElkWorker, runElkInThread, setElkRunner, type ElkRunner, type ElkWorkerLike, type ElkWorkerRequest, type ElkWorkerResponse } from './elk';
 
 /**
  * Dónde corre ELK. Los hilos de trabajo se simulan con un `Worker` de mentira que guarda lo que se le manda y contesta cuando la
@@ -188,14 +188,15 @@ describe('layoutElk: dónde corre', () => {
     expect(laid.children?.every((c) => typeof c.x === 'number' && typeof c.y === 'number')).toBe(true);
   });
 
-  it('con Worker en el entorno, el cálculo se pide al hilo de trabajo', async () => {
+  it('con Worker en el entorno, el cálculo se pide al hilo de trabajo (con el protocolo de ELK)', async () => {
     vi.stubGlobal('Worker', FakeWorker);
     expect(elkPlace()).toBe('worker');
     const pending = layoutElk(root());
     expect(FakeWorker.all).toHaveLength(1);
-    expect(FakeWorker.all[0].posted).toHaveLength(1);
-    expect(FakeWorker.all[0].posted[0].graph.id).toBe('root');
-    FakeWorker.all[0].reply(0, { graph: placed('root') });
+    const posted = FakeWorker.all[0].posted as unknown as Array<{ id: number; cmd: string; graph?: ElkNode }>;
+    expect(posted.map((m) => m.cmd)).toEqual(['register', 'layout']);
+    expect(posted[1].graph?.id).toBe('root');
+    FakeWorker.all[0].onmessage?.({ data: { id: posted[1].id, data: placed('root') } });
     await expect(pending).resolves.toEqual(placed('root'));
   });
 
@@ -238,5 +239,59 @@ describe('runElkInThread', () => {
     expect(error.name).toBe('AbortError');
     expect(isAbortError(error)).toBe(true);
     expect(isAbortError(new Error('otro'))).toBe(false);
+  });
+});
+
+describe('nativeElkWorker: el protocolo propio de ELK detrás del nuestro', () => {
+  /** Un hilo de ELK de mentira: guarda lo que recibe y contesta como `elk-worker.min.js` (`{ id, data }` o `{ id, error }`). */
+  class NativeWorker implements ElkWorkerLike {
+    posted: Array<Record<string, unknown>> = [];
+    terminated = false;
+    onmessage: ElkWorkerLike['onmessage'] = null;
+    onerror: ElkWorkerLike['onerror'] = null;
+    postMessage(message: unknown): void {
+      this.posted.push(message as Record<string, unknown>);
+    }
+    terminate(): void {
+      this.terminated = true;
+    }
+    answer(reply: unknown): void {
+      this.onmessage?.({ data: reply });
+    }
+  }
+
+  it('registra los algoritmos al arrancar y manda el cálculo con la orden «layout»', () => {
+    const native = new NativeWorker();
+    const worker = nativeElkWorker(native);
+    expect(native.posted[0]).toMatchObject({ id: 0, cmd: 'register' });
+    expect(native.posted[0].algorithms).toContain('layered');
+    worker.postMessage({ id: 7, graph: graph('g1') } satisfies ElkWorkerRequest);
+    expect(native.posted[1]).toMatchObject({ id: 7, cmd: 'layout', graph: graph('g1') });
+  });
+
+  it('traduce la respuesta con datos, ignora la del registro y traduce los errores', () => {
+    const native = new NativeWorker();
+    const worker = nativeElkWorker(native);
+    const received: ElkWorkerResponse[] = [];
+    worker.onmessage = (event) => received.push(event.data as ElkWorkerResponse);
+    native.answer({ id: 0 });
+    native.answer({ id: 7, data: placed('g1') });
+    native.answer({ id: 8, error: { name: 'UnsupportedConfigurationException', message: 'no se puede' } });
+    native.answer({ id: 9, error: 'texto suelto' });
+    expect(received).toEqual([
+      { id: 7, ok: true, graph: placed('g1') },
+      { id: 8, ok: false, error: { name: 'UnsupportedConfigurationException', message: 'no se puede' } },
+      { id: 9, ok: false, error: { name: 'Error', message: 'texto suelto' } },
+    ]);
+  });
+
+  it('terminate y onerror pasan al hilo real', () => {
+    const native = new NativeWorker();
+    const worker = nativeElkWorker(native);
+    const onerror = vi.fn();
+    worker.onerror = onerror;
+    expect(native.onerror).toBe(onerror);
+    worker.terminate();
+    expect(native.terminated).toBe(true);
   });
 });
