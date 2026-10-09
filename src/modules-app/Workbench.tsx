@@ -13,7 +13,7 @@ import { compareMarks, readComparable } from './compare';
 import { ComparePanel, type CompareState } from './ComparePanel';
 import { ProjectBar } from './ProjectBar';
 import { getLoginNotice, setLoginNotice } from '../projects/login';
-import { ProjectsDialog } from '../projects/ProjectsDialog';
+import { ProjectsDialog } from '../projects/lazy';
 import { tabIndexDePestana, teclasDePestanas } from './a11y/pestanas';
 import { LanguageSelect, useT } from '../i18n/react';
 

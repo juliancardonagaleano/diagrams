@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { projectErrorText } from '../i18n/errores';
 import { useT } from '../i18n/react';
-import { HistoryDialog } from '../projects/HistoryDialog';
+import { HistoryDialog } from '../projects/lazy';
 import { NewerVersionNotice } from '../projects/NewerVersionNotice';
 import { OfflineActions } from '../projects/OfflineActions';
 import { offlineIndicator } from '../projects/offlineText';
