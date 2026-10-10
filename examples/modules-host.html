@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Demo: módulos de la suite embebidos</title>
+    <style>:root{color:#222;font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif}body{background:#f3f4f6;grid-template-rows:auto 1fr;height:100vh;margin:0;display:grid}header{background:#fff;border-bottom:1px solid #e5e7eb;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;display:flex}header h1{margin:0 12px 0 0;font-size:15px}button{font:inherit;cursor:pointer;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:6px 10px}button:hover{background:#f9fafb}main{grid-template-columns:1fr 380px;min-height:0;display:grid}#editor{background:#fff;min-height:0}aside{background:#fff;border-left:1px solid #e5e7eb;flex-direction:column;min-height:0;display:flex}aside h2{color:#374151;border-bottom:1px solid #e5e7eb;margin:0;padding:8px 12px;font-size:13px}#log{white-space:pre-wrap;flex:1;margin:0;padding:8px 12px;font:11px/1.5 ui-monospace,Menlo,monospace;overflow:auto}.badge{color:#075985;background:#e0f2fe;border-radius:999px;padding:2px 8px;font-size:11px}</style>
+    <script type="module" crossorigin src="/diagrams/assets/modules-host-DTXGmQXF.js"></script>
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/modulepreload-polyfill-P2Xu9kJm.js">
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/rolldown-runtime-Dd_uD5pT.js">
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/zod-C3StKava.js">
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/domain-c4-BCFwgdJH.js">
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/iark-module-embed-DcP7nW8O.js">
+  </head>
+  <body>
+    <header>
+      <h1>Mi aplicación anfitriona</h1>
+      <span class="badge" id="state">conectando…</span>
+      <button id="btn-caps">Capacidades</button>
+      <button id="btn-view">Vista: alcance de «Pedidos»</button>
+      <button id="btn-svg">Exportar SVG</button>
+      <button id="btn-risks">Informe de riesgos</button>
+      <button id="btn-validate">Validar</button>
+      <button id="btn-data">Abrir módulo de datos (desde Mermaid)</button>
+      <button id="btn-save">Guardar</button>
+    </header>
+    <main>
+      <div id="editor"></div>
+      <aside>
+        <h2>Eventos recibidos por postMessage</h2>
+        <pre id="log"></pre>
+      </aside>
+    </main>
+  </body>
+</html>

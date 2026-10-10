@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Demo: &lt;iark-module&gt; (Web Component)</title>
+    <style>:root{color:#222;font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif}body{background:#f3f4f6;grid-template-rows:auto 1fr auto;height:100vh;margin:0;display:grid}header{background:#fff;border-bottom:1px solid #e5e7eb;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;display:flex}header h1{margin:0 12px 0 0;font-size:15px}button{font:inherit;cursor:pointer;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:6px 10px}main{grid-template-columns:1fr 1fr;gap:10px;min-height:0;padding:10px;display:grid}iark-module{background:#fff;border:1px solid #e5e7eb;border-radius:8px;min-height:0;overflow:hidden}#log{background:#fff;border-top:1px solid #e5e7eb;max-height:120px;margin:0;padding:8px 12px;font:11px/1.5 ui-monospace,Menlo,monospace;overflow:auto}</style>
+    <script type="module" crossorigin src="/diagrams/assets/web-component-host-nIZSFqlQ.js"></script>
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/modulepreload-polyfill-P2Xu9kJm.js">
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/rolldown-runtime-Dd_uD5pT.js">
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/zod-C3StKava.js">
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/domain-c4-BCFwgdJH.js">
+    <link rel="modulepreload" crossorigin href="/diagrams/assets/iark-module-embed-DcP7nW8O.js">
+  </head>
+  <body>
+    <header>
+      <h1>Dos widgets, sin JavaScript de integración</h1>
+      <button id="btn-risks">Informe de riesgos (widget 1)</button>
+      <button id="btn-theme">Tema oscuro (widget 1)</button>
+      <button id="btn-view">Vista de amenazas (widget 1)</button>
+    </header>
+    <main>
+      <!-- Widget 1: URL directa del banco de trabajo; el documento se pasa por la propiedad `document`. -->
+      <iark-module id="w1" src="../modulos.html" module="security" ui="min" autosave title="Seguridad"></iark-module>
+      <!-- Widget 2: federación, el editor se descubre en el manifiesto de la instancia. -->
+      <iark-module id="w2" manifest="../.well-known/iark.json" module="data" ui="min" title="Datos"></iark-module>
+    </main>
+    <pre id="log"></pre>
+  </body>
+</html>

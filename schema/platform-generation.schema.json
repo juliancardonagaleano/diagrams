@@ -1,0 +1,612 @@
+{
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/platform-generation.schema.json",
+  "title": "Modelo de plataforma (salida de IA)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "currency"
+      ],
+      "additionalProperties": false
+    },
+    "environments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "dev",
+                  "test",
+                  "staging",
+                  "prod",
+                  "dr"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "kind",
+          "provider",
+          "region"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "networks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exposure": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "private",
+                  "isolated"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cidr": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "environmentId",
+          "parentId",
+          "exposure",
+          "cidr",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cluster",
+              "vm",
+              "database",
+              "cache",
+              "queue",
+              "storage",
+              "load-balancer",
+              "gateway",
+              "dns",
+              "secret-store",
+              "registry",
+              "region",
+              "namespace",
+              "certificate",
+              "monitoring",
+              "other"
+            ]
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "networkId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "technology": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "planned",
+                  "provisioned",
+                  "decommissioned"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "iac": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "monthlyCost": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cpuLimit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "memoryLimit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "counterpartOf": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "environmentId",
+          "networkId",
+          "technology",
+          "version",
+          "status",
+          "iac",
+          "owner",
+          "description",
+          "monthlyCost",
+          "region",
+          "cpuLimit",
+          "memoryLimit",
+          "expiresAt",
+          "counterpartOf"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "service",
+                  "worker",
+                  "job",
+                  "frontend"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "technology": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sla": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "description",
+          "technology",
+          "owner",
+          "repo",
+          "criticality",
+          "slo",
+          "sla",
+          "external"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "deployments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "serviceId": {
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "hostId": {
+            "type": "string"
+          },
+          "replicas": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "monthlyCost": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "cpuLimit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "memoryLimit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "serviceId",
+          "environmentId",
+          "hostId",
+          "replicas",
+          "version",
+          "monthlyCost",
+          "cpuLimit",
+          "memoryLimit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "calls",
+              "messages",
+              "data"
+            ]
+          },
+          "protocol": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sourceId",
+          "targetId",
+          "kind",
+          "protocol",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pipelines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ci",
+              "cd",
+              "ci-cd",
+              "iac"
+            ]
+          },
+          "tool": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serviceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provisions": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "environmentId": {
+                  "type": "string"
+                },
+                "approval": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "environmentId",
+                "approval"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "tool",
+          "description",
+          "owner",
+          "serviceIds",
+          "provisions",
+          "stages"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "workspace",
+    "environments",
+    "networks",
+    "resources",
+    "services",
+    "deployments",
+    "dependencies",
+    "pipelines"
+  ],
+  "additionalProperties": false
+}

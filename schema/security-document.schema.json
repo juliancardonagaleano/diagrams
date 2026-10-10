@@ -1,0 +1,356 @@
+{
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/security-document.schema.json",
+  "title": "Documento de seguridad (DIAgrams)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "default": "1.0",
+      "type": "string",
+      "const": "1.0"
+    },
+    "workspace": {
+      "default": {
+        "name": "Arquitectura de seguridad"
+      },
+      "type": "object",
+      "properties": {
+        "name": {
+          "default": "Arquitectura de seguridad",
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "zones": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "trust": {
+            "type": "string",
+            "enum": [
+              "untrusted",
+              "dmz",
+              "internal",
+              "restricted"
+            ]
+          },
+          "parentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      }
+    },
+    "assets": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "actor",
+              "external",
+              "process",
+              "datastore",
+              "identity",
+              "secret",
+              "channel"
+            ]
+          },
+          "zoneId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string"
+          },
+          "technology": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "encryptedAtRest": {
+            "type": "boolean"
+          },
+          "authentication": {
+            "type": "string",
+            "enum": [
+              "none",
+              "password",
+              "token",
+              "mtls",
+              "sso"
+            ]
+          },
+          "rotation": {
+            "type": "boolean"
+          },
+          "encrypted": {
+            "type": "boolean"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "refType": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Tipo del enlace que declara `ref` (vocabulario abierto; sugeridos: depends-on, implements, deploys, protects, realizes, derives, documents). Sin él, el enlace es «depends-on»."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "zoneId"
+        ]
+      }
+    },
+    "flows": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "sourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "targetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "encrypted": {
+            "type": "boolean"
+          },
+          "authentication": {
+            "type": "string",
+            "enum": [
+              "none",
+              "password",
+              "token",
+              "mtls",
+              "sso"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sourceId",
+          "targetId"
+        ]
+      }
+    },
+    "threats": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "spoofing",
+              "tampering",
+              "repudiation",
+              "information-disclosure",
+              "denial-of-service",
+              "elevation-of-privilege"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "likelihood": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "impact": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "mitigated",
+              "accepted"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "controlIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "suggested": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "targetId"
+        ]
+      }
+    },
+    "controls": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "authentication",
+              "authorization",
+              "encryption",
+              "logging",
+              "validation",
+              "network",
+              "rate-limit",
+              "backup",
+              "secrets",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "implemented"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "standard": {
+            "type": "string",
+            "enum": [
+              "asvs",
+              "nist-800-53",
+              "iso-27001",
+              "cis"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind"
+        ]
+      }
+    }
+  }
+}

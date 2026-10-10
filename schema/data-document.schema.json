@@ -1,0 +1,528 @@
+{
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/data-document.schema.json",
+  "title": "Documento de datos (DIAgrams)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "default": "1.0",
+      "type": "string",
+      "const": "1.0"
+    },
+    "workspace": {
+      "default": {
+        "name": "Arquitectura de datos"
+      },
+      "type": "object",
+      "properties": {
+        "name": {
+          "default": "Arquitectura de datos",
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "domains": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      }
+    },
+    "assets": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "source",
+              "database",
+              "warehouse",
+              "lake",
+              "stream",
+              "table",
+              "view",
+              "file",
+              "report",
+              "model",
+              "data-product",
+              "glossary",
+              "data-api"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "technology": {
+            "type": "string"
+          },
+          "engine": {
+            "description": "Motor de base de datos (postgresql, mysql, sqlserver, oracle, sqlite, bigquery, snowflake, redshift, databricks, mongodb, cassandra, dynamodb, kafka; el registro de motores es extensible). Lo heredan las tablas, vistas y archivos del activo.",
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "steward": {
+            "type": "string"
+          },
+          "domainId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "parentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "pii": {
+            "type": "boolean"
+          },
+          "retention": {
+            "type": "string"
+          },
+          "external": {
+            "type": "boolean"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "refType": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Tipo del enlace que declara `ref` (vocabulario abierto; sugeridos: depends-on, implements, deploys, protects, realizes, derives, documents). Sin él, el enlace es «depends-on»."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string"
+                },
+                "keys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "pk",
+                      "fk",
+                      "uk"
+                    ]
+                  }
+                },
+                "nullable": {
+                  "type": "boolean"
+                },
+                "pii": {
+                  "type": "boolean"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          "contractId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "inputPorts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "outputPorts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "exposes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "sla": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "rest",
+              "graphql",
+              "grpc",
+              "odata",
+              "sql",
+              "events"
+            ]
+          },
+          "endpoint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ]
+      }
+    },
+    "pipelines": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "batch",
+              "elt",
+              "cdc",
+              "streaming",
+              "replication",
+              "api",
+              "manual"
+            ]
+          },
+          "inputs": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "outputs": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          },
+          "tool": {
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "anonymizes": {
+            "type": "boolean"
+          },
+          "mappings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "column": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "column"
+                  ]
+                },
+                "to": {
+                  "type": "object",
+                  "properties": {
+                    "assetId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "column": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "assetId",
+                    "column"
+                  ]
+                },
+                "transform": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "inputs",
+          "outputs"
+        ]
+      }
+    },
+    "relations": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "sourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "targetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "cardinality": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "1:N",
+              "N:1",
+              "N:M"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "sourceMin": {
+            "description": "Mínimo del origen: 0 = opcional, 1 = obligatorio (por defecto, 1 si la cardinalidad dice «uno» y 0 si dice «varios»).",
+            "type": "number",
+            "enum": [
+              0,
+              1
+            ]
+          },
+          "targetMin": {
+            "description": "Mínimo del destino: 0 = opcional, 1 = obligatorio (mismos valores por defecto que sourceMin).",
+            "type": "number",
+            "enum": [
+              0,
+              1
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sourceId",
+          "targetId",
+          "cardinality"
+        ]
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "odcs"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "format"
+        ]
+      }
+    },
+    "terms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "definition": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "deprecated"
+            ]
+          },
+          "glossaryId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "synonyms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "assetId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "column": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "assetId"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      }
+    }
+  }
+}

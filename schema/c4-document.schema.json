@@ -1,0 +1,310 @@
+{
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/c4-document.schema.json",
+  "title": "Documento C4 (DIAgrams)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "default": "1.0",
+      "type": "string",
+      "const": "1.0"
+    },
+    "workspace": {
+      "default": {
+        "name": "Diagrama C4"
+      },
+      "type": "object",
+      "properties": {
+        "name": {
+          "default": "Diagrama C4",
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "model": {
+      "default": {
+        "elements": [],
+        "relationships": []
+      },
+      "type": "object",
+      "properties": {
+        "elements": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "softwareSystem",
+                  "container",
+                  "component"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string"
+              },
+              "technology": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "external": {
+                "type": "boolean"
+              },
+              "parentId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "shape": {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "database",
+                  "queue",
+                  "browser",
+                  "mobile"
+                ]
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "ref": {
+                "type": "string"
+              },
+              "refType": {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^[a-z][a-z0-9-]*$",
+                "description": "Tipo del enlace que declara `ref` (vocabulario abierto; sugeridos: depends-on, implements, deploys, protects, realizes, derives, documents). Sin él, el enlace es «depends-on»."
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "name"
+            ]
+          }
+        },
+        "relationships": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "sourceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "targetId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "description": {
+                "type": "string"
+              },
+              "technology": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "sourceId",
+              "targetId"
+            ]
+          }
+        }
+      }
+    },
+    "views": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "systemContext",
+              "container",
+              "component"
+            ]
+          },
+          "scopeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "elements": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "points": {
+                  "minItems": 2,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y"
+                    ]
+                  }
+                },
+                "label": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "points"
+              ]
+            }
+          },
+          "layout": {
+            "type": "object",
+            "properties": {
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "DOWN",
+                  "RIGHT",
+                  "UP",
+                  "LEFT"
+                ]
+              },
+              "spacing": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "layerSpacing": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "density": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "compact",
+                  "spacious"
+                ]
+              },
+              "distribution": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "centered",
+                  "elk"
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ]
+      }
+    }
+  }
+}

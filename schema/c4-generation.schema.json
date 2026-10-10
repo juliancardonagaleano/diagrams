@@ -1,0 +1,197 @@
+{
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/c4-generation.schema.json",
+  "title": "Modelo C4 sin coordenadas (salida de IA)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identificador estable en kebab-case ASCII, p. ej. \"api-pagos\""
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "person",
+              "softwareSystem",
+              "container",
+              "component"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "description": "Una o dos frases: responsabilidad del elemento",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "technology": {
+            "description": "Solo para container/component, p. ej. \"Node.js, Express\"",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external": {
+            "type": "boolean",
+            "description": "true si está fuera del alcance del equipo (sistemas de terceros)"
+          },
+          "parentId": {
+            "description": "container → id de su softwareSystem; component → id de su container; null en otro caso",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shape": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "database",
+                  "queue",
+                  "browser",
+                  "mobile"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "name",
+          "description",
+          "technology",
+          "external",
+          "parentId",
+          "shape"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "description": {
+            "description": "Verbo en presente: \"Consulta\", \"Envía pagos a\"",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "technology": {
+            "description": "Protocolo o tecnología: \"HTTPS/JSON\", \"gRPC\", \"SQL\"",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sourceId",
+          "targetId",
+          "description",
+          "technology"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "views": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "systemContext",
+              "container",
+              "component"
+            ]
+          },
+          "scopeId": {
+            "description": "softwareSystem para systemContext/container; container para component",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "elementIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids de los elementos visibles en la vista (sin incluir el scope de vistas container/component)"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "scopeId",
+          "title",
+          "elementIds"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "workspace",
+    "elements",
+    "relationships",
+    "views"
+  ],
+  "additionalProperties": false
+}
