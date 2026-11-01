@@ -15,7 +15,8 @@ Superficies auditadas, cada una en tema claro y oscuro:
 | Editor C4 clásico | `index.html`, `src/app/` | Vista inicial, los cinco menús abiertos, las pestañas Relaciones, Vistas e IA, el panel JSON, un elemento seleccionado (ficha desplegada), los diálogos de atajos, «Acerca de», vista previa de Mermaid y el gestor de proyectos. |
 | Banco de trabajo | `modulos.html`, `src/modules-app/` | Los seis módulos, todas sus pestañas (lienzo con y sin panel de propiedades, informes, problemas, exportar, importar, versiones con y sin diferencias, vista SVG, contratos), el gestor de proyectos y la ayuda de atajos. |
 | Lienzo común | `src/modules-app/canvas/` | Lo anterior, más el recorrido por teclado y los nombres accesibles de nodos y relaciones (pruebas unitarias). |
-| Suite | `suite.html`, `src/shell/` | La página con un módulo embebido en su `<iframe>`. |
+| Inicio | `/`, `src/home/` | La suite: proyectos, especialidades y borradores. |
+| Federación | `/?manifest=`, `src/shell/` | La página con un módulo embebido en su `<iframe>`. `suite.html` redirige al inicio. |
 | Trazabilidad | `trazabilidad.html`, `src/trace-app/` | Vacía y con ejemplos, en las siete pestañas. |
 
 Fuera de alcance: la salida exportada (SVG, draw.io, Mermaid: su accesibilidad depende de la herramienta que la abra), el widget embebible de terceros y la propia página de GitHub durante el inicio de sesión.

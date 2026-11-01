@@ -81,6 +81,15 @@ function collectRefs(value: unknown, out: CollectedRef[] = []): CollectedRef[] {
     if (typeof record.id === 'string' && typeof record.ref === 'string') {
       out.push({ id: record.id, ref: record.ref, ...(typeof record.refType === 'string' ? { refType: record.refType } : {}) });
     }
+    // `links` suma destinos sin quitar el `ref` principal. Una URN repetida se descarta al armar el grafo.
+    if (typeof record.id === 'string' && Array.isArray(record.links)) {
+      for (const link of record.links) {
+        if (!link || typeof link !== 'object') continue;
+        const item = link as { ref?: unknown; refType?: unknown };
+        if (typeof item.ref !== 'string') continue;
+        out.push({ id: record.id, ref: item.ref, ...(typeof item.refType === 'string' ? { refType: item.refType } : {}) });
+      }
+    }
     for (const child of Object.values(record)) collectRefs(child, out);
   }
   return out;

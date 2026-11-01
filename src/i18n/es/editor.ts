@@ -149,7 +149,22 @@ export const editor = {
   'wb.openFile': 'Abrir archivo…',
   'wb.trail': 'Diagramas recorridos',
   'wb.back': '← Volver',
-  // Suite (suite.html): la página que reúne los módulos de una instancia
+  'home.header': 'Inicio de DIAgrams',
+  'home.lead': 'Proyectos, diagramas sueltos y las seis especialidades.',
+  'home.continue': 'Continuar',
+  'home.projects': 'Proyectos',
+  'home.noProjects': 'Todavía no hay proyectos en este almacén.',
+  'home.newProject': 'Crear un proyecto en el banco…',
+  'home.modules': 'Especialidades',
+  'home.drafts': 'Diagramas sueltos',
+  'home.noDrafts': 'No hay borradores en este navegador.',
+  'home.editor': 'Editor C4 clásico',
+  'home.instance': 'Otra instancia',
+  'home.manifest': 'Manifiesto de la instancia',
+  'home.connect': 'Conectar',
+  'home.diagrams': '{count} diagramas',
+  'home.loading': 'Cargando proyectos…',
+  // Federación (?manifest=): la página que reúne los módulos de una instancia
   'suite.header': 'Suite de DIAgrams',
   'suite.instance': 'Instancia',
   'suite.manifest': 'Manifiesto de la instancia',
@@ -178,5 +193,5 @@ export const editor = {
   'suite.row.conversions': 'Conversiones',
   'suite.row.traceViews': 'Vistas de traza',
   'suite.row.schema': 'JSON Schema',
-  // Suite (suite.html): la página que reúne los módulos de una instancia
+  // Federación (?manifest=): la página que reúne los módulos de una instancia
 } as const;

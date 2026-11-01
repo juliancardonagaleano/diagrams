@@ -82,6 +82,33 @@
             "pattern": "^[a-z][a-z0-9-]*$",
             "description": "Tipo del enlace que declara `ref` (vocabulario abierto; sugeridos: depends-on, implements, deploys, protects, realizes, derives, documents). Sin él, el enlace es «depends-on»."
           },
+          "links": {
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "refType": {
+                  "type": "string",
+                  "maxLength": 40,
+                  "pattern": "^[a-z][a-z0-9-]*$",
+                  "description": "Tipo del enlace que declara `ref` (vocabulario abierto; sugeridos: depends-on, implements, deploys, protects, realizes, derives, documents). Sin él, el enlace es «depends-on»."
+                },
+                "view": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "ref"
+              ]
+            }
+          },
           "tags": {
             "type": "array",
             "items": {

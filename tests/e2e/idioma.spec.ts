@@ -61,7 +61,7 @@ test.describe('idioma de la interfaz', () => {
   });
 
   test('editor C4: el selector está en el encabezado y cambia los menús', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/?editor=1', { waitUntil: 'domcontentloaded' });
     const header = page.getByRole('banner');
     await expect(header.getByRole('button', { name: 'Archivo' })).toBeVisible({ timeout: 20000 });
     await header.getByRole('combobox', { name: 'Idioma' }).selectOption('en');
@@ -74,14 +74,14 @@ test.describe('idioma de la interfaz', () => {
   test('un navegador en inglés abre la interfaz en inglés sin tocar nada', async ({ browser }) => {
     const context = await browser.newContext({ locale: 'en-US' });
     const page = await context.newPage();
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.goto('/?editor=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.getByRole('banner').getByRole('button', { name: 'File' })).toBeVisible({ timeout: 20000 });
     await context.close();
   });
 
   test('suite: tiene selector, traduce su estado y abre los módulos en el idioma elegido', async ({ page }) => {
-    await page.goto('/suite.html?lang=en', { waitUntil: 'domcontentloaded' });
+    await page.goto(`/?manifest=${encodeURIComponent('/.well-known/iark.json')}&lang=en`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('status')).toContainText('6 modules');
     await expect(page.getByRole('navigation', { name: 'Modules' })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Language' })).toHaveValue('en');

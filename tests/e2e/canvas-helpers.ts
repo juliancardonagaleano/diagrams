@@ -39,7 +39,7 @@ export async function c4Ready(page: Page | Frame, view?: string): Promise<void> 
  * Abre el editor C4 y espera a que la primera vista esté colocada y encuadrada. No usa `networkidle`: en una carga
  * lenta puede darse por alcanzado antes de que ELK termine, y con iframes (modo embebido) a veces ni llega.
  */
-export async function openEditor(page: Page, url = '/'): Promise<void> {
+export async function openEditor(page: Page, url = '/?editor=1'): Promise<void> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await c4Ready(page);
 }

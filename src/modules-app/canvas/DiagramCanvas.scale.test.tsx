@@ -272,17 +272,11 @@ describe('la selección, la comparación y los enlaces siguen con nodos fuera de
 
   it('seguir un enlace (Alt+↓) funciona con el nodo seleccionado fuera de pantalla', async () => {
     setElkRunner(instantLayout);
-    const linked: EditorSpec<unknown> = {
-      ...spec,
-      project: (document, viewId) => {
-        const graph = spec.project(document, viewId);
-        return { ...graph, nodes: graph.nodes.map((n) => (n.id === far ? { ...n, ref: 'urn:iark:otro:destino' } : n)) };
-      },
-    };
-    const view = mount(doc, { spec: linked, focusId: far });
+    const linkedDoc: FakeDoc = { ...doc, nodes: doc.nodes.map((n) => (n.id === far ? { ...n, ref: 'urn:iark:otro:destino' } : n)) };
+    const view = mount(linkedDoc, { focusId: far });
     await settled();
     await waitFor(() => expect(screen.getByLabelText('Nombre')).toHaveValue(`Servicio ${FAR_INDEX}`));
     pressKey('ArrowDown', { altKey: true });
-    expect(view.follow).toHaveBeenCalledWith('urn:iark:otro:destino');
+    await waitFor(() => expect(view.follow).toHaveBeenCalledWith('urn:iark:otro:destino', undefined));
   });
 });

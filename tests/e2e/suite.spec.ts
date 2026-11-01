@@ -5,7 +5,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     // Con iframes, `networkidle` a veces no se notifica aunque todo esté cargado y el `goto` agota el tiempo de la prueba: se espera por condiciones observables.
-    await page.goto('/suite.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('/?manifest=' + encodeURIComponent('/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('status')).toContainText('6 módulos');
     const nav = page.getByRole('navigation', { name: 'Módulos' });
     await expect(nav.getByRole('button')).toHaveCount(6);
@@ -44,7 +44,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
         }),
       }),
     );
-    await page.goto('/suite.html?manifest=' + encodeURIComponent('/otra/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
+    await page.goto('/?manifest=' + encodeURIComponent('/otra/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('status')).toContainText('Instancia de datos v9.9.9 · 1 módulo');
     await expect(page.getByRole('navigation', { name: 'Módulos' }).getByRole('button')).toHaveCount(1);
     await expect.poll(() => page.frames().some((f) => f.url().includes('module=data'))).toBe(true);
@@ -66,7 +66,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
         }),
       });
     });
-    await page.goto('/suite.html?manifest=' + encodeURIComponent('https://otra.example/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
+    await page.goto('/?manifest=' + encodeURIComponent('https://otra.example/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
 
     // El campo queda relleno, hay un aviso que nombra el origen y no se ha contactado con la instancia ni montado nada
     await expect(page.getByLabel('Manifiesto de la instancia')).toHaveValue('https://otra.example/.well-known/iark.json');
@@ -92,7 +92,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
         body: JSON.stringify({ schema: 'iark.manifest/1', name: 'Instancia hermana', version: '1.0.0', modules: [] }),
       }),
     );
-    await page.goto('/suite.html?manifest=' + encodeURIComponent('/hermana/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
+    await page.goto('/?manifest=' + encodeURIComponent('/hermana/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('status')).toContainText('Instancia hermana v1.0.0 · 0 módulos');
     await expect(page.getByRole('alert')).toHaveCount(0);
   });
@@ -115,7 +115,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
           }),
         }),
       );
-      await page.goto(`/suite.html?manifest=${encodeURIComponent(`/${carpeta}/.well-known/iark.json`)}`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`/?manifest=${encodeURIComponent(`/${carpeta}/.well-known/iark.json`)}`, { waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('alert')).toContainText('solo se admiten URL http: y https:');
       await expect(page.getByRole('status')).toContainText('sin conexión');
       await expect(page.locator('iframe')).toHaveCount(0);
@@ -126,7 +126,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
   });
 
   test('un manifiesto que no existe o no es válido se explica sin romper la página', async ({ page }) => {
-    await page.goto('/suite.html?manifest=' + encodeURIComponent('/no-existe.json'), { waitUntil: 'domcontentloaded' });
+    await page.goto('/?manifest=' + encodeURIComponent('/no-existe.json'), { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('alert')).toContainText('respondió 404');
     await page.route('**/roto.json', (route) => route.fulfill({ contentType: 'application/json', body: '{"schema":"otro"}' }));
     await page.getByLabel('Manifiesto de la instancia').fill('/roto.json');
@@ -151,7 +151,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
         }),
       }),
     );
-    await page.goto('/suite.html?manifest=' + encodeURIComponent('/futuro/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
+    await page.goto('/?manifest=' + encodeURIComponent('/futuro/.well-known/iark.json'), { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('status')).toContainText('Instancia del futuro v9.0.0 · 1 módulo (1 no compatible)');
     await expect(page.getByRole('alert')).toContainText('«security» exige la versión 99 del contrato de módulos');
     await expect(page.getByRole('navigation', { name: 'Módulos' }).getByRole('button')).toHaveCount(1);
@@ -171,7 +171,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
           body: JSON.stringify({ ...base, ...cambio }),
         }),
       );
-      await page.goto('/suite.html?manifest=' + encodeURIComponent(`/${carpeta}/.well-known/iark.json`), { waitUntil: 'domcontentloaded' });
+      await page.goto('/?manifest=' + encodeURIComponent(`/${carpeta}/.well-known/iark.json`), { waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('alert')).toContainText(mensaje);
       await expect(page.getByRole('status')).toContainText('sin conexión');
       await expect(page.locator('iframe')).toHaveCount(0);

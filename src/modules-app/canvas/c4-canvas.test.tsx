@@ -144,9 +144,10 @@ describe('lienzo común con C4', () => {
     expect(within(screen.getByTestId('node-banca')).getByTestId('link-banca')).toBeInTheDocument();
     await pickNode('banca');
     pressKey('ArrowDown', { altKey: true });
-    expect(follow).toHaveBeenLastCalledWith('urn:iark:integration:pedidos');
-    fireEvent.doubleClick(screen.getByTestId('node-banca').closest('.react-flow__node') as HTMLElement);
-    expect(follow).toHaveBeenCalledTimes(2);
+    const menu = await screen.findByTestId('view-switcher');
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(expect.arrayContaining(['Contenedores', 'urn:iark:integration:pedidos']));
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'urn:iark:integration:pedidos' }));
+    expect(follow).toHaveBeenLastCalledWith('urn:iark:integration:pedidos', undefined);
     expect(harness.onView).not.toHaveBeenCalled();
     pressKey('ArrowUp', { altKey: true });
     expect(onBack).toHaveBeenCalledTimes(1);

@@ -124,7 +124,7 @@ test.describe('vista de trazabilidad entre módulos', () => {
     await page.goto('/modulos.html', { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: 'Trazabilidad' }).click();
     await expect(page).toHaveURL(/trazabilidad\.html$/);
-    await page.goto('/suite.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('link', { name: 'Trazabilidad' })).toHaveAttribute('href', 'trazabilidad.html');
   });
 });

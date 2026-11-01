@@ -49,6 +49,7 @@ interface ProjectRecord {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  subjects?: ProjectSummary['subjects'];
 }
 interface DiagramRecord extends DiagramMeta {
   projectId: string;
@@ -218,6 +219,7 @@ export class IndexedDbProjectStore implements ProjectStore {
       ...(project.description ? { description: project.description } : {}),
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
+      ...(project.subjects ? { subjects: project.subjects } : {}),
       diagrams: diagrams
         .filter((d) => d.projectId === project.id)
         .map(({ id, module, name, createdAt, updatedAt }) => ({ id, module, name, createdAt, updatedAt }))

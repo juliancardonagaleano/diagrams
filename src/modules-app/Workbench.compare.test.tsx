@@ -3,7 +3,10 @@ import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { pretty } from '@iark/kernel';
+import { integrationModule } from '@iark/domain-integration';
 import { WorkbenchController, type ModuleSource } from './controller';
 import { installFlowMocks } from './testing-dom';
 import { FAKE_DOC, fakeModule, type FakeDoc } from './testing-editor';
@@ -86,6 +89,24 @@ describe('pestaña «Versiones»', () => {
     expect(screen.getByTestId('diff-antiguo')).toHaveTextContent('Quitado');
     expect(screen.getByTestId('node-antiguo').closest('.react-flow__node')).toHaveAttribute('data-id', 'ghost:antiguo');
     expect(screen.getByTestId('compare-bar')).toHaveTextContent('Comparando con JSON pegado: 1 añadido, 1 quitado, 2 modificados (2 campos).');
+  });
+
+  it('enfocar un cambio de integración deja el mapa abierto, así el elemento quitado sigue como fantasma', async () => {
+    const pedidos = readFileSync(join(process.cwd(), 'examples/pedidos-integracion.json'), 'utf8');
+    const controller = new WorkbenchController([{ id: 'integration', label: 'Integración', load: async () => integrationModule, example: async () => pedidos }], { renderDelay: 0 });
+    await controller.selectModule('integration');
+    render(<Workbench controller={controller} />);
+    await waitFor(() => expect(screen.getByTestId('node-tienda-web')).toBeInTheDocument());
+    expect(controller.getState().viewId).toBe('map');
+
+    const before = JSON.parse(pedidos) as { nodes: Array<{ id: string; name?: string; kind?: string }> };
+    before.nodes.find((n) => n.id === 'tienda-web')!.name = 'Tienda web (antes)';
+    before.nodes.push({ id: 'erp-heredado', kind: 'system', name: 'ERP heredado' });
+    await paste(JSON.stringify(before));
+    await userEvent.click(within(await screen.findByTestId('change-changed-nodes-tienda-web')).getByRole('button'));
+
+    expect(controller.getState().viewId).toBe('map');
+    await waitFor(() => expect(screen.getByTestId('node-erp-heredado')).toHaveAttribute('data-diff', 'removed'));
   });
 
   it('«Quitar comparación» (en la barra del lienzo o en la pestaña) vuelve al estado normal', async () => {

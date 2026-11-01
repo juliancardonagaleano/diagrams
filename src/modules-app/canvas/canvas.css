@@ -2,6 +2,7 @@
 .cv-empty { padding: 24px; text-align: center; color: var(--wb-text-2); }
 .cv-notice { padding: 6px 12px; border-bottom: 1px solid var(--wb-border); background: var(--wb-warning-bg); color: var(--wb-warning); font-size: 12px; }
 .cv-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--wb-border); background: var(--wb-surface); }
+.cv-switcher { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--wb-border); background: var(--wb-surface-2); }
 .cv-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 4px 10px; border-bottom: 1px solid var(--wb-border); background: var(--wb-surface); font-size: 12px; }
 .cv-crumb-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
 .cv-crumb-sep { color: var(--wb-text-2); }

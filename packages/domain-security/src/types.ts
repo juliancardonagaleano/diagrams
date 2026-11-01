@@ -78,6 +78,7 @@ export interface Asset {
   ref?: string;
   /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
   refType?: string;
+  links?: Array<{ ref: string; refType?: string; view?: string }>;
   tags?: string[];
 }
 

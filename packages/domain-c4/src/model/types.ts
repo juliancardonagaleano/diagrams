@@ -34,6 +34,8 @@ export interface C4Element {
   ref?: string;
   /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
   refType?: string;
+  /** Destinos además de `ref` (otra vista de otro módulo). Ausente en los documentos anteriores. */
+  links?: Array<{ ref: string; refType?: string; view?: string }>;
 }
 
 export interface C4Relationship {

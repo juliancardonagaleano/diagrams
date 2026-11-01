@@ -53,6 +53,30 @@ export const refTypeSchema = z
     `Tipo del enlace que declara \`ref\` (vocabulario abierto; sugeridos: ${TRACE_LINK_TYPES.map((t) => t.id).join(', ')}). Sin él, el enlace es «${DEFAULT_LINK_TYPE}».`,
   );
 
+/** Un enlace además del principal: la misma URN, con tipo y, si se conoce, la vista de destino. */
+export interface ElementLink {
+  ref: string;
+  refType?: string;
+  view?: string;
+}
+
+/** Un destino adicional. `ref` sigue siendo el enlace principal; esto no lo sustituye. */
+export const elementLinkSchema = z.object({
+  ref: z.string().min(1),
+  refType: refTypeSchema.optional(),
+  view: z.string().min(1).max(120).optional(),
+});
+
+/**
+ * Campos de enlace de un elemento, iguales en los seis módulos: el `ref` principal, su `refType` y `links` para el resto
+ * de destinos. Un documento sin `links` valida igual que antes.
+ */
+export const elementLinkFields = {
+  ref: z.string().optional(),
+  refType: refTypeSchema.optional(),
+  links: z.array(elementLinkSchema).max(12).optional(),
+};
+
 /**
  * El campo del formulario de un elemento para su `refType`, junto al de `ref`. El banco de trabajo lo sustituye por un selector
  * (el vocabulario sugerido más el tipo que ya tenga el elemento); en cualquier otro panel es un campo de texto.

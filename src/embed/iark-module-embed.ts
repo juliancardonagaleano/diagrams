@@ -8,6 +8,7 @@ import type {
   ModuleIssueInfo,
   ModuleIssuesEvent,
   ModuleLoadEvent,
+  ModuleRelatedDestinationsEvent,
   ModuleResultEvent,
   SuiteCapabilitiesInfo,
 } from './moduleProtocol';
@@ -59,6 +60,8 @@ export interface IarkModuleEmbedOptions<TDoc = unknown> {
   onResult?: (payload: { module: string; command: string; kind: 'report' | 'convert'; output: string; warnings: string[] }) => void;
   /** `code` está si el error es de una clase que el anfitrión puede tratar: `incompatible-protocol` (la versión mayor del protocolo difiere con la del iframe). */
   onError?: (payload: { message: string; issues?: Array<{ path: string; message: string }>; code?: string }) => void;
+  /** El anfitrión pidió «ver en…» y el banco respondió con los destinos (y abrió el único, o el indicado). */
+  onRelated?: (payload: Omit<ModuleRelatedDestinationsEvent, 'event'>) => void;
   /** Recibe todos los eventos del iframe. */
   onEvent?: (event: ModuleEvent) => void;
 }
@@ -84,6 +87,8 @@ export interface IarkModuleEmbed<TDoc = unknown> {
   dialog(title: string, message: string, button?: string): void;
   /** Pide al banco de trabajo que emita `save` (y `exit` si se indica). */
   save(exit?: boolean): void;
+  /** Destinos relacionados de un elemento. Con uno solo, o con `destinationId`, el banco lo abre. */
+  openRelated(elementId: string, destinationId?: string): Promise<Omit<ModuleRelatedDestinationsEvent, 'event' | 'requestId'>>;
   send(action: ModuleAction): void;
   destroy(): void;
 }
@@ -276,6 +281,12 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
       case 'capabilities':
         settle(msg.requestId, msg.capabilities);
         break;
+      case 'relatedDestinations': {
+        settle(msg.requestId, msg);
+        const { event: _event, ...rest } = msg;
+        options.onRelated?.(rest);
+        break;
+      }
       case 'error': {
         // El banco de trabajo también compara versiones: si rechazó la nuestra, nada de lo que esperamos llegará nunca.
         if (msg.code === INCOMPATIBLE_PROTOCOL_CODE) refuse(msg.message);
@@ -346,6 +357,15 @@ export function createIarkModuleEmbed<TDoc = unknown>(options: IarkModuleEmbedOp
     },
     save(exit = false) {
       send({ action: 'save', exit });
+    },
+    async openRelated(elementId, destinationId) {
+      const { event: _event, requestId: _requestId, ...rest } = await request<ModuleRelatedDestinationsEvent>((requestId) => ({
+        action: 'openRelated',
+        elementId,
+        ...(destinationId ? { destinationId } : {}),
+        requestId,
+      }));
+      return rest;
     },
     send,
     destroy() {

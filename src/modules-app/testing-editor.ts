@@ -9,6 +9,8 @@ export interface FakeNode {
   zone?: string;
   retries?: number;
   contractId?: string;
+  /** Enlace de prueba (`urn:iark:…`). El lienzo lo lee del documento, no del grafo proyectado. */
+  ref?: string;
 }
 
 export interface FakeEdge {

@@ -3,6 +3,7 @@
  * conoce las URN de otros documentos y las especificaciones de generación no las incluyen; sin esto, refinar un documento
  * perdería los enlaces de trazabilidad. Los elementos se casan por su colección (la ruta de propiedades hasta ellos) y su
  * `id`, y solo se rellena `ref` en los que no lo traen. El `refType` (el tipo del enlace) viaja con su `ref`.
+ * `links` (destinos adicionales) se copia entero si lo generado no trae el arreglo.
  */
 export function carryRefs<T>(base: unknown, generated: T): T {
   const refs = new Map<string, { ref: string; refType?: string }>();
@@ -15,17 +16,22 @@ export function carryRefs<T>(base: unknown, generated: T): T {
       for (const [key, child] of Object.entries(record)) walk(child, `${path}/${key}`, visit);
     }
   };
+  const links = new Map<string, unknown[]>();
   walk(base, '', (record, key) => {
     if (typeof record.ref === 'string') refs.set(key, { ref: record.ref, ...(typeof record.refType === 'string' ? { refType: record.refType } : {}) });
+    if (Array.isArray(record.links) && record.links.length > 0) links.set(key, record.links);
   });
-  if (refs.size === 0) return generated;
+  if (refs.size === 0 && links.size === 0) return generated;
 
   const result = structuredClone(generated);
   walk(result, '', (record, key) => {
     const carried = refs.get(key);
-    if (record.ref !== undefined || !carried) return;
-    record.ref = carried.ref;
-    if (carried.refType !== undefined && record.refType === undefined) record.refType = carried.refType;
+    if (record.ref === undefined && carried) {
+      record.ref = carried.ref;
+      if (carried.refType !== undefined && record.refType === undefined) record.refType = carried.refType;
+    }
+    const extra = links.get(key);
+    if (extra && record.links === undefined) record.links = structuredClone(extra);
   });
   return result;
 }

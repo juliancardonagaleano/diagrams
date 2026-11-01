@@ -4,11 +4,13 @@ import {
   type ModuleAction,
   type ModuleEvent,
   type ModuleIssueInfo,
+  type RelatedDestinationInfo,
   type SuiteCapabilitiesInfo,
 } from '../embed/moduleProtocol';
 import { InvalidDocumentError, type WorkbenchController } from './controller';
 import { viewTitle, type Analysis } from '@iark/kernel';
 import { INCOMPATIBLE_PROTOCOL_CODE, negotiateProtocol } from '@iark/kernel/protocol';
+import type { Destination } from './navigator';
 
 export interface BridgeOptions {
   controller: WorkbenchController;
@@ -22,6 +24,21 @@ export interface BridgeOptions {
   changeDelay?: number;
   onConfigure?(config: { theme?: 'light' | 'dark'; ui?: 'full' | 'min' }): void;
   onDialog?(dialog: { title: string; message: string; button?: string }): void;
+  /** Destinos de «Ver en…» para el anfitrión (`openRelated`). Se lee en cada acción. */
+  related?(): RelatedHandlers | undefined;
+}
+
+/** Lo que el banco sabe hacer con los destinos de un elemento. */
+export interface RelatedHandlers {
+  list(elementId: string): Promise<Destination[]>;
+  open(destination: Destination, elementId: string): Promise<void> | void;
+}
+
+function destinationInfo(destination: Destination): RelatedDestinationInfo {
+  if (destination.kind === 'link') {
+    return { kind: 'link', id: destination.id, label: destination.label, urn: destination.urn, ...(destination.viewId ? { viewId: destination.viewId } : {}) };
+  }
+  return { kind: destination.kind, id: destination.id, label: destination.label };
 }
 
 /** Heurística para no confundir ruido de terceros con un intento (aunque roto) de hablar el protocolo. */
@@ -154,6 +171,23 @@ export function createModuleBridge(options: BridgeOptions) {
       case 'exit':
         post({ event: 'exit', modified: controller.getState().modified });
         break;
+      case 'openRelated': {
+        const related = options.related?.();
+        if (!related) throw new Error('Este banco de trabajo no resuelve destinos relacionados.');
+        const destinations = await related.list(action.elementId);
+        const chosen = action.destinationId ? destinations.find((item) => item.id === action.destinationId) : destinations.length === 1 ? destinations[0] : undefined;
+        if (action.destinationId && !chosen) throw new Error(`El destino «${action.destinationId}» no está entre los del elemento.`);
+        if (chosen) await related.open(chosen, action.elementId);
+        post({
+          event: 'relatedDestinations',
+          module: moduleId(),
+          elementId: action.elementId,
+          destinations: destinations.map(destinationInfo),
+          ...(chosen ? { opened: chosen.id } : {}),
+          ...(action.requestId ? { requestId: action.requestId } : {}),
+        });
+        break;
+      }
     }
   }
 

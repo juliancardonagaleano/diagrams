@@ -1,4 +1,4 @@
-import { parseUrn, refTypeSchema } from '@iark/kernel';
+import { elementLinkFields, parseUrn } from '@iark/kernel';
 import { z } from 'zod';
 import { counterpartErrors } from './counterparts';
 import { iconPackSchema } from './icons/schema';
@@ -57,8 +57,7 @@ export const resourceSchema = z.object({
   iac: z.boolean().optional(),
   owner: z.string().optional(),
   description: z.string().optional(),
-  ref: z.string().optional(),
-  refType: refTypeSchema.optional(),
+  ...elementLinkFields,
   tags: z.array(z.string()).optional(),
   monthlyCost: z.number().min(0, 'El coste mensual no puede ser negativo').optional(),
   expiresAt: z
@@ -86,8 +85,7 @@ export const serviceSchema = z.object({
   slo: z.string().optional(),
   sla: z.string().optional(),
   external: z.boolean().optional(),
-  ref: z.string().optional(),
-  refType: refTypeSchema.optional(),
+  ...elementLinkFields,
   tags: z.array(z.string()).optional(),
   provider: z.string().optional(),
   service: z.string().optional(),

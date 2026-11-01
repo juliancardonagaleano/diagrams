@@ -27,6 +27,11 @@ export interface ProjectMeta {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Índice opcional de cosas que aparecen en varios diagramas con ids distintos. No viaja dentro de los documentos.
+   * Lo rellena quien edita el sidecar; los almacenes que no lo conocen lo ignoran.
+   */
+  subjects?: import('./subjects').ProjectSubject[];
 }
 
 /** Rol de una persona en un proyecto de un servidor con cuentas: los mismos tres de los tokens (`viewer` lee, `editor` escribe, `admin` además borra y comparte). */

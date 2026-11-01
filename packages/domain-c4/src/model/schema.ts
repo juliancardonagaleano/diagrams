@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { migrateValue, parseUrn, refTypeSchema } from '@iark/kernel';
+import { elementLinkFields, migrateValue, parseUrn } from '@iark/kernel';
 import { c4MigrationSource } from './migrations';
 import {
   DOCUMENT_VERSION,
@@ -29,8 +29,7 @@ export const elementSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, 'El color debe ser hexadecimal (#RRGGBB)')
     .optional(),
-  ref: z.string().optional(),
-  refType: refTypeSchema.optional(),
+  ...elementLinkFields,
 });
 
 export const relationshipSchema = z.object({

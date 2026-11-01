@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { WorkbenchController } from './controller';
-import { canRender, countBySeverity, diffDocuments, diffSummaryLine, locateId, type AttachmentSpec } from '@iark/kernel';
+import { canRender, countBySeverity, diffDocuments, diffSummaryLine, locateId, pretty, type AttachmentSpec } from '@iark/kernel';
 import { useBulkInsert } from './bulkInsert';
 import { readFile } from './files';
 import { AttachmentsPanel } from './attachments';
 import { DiagramCanvas } from './canvas/DiagramCanvas';
 import type { LinkTools } from './canvas/Inspector';
+import { assembleDestinations, focusedView, readElementLinks, sameDocumentViews, type Destination } from './navigator';
+import type { RelatedHandlers } from './bridge';
+import { actionAvailability } from './canvas/selection';
+import { otherAppearances } from '@iark/kernel';
 import { resolveRef, SuiteLinks } from './links';
 import { EditHistory } from './canvas/history';
 import { DiagramPanel, ExportPanel, FilePicker, ImportPanel, IssuesPanel, ReportsPanel } from './panels';
@@ -28,11 +32,22 @@ export interface WorkbenchProps {
   onDismissDialog?(): void;
   onSave?(exit: boolean): void;
   onExit?(): void;
+  /** El puente embebido lee aquí los destinos de «Ver en…». */
+  relatedRef?: { current: RelatedHandlers | undefined };
 }
 
 const LINE_HEIGHT = 18;
 
-export function Workbench({ controller, embed = false, ui = 'full', dialog, onDismissDialog, onSave, onExit }: WorkbenchProps) {
+/** La vista abierta ya dibuja el elemento (un cambio de la comparación no tiene por qué abandonarla). */
+function viewShows(editor: { project(document: unknown, viewId?: string): { nodes: Array<{ id: string }> } }, document: unknown, viewId: string, elementId: string): boolean {
+  try {
+    return editor.project(document, viewId).nodes.some((node) => node.id === elementId);
+  } catch {
+    return false;
+  }
+}
+
+export function Workbench({ controller, embed = false, ui = 'full', dialog, onDismissDialog, onSave, onExit, relatedRef }: WorkbenchProps) {
   const { t } = useT();
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const [panel, setPanel] = useState<PanelId | undefined>();
@@ -84,18 +99,22 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
   }, [notify]);
 
   const goTo = useCallback(
-    async (moduleId: string, elementId?: string, diagramId?: string): Promise<void> => {
+    async (moduleId: string, elementId?: string, diagramId?: string, preferredView?: string, options?: { narrow?: boolean }): Promise<void> => {
       const project = controller.projects?.project;
       // Con varios diagramas por módulo, ir a un módulo es ir a un diagrama concreto del proyecto.
       if (diagramId && project && controller.projects?.getState().diagramId !== diagramId) await controller.openDiagram(project.id, diagramId);
       else await controller.selectModule(moduleId);
       if (!elementId) return;
-      const { module: target, analysis } = controller.getState();
-      // C4 tiene una vista por nivel y un elemento solo se ve en las suyas: se abre la vista cuyo alcance es el elemento (o la primera que lo dibuja).
-      if (target?.id === 'c4' && analysis.status === 'ok') {
-        const doc = analysis.document as { views?: Array<{ id: string; scopeId?: string; elements?: Array<{ id: string }> }> };
-        const view = doc.views?.find((v) => v.scopeId === elementId) ?? doc.views?.find((v) => v.elements?.some((e) => e.id === elementId));
-        if (view) controller.setView(view.id);
+      const { module: target, analysis, viewId } = controller.getState();
+      if (target && analysis.status === 'ok') {
+        const chosen = preferredView && controller.setView(preferredView) ? preferredView : undefined;
+        // Seguir una URN abre la vista más ajustada. Enfocar un cambio del diagrama abierto conserva la vista
+        // si ya dibuja el elemento: si no, el mapa se cambia por la vista de un sistema y desaparecen los fantasmas.
+        const showsCurrent = !chosen && options?.narrow === false && viewId && target.editor && viewShows(target.editor, analysis.document, viewId, elementId);
+        if (!chosen && !showsCurrent) {
+          const view = focusedView(target, analysis.document, elementId);
+          if (view) controller.setView(view);
+        }
       }
       setFocus({ moduleId, id: elementId });
       setPanel('canvas');
@@ -104,7 +123,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
   );
 
   const followRef = useCallback(
-    async (urn: string): Promise<void> => {
+    async (urn: string, viewId?: string): Promise<void> => {
       const ref = resolveRef(urn);
       if (!ref) return notify(`La referencia «${urn}» no es una URN válida (urn:iark:<módulo>:<id>).`);
       if (!controller.moduleIds.includes(ref.moduleId)) return notify(`El módulo «${ref.moduleId}» no está en este banco de trabajo.`);
@@ -123,7 +142,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
         const label = `${suiteLinks.label(from.moduleId)}${selectedRef.current ? ` · ${selectedRef.current}` : ''}`;
         setTrail((t) => [...t, { moduleId: from.moduleId!, diagramId: currentDiagram, viewId: from.viewId, elementId: selectedRef.current, label }]);
       }
-      await goTo(ref.moduleId, ref.elementId, target?.diagramId);
+      await goTo(ref.moduleId, ref.elementId, target?.diagramId, viewId);
     },
     [controller, goTo, notify, suiteLinks],
   );
@@ -141,10 +160,67 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
       modules: controller.sources.map((s) => ({ id: s.id, label: s.label })),
       entities: (id) => suiteLinks.entities(id),
       backlinks: (moduleId, elementId) => suiteLinks.backlinks(moduleId, elementId),
-      follow: (urn) => void followRef(urn),
+      follow: (urn, viewId) => void followRef(urn, viewId),
+      appearances: (elementId) => {
+        const moduleId = controller.getState().moduleId;
+        if (!moduleId) return [];
+        return otherAppearances(controller.projects?.project?.subjects, moduleId, elementId).map((appearance) => ({
+          module: appearance.module,
+          elementId: appearance.elementId,
+          ...(appearance.viewId ? { viewId: appearance.viewId } : {}),
+          label: `${appearance.subject} · ${appearance.module}`,
+        }));
+      },
     }),
     [controller, followRef, suiteLinks],
   );
+
+  useEffect(() => {
+    if (!relatedRef) return;
+    relatedRef.current = {
+      async list(elementId) {
+        const current = controller.getState();
+        const document = current.analysis.status === 'ok' ? current.analysis.document : undefined;
+        const actions = current.module?.editor?.actions ?? [];
+        const views = document === undefined ? [] : sameDocumentViews(document, elementId, current.viewId);
+        const stored = (document as { views?: Array<{ scopeId?: string }> } | undefined)?.views;
+        const hasChild = stored?.some((view) => view.scopeId === elementId) ?? false;
+        const detailAction = actions.find((action) => action.id === 'detail');
+        const detail =
+          document !== undefined && !hasChild && detailAction && actionAvailability(detailAction, document, [elementId], current.readOnly, current.viewId).enabled
+            ? { label: detailAction.label }
+            : undefined;
+        const backlinks = current.moduleId ? await linkTools.backlinks(current.moduleId, elementId) : [];
+        return assembleDestinations({
+          views,
+          detail,
+          links: document === undefined ? [] : readElementLinks(document, elementId),
+          backlinks,
+          appearances: linkTools.appearances?.(elementId) ?? [],
+        });
+      },
+      async open(destination: Destination, elementId: string) {
+        if (destination.kind === 'view') {
+          if (!controller.setView(destination.id.slice('view:'.length))) throw new Error('La vista no existe.');
+          return;
+        }
+        if (destination.kind === 'link') {
+          await followRef(destination.urn, destination.viewId);
+          return;
+        }
+        const current = controller.getState();
+        const action = current.module?.editor?.actions?.find((item) => item.id === 'detail');
+        if (!action || current.analysis.status !== 'ok') throw new Error('No se puede detallar el elemento.');
+        const result = action.run(current.analysis.document, [elementId], undefined, current.viewId);
+        if (!result.ok) throw new Error(result.reason);
+        if (result.document !== current.analysis.document) controller.setText(pretty(result.document));
+        if (result.view) controller.setView(result.view);
+      },
+    };
+    return () => {
+      relatedRef.current = undefined;
+    };
+  }, [controller, followRef, linkTools, relatedRef]);
 
   const reveal = useCallback(
     (id: string) => {
@@ -403,7 +479,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
               compare={compare?.state}
               onLoad={loadCompare}
               onClear={() => setBase(undefined)}
-              onFocus={(id) => void goTo(state.moduleId!, id)}
+              onFocus={(id) => void goTo(state.moduleId!, id, undefined, undefined, { narrow: false })}
             />
           )}
           {active === 'export' && <ExportPanel {...panelProps} />}
