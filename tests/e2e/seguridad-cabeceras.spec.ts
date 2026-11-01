@@ -124,7 +124,7 @@ test.describe('las páginas con la CSP puesta', () => {
 
   test('editor C4: dibuja, edita, autolayout de ELK y vista previa de Mermaid, sin violaciones', async ({ page }) => {
     const w = watch(page);
-    await page.goto(`${A.url}/`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/?editor=1`, { waitUntil: 'domcontentloaded' });
     await c4Ready(page);
     await expect(page.locator('.react-flow__node')).toHaveCount(4);
     await page.getByRole('button', { name: 'Añadir persona' }).click();

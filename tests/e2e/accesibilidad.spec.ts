@@ -117,7 +117,7 @@ async function auditar(page: Page, superficie: string, tema: Tema): Promise<void
 const TIMEOUT_ARRANQUE = 20000;
 
 async function abrirEditor(page: Page, tema: Tema): Promise<void> {
-  await page.goto(`/?theme=${tema}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/?editor=1&theme=${tema}`, { waitUntil: 'domcontentloaded' });
   await c4Ready(page);
 }
 

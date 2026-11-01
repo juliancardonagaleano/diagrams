@@ -256,9 +256,12 @@ test.describe('C4 en el lienzo común', () => {
     const target = urn.replace('urn:iark:integration:', '');
     await expect(page.getByTestId('link-banca')).toBeVisible();
     expect((await readDoc(page)).model.elements.find((e: { id: string }) => e.id === 'banca')).toMatchObject({ ref: urn });
-    // Con enlace, Alt+↓ lo sigue en lugar de bajar de nivel.
+    // Con enlace y otra vista del mismo documento, Alt+↓ abre «Ver en…»; se elige la URN.
     await page.getByTestId('node-banca').click();
     await page.keyboard.press('Alt+ArrowDown');
+    const menu = page.getByTestId('view-switcher');
+    await expect(menu).toBeVisible();
+    await menu.getByRole('menuitem', { name: urn }).click();
     await expect(page.getByRole('tab', { name: 'Integración' })).toHaveAttribute('aria-selected', 'true', { timeout: 15000 });
     await expect(page.locator(`[data-testid="node-${target}"][data-selected]`)).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('trail')).toContainText('C4 · banca');

@@ -864,6 +864,15 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
               if (!e.ctrlKey && !e.metaKey && !e.shiftKey) setSelection((current) => (current.size > 1 && current.has(n.id) ? new Set([n.id]) : current));
             }}
             onNodeDoubleClick={(_, n) => {
+              // Un doble clic que cambia el documento (la celda de una matriz) se aplica. El que solo abre otra vista
+              // pasa por «Ver en…», para no esconder el resto de destinos.
+              if (document !== undefined && spec.activate) {
+                const result = spec.activate(document, n.id, viewId);
+                if (result?.ok && result.document !== document && result.view === undefined) {
+                  commit(result);
+                  return;
+                }
+              }
               void openDestinations(n.id);
             }}
             onPaneClick={() => setSelection(NO_SELECTION)}
