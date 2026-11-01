@@ -39,6 +39,7 @@ interface StoredProject {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  subjects?: ProjectSummary['subjects'];
   diagrams: Map<string, Diagram>;
   histories: Map<string, History>;
 }
@@ -93,6 +94,7 @@ export class MemoryProjectStore implements ProjectStore {
       ...(project.description ? { description: project.description } : {}),
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
+      ...(project.subjects ? { subjects: project.subjects } : {}),
       diagrams: [...project.diagrams.values()].map(meta).sort(byName),
     };
   }

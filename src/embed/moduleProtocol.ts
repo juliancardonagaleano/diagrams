@@ -79,6 +79,13 @@ export const moduleStatusActionSchema = z.object({ action: z.literal('status'), 
 export const moduleDialogActionSchema = z.object({ action: z.literal('dialog'), title: z.string(), message: z.string(), button: z.string().optional() });
 export const moduleSaveActionSchema = z.object({ action: z.literal('save'), exit: z.boolean().optional() });
 export const moduleExitActionSchema = z.object({ action: z.literal('exit') });
+/** Pide los sitios a los que se puede ir desde un elemento. Con un solo destino, o con `destinationId`, el banco lo abre. */
+export const moduleOpenRelatedActionSchema = z.object({
+  action: z.literal('openRelated'),
+  elementId: z.string().min(1),
+  destinationId: z.string().min(1).optional(),
+  requestId: z.string().optional(),
+});
 
 export const moduleActionSchema = z.discriminatedUnion('action', [
   moduleLoadActionSchema,
@@ -92,6 +99,7 @@ export const moduleActionSchema = z.discriminatedUnion('action', [
   moduleDialogActionSchema,
   moduleSaveActionSchema,
   moduleExitActionSchema,
+  moduleOpenRelatedActionSchema,
 ]);
 
 export type ModuleAction = z.infer<typeof moduleActionSchema>;
@@ -207,6 +215,22 @@ export interface ModuleExitEvent {
   event: 'exit';
   modified: boolean;
 }
+export interface RelatedDestinationInfo {
+  kind: 'view' | 'detail' | 'link';
+  id: string;
+  label: string;
+  urn?: string;
+  viewId?: string;
+}
+export interface ModuleRelatedDestinationsEvent {
+  event: 'relatedDestinations';
+  module: string;
+  elementId: string;
+  destinations: RelatedDestinationInfo[];
+  /** Destino que se abrió, si había uno solo o el anfitrión indicó `destinationId`. */
+  opened?: string;
+  requestId?: string;
+}
 export interface ModuleErrorEvent {
   event: 'error';
   message: string;
@@ -228,6 +252,7 @@ export type ModuleEvent =
   | ModuleCapabilitiesEvent
   | ModuleSaveEvent
   | ModuleExitEvent
+  | ModuleRelatedDestinationsEvent
   | ModuleErrorEvent;
 
 /** Interpreta un `MessageEvent.data` (objeto o string JSON) como acción del anfitrión. */

@@ -60,6 +60,13 @@ describe('carryRefs', () => {
     expect(carryRefs(typed, { services: [{ id: 'a', ref: 'urn:iark:integration:otro' }] }).services[0]).toEqual({ id: 'a', ref: 'urn:iark:integration:otro' });
   });
 
+  it('copia links si lo generado no trae el arreglo', () => {
+    const base = { services: [{ id: 'a', ref: 'urn:iark:c4:api', links: [{ ref: 'urn:iark:platform:api', refType: 'deploys', view: 'env:prod' }] }] };
+    const out = carryRefs(base, { services: [{ id: 'a', name: 'API' }] });
+    expect(out.services[0]).toEqual({ id: 'a', name: 'API', ref: 'urn:iark:c4:api', links: [{ ref: 'urn:iark:platform:api', refType: 'deploys', view: 'env:prod' }] });
+    expect(carryRefs(base, { services: [{ id: 'a', links: [{ ref: 'urn:iark:security:api' }] }] }).services[0].links).toEqual([{ ref: 'urn:iark:security:api' }]);
+  });
+
   it('sin enlaces en la base devuelve lo generado tal cual', () => {
     const generated = { services: [{ id: 'a' }] };
     expect(carryRefs({ services: [{ id: 'a' }] }, generated)).toBe(generated);

@@ -150,7 +150,22 @@ export const editor: Record<keyof typeof origen, string> = {
   'wb.openFile': 'Open file…',
   'wb.trail': 'Diagrams visited',
   'wb.back': '← Back',
-  // Suite (suite.html): la página que reúne los módulos de una instancia
+  'home.header': 'DIAgrams home',
+  'home.lead': 'Projects, loose diagrams and the six specialties.',
+  'home.continue': 'Continue',
+  'home.projects': 'Projects',
+  'home.noProjects': 'There are no projects in this store yet.',
+  'home.newProject': 'Create a project in the workbench…',
+  'home.modules': 'Specialties',
+  'home.drafts': 'Loose diagrams',
+  'home.noDrafts': 'There are no drafts in this browser.',
+  'home.editor': 'Classic C4 editor',
+  'home.instance': 'Another instance',
+  'home.manifest': 'Instance manifest',
+  'home.connect': 'Connect',
+  'home.diagrams': '{count} diagrams',
+  'home.loading': 'Loading projects…',
+  // Federación (?manifest=): la página que reúne los módulos de una instancia
   'suite.header': 'DIAgrams suite',
   'suite.instance': 'Instance',
   'suite.manifest': 'Instance manifest',
@@ -179,5 +194,5 @@ export const editor: Record<keyof typeof origen, string> = {
   'suite.row.conversions': 'Conversions',
   'suite.row.traceViews': 'Trace views',
   'suite.row.schema': 'JSON Schema',
-  // Suite (suite.html): la página que reúne los módulos de una instancia
+  // Federación (?manifest=): la página que reúne los módulos de una instancia
 };

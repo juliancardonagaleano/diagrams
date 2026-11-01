@@ -60,6 +60,8 @@ export interface IntegrationNode {
   ref?: string;
   /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
   refType?: string;
+  /** Destinos además de `ref`. */
+  links?: Array<{ ref: string; refType?: string; view?: string }>;
   tags?: string[];
   /** Contrato que describe este nodo (la OpenAPI de una API, el JSON de un servidor MCP, el evento de un tópico…). */
   contractId?: string;

@@ -9,7 +9,9 @@ export interface LinkTools {
   modules: Array<{ id: string; label: string }>;
   entities(moduleId: string): Promise<EntityRef[]>;
   backlinks(moduleId: string, elementId: string): Promise<Backlink[]>;
-  follow(urn: string): void;
+  follow(urn: string, viewId?: string): void;
+  /** Otras apariciones del elemento en sujetos del proyecto. */
+  appearances?(elementId: string): Array<{ module: string; elementId: string; viewId?: string; label: string }>;
 }
 
 interface Props {

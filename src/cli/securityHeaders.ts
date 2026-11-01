@@ -23,12 +23,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
  *  - `frame-ancestors`: ver abajo.
  *
  * Quién puede incrustar la página (`frame-ancestors`): las páginas normales solo la propia instancia (`'self'`). Las cargas
- * embebidas (`?embed=1` en la consulta de una de las dos páginas que tienen modo embebido, el editor y el banco de módulos: lo que
+ * embebidas (`?embed=1` en la consulta de una de las dos páginas que tienen modo embebido, `/` y el banco de módulos: lo que
  * añaden `createIarkEmbed`, `createIarkModuleEmbed` y `<iark-module>`) salen de `IARK_FRAME_ANCESTORS` / `--frame-ancestors`,
  * **por omisión `*`** porque el producto se vende como embebible desde cualquier aplicación. Quien no incruste desde fuera debería
  * fijarla a los orígenes que necesite. Una lista concreta lleva siempre además `'self'`: el banco de módulos incrusta el editor C4
- * y los ancestros se comprueban todos, no solo el padre inmediato. Añadir `?embed=1` a otra página (la suite, la trazabilidad…) no
- * abre su incrustación: sin ese límite cualquiera podría enmarcar cualquier página de la instancia con un enlace (clickjacking).
+ * y los ancestros se comprueban todos, no solo el padre inmediato. En `/`, `?embed=1` sigue siendo el editor C4; `?surface=home&embed=1`
+ * incrusta el inicio. Añadir `?embed=1` a otra página (`suite.html`, la trazabilidad…) no abre su incrustación: sin ese límite
+ * cualquiera podría enmarcar cualquier página de la instancia con un enlace (clickjacking).
  */
 
 /** `max-age` de HSTS: 180 días, sin `includeSubDomains` ni `preload` (decisiones difíciles de deshacer, para quien opera el dominio). */
@@ -123,7 +124,7 @@ export function isSecureRequest(req: IncomingMessage, trustProxy: boolean): bool
   return last === 'https';
 }
 
-/** Las únicas páginas con modo embebido: el editor C4 (`/`) y el banco de módulos. El resto de páginas no se incrustan desde fuera. */
+/** Las únicas páginas con modo embebido: `/` (editor C4 con `?embed=1`, inicio con `?surface=home`) y el banco de módulos. El resto no se incrusta desde fuera. */
 const EMBEDDABLE_PAGES: readonly string[] = ['/', '/index.html', '/modulos.html'];
 
 /** ¿Tiene esta ruta modo embebido (`?embed=1`)? */

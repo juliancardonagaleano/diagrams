@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import './workbench.css';
 import { Workbench } from './Workbench';
-import { createModuleBridge, type ModuleBridge } from './bridge';
+import { createModuleBridge, type ModuleBridge, type RelatedHandlers } from './bridge';
 import { WorkbenchController } from './controller';
 import { localDrafts, MODULE_SOURCES } from './modules';
 import { currentHostOriginSources, resolveHostOrigin } from '../embed/hostOrigin';
@@ -55,6 +55,7 @@ function Root() {
   const [ui, setUi] = useState<'full' | 'min'>(params.get('ui') === 'min' ? 'min' : 'full');
   const [dialog, setDialog] = useState<{ title: string; message: string; button?: string } | undefined>();
   const bridge = useRef<ModuleBridge | undefined>(undefined);
+  const relatedRef = useRef<RelatedHandlers | undefined>(undefined);
 
   useEffect(() => {
     applyTheme(preferredTheme());
@@ -95,6 +96,7 @@ function Root() {
         if (config.ui) setUi(config.ui);
       },
       onDialog: setDialog,
+      related: () => relatedRef.current,
     });
     bridge.current = instance;
     const listener = (event: MessageEvent): void => {
@@ -118,6 +120,7 @@ function Root() {
       onDismissDialog={() => setDialog(undefined)}
       onSave={(exit) => void bridge.current?.receive({ action: 'save', exit })}
       onExit={() => void bridge.current?.receive({ action: 'exit' })}
+      relatedRef={embed ? relatedRef : undefined}
     />
   );
 }

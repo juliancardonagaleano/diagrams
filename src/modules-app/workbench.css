@@ -469,6 +469,8 @@ pre.wb-out {
 /* El título de la página (`h1`) envuelve la marca sin cambiar cómo se ve. */
 .wb-title {
   display: flex;
+  align-items: baseline;
+  gap: 0.35em;
   margin: 0;
   font: inherit;
 }

@@ -1,4 +1,4 @@
-import { parseUrn, refTypeSchema } from '@iark/kernel';
+import { elementLinkFields, parseUrn } from '@iark/kernel';
 import { z } from 'zod';
 import {
   CONTRACT_FORMATS,
@@ -22,8 +22,7 @@ export const nodeSchema = z.object({
   owner: z.string().optional(),
   external: z.boolean().optional(),
   parentId: idSchema.optional(),
-  ref: z.string().optional(),
-  refType: refTypeSchema.optional(),
+  ...elementLinkFields,
   tags: z.array(z.string()).optional(),
   contractId: idSchema.optional(),
   pattern: z.enum(PATTERNS).optional(),

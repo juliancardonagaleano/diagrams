@@ -82,6 +82,18 @@ describe('FolderProjectStore: disposición en disco', () => {
     expect(Object.keys(sidecar)).toEqual(['format', 'name', 'description', 'createdAt', 'diagrams']);
   });
 
+  it('un subjects del sidecar sobrevive al reescribir el proyecto', async () => {
+    const { root, store } = workspace();
+    const project = await store.createProject({ name: 'Tienda web' });
+    const sidecarPath = join(root, project.id, 'project.json');
+    const sidecar = JSON.parse(readFileSync(sidecarPath, 'utf8'));
+    sidecar.subjects = [{ id: 'api', name: 'API', appearances: [{ diagramId: 'd', module: 'c4', elementId: 'api' }] }];
+    writeFileSync(sidecarPath, JSON.stringify(sidecar));
+    const renamed = await store.renameProject(project.id, 'Tienda');
+    expect(renamed.subjects).toEqual(sidecar.subjects);
+    expect(JSON.parse(readFileSync(sidecarPath, 'utf8')).subjects).toEqual(sidecar.subjects);
+  });
+
   it('el id sale del nombre sin tildes y se numera si está tomado; renombrar no mueve nada', async () => {
     const { root, store } = workspace();
     const a = await store.createProject({ name: 'Gestión Ñandú' });

@@ -1,4 +1,4 @@
-import { parseUrn, refTypeSchema } from '@iark/kernel';
+import { elementLinkFields, parseUrn } from '@iark/kernel';
 import { z } from 'zod';
 import {
   CRITICALITIES,
@@ -63,8 +63,7 @@ export const applicationSchema = z.object({
   users: z.number().int('Los usuarios son un número entero').min(0, 'Los usuarios no pueden ser negativos').optional(),
   strategy: z.enum(STRATEGIES).optional(),
   endOfLife: z.string().regex(END_OF_LIFE, 'El fin de soporte debe tener la forma AAAA-MM o AAAA-MM-DD').optional(),
-  ref: z.string().optional(),
-  refType: refTypeSchema.optional(),
+  ...elementLinkFields,
   tags: z.array(z.string()).optional(),
 });
 
@@ -77,8 +76,7 @@ export const technologySchema = z.object({
   ownerId: idSchema.optional(),
   lifecycle: z.enum(LIFECYCLES).optional(),
   endOfLife: z.string().regex(END_OF_LIFE, 'El fin de soporte debe tener la forma AAAA-MM o AAAA-MM-DD').optional(),
-  ref: z.string().optional(),
-  refType: refTypeSchema.optional(),
+  ...elementLinkFields,
   tags: z.array(z.string()).optional(),
 });
 

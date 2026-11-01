@@ -30,6 +30,7 @@ import { NotationNode } from './NotationNode';
 import { actionAvailability, applySelectionChanges, describeSelection, focusNodes, NO_SELECTION, removeAll, resolveSelection, toggleSelected, type Selection } from './selection';
 import { ShapeSvg } from './shapes';
 import { CANVAS_SHORTCUTS, matchShortcut } from './shortcuts';
+import { assembleDestinations, readElementLinks, sameDocumentViews, type Destination } from '../navigator';
 import { decorateEdges, decorateNodes, type EdgeCache, type NodeCache } from './stable';
 
 export interface DiagramCanvasProps {
@@ -337,16 +338,6 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
 
-  const follow = useCallback(
-    (id: string | undefined): void => {
-      const ref = id ? graph?.nodes.find((n) => n.id === id)?.ref : undefined;
-      if (!ref) return notify('El elemento seleccionado no enlaza con ningún otro módulo.');
-      if (!links) return notify('Este banco de trabajo no puede seguir enlaces.');
-      links.follow(ref);
-    },
-    [graph, links, notify],
-  );
-
   // Una operación que solo navega (bajar al detalle de un sistema, subir de nivel) devuelve el mismo documento: no es una edición y no
   // entra en el historial de deshacer. Si pide abrir otra vista (`view`), se abre tras aplicar el documento, que ya la contiene.
   const commit = useCallback(
@@ -471,11 +462,43 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
   // (`shortcut`): así C4 baja y sube de nivel. Se guarda en una referencia para que el oyente del teclado no dependa de cada render.
   const shortcutRef = useRef<(key: 'alt+down' | 'alt+up') => boolean>(() => false);
   shortcutRef.current = (key) => {
+    if (key === 'alt+down') return false;
     const i = actions.findIndex((a) => a.shortcut === key);
     if (i < 0 || !availability[i]?.enabled) return false;
     startAction(actions[i]);
     return true;
   };
+  const [switcher, setSwitcher] = useState<Destination[] | undefined>();
+  const goDestination = useCallback(
+    (destination: Destination): void => {
+      setSwitcher(undefined);
+      if (destination.kind === 'view') onView(destination.id.slice('view:'.length));
+      else if (destination.kind === 'detail') {
+        const action = actions.find((item) => item.id === 'detail');
+        if (action) startAction(action);
+      } else if (links) links.follow(destination.urn, destination.viewId);
+      else notify('Este banco de trabajo no puede seguir enlaces.');
+    },
+    [actions, links, notify, onView, startAction],
+  );
+  const openDestinations = useCallback(
+    async (id: string | undefined): Promise<void> => {
+      if (!id) return notify('El elemento seleccionado no tiene otra vista.');
+      const views = document === undefined ? [] : sameDocumentViews(document, id, viewId);
+      const stored = (document as { views?: Array<{ scopeId?: string }> } | undefined)?.views;
+      const hasChild = stored?.some((view) => view.scopeId === id) ?? false;
+      const detailIndex = actions.findIndex((action) => action.id === 'detail');
+      const detail = !hasChild && detailIndex >= 0 && availability[detailIndex]?.enabled ? { label: actions[detailIndex].label } : undefined;
+      const elementLinks = document === undefined ? [] : readElementLinks(document, id);
+      const backlinks = links ? await links.backlinks(moduleId, id) : [];
+      const appearances = links?.appearances?.(id) ?? [];
+      const destinations = assembleDestinations({ views, detail, links: elementLinks, backlinks, appearances });
+      if (destinations.length === 0) return notify('El elemento seleccionado no tiene otra vista.');
+      if (destinations.length === 1) goDestination(destinations[0]);
+      else setSwitcher(destinations);
+    },
+    [actions, availability, document, goDestination, links, moduleId, notify, viewId],
+  );
 
   const undo = useCallback(() => {
     const previous = history.undo(text);
@@ -516,8 +539,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
       else if (action === 'fit') void flow.fitView({ padding: 0.15, duration: 250 });
       else if (action === 'deselect') setSelection(NO_SELECTION);
       else if (action === 'follow') {
-        const linked = !!single && !!graph?.nodes.find((n) => n.id === single)?.ref;
-        if (linked || !shortcutRef.current('alt+down')) follow(single);
+        void openDestinations(single);
       } else if (action === 'back') {
         if (onBack) onBack();
         else shortcutRef.current('alt+up');
@@ -525,7 +547,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [autoLayout, flow, focusElement, follow, graph, onBack, redo, remove, selectedIds, single, undo]);
+  }, [autoLayout, flow, focusElement, graph, onBack, openDestinations, redo, remove, selectedIds, single, undo]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setSelection((current) => applySelectionChanges(current, changes));
@@ -802,6 +824,15 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
         </dl>
       )}
 
+      {switcher && switcher.length > 1 && (
+        <div className="cv-switcher" role="menu" aria-label="Ver en" data-testid="view-switcher">
+          {switcher.map((destination) => (
+            <button key={destination.id} type="button" role="menuitem" className="cv-tool" onClick={() => goDestination(destination)}>
+              {destination.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="cv-body">
         <div className="cv-flow" onKeyDownCapture={onFlowKeyDown}>
           {calculating && slow && (
@@ -833,9 +864,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
               if (!e.ctrlKey && !e.metaKey && !e.shiftKey) setSelection((current) => (current.size > 1 && current.has(n.id) ? new Set([n.id]) : current));
             }}
             onNodeDoubleClick={(_, n) => {
-              const edit = !readOnly && document !== undefined ? spec.activate?.(document, n.id, viewId) : undefined;
-              if (edit) commit(edit);
-              else follow(n.id);
+              void openDestinations(n.id);
             }}
             onPaneClick={() => setSelection(NO_SELECTION)}
             onConnect={onConnect}

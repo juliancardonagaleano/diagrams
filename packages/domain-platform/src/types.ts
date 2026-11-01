@@ -81,6 +81,7 @@ export interface Resource {
   ref?: string;
   /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
   refType?: string;
+  links?: Array<{ ref: string; refType?: string; view?: string }>;
   tags?: string[];
   /** Coste mensual del recurso (en la moneda del espacio de trabajo). */
   monthlyCost?: number;
@@ -124,6 +125,7 @@ export interface Service {
   ref?: string;
   /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
   refType?: string;
+  links?: Array<{ ref: string; refType?: string; view?: string }>;
   tags?: string[];
   /** Servicio de nube que lo ejecuta o que es (una función en `aws` + `lambda`): como en `Resource`, decide su icono. */
   provider?: string;

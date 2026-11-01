@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { CONTRACT_VERSION } from '@iark/kernel';
 import { MODULE_PROTOCOL_VERSION, type ModuleEvent } from '../embed/moduleProtocol';
-import { createModuleBridge, type ModuleBridge } from './bridge';
+import { createModuleBridge, type ModuleBridge, type RelatedHandlers } from './bridge';
 import { newController, example } from './testing';
 
 const securityDoc = JSON.parse(example('seguridad-ejemplo.json'));
 
-function harness(options: { module?: string; changeDelay?: number; configure?: boolean } = {}) {
+function harness(options: { module?: string; changeDelay?: number; configure?: boolean; related?: () => RelatedHandlers | undefined } = {}) {
   const controller = newController();
   const events: ModuleEvent[] = [];
   const dialogs: unknown[] = [];
@@ -19,6 +19,7 @@ function harness(options: { module?: string; changeDelay?: number; configure?: b
     changeDelay: options.changeDelay ?? 5,
     onDialog: (d) => dialogs.push(d),
     onConfigure: (c) => configs.push(c),
+    related: options.related,
   });
   const send = (action: unknown): Promise<void> => bridge.receive(typeof action === 'string' ? action : JSON.stringify(action));
   const last = <T extends ModuleEvent['event']>(name: T): Extract<ModuleEvent, { event: T }> | undefined => [...events].reverse().find((e): e is Extract<ModuleEvent, { event: T }> => e.event === name);
@@ -293,5 +294,37 @@ describe('puente postMessage de módulos: versionado', () => {
     await h.send({ action: 'load', document: { ...securityDoc, version: '7.0' } });
     expect(h.last('error')!.message).toMatch(/versión más nueva \(7\.0\).*Actualiza DIAgrams/s);
     expect(h.controller.getState().text).toBe(before);
+  });
+
+  it('openRelated lista los destinos y abre el único; con varios espera a que el anfitrión elija', async () => {
+    const opened: string[] = [];
+    const related: RelatedHandlers = {
+      async list(elementId) {
+        return elementId === 'uno'
+          ? [{ kind: 'view', id: 'view:detalle', label: 'Detalle' }]
+          : [
+              { kind: 'view', id: 'view:a', label: 'A' },
+              { kind: 'link', id: 'link:urn:iark:platform:api', label: 'urn:iark:platform:api', urn: 'urn:iark:platform:api' },
+            ];
+      },
+      async open(destination) {
+        opened.push(destination.id);
+      },
+    };
+    const h = harness({ module: 'security', related: () => related });
+    active = h.bridge;
+    await h.bridge.start();
+    await h.send({ action: 'load', document: securityDoc });
+    await h.send({ action: 'openRelated', elementId: 'uno', requestId: 'rel-1' });
+    expect(opened).toEqual(['view:detalle']);
+    expect(h.last('relatedDestinations')).toMatchObject({ elementId: 'uno', opened: 'view:detalle', requestId: 'rel-1' });
+    await h.send({ action: 'openRelated', elementId: 'varios', requestId: 'rel-2' });
+    expect(opened).toEqual(['view:detalle']);
+    expect(h.last('relatedDestinations')!.destinations).toHaveLength(2);
+    expect(h.last('relatedDestinations')!.opened).toBeUndefined();
+    await h.send({ action: 'openRelated', elementId: 'varios', destinationId: 'link:urn:iark:platform:api' });
+    expect(opened).toEqual(['view:detalle', 'link:urn:iark:platform:api']);
+    await h.send({ action: 'openRelated', elementId: 'varios', destinationId: 'no-esta', requestId: 'rel-3' });
+    expect(h.last('error')!.message).toMatch(/no está entre los del elemento/);
   });
 });

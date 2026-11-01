@@ -27,6 +27,8 @@ import {
   type DiagramMeta,
   type DiagramVersion,
   type ProjectStore,
+  parseSubjects,
+  type ProjectSubject,
   type ProjectSummary,
   type RestoredVersion,
   type RestoreOptions,
@@ -147,6 +149,7 @@ interface SidecarRead {
   description?: string;
   createdAt?: string;
   diagrams: Map<string, SidecarEntry>;
+  subjects?: ProjectSubject[];
 }
 
 const safeName = (raw: unknown): string | undefined => {
@@ -175,6 +178,7 @@ function parseSidecar(json: unknown): SidecarRead | undefined {
     description: typeof record.description === 'string' ? record.description.trim() || undefined : undefined,
     createdAt: safeDate(record.createdAt),
     diagrams,
+    subjects: parseSubjects(record.subjects),
   };
 }
 
@@ -277,6 +281,7 @@ interface Loaded {
   hasSidecar: boolean;
   updatedMs: number;
   diagrams: LoadedDiagram[];
+  subjects?: ProjectSubject[];
   /** Ids de diagrama ocupados en minúsculas, también por entradas que se ignoran (enlaces, directorios…). */
   takenStems: Set<string>;
 }
@@ -287,6 +292,7 @@ interface Draft {
   description?: string;
   createdAt: string;
   diagrams: Map<string, { name: string; createdAt: string }>;
+  subjects?: ProjectSubject[];
 }
 
 const draftOf = (loaded: Loaded): Draft => ({
@@ -294,6 +300,7 @@ const draftOf = (loaded: Loaded): Draft => ({
   description: loaded.description,
   createdAt: loaded.createdAt,
   diagrams: new Map(loaded.diagrams.filter((d) => d.fromSidecar).map((d) => [d.id, { name: d.name, createdAt: d.createdAt }])),
+  subjects: loaded.subjects,
 });
 
 const summaryOf = (loaded: Loaded): ProjectSummary => ({
@@ -303,6 +310,7 @@ const summaryOf = (loaded: Loaded): ProjectSummary => ({
   createdAt: loaded.createdAt,
   updatedAt: iso(loaded.updatedMs),
   diagrams: loaded.diagrams.map(metaOf).sort(byName),
+  ...(loaded.subjects ? { subjects: loaded.subjects } : {}),
 });
 
 const metaOf = (d: LoadedDiagram): DiagramMeta => ({ id: d.id, module: d.module, name: d.name, createdAt: d.createdAt, updatedAt: iso(d.updatedMs) });
@@ -475,6 +483,7 @@ export class FolderProjectStore implements ProjectStore {
       hasSidecar: sidecar !== undefined,
       updatedMs: diagrams.reduce((latest, d) => Math.max(latest, d.updatedMs), Math.max(mtimeOf(st), sidecar?.ms ?? 0)),
       diagrams,
+      subjects: sidecar?.data.subjects,
       takenStems,
     };
   }
@@ -560,6 +569,7 @@ export class FolderProjectStore implements ProjectStore {
       ...(draft.description ? { description: draft.description } : {}),
       createdAt: draft.createdAt,
       diagrams: Object.fromEntries([...draft.diagrams].sort(([a], [b]) => (a < b ? -1 : 1))),
+      ...(draft.subjects ? { subjects: draft.subjects } : {}),
     };
     await this.writeAtomic(join(loaded.dir, SIDECAR), `${JSON.stringify(file, null, 2)}\n`, { growFrom: loaded.updatedMs });
   }

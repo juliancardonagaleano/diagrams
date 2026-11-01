@@ -7,7 +7,7 @@ import { canvasReady, c4Ready } from './canvas-helpers';
 /**
  * Auditoría de accesibilidad con axe-core (WCAG 2.2 AA) de las superficies principales, en tema claro y oscuro:
  * el editor clásico (`/`), el banco de trabajo (`modulos.html`, los seis módulos en todas sus pestañas, con el panel de
- * propiedades y el gestor de proyectos abiertos), la suite (`suite.html`, con el banco embebido en su iframe) y la
+ * propiedades y el gestor de proyectos abiertos), la federación (`/?manifest=`, con el banco embebido en su iframe) y la
  * trazabilidad (`trazabilidad.html`). Los menús y diálogos se auditan ABIERTOS.
  *
  * Qué hace falta para que pase: ninguna violación `critical`, `serious` ni `moderate` (las `minor` se registran en el
@@ -279,7 +279,7 @@ for (const tema of TEMAS) {
     test.describe('suite y trazabilidad', () => {
       test('suite con un módulo embebido', async ({ page }) => {
         test.setTimeout(90_000);
-        await page.goto(`/suite.html?theme=${tema}`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`/?manifest=${encodeURIComponent('/.well-known/iark.json')}&theme=${tema}`, { waitUntil: 'domcontentloaded' });
         await expect(page.getByRole('status').first()).toContainText('6 módulos', { timeout: TIMEOUT_ARRANQUE });
         await expect.poll(() => page.frames().some((f) => f.url().includes('embed=1')), { timeout: TIMEOUT_ARRANQUE }).toBe(true);
         const marco = page.frameLocator('iframe');
@@ -312,9 +312,9 @@ for (const tema of TEMAS) {
  */
 test.describe('reflujo con zoom', () => {
   const PAGINAS: Array<[string, string]> = [
-    ['editor clásico', '/?theme=light'],
+    ['editor clásico', '/?editor=1&theme=light'],
     ['banco de trabajo', '/modulos.html?module=c4&theme=light'],
-    ['suite', '/suite.html?theme=light'],
+    ['inicio', '/?theme=light'],
     ['trazabilidad', '/trazabilidad.html?examples=1&theme=light'],
   ];
   for (const ancho of [640, 320]) {

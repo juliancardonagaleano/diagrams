@@ -11,7 +11,7 @@ import { LANGS, LANG_NAMES, formatTime, getLang, initLang, setLang, subscribeLan
 import { loadManifest, manifestOrigin, type ResolvedManifest, type ResolvedModule } from './manifest';
 
 /**
- * Shell de la suite (`suite.html`): descubre los módulos de una instancia por su manifiesto `/.well-known/iark.json` y los
+ * Shell de federación (`/?manifest=`): descubre los módulos de una instancia por su manifiesto `/.well-known/iark.json` y los
  * monta en un iframe con el SDK que corresponde. No conoce ningún módulo por nombre: todo sale del manifiesto y del
  * handshake `capabilities`, de modo que una instancia remota con más módulos aparece sin cambiar nada aquí.
  */
@@ -30,7 +30,7 @@ const state = el<HTMLElement>('state');
 // El idioma de la suite se decide antes de pintar nada (`?lang=` > lo elegido > el del navegador) y se pasa a los módulos que se abren.
 initLang();
 
-/** Textos fijos de `suite.html`: el HTML trae el español de origen y esto lo pone en el idioma vigente (también al cambiarlo). */
+/** Textos fijos del shell: el documento trae el español de origen y esto lo pone en el idioma vigente (también al cambiarlo). */
 const STATIC_TEXTS: ReadonlyArray<{ selector: string; attribute?: 'aria-label'; text: () => string }> = [
   { selector: '.wb-skip', text: () => t('wb.skip') },
   { selector: '.sh-header', attribute: 'aria-label', text: () => t('suite.header') },
@@ -222,7 +222,7 @@ async function connect(typed: string): Promise<void> {
 
 /**
  * Un manifiesto de otro origen recibido por enlace (`?manifest=`) no se conecta solo: cualquiera podría mandar un enlace a
- * `suite.html` que cargara en esta página los módulos de una instancia ajena. Se deja el campo relleno y se pide confirmación
+ * esta página que cargara los módulos de una instancia ajena. Se deja el campo relleno y se pide confirmación
  * con el botón «Conectar» (el mismo del formulario, que también sirve para corregir la dirección antes).
  */
 function awaitConfirmation(origin: string): void {

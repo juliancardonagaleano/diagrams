@@ -125,6 +125,7 @@ export interface Application {
   ref?: string;
   /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
   refType?: string;
+  links?: Array<{ ref: string; refType?: string; view?: string }>;
   tags?: string[];
 }
 
@@ -143,6 +144,7 @@ export interface Technology {
   ref?: string;
   /** Tipo del enlace que declara `ref` (vocabulario abierto; `depends-on` si falta): `implements`, `protects`… */
   refType?: string;
+  links?: Array<{ ref: string; refType?: string; view?: string }>;
   tags?: string[];
 }
 

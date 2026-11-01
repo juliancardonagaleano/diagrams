@@ -16,7 +16,7 @@ Requisitos: **Node 22.13 o superior** (el que usan la imagen Docker y el CI; lo 
 
 ```bash
 npm install
-npm run dev        # editor C4 en http://localhost:5173 (banco de trabajo en /modulos.html, suite en /suite.html)
+npm run dev        # inicio (la suite) en http://localhost:5173 (editor C4 en /?editor=1, banco en /modulos.html)
 ```
 
 El CLI, sin construir nada (tras `npm run build`: `node dist/cli/index.js`, o `npx iark` con el paquete instalado):
@@ -107,14 +107,15 @@ Una especialidad propia no necesita tocar este repositorio: un **módulo de terc
 
 | Superficie | Dónde | Para qué | Más |
 |---|---|---|---|
-| Editor C4 (clásico) | `index.html` | Editar diagramas C4 con lienzo interactivo, deshacer/rehacer, minimapa y panel de problemas (C4 también se edita en el lienzo común del banco de trabajo, `modulos.html?module=c4`) | [docs/modulos/c4.md](docs/modulos/c4.md) |
+| Inicio (la suite) | `/` | Proyectos, diagramas sueltos y las seis especialidades. `suite.html` redirige aquí | [docs/suite-web.md](docs/suite-web.md) |
+| Editor C4 (clásico) | `/?editor=1` | Editar diagramas C4 con lienzo interactivo, deshacer/rehacer, minimapa y panel de problemas (C4 también se edita en el lienzo común del banco de trabajo, `modulos.html?module=c4`). Embebido: `/?embed=1` | [docs/modulos/c4.md](docs/modulos/c4.md) |
 | Banco de trabajo | `modulos.html?module=<id>` | Editar cualquier módulo: lienzo, JSON con validación, vistas, exportar, importar, informes y comparar versiones | [docs/suite-web.md](docs/suite-web.md) |
-| Suite (shell) | `suite.html` | Descubre los módulos de una instancia leyendo su manifiesto y monta el editor o el widget elegido | [docs/suite-web.md](docs/suite-web.md) |
+| Federación | `/?manifest=<url>` | Descubre los módulos de una instancia leyendo su manifiesto y monta el editor o el widget elegido | [docs/suite-web.md](docs/suite-web.md) |
 | Trazabilidad | `trazabilidad.html` | Enlaces `urn:iark:…` entre documentos de varios módulos, referencias sin resolver y alcance de un elemento | [docs/trazabilidad.md](docs/trazabilidad.md) |
 | Proyectos | *Proyectos…* en el banco y en *Archivo* del editor C4; `iark project` | Guardar y abrir diagramas agrupados (carpeta, navegador o servidor propio), con historial de versiones: ver, comparar, restaurar y nombrar | [docs/proyectos.md](docs/proyectos.md) |
 | CLI | `iark` | generate, layout, convert, import, validate, schema, prompt, diff, trace, project, auth, serve y los comandos de cada módulo | [docs/cli.md](docs/cli.md) · [docs/ia.md](docs/ia.md) |
 | Servicio | `iark serve` | API por módulo, sitio, proyectos y autenticación (tokens o inicio de sesión de GitHub); registro de accesos, auditoría, `/healthz`, `/readyz` y métricas de Prometheus | [docs/servicio.md](docs/servicio.md) · [docs/cuentas-github.md](docs/cuentas-github.md) · [docs/observabilidad.md](docs/observabilidad.md) |
-| Widget y embebido | `modulos.html?embed=1`, `index.html?embed=1`, `<iark-module>` | Llevar el editor a otra aplicación con `postMessage`, SDK o Web Component | [docs/embebido.md](docs/embebido.md) |
+| Widget y embebido | `modulos.html?embed=1`, `/?embed=1`, `/?surface=home&embed=1`, `<iark-module>` | Llevar el editor, un módulo o el inicio a otra aplicación con `postMessage`, SDK o Web Component | [docs/embebido.md](docs/embebido.md) |
 
 ## Sitio publicado y demos
 

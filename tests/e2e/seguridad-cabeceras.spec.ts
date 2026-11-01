@@ -179,7 +179,7 @@ test.describe('las páginas con la CSP puesta', () => {
 
   test('suite y trazabilidad: el shell descubre los módulos, monta un banco y el editor C4 embebidos', async ({ page }) => {
     const w = watch(page);
-    await page.goto(`${A.url}/suite.html`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/?manifest=${encodeURIComponent('/.well-known/iark.json')}`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('status')).toContainText('6 módulos');
     await expect(page.locator('#info')).toContainText('Informes'); // el handshake `capabilities` llegó desde el iframe
     await page.getByRole('navigation', { name: 'Módulos' }).getByRole('button', { name: /Arquitectura de soluciones \(C4\)/ }).click();
@@ -309,7 +309,7 @@ test.describe('frame-ancestors', () => {
 test.describe('federación con la CSP puesta', () => {
   test('el shell de A se conecta al manifiesto de B (otro origen): connect-src y frame-src lo permiten', async ({ page }) => {
     const w = watch(page);
-    await page.goto(`${A.url}/suite.html?manifest=${encodeURIComponent(`${origin(B)}/.well-known/iark.json`)}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/?manifest=${encodeURIComponent(`${origin(B)}/.well-known/iark.json`)}`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('status')).toContainText('pendiente de confirmar'); // otro origen: no se conecta solo
     await page.getByRole('button', { name: 'Conectar' }).click();
     await expect(page.getByRole('status')).toContainText('6 módulos', { timeout: 20000 });
