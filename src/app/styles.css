@@ -449,7 +449,17 @@ body[theme-mode='dark'] .c4-save-note[data-save='offline'] {
   content: '⚠ ' / '';
 }
 @media (max-width: 700px) {
+  .c4-header {
+    flex-wrap: wrap;
+  }
+  .c4-header-actions {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 100%;
+  }
   .c4-save-note {
+    flex: 1 1 100%;
     min-inline-size: 0;
   }
 }

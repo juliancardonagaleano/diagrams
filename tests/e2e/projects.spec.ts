@@ -97,6 +97,10 @@ test.describe('proyectos en el banco de trabajo', () => {
     await page.getByRole('tab', { name: 'Datos' }).click();
     await expect(page.getByTestId('link-erp')).toBeVisible({ timeout: 20000 });
     await page.locator('[data-testid="node-erp"] .cv-group-title').dblclick();
+    const switcher = page.getByTestId('view-switcher');
+    if (await switcher.isVisible()) {
+      await switcher.getByRole('menuitem', { name: 'urn:iark:integration:pedidos' }).click();
+    }
     await expect(page.getByRole('tab', { name: 'Integración' })).toHaveAttribute('aria-selected', 'true', { timeout: 15000 });
     await expect(page.getByRole('combobox', { name: 'Diagrama' })).toContainText('Pedidos');
     await expect(page.locator('[data-testid="node-pedidos"][data-selected]')).toBeVisible();

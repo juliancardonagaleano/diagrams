@@ -118,8 +118,8 @@ Lectura: el hilo principal queda bloqueado casi todo lo que dura la colocación 
 | Trozo | Tamaño | gzip | En la carga inicial de |
 |---|---:|---:|---|
 | `domain-c4-N8I54U48.js` | 1683.1 kB | 518.3 kB | index.html, modulos.html, suite.html, trazabilidad.html |
-| `elk-276RUBZZ-DWITELAW.js` | 1456.4 kB | 446.1 kB | bajo demanda |
-| `chunk-FOHPRMQF-DzxwRta7.js` | 662.1 kB | 141.6 kB | bajo demanda |
+| `elk-QONTBCTQ-v3DgizRT.js` | 1463.3 kB | 448.7 kB | bajo demanda |
+| `chunk-NGNAAXSQ-DqoPQk1a.js` | 629.1 kB | 125.8 kB | bajo demanda |
 | `main-Bdh1fDza.js` | 437.5 kB | 121.6 kB | index.html |
 | `ProjectsDialog-i2YlRP_Z.js` | 435.7 kB | 132.7 kB | index.html, modulos.html |
 | `cytoscape.esm-Yq6u8L66.js` | 434.9 kB | 136.5 kB | bajo demanda |
@@ -311,10 +311,10 @@ El hilo de trabajo no acelera el cálculo (C4: 21,9 s contra 22,3 s; es un hilo 
 
 | Trozo | Tamaño | gzip | En la carga inicial de |
 |---|---:|---:|---|
-| `elk-276RUBZZ-FOqlE9Of.js` | 1456.4 kB | 446.2 kB | bajo demanda |
+| `elk-QONTBCTQ-v3DgizRT.js` | 1463.3 kB | 448.7 kB | bajo demanda |
 | `elk-hilo-principal-DhtxzzJY.js` | 1431.1 kB | 435.4 kB | bajo demanda |
 | `elkWorker-bWnmAZJ6.js` | 1424.0 kB | 432.7 kB | bajo demanda |
-| `chunk-FOHPRMQF-DzxwRta7.js` | 662.1 kB | 141.6 kB | bajo demanda |
+| `chunk-NGNAAXSQ-DqoPQk1a.js` | 629.1 kB | 125.8 kB | bajo demanda |
 | `main-3QlDzKX6.js` | 437.5 kB | 121.6 kB | index.html |
 | `ProjectsDialog-ALigCR1Y.js` | 435.7 kB | 132.7 kB | index.html, modulos.html |
 | `cytoscape.esm-Yq6u8L66.js` | 434.9 kB | 136.5 kB | bajo demanda |
