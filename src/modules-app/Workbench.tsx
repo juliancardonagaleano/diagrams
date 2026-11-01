@@ -38,6 +38,15 @@ export interface WorkbenchProps {
 
 const LINE_HEIGHT = 18;
 
+/** La vista abierta ya dibuja el elemento (un cambio de la comparación no tiene por qué abandonarla). */
+function viewShows(editor: { project(document: unknown, viewId?: string): { nodes: Array<{ id: string }> } }, document: unknown, viewId: string, elementId: string): boolean {
+  try {
+    return editor.project(document, viewId).nodes.some((node) => node.id === elementId);
+  } catch {
+    return false;
+  }
+}
+
 export function Workbench({ controller, embed = false, ui = 'full', dialog, onDismissDialog, onSave, onExit, relatedRef }: WorkbenchProps) {
   const { t } = useT();
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
@@ -90,16 +99,22 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
   }, [notify]);
 
   const goTo = useCallback(
-    async (moduleId: string, elementId?: string, diagramId?: string, preferredView?: string): Promise<void> => {
+    async (moduleId: string, elementId?: string, diagramId?: string, preferredView?: string, options?: { narrow?: boolean }): Promise<void> => {
       const project = controller.projects?.project;
       // Con varios diagramas por módulo, ir a un módulo es ir a un diagrama concreto del proyecto.
       if (diagramId && project && controller.projects?.getState().diagramId !== diagramId) await controller.openDiagram(project.id, diagramId);
       else await controller.selectModule(moduleId);
       if (!elementId) return;
-      const { module: target, analysis } = controller.getState();
+      const { module: target, analysis, viewId } = controller.getState();
       if (target && analysis.status === 'ok') {
-        const view = preferredView && controller.setView(preferredView) ? preferredView : focusedView(target, analysis.document, elementId);
-        if (view) controller.setView(view);
+        const chosen = preferredView && controller.setView(preferredView) ? preferredView : undefined;
+        // Seguir una URN abre la vista más ajustada. Enfocar un cambio del diagrama abierto conserva la vista
+        // si ya dibuja el elemento: si no, el mapa se cambia por la vista de un sistema y desaparecen los fantasmas.
+        const showsCurrent = !chosen && options?.narrow === false && viewId && target.editor && viewShows(target.editor, analysis.document, viewId, elementId);
+        if (!chosen && !showsCurrent) {
+          const view = focusedView(target, analysis.document, elementId);
+          if (view) controller.setView(view);
+        }
       }
       setFocus({ moduleId, id: elementId });
       setPanel('canvas');
@@ -464,7 +479,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
               compare={compare?.state}
               onLoad={loadCompare}
               onClear={() => setBase(undefined)}
-              onFocus={(id) => void goTo(state.moduleId!, id)}
+              onFocus={(id) => void goTo(state.moduleId!, id, undefined, undefined, { narrow: false })}
             />
           )}
           {active === 'export' && <ExportPanel {...panelProps} />}

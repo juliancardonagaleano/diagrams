@@ -271,8 +271,11 @@ test.describe('C4 en el lienzo común', () => {
     await expect(page.getByTestId('trail')).toHaveCount(0);
     await expect(page.locator('[data-testid="node-banca"][data-selected]')).toBeVisible();
     await canvasReady(page, 'contexto');
-    // El doble clic en un elemento enlazado también lo sigue.
+    // El doble clic abre el mismo menú: la vista hija no se salta el enlace.
     await page.locator('[data-testid="node-banca"]').dblclick();
+    const again = page.getByTestId('view-switcher');
+    await expect(again).toBeVisible();
+    await again.getByRole('menuitem', { name: urn }).click();
     await expect(page.getByRole('tab', { name: 'Integración' })).toHaveAttribute('aria-selected', 'true', { timeout: 15000 });
     await page.getByTestId('trail-back').click();
     await expect(page.getByRole('tab', { name: 'C4' })).toHaveAttribute('aria-selected', 'true', { timeout: 15000 });
