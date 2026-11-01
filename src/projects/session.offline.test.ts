@@ -616,6 +616,20 @@ describe('trabajo sin conexión', () => {
       s.session.dispose();
     });
 
+    it('al abrir la app de nuevo con una sesión buena, lo que esperaba credenciales se envía solo', async () => {
+      const s = await setup({ token: 'viejo' });
+      s.server.token = 'nuevo';
+      await edit(s.session, 'lo que escribí');
+      expect(s.session.getState()).toMatchObject({ save: 'error', saveErrorCode: 'unauthorized' });
+      expect(s.session.getState().offline).toMatchObject({ authBlocked: 1 });
+      s.session.dispose();
+
+      const next = await s.reopen({ token: 'nuevo' });
+      await vi.waitFor(async () => expect(await textOf(s)).toBe('lo que escribí'));
+      expect(next.getState().offline).toMatchObject({ authBlocked: 0 });
+      next.dispose();
+    });
+
     it('un rol que no alcanza (403): tampoco se reintenta solo, y con un rol de editor se envía sin perder nada', async () => {
       const s = await setup({ token: 'lector' });
       s.server.role = 'viewer';

@@ -186,8 +186,23 @@ export class OfflineSync {
     } catch {
       /* sin lectura del almacenamiento: se trabaja con lo que llegue en esta pestaña */
     }
+    await this.claimAuthWithMemory();
     await this.purgeStale();
     this.host.changed();
+  }
+
+  /**
+   * Tras recargar la pestaña, lo que quedó en `auth` con dueño `?` ya no está en `unverified` y parecería ajeno; si este navegador recuerda
+   * quién entró la última vez en ese servidor, se reclama para poder reenviarlo al volver a iniciar sesión.
+   */
+  private async claimAuthWithMemory(): Promise<void> {
+    const remembered = this.memory?.read();
+    if (!remembered) return;
+    for (const change of [...this.queue.all()]) {
+      if (change.server !== this.server || change.owner !== '?' || change.status !== 'auth') continue;
+      const key = queueKey(this.server, remembered, change.projectId, change.diagramId);
+      await this.queue.rekey(change.key, { ...change, owner: remembered, key });
+    }
   }
 
   /** Lo que dejó otra persona (o se guardó para otro servidor) y lleva un mes sin tocarse se borra: no se guarda para siempre en un equipo. */
