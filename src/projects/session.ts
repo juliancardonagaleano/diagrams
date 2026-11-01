@@ -380,11 +380,16 @@ export class ProjectSession {
   async init(): Promise<LastOpened | undefined> {
     await this.refresh();
     await this.sync?.ready;
+    if (this.sync) {
+      // Tras volver de GitHub (recarga completa) o dar un token nuevo, lo que esperaba credenciales no pasa por `useToken`: hay que
+      // reanudarlo aquí, igual que `credentialsChanged`, o el servidor se queda con la versión anterior.
+      if (this.sync.snapshot.authBlocked > 0) await this.sync.credentialsChanged();
+      else {
+        void this.sync.verifyQuiet();
+        void this.sync.kick('start');
+      }
+    }
     this.set({ ready: true });
-    // Lo que quedó pendiente de otra vez (la pestaña se cerró sin red) se reenvía al abrir. Y se averigua quién es la credencial para que lo que se
-    // escriba desde ahora quede guardado a su nombre (y no lo pueda enviar otra persona con otra credencial).
-    void this.sync?.verifyQuiet();
-    void this.sync?.kick('start');
     this.startEvents();
     const last = this.pointer?.read();
     const project = this.state.projects.find((p) => p.id === last?.projectId);
