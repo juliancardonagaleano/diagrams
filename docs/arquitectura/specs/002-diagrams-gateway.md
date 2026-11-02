@@ -8,9 +8,9 @@
 
 ## estado
 
-`aceptada`
+`en curso`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
+Implementación en la rama `cursor/impl-gateway-58e1`: `createModuleApi` en `src/diagrams-gateway/` con reexport de la piscina; `serve.ts` delega el borde de módulos.
 
 ## problema
 
