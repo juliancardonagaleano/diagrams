@@ -8,9 +8,9 @@
 
 ## estado
 
-`borrador`
+`aceptada`
 
-Nace en `borrador`. La [spec 000](000-conexion-ece.md) sigue en `borrador`: el descubrimiento de la sesión no tiene un namespace ECE. El [protocolo](../protocolo-sdd.md) deja esta spec bloqueada hasta que 000 esté `hecha`. El usuario autorizó consumir el puente directo en esta sesión para no perder el contexto. Esta página no pasa a `aceptada`, `en curso` ni `hecha`. No crea el JSON to-be.
+Julian aprobó explícitamente el corte to-be el 2 de noviembre de 2026. El modelo [`examples/diagrams-to-be.json`](../../../examples/diagrams-to-be.json) materializa este corte. La implementación por contenedor va en las specs 002–009.
 
 ## problema
 
@@ -369,3 +369,5 @@ Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(
 - Nombrar `diagrams-trace` un día y chocar con `traza-ui`, `/api/trace` y `mfe-trace`.
 - La fuente `github` del MCP estaba degradada en la sesión anterior. Esta sesión no volvió a llamar `get_source_status`. Las cards releídas salieron de `architecture-knowledge` y de `sistedocs`.
 - Redactar esta spec con 000 todavía en `borrador`. Quien la acepte tiene que mirar si el descubrimiento de la sesión ya muestra el namespace ECE, que aquí no apareció.
+
+El corte de esta página se detalla en las specs hijas, todas en `borrador`: [002](002-diagrams-gateway.md), [003](003-diagrams-app.md), [004](004-diagrams-identity.md), [005](005-diagrams-sse.md), [006](006-diagrams-shell.md), [007](007-microfrontends.md), [008](008-cli-hexagonal.md) y [009](009-borde-y-operacion.md). El orden para implementarlas, cuando quien mantiene el producto las pase a `aceptada`, está en [plan-implementacion.md](../plan-implementacion.md). Ese plan no es una spec y no autoriza código. Esta spec sigue en `borrador` y no crea el JSON to-be.

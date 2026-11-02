@@ -55,6 +55,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | [roadmap.md](roadmap.md) | Visión, estado actual, pendientes reales, límites conocidos y el plan de robustecimiento en cuatro fases. |
 | [arquitectura/as-is.md](arquitectura/as-is.md) | Modelo C4 as-is de la suite (contexto, contenedores y componentes) leído del código de `master` en `9343c75`, y cómo validarlo. |
 | [arquitectura/protocolo-sdd.md](arquitectura/protocolo-sdd.md) | Protocolo para rediseñar la arquitectura: el as-is queda congelado, cada cambio lleva una spec en `docs/arquitectura/specs/`, y ECE se conecta antes de tocar código. |
+| [arquitectura/plan-implementacion.md](arquitectura/plan-implementacion.md) | Orden de implementación del corte to-be. No es una spec y no autoriza código: cada fase espera su spec en `aceptada`. |
 | [historial.md](historial.md) | Lo ya hecho, por fases y por tandas, y el plan original de la suite. |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) · [SECURITY.md](../SECURITY.md) · [CHANGELOG.md](../CHANGELOG.md) · [LICENSE](../LICENSE) | Cómo contribuir, cómo informar de una vulnerabilidad, qué cambió en cada versión y la licencia. |
 
