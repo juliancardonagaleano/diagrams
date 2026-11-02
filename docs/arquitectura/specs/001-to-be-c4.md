@@ -369,3 +369,5 @@ Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(
 - Nombrar `diagrams-trace` un día y chocar con `traza-ui`, `/api/trace` y `mfe-trace`.
 - La fuente `github` del MCP estaba degradada en la sesión anterior. Esta sesión no volvió a llamar `get_source_status`. Las cards releídas salieron de `architecture-knowledge` y de `sistedocs`.
 - Redactar esta spec con 000 todavía en `borrador`. Quien la acepte tiene que mirar si el descubrimiento de la sesión ya muestra el namespace ECE, que aquí no apareció.
+
+El corte de esta página se detalla en las specs hijas, todas en `borrador`: [002](002-diagrams-gateway.md), [003](003-diagrams-app.md), [004](004-diagrams-identity.md), [005](005-diagrams-sse.md), [006](006-diagrams-shell.md), [007](007-microfrontends.md), [008](008-cli-hexagonal.md) y [009](009-borde-y-operacion.md). El orden para implementarlas, cuando quien mantiene el producto las pase a `aceptada`, está en [plan-implementacion.md](../plan-implementacion.md). Ese plan no es una spec y no autoriza código. Esta spec sigue en `borrador` y no crea el JSON to-be.
