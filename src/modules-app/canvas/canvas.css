@@ -11,7 +11,7 @@
 .cv-crumb.is-current { color: var(--wb-text); font-weight: 600; cursor: default; }
 .cv-group-tools { display: flex; flex-wrap: wrap; gap: 4px; }
 .cv-sep { width: 1px; height: 22px; background: var(--wb-border); margin: 0 4px; }
-.cv-tool { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--wb-border); border-radius: 6px; background: var(--wb-surface-2); color: var(--wb-text); font: inherit; font-size: 12px; cursor: pointer; }
+.cv-tool { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--wb-border); border-radius: var(--mesa-radius-control); background: var(--wb-surface-2); color: var(--wb-text); font: inherit; font-size: 12px; cursor: pointer; }
 .cv-tool:hover:not(:disabled) { border-color: var(--wb-primary); }
 .cv-tool:disabled { opacity: 0.45; cursor: default; }
 .cv-tool-shape { position: relative; display: inline-block; width: 28px; height: 18px; }
@@ -34,7 +34,7 @@
 .cv-inspector h2 small { color: var(--wb-text-2); font-weight: 400; margin-left: 6px; }
 .cv-field { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
 .cv-field label { color: var(--wb-text-2); }
-.cv-field input[type='text'], .cv-field input[type='number'], .cv-field select, .cv-field textarea { font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--wb-control-border); border-radius: 4px; background: var(--wb-surface); color: var(--wb-text); }
+.cv-field input[type='text'], .cv-field input[type='number'], .cv-field select, .cv-field textarea { font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--wb-control-border); border-radius: var(--mesa-radius-field); background: var(--wb-surface); color: var(--wb-text); }
 .cv-check { flex-direction: row; align-items: center; gap: 6px; }
 .cv-danger { margin-top: 6px; padding: 4px 10px; border: 1px solid var(--wb-error); border-radius: 6px; background: var(--wb-error-bg); color: var(--wb-error); cursor: pointer; }
 .cv-node { position: relative; font-size: 12px; }
@@ -93,7 +93,7 @@
 .cv-selection small { flex: 0 0 auto; color: var(--wb-text-2); }
 .cv-prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--wb-border); background: var(--wb-info-bg); font-size: 12px; }
 .cv-prompt label { display: inline-flex; align-items: center; gap: 6px; color: var(--wb-info); font-weight: 600; }
-.cv-prompt input[type='text'] { min-width: 240px; font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--wb-control-border); border-radius: 4px; background: var(--wb-surface); color: var(--wb-text); }
+.cv-prompt input[type='text'] { min-width: 240px; font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--wb-control-border); border-radius: var(--mesa-radius-field); background: var(--wb-surface); color: var(--wb-text); }
 .cv-edge-halo { stroke: var(--wb-primary); stroke-opacity: 0.3; stroke-linecap: round; pointer-events: none; }
 .cv-edge-label { position: absolute; display: inline-flex; align-items: center; gap: 4px; padding: 2px 5px; border-radius: 6px; background: rgba(255, 255, 255, 0.94); color: #334155; font-size: 11px; line-height: 16px; white-space: nowrap; pointer-events: all; cursor: pointer; }
 .cv-edge-label[data-selected] { box-shadow: 0 0 0 2px var(--wb-primary); }

@@ -287,7 +287,7 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
   const status = statusMessage ?? projectStatus ?? (modified ? t('ed.save.unsaved') : relativeTime(lastSavedAt));
 
   return (
-    <header className="flex justify-between items-center border-b border-color px-3 py-1.5 gap-3 theme">
+    <header className="c4-header mesa-bar flex justify-between items-center border-b px-3 py-1.5 gap-3">
       <a
         className="c4-skip"
         href="#c4-lienzo"
@@ -349,7 +349,7 @@ export function ControlPanel({ onEmbedSave, onEmbedExit, projects }: ControlPane
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-3 flex-none">
+      <div className="c4-header-actions flex items-center gap-3 flex-none min-w-0">
         {rejected && (
           <Button size="small" type="warning" onClick={() => projects?.onManage('storage')} data-testid="reconnect">
             {withSession ? t('ed.signIn') : t('ed.reconnect')}

@@ -43,7 +43,7 @@ export function HomeScreen({ state, last }: { state: ProjectsState; last?: LastO
       <a className="wb-skip" href="#contenido">
         {t('wb.skip')}
       </a>
-      <header className="home-header" aria-label={t('home.header')}>
+      <header className="home-header mesa-bar" aria-label={t('home.header')}>
         <h1 className="wb-title">
           DIAgrams <small>Suite</small>
         </h1>

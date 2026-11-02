@@ -8,7 +8,7 @@ export function renderSuiteShell(): void {
   const root = document.createElement('div');
   root.className = 'sh';
   root.innerHTML = `
-    <header class="sh-header" aria-label="Suite de DIAgrams">
+    <header class="sh-header mesa-bar" aria-label="Suite de DIAgrams">
       <h1 class="wb-title"><a class="wb-brand" href="./">DIAgrams <small>Suite</small></a></h1>
       <form id="manifest-form" aria-label="Instancia">
         <label class="wb-visually-hidden" for="manifest-url">Manifiesto de la instancia</label>

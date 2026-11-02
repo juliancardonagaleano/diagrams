@@ -1,23 +1,22 @@
 /*
- * Gestor de proyectos. Sirve en dos pantallas con temas distintos (el banco de trabajo, con `--wb-*`, y el editor C4, con
- * las variables de Semi UI): cada color toma la variable de la pantalla que esté y, si no hay ninguna, un valor propio.
+ * Gestor de proyectos. Los colores salen de Mesa (`--mesa-*`), el mismo cromo en el banco y en el editor.
  */
 .pj-overlay,
 .pj-newer,
 .pj-offline-actions {
-  --pj-bg: var(--wb-surface, var(--semi-color-bg-2, #ffffff));
-  --pj-bg-2: var(--wb-surface-2, var(--semi-color-fill-0, #f0f2f5));
-  --pj-border: var(--wb-border, var(--semi-color-border, #d9dde3));
-  --pj-text: var(--wb-text, var(--semi-color-text-0, #1f2430));
-  --pj-text-2: var(--wb-text-2, var(--semi-color-text-2, #566070));
-  --pj-primary: var(--wb-primary, var(--semi-color-primary, #175e7a));
-  --pj-primary-text: var(--wb-primary-text, #ffffff);
-  --pj-error: var(--wb-error, var(--semi-color-danger, #b42318));
-  --pj-error-bg: var(--wb-error-bg, #fdecea);
-  --pj-warning-bg: var(--wb-warning-bg, #fff4e0);
-  --pj-ok: var(--wb-ok, var(--semi-color-success, #1a7f43));
-  --pj-ok-bg: var(--wb-ok-bg, color-mix(in srgb, var(--pj-ok) 14%, var(--pj-bg)));
-  --pj-warning: var(--wb-warning, var(--semi-color-warning, #9a5b00));
+  --pj-bg: var(--mesa-surface);
+  --pj-bg-2: var(--mesa-surface-2);
+  --pj-border: var(--mesa-border);
+  --pj-text: var(--mesa-text);
+  --pj-text-2: var(--mesa-text-2);
+  --pj-primary: var(--mesa-accent);
+  --pj-primary-text: var(--mesa-accent-on);
+  --pj-error: var(--mesa-danger);
+  --pj-error-bg: var(--mesa-danger-bg);
+  --pj-warning-bg: var(--mesa-warning-bg);
+  --pj-ok: var(--mesa-ok);
+  --pj-ok-bg: var(--mesa-ok-bg);
+  --pj-warning: var(--mesa-warning);
 }
 .pj-overlay {
   position: fixed;
@@ -39,7 +38,7 @@
   max-height: min(720px, 100%);
   background: var(--pj-bg);
   border: 1px solid var(--pj-border);
-  border-radius: 10px;
+  border-radius: var(--mesa-radius-panel);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }
@@ -57,7 +56,7 @@
 .pj-dialog button,
 .pj-file {
   padding: 5px 11px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
   border: 1px solid var(--pj-border);
   background: var(--pj-bg);
   color: var(--pj-text);
@@ -95,7 +94,7 @@
 .pj-dialog input[type='search'],
 .pj-dialog select {
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
   border: 1px solid var(--pj-border);
   background: var(--pj-bg);
   color: var(--pj-text);
@@ -154,7 +153,7 @@
 }
 .pj-status {
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--mesa-radius-pill);
   border: 1px solid var(--pj-border);
   background: var(--pj-bg);
   font-size: 12px;
@@ -204,7 +203,7 @@
 }
 .pj-hint code {
   padding: 0 4px;
-  border-radius: 4px;
+  border-radius: var(--mesa-radius-field);
   background: var(--pj-bg-2);
   user-select: all;
 }
@@ -218,7 +217,7 @@
   gap: 6px;
   padding: 10px 12px;
   border: 1px solid var(--pj-border);
-  border-radius: 8px;
+  border-radius: var(--mesa-radius-panel);
   background: var(--pj-bg-2);
 }
 .pj-dialog button.pj-github {
@@ -227,7 +226,7 @@
 }
 .pj-token {
   border: 1px solid var(--pj-border);
-  border-radius: 8px;
+  border-radius: var(--mesa-radius-panel);
   padding: 6px 12px;
 }
 .pj-token summary {
@@ -247,7 +246,7 @@
   margin: 0 16px;
   padding: 8px 12px;
   border: 1px solid var(--pj-border);
-  border-radius: 8px;
+  border-radius: var(--mesa-radius-panel);
   background: var(--pj-bg-2);
 }
 .pj-account-who {
@@ -393,7 +392,7 @@ td.pj-actions > * {
 }
 .pj-chip {
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--mesa-radius-pill);
   background: var(--pj-bg-2);
   border: 1px solid var(--pj-border);
   font-size: 12px;
@@ -472,7 +471,7 @@ td.pj-actions > * {
   gap: 8px 10px;
   padding: 6px 8px;
   border: 1px solid var(--pj-border);
-  border-radius: 8px;
+  border-radius: var(--mesa-radius-panel);
 }
 .pj-member-who {
   display: flex;
@@ -539,7 +538,7 @@ td.pj-actions > * {
 }
 .pj-admin-field-error {
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
 }
 .pj-admin-tools {
   display: flex;
@@ -770,7 +769,7 @@ td.pj-admin-actions {
     margin-bottom: 10px;
     padding: 6px 10px;
     border: 1px solid var(--pj-border);
-    border-radius: 8px;
+    border-radius: var(--mesa-radius-panel);
   }
   .pj-admin-table td,
   .pj-admin-table th.pj-admin-who {
@@ -982,7 +981,7 @@ td.pj-admin-actions {
 }
 .pj-history-field-error {
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
 }
 .pj-dialog button.pj-danger-outline {
   border-color: var(--pj-error);
@@ -1017,7 +1016,7 @@ td.pj-admin-actions {
 }
 .pj-offline-actions > button {
   padding: 3px 10px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
   border: 1px solid var(--pj-border);
   background: var(--pj-bg);
   color: var(--pj-text);
@@ -1044,7 +1043,7 @@ td.pj-admin-actions {
   flex-basis: 100%;
   margin: 0;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
   background: var(--pj-warning-bg);
   color: var(--pj-text);
   border: 1px solid var(--pj-warning);
@@ -1077,7 +1076,7 @@ td.pj-admin-actions {
   padding: 10px 12px;
   border: 1px solid var(--pj-border);
   border-left: 3px solid var(--pj-warning);
-  border-radius: 8px;
+  border-radius: var(--mesa-radius-panel);
   background: var(--pj-bg-2);
 }
 .pj-conflict-item small {
@@ -1127,7 +1126,7 @@ td.pj-admin-actions {
 }
 .pj-newer[data-active='true'] {
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
   background: var(--pj-warning-bg);
   border: 1px solid var(--pj-warning);
 }
@@ -1139,7 +1138,7 @@ td.pj-admin-actions {
 }
 .pj-newer > button {
   padding: 3px 10px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
   border: 1px solid var(--pj-border);
   background: var(--pj-bg);
   color: var(--pj-text);

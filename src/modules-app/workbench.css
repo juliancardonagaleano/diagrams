@@ -1,60 +1,4 @@
-:root {
-  --wb-bg: #f6f7f9;
-  --wb-surface: #ffffff;
-  --wb-surface-2: #f0f2f5;
-  --wb-border: #d9dde3;
-  --wb-text: #1f2430;
-  --wb-text-2: #566070;
-  /* `--wb-primary` es un FONDO con texto `--wb-primary-text` encima; `--wb-primary-ink` es primario usado COMO TEXTO o línea sobre las superficies. Con el tema oscuro no pueden ser el mismo color (blanco sobre él y él sobre el fondo oscuro no llegan a 4,5:1 a la vez). */
-  --wb-primary: #175e7a;
-  --wb-primary-hover: #1b6f90;
-  --wb-primary-text: #ffffff;
-  --wb-primary-ink: #175e7a;
-  /* Anillo de foco (WCAG 2.4.7 y 1.4.11: al menos 3:1 con la superficie que lo rodea). */
-  --wb-focus: #175e7a;
-  /* Borde de los campos de texto y selectores (1.4.11: 3:1, porque es lo que los distingue del fondo). Los divisores decorativos siguen en `--wb-border`. */
-  --wb-control-border: #6b7686;
-  --wb-muted: #566070;
-  --wb-error: #b42318;
-  --wb-error-bg: #fdecea;
-  --wb-warning: #9a5b00;
-  --wb-warning-bg: #fff4e0;
-  --wb-info: #175e7a;
-  --wb-info-bg: #e6f2f7;
-  --wb-ok: #166a38;
-  /* Rellenos sólidos con texto blanco encima (los signos «+», «−» y «~» de «Versiones»): iguales en los dos temas. */
-  --wb-ok-solid: #166a38;
-  --wb-error-solid: #b42318;
-  --wb-warning-solid: #8a5200;
-  --wb-canvas: #ffffff;
-  --wb-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --wb-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
-  color-scheme: light;
-}
-
-:root[data-theme='dark'] {
-  --wb-bg: #121418;
-  --wb-surface: #1a1d23;
-  --wb-surface-2: #23272f;
-  --wb-border: #333944;
-  --wb-text: #e6e8ec;
-  --wb-text-2: #a0a8b5;
-  --wb-primary: #1d7295;
-  --wb-primary-hover: #195f7d;
-  --wb-primary-ink: #6cc0e2;
-  --wb-focus: #6cc0e2;
-  --wb-control-border: #7c8594;
-  --wb-muted: #a0a8b5;
-  --wb-error: #ff8d84;
-  --wb-error-bg: #3a1d1b;
-  --wb-warning: #ffc76b;
-  --wb-warning-bg: #37290f;
-  --wb-info: #7cc4e0;
-  --wb-info-bg: #16303b;
-  --wb-ok: #6fd39a;
-  --wb-canvas: #f4f5f7;
-  color-scheme: dark;
-}
+@import '../theme/mesa.css';
 
 * {
   box-sizing: border-box;
@@ -67,7 +11,7 @@ body,
 }
 body {
   font-family: var(--wb-font);
-  font-size: 14px;
+  font-size: var(--mesa-font-body);
   background: var(--wb-bg);
   color: var(--wb-text);
 }
@@ -82,7 +26,7 @@ textarea {
 button,
 .wb-btn {
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-control);
   border: 1px solid var(--wb-border);
   background: var(--wb-surface);
   cursor: pointer;
@@ -125,7 +69,7 @@ textarea {
 select,
 input[type='text'] {
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: var(--mesa-radius-field);
   background: var(--wb-surface);
 }
 :focus-visible {
@@ -139,15 +83,6 @@ input[type='text'] {
   height: 100%;
   min-height: 0;
 }
-.wb-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  padding: 8px 14px;
-  background: var(--wb-surface);
-  border-bottom: 1px solid var(--wb-border);
-}
 .wb-brand {
   display: flex;
   align-items: baseline;
@@ -157,6 +92,7 @@ input[type='text'] {
   text-decoration: none;
 }
 .wb-brand small {
+  font-size: var(--mesa-font-body);
   font-weight: 500;
   color: var(--wb-text-2);
 }
@@ -236,7 +172,7 @@ input[type='text'] {
 .wb-chip {
   display: inline-block;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--mesa-radius-pill);
   font-size: 12px;
   font-weight: 600;
 }
@@ -472,7 +408,9 @@ pre.wb-out {
   align-items: baseline;
   gap: 0.35em;
   margin: 0;
-  font: inherit;
+  font-size: var(--mesa-font-brand);
+  font-weight: 700;
+  line-height: 1.2;
 }
 .wb-main:focus {
   outline: none;
@@ -516,13 +454,13 @@ pre.wb-out {
 .at-editor { min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; }
 .at-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 12px; font-size: 12px; }
 .at-fields .at-wide { grid-column: 1 / -1; }
-.at-fields .cv-field input[type='text'], .at-fields .cv-field select, .at-fields .cv-field textarea { padding: 5px 8px; border-radius: 6px; }
+.at-fields .cv-field input[type='text'], .at-fields .cv-field select, .at-fields .cv-field textarea { padding: 5px 8px; border-radius: var(--mesa-radius-field); }
 .at-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .at-toolbar button { padding: 4px 10px; font-size: 12px; }
 .at-toolbar .at-danger { margin-left: auto; border-color: var(--wb-error); background: var(--wb-error-bg); color: var(--wb-error); }
 .at-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: var(--wb-warning-bg); color: var(--wb-warning); font-size: 12px; }
 .at-confirm span { flex: 1 1 240px; }
-.at-text { flex: 1 0 260px; width: 100%; min-height: 260px; resize: vertical; padding: 10px 12px; border: 1px solid var(--wb-control-border); border-radius: 6px; background: var(--wb-surface); font-family: var(--wb-mono); font-size: 12px; line-height: 18px; white-space: pre; overflow: auto; tab-size: 2; }
+.at-text { flex: 1 0 260px; width: 100%; min-height: 260px; resize: vertical; padding: 10px 12px; border: 1px solid var(--wb-control-border); border-radius: var(--mesa-radius-field); background: var(--wb-surface); font-family: var(--wb-mono); font-size: 12px; line-height: 18px; white-space: pre; overflow: auto; tab-size: 2; }
 .at-diagnostics { display: grid; gap: 6px; font-size: 12px; }
 .at-diagnostics .wb-issues li { padding: 6px 10px; }
 .at-diagnostics .wb-chip { justify-self: start; }
@@ -533,7 +471,7 @@ pre.wb-out {
 .at-section ul.at-used { padding-left: 10px; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
 .at-used button { padding: 3px 8px; font-size: 12px; min-height: 24px; }
 .at-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 8px; }
-.at-chip { padding: 2px 8px; font-size: 12px; font-family: var(--wb-mono); border-radius: 10px; }
+.at-chip { padding: 2px 8px; font-size: 12px; font-family: var(--wb-mono); border-radius: var(--mesa-radius-control); }
 .at-used small { color: var(--wb-text-2); }
 
 /* Pestaña «Versiones»: qué se añadió, quitó y modificó respecto a otra versión del documento. */

@@ -3,15 +3,6 @@
   grid-template-rows: auto 1fr;
   height: 100vh;
 }
-.tr-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 8px 14px;
-  background: var(--wb-surface);
-  border-bottom: 1px solid var(--wb-border);
-}
 .tr-links {
   display: flex;
   gap: 12px;

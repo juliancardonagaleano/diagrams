@@ -307,7 +307,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
       >
         {t('wb.skip')}
       </a>
-      <header className="wb-header">
+      <header className="wb-header mesa-bar">
           {ui === 'full' ? (
             <>
               <h1 className="wb-title">
