@@ -86,6 +86,21 @@ Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(
 
 `git diff --stat -- src packages schema public examples` no imprimió nada. El único archivo tocado es esta spec.
 
+### Resultado (integración `sc-arquitectura/iark`, misma fecha, sesión Cloud Agent UTC)
+
+Se intentó localizar el MCP ECE en el repositorio indicado por Julian (`sc-arquitectura/iark`) para copiar configuración a `diagrams` en la rama `cursor/ece-mcp-iark-58e1`. El clone no fue posible: `gh repo clone` devolvió `Could not resolve to a Repository with the name 'sc-arquitectura/iark'`; `git clone` por HTTPS y SSH respondió `Repository not found`; `gh api orgs/sc-arquitectura/repos` devolvió `HTTP 404`. No se pudo listar paths (`mcp.json`, paquetes, scripts) ni un commit en iark.
+
+`GetDynamicTools` en esta sesión listó los mismos cinco namespaces que antes: `cursor`, `cursor-cloud`, `cursor-subscriptions`, `Fal`, `Figma`. Ninguno se llama ECE; no hubo `needsAuth` ni `mcp_auth` aplicable a ECE.
+
+Sigue sin existir `docs/arquitectura/ece-capacidades.md`. El estado permanece en `borrador`. Constancia del bloqueo de acceso: [ece-repositorio-iark.md](../ece-repositorio-iark.md). Falta acceso de lectura al repo u org para Julian; el comando o URL del servidor MCP en Cursor solo podrá copiarse desde iark tras un clone exitivo (no se inventa aquí).
+
+```text
+npm run cli -- validate examples/diagrams-as-is.json
+Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+```
+
+`git diff --stat -- src packages schema public examples` vacío en esta sesión de integración (solo documentación de arquitectura).
+
 ## riesgos
 
 - Confundir un MCP ya conectado (Figma, Fal u otro) con ECE y catalogar sus herramientas bajo ese nombre.
