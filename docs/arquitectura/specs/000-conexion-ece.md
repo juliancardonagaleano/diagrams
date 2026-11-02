@@ -101,6 +101,19 @@ Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(
 
 `git diff --stat -- src packages schema public examples` vacío en esta sesión de integración (solo documentación de arquitectura).
 
+### Resultado (URL confirmada, reintento clone, misma fecha UTC)
+
+Julian confirmó el repositorio exacto **`https://github.com/sc-arquitectura/iark.git`**. Se repitió el clone a `/tmp/iark-sc-arquitectura` y `gh repo clone sc-arquitectura/iark`: ambos devolvieron `Repository not found` / GraphQL «Could not resolve to a Repository»; `gh api repos/sc-arquitectura/iark` sigue en `HTTP 404` para la cuenta **`cursor`** del agente. No se pudo inspeccionar el árbol del repo ni citar commit SHA.
+
+`GetDynamicTools` con patrón `ECE|ece`: **sin namespace ECE**. Catálogo de sesión sin cambios respecto al bloque anterior: `cursor`, `cursor-cloud`, `cursor-subscriptions`, `Fal`, `Figma` (todos `ready` salvo `cursor`, que no trae `namespaceStatus`).
+
+No se añadió `.cursor/mcp.json` ni paquetes MCP desde iark (no hubo fuente legible). `docs/arquitectura/ece-capacidades.md` no existe. Estado: **`borrador`**.
+
+```text
+npm run cli -- validate examples/diagrams-as-is.json
+Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+```
+
 ## riesgos
 
 - Confundir un MCP ya conectado (Figma, Fal u otro) con ECE y catalogar sus herramientas bajo ese nombre.
