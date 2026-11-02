@@ -2,12 +2,14 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
-import { commandInfos, moduleCapabilities, type AnyModule, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
+import { type ModuleRegistry, type ProjectStore } from '@iark/kernel';
+import { COMPUTE_ACTIONS } from './compute';
 import { createAdminApi } from './accounts/admin';
 import { createAuthApi } from './accounts/routes';
 import type { Accounts } from './accounts/service';
 import { createUsageApi, QUOTA_KINDS, Quotas } from './accounts/usage';
-import { COMPUTE_ACTIONS, inlineExecutor, unwrapOutcome, type ComputeExecutor, type ComputeJob } from './compute';
+import { inlineExecutor, unwrapOutcome, type ComputeExecutor } from './compute';
+import { createModuleApi } from '../diagrams-gateway/moduleApi';
 import { HttpError } from './httpError';
 import { directoryWritable, fileReadable, Readiness, type Check } from './observability/health';
 import { Observability } from './observability';
@@ -357,33 +359,16 @@ export function createSuiteServer(options: ServeOptions): Server {
     if (req.method !== allowed) throw new HttpError(405, `Este endpoint solo admite ${allowed}.`, { allow: allowed });
   };
 
-  function moduleOf(id: string): AnyModule {
-    const module = options.registry.get(id);
-    if (!module) throw new HttpError(404, `No existe el módulo «${id}». Módulos: ${options.registry.ids().join(', ')}.`);
-    return module;
-  }
-
-  /**
-   * Las rutas de cálculo piden credencial (de cualquier rol) cuando hay autenticación y no se abrieron con `publicCompute`. Se decide
-   * antes de leer el cuerpo y antes de saber si el módulo existe: quien no entra no cuesta ni memoria ni CPU, y no averigua nada.
-   */
-  const requireComputeAccess = async (req: IncomingMessage): Promise<void> => void (await computeAuth?.identify(req));
-
-  /**
-   * Entrega el trabajo al ejecutor (el pool de hilos de `iark serve`) y responde con su resultado: la misma semántica de errores que
-   * si se calculara aquí (400/404/422 con mensaje limpio, 500 para un fallo del programa) más el 503 del pool (tiempo límite, cola llena).
-   * Si el cliente cuelga con la operación aún en cola, se descarta.
-   */
-  async function runCompute(res: ServerResponse, job: ComputeJob): Promise<void> {
-    const abandoned = new AbortController();
-    res.once('close', () => {
-      if (!res.writableEnded) abandoned.abort();
-    });
-    const outcome = await executor.run(job, { signal: abandoned.signal });
-    if (abandoned.signal.aborted) return;
-    const done = unwrapOutcome(outcome);
-    send(res, 200, done.body, { 'Content-Type': done.contentType, ...done.headers });
-  }
+  const moduleApi = createModuleApi({
+    registry: options.registry,
+    executor,
+    computeAuth,
+    readBody,
+    send,
+    sendJson,
+    requireMethod,
+    unwrapOutcome,
+  });
 
   async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const parts = url.pathname.slice(API.length).split('/').filter(Boolean).map(decodeSegment);
@@ -399,49 +384,8 @@ export function createSuiteServer(options: ServeOptions): Server {
       if (who.kind === 'token') return sendJson(res, 200, { auth: true, name: who.name, role: who.role });
       return sendJson(res, 200, { auth: true, name: who.user.name ?? who.user.login, role: who.siteRole, user: who.user });
     }
-    if (parts.length === 1 && parts[0] === 'modules') {
-      requireMethod(req, 'GET');
-      return sendJson(res, 200, options.registry.list().map(moduleCapabilities));
-    }
-    if (parts.length === 1 && parts[0] === 'trace') {
-      await requireComputeAccess(req);
-      requireMethod(req, 'POST');
-      return runCompute(res, { op: 'trace', body: await readBody(req) });
-    }
-    const [id, action, command] = parts;
-    if (!id || !action) throw new HttpError(404, 'Ruta de la API desconocida. Ver /api/modules.');
-    if (COMPUTE_ACTIONS.has(action)) await requireComputeAccess(req);
-    const module = moduleOf(id);
-
-    switch (action) {
-      case 'capabilities':
-        requireMethod(req, 'GET');
-        return sendJson(res, 200, moduleCapabilities(module));
-      case 'schema': {
-        requireMethod(req, 'GET');
-        const kind = url.searchParams.get('kind') ?? 'document';
-        if (kind === 'document') return sendJson(res, 200, module.jsonSchema());
-        if (kind === 'generation' && module.ai) return sendJson(res, 200, module.ai.generationJsonSchema());
-        throw new HttpError(400, `kind debe ser «document»${module.ai ? ' o «generation»' : ''}.`);
-      }
-      case 'validate':
-      case 'views':
-      case 'diff':
-        requireMethod(req, 'POST');
-        return runCompute(res, { op: action, module: module.id, body: await readBody(req) });
-      case 'export':
-        requireMethod(req, 'POST');
-        return runCompute(res, { op: 'export', module: module.id, body: await readBody(req), format: url.searchParams.get('format') ?? 'json', view: url.searchParams.get('view') ?? undefined });
-      case 'import':
-        requireMethod(req, 'POST');
-        return runCompute(res, { op: 'import', module: module.id, body: await readBody(req), importer: url.searchParams.get('importer') ?? undefined, name: url.searchParams.get('name') ?? undefined });
-      case 'run':
-        requireMethod(req, 'POST');
-        if (!command) throw new HttpError(404, `Indica el comando: /api/${id}/run/<comando>. Comandos: ${commandInfos(module).map((c) => c.name).join(', ') || '(ninguno)'}.`);
-        return runCompute(res, { op: 'run', module: module.id, command, body: await readBody(req) });
-      default:
-        throw new HttpError(404, `Acción desconocida «${action}». Use capabilities, schema, validate, views, export, import, diff o run.`);
-    }
+    if (await moduleApi.handle(req, res, parts, url)) return;
+    throw new HttpError(404, 'Ruta de la API desconocida. Ver /api/modules.');
   }
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
