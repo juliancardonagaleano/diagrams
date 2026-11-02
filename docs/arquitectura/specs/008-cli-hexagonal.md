@@ -8,9 +8,9 @@
 
 ## estado
 
-`aceptada`
+`en curso`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
+Rama `cursor/impl-cli-hexagonal-58e1`: puertos declarados en `src/cli/ports/` y adaptadores iniciales sin romper commander.
 
 ## problema
 
