@@ -52,6 +52,7 @@ export function HomeScreen({ state, last }: { state: ProjectsState; last?: LastO
         <LanguageSelect />
       </header>
       <main id="contenido" className="home-main">
+        <p className="home-kicker">Seis especialidades, un solo modelo</p>
         <p className="home-lead">{t('home.lead')}</p>
         {continuing && continueProject && (
           <section>
@@ -90,8 +91,9 @@ export function HomeScreen({ state, last }: { state: ProjectsState; last?: LastO
         <section aria-labelledby="home-modules">
           <h2 id="home-modules">{t('home.modules')}</h2>
           <div className="home-grid">
-            {MODULE_SOURCES.map((source) => (
-              <a key={source.id} className="home-card" href={`modulos.html?module=${source.id}`}>
+            {MODULE_SOURCES.map((source, index) => (
+              <a key={source.id} className="home-card home-specialty" href={`modulos.html?module=${source.id}`}>
+                <span className="home-index">{String(index + 1).padStart(2, '0')}</span>
                 <strong>{source.label}</strong>
                 <span>{source.id}</span>
               </a>

@@ -19,18 +19,18 @@ body {
 
 /* Clases de superficie al estilo drawdb */
 .theme {
-  background-color: var(--semi-color-bg-0);
-  color: var(--semi-color-text-1);
+  background-color: var(--mesa-bg);
+  color: var(--mesa-text);
 }
 .sidesheet-theme {
-  background-color: var(--semi-color-bg-1);
+  background-color: var(--mesa-surface);
 }
 .card-theme {
-  background-color: var(--semi-color-fill-0);
+  background-color: var(--mesa-surface-2);
 }
 .toolbar-theme {
-  background-color: color-mix(in srgb, var(--semi-color-bg-2) 82%, transparent);
-  backdrop-filter: blur(6px);
+  background-color: color-mix(in srgb, var(--mesa-surface) 92%, transparent);
+  backdrop-filter: blur(8px);
 }
 .hover-1:hover {
   background-color: var(--semi-color-fill-0);
