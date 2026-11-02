@@ -151,6 +151,10 @@ Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(
 
 `git diff --stat -- src packages schema public examples` vacío en esta sesión.
 
+### Resultado (puente directo para la spec 001, misma fecha UTC)
+
+El usuario pidió consumir el puente en esta sesión, sin abrir otra sesión de Cursor y sin pasar esta spec a `hecha`. `GetDynamicTools` con patrón `ece` no devolvió un namespace ECE. La spec [001 · To-be C4](001-to-be-c4.md) nace en `borrador` y cita las llamadas de ese puente. El protocolo pide 000 en `hecha` antes de redactar 001; el usuario autorizó el consumo directo para no perder el contexto, y la 001 lo dice en el problema. El estado de esta spec sigue en `borrador`.
+
 ## riesgos
 
 - Confundir un MCP ya conectado (Figma, Fal u otro) con ECE y catalogar sus herramientas bajo ese nombre.
