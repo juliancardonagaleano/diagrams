@@ -82,14 +82,14 @@ export default function StudioApp({ controller }: { controller: WorkbenchControl
     <div className="h-full flex flex-col overflow-hidden theme">
       <header className="c4-header mesa-bar flex justify-between items-center border-b px-3 py-1.5 gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <a href="./" className="h-8 w-8 rounded-md flex items-center justify-center text-white font-bold text-sm flex-none" style={{ backgroundColor: 'var(--c4-primary)', textDecoration: 'none' }}>
+          <a href="./" className="atelier-mark h-8 w-8 rounded-md flex items-center justify-center font-bold text-sm flex-none" style={{ textDecoration: 'none' }}>
             IA
           </a>
           <div className="min-w-0">
             <h1 className="m-0 text-xl font-medium truncate">{state.module?.name ?? 'DIAgrams'}</h1>
             <div className="flex items-center gap-1 flex-wrap">
               {controller.sources.map((source) => (
-                <button key={source.id} type="button" className="c4-menu-item" aria-current={source.id === state.moduleId ? 'true' : undefined} onClick={() => void controller.selectModule(source.id)} style={source.id === state.moduleId ? { color: 'var(--c4-primary)', fontWeight: 600 } : undefined}>
+                <button key={source.id} type="button" className="c4-menu-item" aria-current={source.id === state.moduleId ? 'true' : undefined} onClick={() => void controller.selectModule(source.id)}>
                   {source.label}
                 </button>
               ))}
@@ -102,7 +102,7 @@ export default function StudioApp({ controller }: { controller: WorkbenchControl
             Ejemplo
           </button>
           {canDrawio && (
-            <button type="button" className="c4-menu-item" data-testid="studio-export-drawio" onClick={() => void exportDrawio()} style={{ background: 'var(--c4-primary)', color: '#fff', borderRadius: 6, padding: '6px 12px' }}>
+            <button type="button" className="c4-menu-item primary" data-testid="studio-export-drawio" onClick={() => void exportDrawio()}>
               Exportar .drawio
             </button>
           )}
@@ -176,7 +176,7 @@ export default function StudioApp({ controller }: { controller: WorkbenchControl
           )}
           {!editor && <p className="p-6 text-color-2">{state.loading ? 'Cargando…' : (state.error ?? 'Este módulo no tiene editor gráfico.')}</p>}
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 max-w-[calc(100%-24px)]">
-            <div className="py-1.5 px-3 flex items-center gap-2 rounded-xl toolbar-theme border border-color text-sm">
+            <div className="atelier-float py-1.5 px-3 flex items-center gap-2 toolbar-theme text-sm">
               <button type="button" className="c4-menu-item" onClick={() => commands.current?.fit()}>Ajustar</button>
               <button type="button" className="c4-menu-item" disabled={!commands.current?.canUndo} onClick={() => commands.current?.undo()}>Deshacer</button>
               <button type="button" className="c4-menu-item" disabled={!commands.current?.canRedo} onClick={() => commands.current?.redo()}>Rehacer</button>

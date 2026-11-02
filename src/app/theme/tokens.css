@@ -5,21 +5,21 @@
  * (`src/theme/mesa.css`) como alias `--c4-*`.
  */
 :root {
-  --c4-relationship: #808080;
-  --c4-grid-dot: rgb(99, 152, 191);
-  --c4-canvas-bg: #ffffff;
-  --c4-node-bg: #f4f4f5;
-  --c4-node-text: #27272a;
-  --c4-node-border: #d4d4d8;
+  --c4-relationship: #6f6558;
+  --c4-grid-dot: rgb(176, 154, 122);
+  --c4-canvas-bg: #f7f3ea;
+  --c4-node-bg: #fbf8f3;
+  --c4-node-text: #1c1915;
+  --c4-node-border: #ddd4c6;
   --c4-boundary-border: #8b8b8b;
   --c4-boundary-bg: rgba(120, 120, 120, 0.04);
 }
 
 body[theme-mode='dark'] {
-  --c4-canvas-bg: #16161a;
-  --c4-node-bg: #27272a;
-  --c4-node-text: #e4e4e7;
-  --c4-node-border: #3f3f46;
+  --c4-canvas-bg: #1a1714;
+  --c4-node-bg: #2a2622;
+  --c4-node-text: #f3eee6;
+  --c4-node-border: #4a433b;
   --c4-boundary-border: #71717a;
   --c4-boundary-bg: rgba(255, 255, 255, 0.03);
 }
