@@ -10,7 +10,7 @@
 
 `borrador`
 
-Es la orden de trabajo que la próxima sesión ejecuta primero. Sigue en `borrador` porque ECE no está conectado y, sin una cita a una herramienta o un recurso real, esta spec no puede pasar a `aceptada`. Se ejecuta igual: no toca código de producto. Pasa a `hecha` cuando el catálogo existe y los criterios de abajo se cumplen. Si ECE no aparece, se queda en `borrador` y la sesión se detiene.
+Sigue en `borrador`. Un proceso local con los scripts que entregó Julian respondió a `initialize`, `tools/list` y `resources/list`; el catálogo está en [ece-capacidades.md](../ece-capacidades.md). El descubrimiento de esta sesión no tiene un namespace ECE. Los criterios piden las dos cosas —catálogo de una llamada real y ECE en la sesión— y la segunda no se cumple. No está `aceptada` ni `hecha`. No toca código de producto.
 
 ## problema
 
@@ -38,7 +38,7 @@ Ninguno. Esta spec no modifica [`examples/diagrams-as-is.json`](../../../example
 
 ## capacidades ECE que aplican
 
-Ninguna. ECE no está conectado en la sesión que abre esta spec (2 de noviembre de 2026). Sin una cita a un resultado real, el estado no pasa a `aceptada`. Las citas, si la próxima sesión conecta, viven en `docs/arquitectura/ece-capacidades.md` con el nombre que devolvió la llamada. No se copian aquí por adelantado.
+La sesión de Cursor no tiene un namespace ECE, así que estas citas no salen del descubrimiento de la sesión y el estado no pasa a `aceptada`. Sí hubo una llamada stdio al proceso `python3 scripts/mcp_ece.py`. `initialize` devolvió `serverInfo.name` `ece-knowledge-router` (`0.1.0`). Los nombres que devolvieron `tools/list` y `resources/list` están copiados en [ece-capacidades.md](../ece-capacidades.md): `search_catalog`, `read_document`, `traverse_knowledge`, `retrieve_knowledge`, `resolve_entity`, `get_related`, `get_source_status`, `resolve_context` y el recurso `mapa-de-navegacion` (`ece://navegacion`). No se llamó `prompts/list` ni `resources/read`.
 
 ## decisión
 
@@ -113,6 +113,43 @@ No se añadió `.cursor/mcp.json` ni paquetes MCP desde iark (no hubo fuente leg
 npm run cli -- validate examples/diagrams-as-is.json
 Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
 ```
+
+### Resultado (configuración entregada por Julian, misma fecha UTC)
+
+La fuente ya no es el clone. Julian entregó el launcher, el puente y la entrada OpenCode del servidor `ece-mcp`. Quedaron copiados en `scripts/mcp_ece.py` y `scripts/mcp-ece.py`, y el arranque de Cursor en `.cursor/mcp.json` con `${env:ECE_MCP_API_KEY}` y `${env:ECE_MCP_URL}`. Detalle y presencia de variables (solo nombres): [ece-repositorio-iark.md](../ece-repositorio-iark.md).
+
+`python3 scripts/mcp_ece.py --check-credential` imprimió `credential: present` y salió 0. No imprimió la clave.
+
+`GetDynamicTools` con patrón `ece` (sin distinguir mayúsculas): **sin namespace ECE**. El catálogo de la sesión sigue siendo `cursor` (sin `namespaceStatus`), `cursor-cloud` (`ready`), `cursor-subscriptions` (`ready`), `Fal` (`ready`) y `Figma` (`ready`). Ninguno en `needsAuth`. No hubo `mcp_auth`. Escribir `.cursor/mcp.json` no inyecta el servidor en esta sesión ya abierta.
+
+Aparte del descubrimiento, se lanzó el comando de la config (`python3 scripts/mcp_ece.py`) con stdio NDJSON y `MCP_PCE_CACHE_PATH` en un archivo nuevo para no servir caché. El stderr, ya sin la URL, fue:
+
+```text
+[mcp-ece] cache=on path=/tmp/ece-mcp-probe-cache.sqlite3 ttl=3600s sim>=0.85 (0 entradas, ts 0..0)
+[mcp-ece] upstream=[REDACTED] ca=system
+[mcp-ece] stdin EOF
+```
+
+El proceso terminó con código 0. Llamadas y cuerpos útiles:
+
+| Método | Qué volvió |
+|---|---|
+| `initialize` (`protocolVersion` enviado `2025-03-26`) | `result`. Negoció `2025-03-26`. `serverInfo.name` = `ece-knowledge-router`, `serverInfo.version` = `0.1.0`. |
+| `tools/list` | 8 herramientas, sin `nextCursor`: `search_catalog`, `read_document`, `traverse_knowledge`, `retrieve_knowledge`, `resolve_entity`, `get_related`, `get_source_status`, `resolve_context`. |
+| `resources/list` | 1 recurso, sin `nextCursor`: `mapa-de-navegacion`, uri `ece://navegacion`, `mimeType` `text/markdown`. |
+
+Nombres, descripciones y esquemas están en [ece-capacidades.md](../ece-capacidades.md), copiados del JSON devuelto. No se llamó `prompts/list` ni `resources/read`.
+
+El comando del cliente ya consta: `python3 scripts/mcp_ece.py` (stdio). La URL consta como nombre de variable `ECE_MCP_URL` (presente, no vacía, `https`, sin userinfo); el valor no se escribe. La autenticación consta como `ECE_MCP_API_KEY` (presente, no vacía; el puente la manda en `X-API-Key` porque no tiene forma JWT). Falta que una sesión nueva cargue `.cursor/mcp.json` y vuelva a descubrir el namespace.
+
+Estado: **`borrador`**. Hay catálogo de una llamada real y no hay ECE en la sesión, así que no se cumplen todos los criterios y no pasa a `hecha`.
+
+```text
+npm run cli -- validate examples/diagrams-as-is.json
+Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+```
+
+`git diff --stat -- src packages schema public examples` vacío en esta sesión.
 
 ## riesgos
 

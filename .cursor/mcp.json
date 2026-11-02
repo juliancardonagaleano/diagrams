@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ece-mcp": {
+      "command": "python3",
+      "args": ["scripts/mcp_ece.py"],
+      "env": {
+        "ECE_MCP_API_KEY": "${env:ECE_MCP_API_KEY}",
+        "ECE_MCP_URL": "${env:ECE_MCP_URL}"
+      }
+    }
+  }
+}
