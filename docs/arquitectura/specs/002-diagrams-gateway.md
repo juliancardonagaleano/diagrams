@@ -10,7 +10,7 @@
 
 `en curso`
 
-Implementación en la rama `cursor/impl-gateway-58e1`: extracción del API de módulos y la piscina hacia `src/diagrams-gateway`.
+Implementación en la rama `cursor/impl-gateway-58e1`: `createModuleApi` en `src/diagrams-gateway/` con reexport de la piscina; `serve.ts` delega el borde de módulos.
 
 ## problema
 
