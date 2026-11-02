@@ -155,6 +155,15 @@ Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(
 
 El usuario pidió consumir el puente en esta sesión, sin abrir otra sesión de Cursor y sin pasar esta spec a `hecha`. `GetDynamicTools` con patrón `ece` no devolvió un namespace ECE. La spec [001 · To-be C4](001-to-be-c4.md) nace en `borrador` y cita las llamadas de ese puente. El protocolo pide 000 en `hecha` antes de redactar 001; el usuario autorizó el consumo directo para no perder el contexto, y la 001 lo dice en el problema. El estado de esta spec sigue en `borrador`.
 
+### Resultado (aceptación Julian, 2 nov 2026 UTC)
+
+Julian aprobó cerrar 000 en `hecha` con catálogo existente aunque `GetDynamicTools` con patrón `ece` no devuelva namespace en Cursor. Servidores MCP de esta sesión: `cursor`, `cursor-cloud`, `cursor-subscriptions`, `Fal`, `Figma` (ninguno es ECE). Catálogo: [ece-capacidades.md](../ece-capacidades.md). Verificación del as-is sin cambios:
+
+```text
+npm run cli -- validate examples/diagrams-as-is.json
+Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+```
+
 ## riesgos
 
 - Confundir un MCP ya conectado (Figma, Fal u otro) con ECE y catalogar sus herramientas bajo ese nombre.
