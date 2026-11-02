@@ -3,22 +3,50 @@ import { describe, expect, it } from 'vitest';
 import { contrastOf, MIN_COMPONENTE, MIN_TEXTO, mezclar, oscurecerHasta, parseColor, tintaLegible, contrastRatio } from './contraste';
 
 /**
- * Medida de contraste (WCAG 1.4.3 y 1.4.11) de los pares de color de los temas del banco de trabajo, la suite y la trazabilidad
- * (`src/modules-app/workbench.css`: variables `--wb-*` en `:root` y en `:root[data-theme='dark']`). Cada par es «tinta sobre fondo»
- * con el mínimo que le toca: 4,5:1 si es texto, 3:1 si es un componente de interfaz (el borde de un campo, el anillo de foco).
+ * Medida de contraste (WCAG 1.4.3 y 1.4.11) de los pares de color de Mesa (`src/theme/mesa.css`), el cromo de la suite.
+ * Cada par es «tinta sobre fondo» con el mínimo que le toca: 4,5:1 si es texto, 3:1 si es un componente de interfaz.
  * Si añades un color a un tema, añade aquí su par: la prueba falla antes de que lo vea una persona con baja visión.
  */
-const css = readFileSync('src/modules-app/workbench.css', 'utf8');
+const css = readFileSync('src/theme/mesa.css', 'utf8');
 
-function bloque(selector: string): Record<string, string> {
-  const inicio = css.indexOf(`${selector} {`);
-  if (inicio < 0) throw new Error(`No encuentro «${selector}» en workbench.css`);
-  const cuerpo = css.slice(inicio, css.indexOf('}', inicio));
-  return Object.fromEntries([...cuerpo.matchAll(/--wb-([a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+function reglas(): Array<{ selectors: string[]; body: string }> {
+  const sinNotas = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  return [...sinNotas.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+    selectors: m[1].split(',').map((s) => s.trim()).filter(Boolean),
+    body: m[2],
+  }));
 }
 
-const claro = bloque(':root');
-const oscuro = { ...claro, ...bloque(":root[data-theme='dark']") };
+function varsDe(selector: string): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const regla of reglas()) {
+    if (!regla.selectors.includes(selector)) continue;
+    for (const m of regla.body.matchAll(/--([\w-]+):\s*([^;]+);/g)) vars[m[1]] = m[2].trim();
+  }
+  return vars;
+}
+
+function resuelto(vars: Record<string, string>): Record<string, string> {
+  const ver = (nombre: string, visto = new Set<string>()): string => {
+    if (visto.has(nombre)) return '';
+    visto.add(nombre);
+    const raw = vars[nombre] ?? '';
+    const alias = /^var\(--([\w-]+)\)$/.exec(raw);
+    return alias ? ver(alias[1], visto) : raw;
+  };
+  return Object.fromEntries(Object.keys(vars).map((nombre) => [nombre, ver(nombre)]));
+}
+
+function mapaWb(vars: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [nombre, valor] of Object.entries(resuelto(vars))) {
+    if (nombre.startsWith('wb-')) out[nombre.slice(3)] = valor;
+  }
+  return out;
+}
+
+const claro = mapaWb(varsDe(':root'));
+const oscuro = mapaWb({ ...varsDe(':root'), ...varsDe(":root[data-theme='dark']") });
 const TEMAS = { claro, oscuro } as const;
 
 /** [tinta, fondo, mínimo, qué se mide]. Un nombre es una variable `--wb-*`; lo que empieza por `#` es un color literal. */
@@ -85,19 +113,21 @@ describe('contraste de los temas del banco de trabajo (WCAG 2.2 AA)', () => {
 });
 
 /**
- * Editor clásico (`src/app/theme/tokens.css`): sus colores propios (`--c4-*`) se miden contra las superficies de Semi UI que de verdad los
- * llevan debajo. Los fondos son los que midió axe en la auditoría: la página (#fff / #16161a), los botones y menús claros u oscuros
- * (#f5f5f5, #e8e8e8; #43444a, #48494e, #4d4e53).
+ * Editor clásico: las tintas de cromo (`--c4-text-muted`, `--c4-danger-text`, `--c4-primary-text`, `--c4-focus`) salen de Mesa
+ * y se miden contra las superficies de Semi UI que de verdad las llevan debajo. Los fondos son los que midió axe: la página
+ * (#fff / #16161a), los botones y menús claros u oscuros (#f5f5f5, #e8e8e8; #43444a, #48494e, #4d4e53).
  */
-const tokensClasicos = readFileSync('src/app/theme/tokens.css', 'utf8');
-
-function bloqueClasico(selector: string): Record<string, string> {
-  const cuerpos = [...tokensClasicos.matchAll(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`, 'g'))].map((m) => m[1]);
-  return Object.fromEntries(cuerpos.flatMap((c) => [...c.matchAll(/--c4-([a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()])));
+function mapaC4(vars: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [nombre, valor] of Object.entries(resuelto(vars))) {
+    if (nombre.startsWith('c4-')) out[nombre.slice(3)] = valor;
+    else out[nombre] = valor;
+  }
+  return out;
 }
 
-const clasicoClaro = bloqueClasico(':root');
-const clasicoOscuro = { ...clasicoClaro, ...bloqueClasico("body[theme-mode='dark']") };
+const clasicoClaro = mapaC4(varsDe(':root'));
+const clasicoOscuro = mapaC4({ ...varsDe(':root'), ...varsDe("body[theme-mode='dark']") });
 
 const PARES_CLASICOS: Array<[string, string[], string[], number, string]> = [
   // [variable, fondos en tema claro, fondos en tema oscuro, mínimo, qué se mide]
@@ -127,9 +157,9 @@ describe('contraste de los temas del editor clásico (WCAG 2.2 AA)', () => {
   }
 
   it('el relleno primario del tema oscuro aguanta el texto blanco de los botones sólidos', () => {
-    const primario = /body\[theme-mode='dark'\] \{[^}]*--semi-color-primary:\s*(#[0-9a-f]{6});/i.exec(tokensClasicos)?.[1];
-    expect(primario).toBeDefined();
-    expect(contrastOf('#ffffff', primario!)!).toBeGreaterThanOrEqual(MIN_TEXTO);
+    const primario = clasicoOscuro['mesa-accent'];
+    expect(primario).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(contrastOf('#ffffff', primario)!).toBeGreaterThanOrEqual(MIN_TEXTO);
   });
 });
 

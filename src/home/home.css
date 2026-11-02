@@ -1,47 +1,39 @@
 .home {
   min-height: 100vh;
-  background: var(--wb-bg);
-  color: var(--wb-text);
-  font-family: var(--wb-font);
-}
-.home-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--wb-border);
-  background: var(--wb-surface);
+  background: var(--mesa-bg);
+  color: var(--mesa-text);
+  font-family: var(--mesa-font);
 }
 .home-main {
   max-width: 960px;
   margin: 0 auto;
-  padding: 24px 20px 48px;
+  padding: var(--mesa-space-5) var(--mesa-space-4) 48px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: var(--mesa-space-5);
 }
-.home-lead { color: var(--wb-text-2); margin: 0; }
+.home-lead { color: var(--mesa-text-2); margin: 0; font-size: var(--mesa-font-body); }
 .home-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
+  gap: var(--mesa-space-2);
 }
 .home-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--mesa-space-1);
   text-align: left;
   text-decoration: none;
   color: inherit;
-  background: var(--wb-surface);
-  border: 1px solid var(--wb-border);
-  padding: 12px;
+  background: var(--mesa-surface);
+  border: 1px solid var(--mesa-border);
+  border-radius: var(--mesa-radius-panel);
+  padding: var(--mesa-space-3);
 }
-.home-card:hover { border-color: var(--wb-primary-ink); }
+.home-card:hover { border-color: var(--mesa-accent-ink); }
 .home-card strong { font-size: 14px; }
-.home-card span { color: var(--wb-text-2); font-size: 13px; }
-.home-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.home-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.home-card span { color: var(--mesa-text-2); font-size: var(--mesa-font-body); }
+.home-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--mesa-space-2); }
+.home-form { display: flex; flex-wrap: wrap; gap: var(--mesa-space-2); align-items: center; }
 .home-form input { min-width: 240px; flex: 1; }
-.home h2 { margin: 0 0 8px; font-size: 16px; }
+.home h2 { margin: 0 0 var(--mesa-space-2); font-size: var(--mesa-font-section); }

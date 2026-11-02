@@ -97,7 +97,7 @@ Por regla, antes del trabajo (violaciones = regla × superficie × tema; entre p
 
 ### Contraste
 
-- **Banco, suite y trazabilidad**: el color primario se separó en un relleno (`--wb-primary`, con texto blanco encima) y en un texto/línea (`--wb-primary-ink`); el texto atenuado (`--wb-muted`), los bordes de los campos (`--wb-control-border`, 3:1), el anillo de foco (`--wb-focus`) y los rellenos de los signos de «Versiones» tienen sus propios valores en cada tema. Los pares están en `contraste.test.ts`.
+- **Banco, suite y trazabilidad**: el color vive en Mesa (`src/theme/mesa.css`). El primario se separó en un relleno (`--mesa-accent` / `--wb-primary`, con texto blanco encima) y en un texto o línea (`--mesa-accent-ink` / `--wb-primary-ink`); el texto secundario, los bordes de los campos (`--mesa-border-strong`, 3:1), el anillo de foco y los rellenos de los signos de «Versiones» tienen sus propios valores en cada tema. Los pares están en `contraste.test.ts`. `--wb-*` y `--c4-*` son alias.
 - **Editor clásico**: texto atenuado (`--c4-text-muted`, el de Semi daba 2,1:1), anillo de foco, textos de los botones claros de peligro y primario en el tema oscuro, tinta de los nodos por contraste real (`tintaLegible`) y no por brillo.
 - **Lienzo**: el título de una zona lleva un fondo propio y un color oscurecido solo lo justo para llegar a 4,5:1 sobre él; el anillo de foco de los nodos es siempre claro-sobre-claro u oscuro-sobre-oscuro según el tema.
 

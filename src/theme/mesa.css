@@ -1,0 +1,211 @@
+/**
+ * Mesa: cromo único de la suite (inicio, banco, shell, trazabilidad, editor y diálogos).
+ * La notación de cada diagrama no vive aquí. `--wb-*` y `--c4-*` son alias para el código que ya los usa.
+ * Claro en `:root`. Oscuro en `:root[data-theme='dark']` (banco) y en `body[theme-mode='dark']` (editor).
+ */
+:root {
+  --mesa-accent: #175e7a;
+  --mesa-accent-hover: #1b6f90;
+  --mesa-accent-active: #134d64;
+  --mesa-accent-ink: #175e7a;
+  --mesa-accent-on: #ffffff;
+  --mesa-text: #1f2430;
+  --mesa-text-2: #566070;
+  --mesa-bg: #f6f7f9;
+  --mesa-surface: #ffffff;
+  --mesa-surface-2: #f0f2f5;
+  --mesa-border: #d9dde3;
+  --mesa-border-strong: #6b7686;
+  --mesa-focus: #175e7a;
+  --mesa-danger: #b42318;
+  --mesa-danger-bg: #fdecea;
+  --mesa-warning: #9a5b00;
+  --mesa-warning-bg: #fff4e0;
+  --mesa-info: #175e7a;
+  --mesa-info-bg: #e6f2f7;
+  --mesa-ok: #166a38;
+  --mesa-ok-bg: #e5f6ec;
+  --mesa-ok-solid: #166a38;
+  --mesa-danger-solid: #b42318;
+  --mesa-warning-solid: #8a5200;
+  --mesa-canvas: #ffffff;
+  --mesa-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mesa-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --mesa-font-meta: 12px;
+  --mesa-font-body: 13px;
+  --mesa-font-section: 16px;
+  --mesa-font-brand: 20px;
+  --mesa-space-1: 4px;
+  --mesa-space-2: 8px;
+  --mesa-space-3: 12px;
+  --mesa-space-4: 16px;
+  --mesa-space-5: 24px;
+  --mesa-space-6: 32px;
+  --mesa-radius-field: 4px;
+  --mesa-radius-control: 6px;
+  --mesa-radius-panel: 8px;
+  --mesa-radius-pill: 999px;
+  color-scheme: light;
+
+  --wb-bg: var(--mesa-bg);
+  --wb-surface: var(--mesa-surface);
+  --wb-surface-2: var(--mesa-surface-2);
+  --wb-border: var(--mesa-border);
+  --wb-text: var(--mesa-text);
+  --wb-text-2: var(--mesa-text-2);
+  --wb-primary: var(--mesa-accent);
+  --wb-primary-hover: var(--mesa-accent-hover);
+  --wb-primary-text: var(--mesa-accent-on);
+  --wb-primary-ink: var(--mesa-accent-ink);
+  --wb-focus: var(--mesa-focus);
+  --wb-control-border: var(--mesa-border-strong);
+  --wb-muted: var(--mesa-text-2);
+  --wb-error: var(--mesa-danger);
+  --wb-error-bg: var(--mesa-danger-bg);
+  --wb-warning: var(--mesa-warning);
+  --wb-warning-bg: var(--mesa-warning-bg);
+  --wb-info: var(--mesa-info);
+  --wb-info-bg: var(--mesa-info-bg);
+  --wb-ok: var(--mesa-ok);
+  --wb-ok-bg: var(--mesa-ok-bg);
+  --wb-ok-solid: var(--mesa-ok-solid);
+  --wb-error-solid: var(--mesa-danger-solid);
+  --wb-warning-solid: var(--mesa-warning-solid);
+  --wb-canvas: var(--mesa-canvas);
+  --wb-font: var(--mesa-font);
+  --wb-mono: var(--mesa-mono);
+
+  --c4-primary: var(--mesa-accent);
+  --c4-primary-hover: var(--mesa-accent-hover);
+  --c4-text-muted: var(--mesa-text-2);
+  --c4-focus: var(--mesa-focus);
+  --c4-danger-text: var(--mesa-danger);
+  --c4-primary-text: var(--mesa-accent-ink);
+  --font-sans: var(--mesa-font);
+  --font-mono: var(--mesa-mono);
+
+  --semi-color-primary: var(--mesa-accent);
+  --semi-color-primary-hover: var(--mesa-accent-hover);
+  --semi-color-primary-active: var(--mesa-accent-active);
+  --semi-color-link: var(--mesa-accent-ink);
+  --semi-color-focus-border: var(--mesa-focus);
+  --semi-color-text-2: var(--mesa-text-2);
+}
+
+/* Semi declara el primario en `body`, por encima de `:root`. Se vuelve a atar aquí para que el botón sólido sea el teal de Mesa. */
+body {
+  --semi-color-primary: var(--mesa-accent);
+  --semi-color-primary-hover: var(--mesa-accent-hover);
+  --semi-color-primary-active: var(--mesa-accent-active);
+  --semi-color-primary-light-default: color-mix(in srgb, var(--mesa-accent) 20%, transparent);
+  --semi-color-primary-light-hover: color-mix(in srgb, var(--mesa-accent) 30%, transparent);
+  --semi-color-primary-light-active: color-mix(in srgb, var(--mesa-accent) 40%, transparent);
+  --semi-color-link: var(--mesa-accent-ink);
+  --semi-color-focus-border: var(--mesa-focus);
+  --semi-color-text-2: var(--mesa-text-2);
+}
+
+:root[data-theme='dark'],
+body[theme-mode='dark'] {
+  --mesa-accent: #1d7295;
+  --mesa-accent-hover: #195f7d;
+  --mesa-accent-active: #154f68;
+  --mesa-accent-ink: #8fd0ea;
+  --mesa-text: #e6e8ec;
+  --mesa-text-2: #c6c8ce;
+  --mesa-bg: #121418;
+  --mesa-surface: #1a1d23;
+  --mesa-surface-2: #23272f;
+  --mesa-border: #333944;
+  --mesa-border-strong: #7c8594;
+  --mesa-focus: #8fd0ea;
+  --mesa-danger: #ffb4a8;
+  --mesa-danger-bg: #3a1d1b;
+  --mesa-warning: #ffc76b;
+  --mesa-warning-bg: #37290f;
+  --mesa-info: #7cc4e0;
+  --mesa-info-bg: #16303b;
+  --mesa-ok: #6fd39a;
+  --mesa-ok-bg: #143024;
+  --mesa-canvas: #f4f5f7;
+  color-scheme: dark;
+
+  /* Semi pisa estos nombres en `body[theme-mode=dark]`; se vuelven a atar a Mesa. */
+  --semi-color-primary: var(--mesa-accent);
+  --semi-color-primary-hover: var(--mesa-accent-hover);
+  --semi-color-primary-active: var(--mesa-accent-active);
+  --semi-color-primary-light-default: color-mix(in srgb, var(--mesa-accent) 20%, transparent);
+  --semi-color-primary-light-hover: color-mix(in srgb, var(--mesa-accent) 30%, transparent);
+  --semi-color-primary-light-active: color-mix(in srgb, var(--mesa-accent) 40%, transparent);
+  --semi-color-link: var(--mesa-accent-ink);
+  --semi-color-focus-border: var(--mesa-focus);
+  --semi-color-text-2: var(--mesa-text-2);
+  --c4-text-muted: var(--mesa-text-2);
+  --c4-focus: var(--mesa-focus);
+  --c4-danger-text: var(--mesa-danger);
+  --c4-primary-text: var(--mesa-accent-ink);
+  --c4-primary: var(--mesa-accent);
+  --c4-primary-hover: var(--mesa-accent-hover);
+}
+
+/* Cabecera compartida: inicio, banco, shell, trazabilidad y editor. */
+.mesa-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mesa-space-2) var(--mesa-space-4);
+  min-height: 40px;
+  padding: var(--mesa-space-2) var(--mesa-space-4);
+  background: var(--mesa-surface);
+  border-bottom: 1px solid var(--mesa-border);
+  color: var(--mesa-text);
+  font-size: var(--mesa-font-body);
+}
+.mesa-bar .wb-title {
+  margin: 0;
+  font-size: var(--mesa-font-brand);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.mesa-bar .wb-brand {
+  color: var(--mesa-accent-ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+.mesa-bar .wb-brand small,
+.mesa-bar .wb-title small {
+  font-size: var(--mesa-font-body);
+  font-weight: 500;
+  color: var(--mesa-text-2);
+}
+.mesa-bar a:not(.wb-brand):not(.c4-skip) {
+  color: var(--mesa-accent-ink);
+  text-decoration: none;
+}
+.mesa-bar a:not(.wb-brand):not(.c4-skip):hover {
+  text-decoration: underline;
+}
+
+.mesa-btn {
+  padding: 6px 12px;
+  border-radius: var(--mesa-radius-control);
+  border: 1px solid var(--mesa-border);
+  background: var(--mesa-surface);
+  color: var(--mesa-text);
+  font: inherit;
+  cursor: pointer;
+}
+.mesa-btn.primary,
+button.primary {
+  background: var(--mesa-accent);
+  border-color: var(--mesa-accent);
+  color: var(--mesa-accent-on);
+}
+.mesa-field {
+  padding: 5px 8px;
+  border: 1px solid var(--mesa-border-strong);
+  border-radius: var(--mesa-radius-field);
+  background: var(--mesa-surface);
+  color: var(--mesa-text);
+  font: inherit;
+}
