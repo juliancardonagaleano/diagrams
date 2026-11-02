@@ -53,6 +53,8 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | [rendimiento.md](rendimiento.md) | Diagramas grandes: cuánto tardan el autolayout y el lienzo (antes y después), qué se hizo (ELK en un hilo de trabajo, recorte de nodos fuera de pantalla, trozos de la compilación), cómo medirlo (`npm run perf`) y qué fijan las pruebas. |
 | [versionado-documentos.md](versionado-documentos.md) | Cómo evoluciona un esquema sin romper lo guardado: `documentVersion` y migraciones por módulo (`iark migrate`), `contractVersion` del contrato `DomainModule` (el que cumple un [módulo de terceros](plugins.md)) y negociación de la versión del protocolo embebido y del manifiesto. |
 | [roadmap.md](roadmap.md) | Visión, estado actual, pendientes reales, límites conocidos y el plan de robustecimiento en cuatro fases. |
+| [arquitectura/as-is.md](arquitectura/as-is.md) | Modelo C4 as-is de la suite (contexto, contenedores y componentes) leído del código de `master` en `9343c75`, y cómo validarlo. |
+| [arquitectura/protocolo-sdd.md](arquitectura/protocolo-sdd.md) | Protocolo para rediseñar la arquitectura: el as-is queda congelado, cada cambio lleva una spec en `docs/arquitectura/specs/`, y ECE se conecta antes de tocar código. |
 | [historial.md](historial.md) | Lo ya hecho, por fases y por tandas, y el plan original de la suite. |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) · [SECURITY.md](../SECURITY.md) · [CHANGELOG.md](../CHANGELOG.md) · [LICENSE](../LICENSE) | Cómo contribuir, cómo informar de una vulnerabilidad, qué cambió en cada versión y la licencia. |
 
