@@ -6,7 +6,9 @@ const params = new URLSearchParams(window.location.search);
 const embed = params.get('embed') === '1';
 const editor = params.get('editor') === '1' || (embed && params.get('surface') !== 'home');
 
-if (editor) {
+if (params.get('studio') === '1') {
+  await import('./studio/main.tsx');
+} else if (editor) {
   await import('./app/main.tsx');
 } else if (params.has('manifest')) {
   const { renderSuiteShell } = await import('./shell/document');
