@@ -265,7 +265,7 @@ test.describe('administración de la instancia', () => {
       const box = document.querySelector<HTMLElement>('[data-testid="admin-dialog"]')!;
       return { background: getComputedStyle(box).backgroundColor, color: getComputedStyle(box).color };
     });
-    expect(colors.background).toBe('rgb(26, 29, 35)'); // --wb-surface del tema oscuro
+    expect(colors.background).toBe('rgb(28, 25, 22)'); // --mesa-surface del tema oscuro (atelier)
     expect(colors.color).not.toBe(colors.background);
     await docShot(page, `${SHOTS}/admin-oscuro.png`);
     expect(errors).toEqual([]);
