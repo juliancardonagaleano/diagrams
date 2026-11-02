@@ -8,9 +8,9 @@
 
 ## estado
 
-`borrador`
+`hecha`
 
-Sigue en `borrador`. Un proceso local con los scripts que entregó Julian respondió a `initialize`, `tools/list` y `resources/list`; el catálogo está en [ece-capacidades.md](../ece-capacidades.md). El descubrimiento de esta sesión no tiene un namespace ECE. Los criterios piden las dos cosas —catálogo de una llamada real y ECE en la sesión— y la segunda no se cumple. No está `aceptada` ni `hecha`. No toca código de producto.
+Julian pidió cerrar el ciclo 000 con catálogo de llamada real aunque la sesión de Cursor no exponga namespace ECE. Existe [ece-capacidades.md](../ece-capacidades.md), generado con `python3 scripts/mcp-ece.py --no-cache` (stdio NDJSON). El descubrimiento dinámico de la sesión sigue sin namespace ECE; queda documentado en verificación. No toca código de producto.
 
 ## problema
 
@@ -154,6 +154,15 @@ Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(
 ### Resultado (puente directo para la spec 001, misma fecha UTC)
 
 El usuario pidió consumir el puente en esta sesión, sin abrir otra sesión de Cursor y sin pasar esta spec a `hecha`. `GetDynamicTools` con patrón `ece` no devolvió un namespace ECE. La spec [001 · To-be C4](001-to-be-c4.md) nace en `borrador` y cita las llamadas de ese puente. El protocolo pide 000 en `hecha` antes de redactar 001; el usuario autorizó el consumo directo para no perder el contexto, y la 001 lo dice en el problema. El estado de esta spec sigue en `borrador`.
+
+### Resultado (aceptación Julian, 2 nov 2026 UTC)
+
+Julian aprobó cerrar 000 en `hecha` con catálogo existente aunque `GetDynamicTools` con patrón `ece` no devuelva namespace en Cursor. Servidores MCP de esta sesión: `cursor`, `cursor-cloud`, `cursor-subscriptions`, `Fal`, `Figma` (ninguno es ECE). Catálogo: [ece-capacidades.md](../ece-capacidades.md). Verificación del as-is sin cambios:
+
+```text
+npm run cli -- validate examples/diagrams-as-is.json
+Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+```
 
 ## riesgos
 
