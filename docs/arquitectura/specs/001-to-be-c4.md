@@ -8,9 +8,9 @@
 
 ## estado
 
-`borrador`
+`aceptada`
 
-Nace en `borrador`. La [spec 000](000-conexion-ece.md) sigue en `borrador`: el descubrimiento de la sesión no tiene un namespace ECE. El [protocolo](../protocolo-sdd.md) deja esta spec bloqueada hasta que 000 esté `hecha`. El usuario autorizó consumir el puente directo en esta sesión para no perder el contexto. Esta página no pasa a `aceptada`, `en curso` ni `hecha`. No crea el JSON to-be.
+Julian aprobó explícitamente el corte to-be el 2 de noviembre de 2026. El modelo [`examples/diagrams-to-be.json`](../../../examples/diagrams-to-be.json) materializa este corte. La implementación por contenedor va en las specs 002–009.
 
 ## problema
 

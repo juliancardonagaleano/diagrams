@@ -8,9 +8,9 @@
 
 ## estado
 
-`borrador`
+`aceptada`
 
-Esta sesión lo deja en `borrador`. No pasa a `aceptada`, `en curso` ni `hecha`.
+Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
 
 ## problema
 

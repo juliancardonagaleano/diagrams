@@ -8,9 +8,9 @@
 
 ## estado
 
-`borrador`
+`hecha`
 
-Sigue en `borrador`. Un proceso local con los scripts que entregó Julian respondió a `initialize`, `tools/list` y `resources/list`; el catálogo está en [ece-capacidades.md](../ece-capacidades.md). El descubrimiento de esta sesión no tiene un namespace ECE. Los criterios piden las dos cosas —catálogo de una llamada real y ECE en la sesión— y la segunda no se cumple. No está `aceptada` ni `hecha`. No toca código de producto.
+Julian pidió cerrar el ciclo 000 con catálogo de llamada real aunque la sesión de Cursor no exponga namespace ECE. Existe [ece-capacidades.md](../ece-capacidades.md), generado con `python3 scripts/mcp-ece.py --no-cache` (stdio NDJSON). El descubrimiento dinámico de la sesión sigue sin namespace ECE; queda documentado en verificación. No toca código de producto.
 
 ## problema
 
