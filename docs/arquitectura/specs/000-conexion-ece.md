@@ -73,7 +73,18 @@ El validate del as-is sigue en `59 elementos, 112 relaciones, 7 vistas` y `0 avi
 
 ### Resultado
 
-La sesión del 2 de noviembre de 2026 no tenía ECE conectado. Servidores MCP de esa sesión: Figma, Fal, cursor-cloud, cursor. No consta un comando ni una URL para conectar ECE, ni la autenticación que pediría. El catálogo no se escribió. Esta sección la sustituye la sesión que ejecute la orden, con los nombres que le devuelva el descubrimiento.
+La sesión del 2 de noviembre de 2026 (America/Bogota), la que ejecuta esta orden, descubrió los servidores MCP con el catálogo de la sesión. Devolvió cinco nombres, en este orden: `cursor` (la entrada no trae `namespaceStatus`), `cursor-cloud` (`namespaceStatus`: `ready`), `cursor-subscriptions` (`namespaceStatus`: `ready`), `Fal` (`namespaceStatus`: `ready`) y `Figma` (`namespaceStatus`: `ready`). Ninguno se llama ECE. Ninguno vino en `needsAuth`, así que no hubo intento de autenticación ni un listado posterior de herramientas o recursos de ECE.
+
+No consta un comando ni una URL para conectar ECE, ni la autenticación que pediría. `docs/arquitectura/ece-capacidades.md` no se escribió. El estado de esta spec sigue en `borrador`. La sesión se detiene aquí: no hay spec 001 ni JSON to-be.
+
+Órdenes de esta sesión, con la salida real:
+
+```text
+npm run cli -- validate examples/diagrams-as-is.json
+Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+```
+
+`git diff --stat -- src packages schema public examples` no imprimió nada. El único archivo tocado es esta spec.
 
 ## riesgos
 
