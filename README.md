@@ -141,6 +141,8 @@ Todo lo que antes vivía en este README está en [`docs/`](docs/indice.md), con 
 - **Módulos**: [C4](docs/modulos/c4.md) · [integración](docs/modulos/integracion.md) · [datos](docs/modulos/datos.md) · [empresarial](docs/modulos/empresarial.md) · [plataforma](docs/modulos/plataforma.md) · [seguridad](docs/modulos/seguridad.md) · [módulos de terceros](docs/plugins.md)
 - **Operar**: [servicio](docs/servicio.md) · [inicio de sesión con GitHub](docs/cuentas-github.md) · [GitHub Pages](docs/despliegue-pages.md) · [guía de despliegue de la nube](docs/despliegue-nube.md) · [`deploy/`](deploy/)
 - **Desarrollar**: [desarrollo, estructura, pruebas e internacionalización](docs/desarrollo.md) · [hoja de ruta](docs/roadmap.md) · [historial](docs/historial.md)
+- **As-is**: [modelo C4 de la suite](docs/arquitectura/as-is.md), leído del código de `master` en `9343c75`.
+- **Rediseño**: [protocolo guiado por especificaciones](docs/arquitectura/protocolo-sdd.md). La arquitectura nueva espera una spec aceptada y ECE conectado.
 
 ## Estado
 
