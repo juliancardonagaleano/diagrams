@@ -431,6 +431,7 @@ export function Canvas() {
       fitView
       fitViewOptions={{ padding: 0.15 }}
       defaultEdgeOptions={{ type: 'relationship' }}
+      proOptions={{ hideAttribution: true }}
     >
       {showGrid && <Background variant={BackgroundVariant.Dots} gap={24} size={1.7} color="rgb(99, 152, 191)" />}
       {showMinimap && (

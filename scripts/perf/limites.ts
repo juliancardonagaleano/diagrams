@@ -12,8 +12,8 @@ export const CHUNK_LIMITS: ChunkLimits = {
   exceptions: {
     elkWorker: { maxBytes: 1_500_000, reason: 'ELK 0.12 (un único archivo minificado de ≈1,43 MB, no se puede partir) en el hilo de trabajo del autolayout; solo se descarga al calcular una colocación' },
     'elk-hilo-principal': { maxBytes: 1_500_000, reason: 'ELK 0.12 para el hilo principal, la salida de emergencia cuando el navegador no da `Worker`; no se descarga si el hilo de trabajo funciona' },
-    'elk-276RUBZZ': { maxBytes: 1_550_000, reason: 'la copia 0.9.3 de ELK que trae mermaid para su layout `elk`; solo se descarga al previsualizar un diagrama mermaid con ese layout (si mermaid cambia de versión, cambia el nombre)' },
-    'chunk-FOHPRMQF': { maxBytes: 700_000, reason: 'el analizador de mermaid (≈660 kB); solo se descarga al previsualizar un diagrama mermaid (si mermaid cambia de versión, cambia el nombre)' },
+    'elk-QONTBCTQ': { maxBytes: 1_550_000, reason: 'la copia 0.9.3 de ELK que trae mermaid para su layout `elk`; solo se descarga al previsualizar un diagrama mermaid con ese layout (si mermaid cambia de versión, cambia el nombre)' },
+    'chunk-NGNAAXSQ': { maxBytes: 700_000, reason: 'el analizador de mermaid (≈629 kB); solo se descarga al previsualizar un diagrama mermaid (si mermaid cambia de versión, cambia el nombre)' },
   },
   /**
    * Carga inicial de JS por página (lo que arranca antes de pintar). Antes de sacar ELK del trozo de C4: 2705, 2379, 1795 y 1805 kB.

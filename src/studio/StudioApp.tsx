@@ -1,3 +1,4 @@
+import '../app/styles.css';
 import { pretty, type EditorSpec, type EditResult, type FieldSpec } from '@iark/kernel';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Input, Tabs, TabPane, TextArea } from '@douyinfe/semi-ui';
@@ -16,7 +17,7 @@ type Panel = 'elements' | 'relationships' | 'views' | 'json' | 'ai';
  * Marco del editor C4 clásico sobre el lienzo común. El documento lo lleva `WorkbenchController`;
  * cada módulo sigue en su `EditorSpec`.
  */
-export function StudioApp({ controller }: { controller: WorkbenchController }) {
+export default function StudioApp({ controller }: { controller: WorkbenchController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getState, controller.getState);
   const history = useMemo(() => new EditHistory(), [state.moduleId]);
   const commands = useRef<CanvasCommands | null>(null);

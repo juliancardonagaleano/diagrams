@@ -9,7 +9,7 @@ import { localDrafts, MODULE_SOURCES } from '../modules-app/modules';
 import { MODULE_PROTOCOL_VERSION } from '../embed/moduleProtocol';
 import { getProjectSession } from '../projects/factory';
 import { initLang } from '../i18n';
-import { StudioApp } from './StudioApp';
+import StudioApp from './StudioApp';
 
 initLang();
 

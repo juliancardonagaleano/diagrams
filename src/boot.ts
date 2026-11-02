@@ -5,9 +5,10 @@
 const params = new URLSearchParams(window.location.search);
 const embed = params.get('embed') === '1';
 const editor = params.get('editor') === '1' || (embed && params.get('surface') !== 'home');
+// El protocolo embebido vive en el editor C4 anterior. `?classic=1` también lo abre a propósito.
+const studio = !embed && params.get('classic') !== '1' && (params.get('studio') === '1' || params.get('editor') === '1');
 
-// `?classic=1` conserva el editor C4 anterior (las pruebas que aún recorren ese lienzo).
-if ((params.get('studio') === '1' || editor) && params.get('classic') !== '1') {
+if (studio) {
   await import('./studio/main.tsx');
 } else if (editor) {
   await import('./app/main.tsx');

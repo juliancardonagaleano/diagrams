@@ -76,7 +76,7 @@ test.describe('proyectos en el editor C4', () => {
     await form.getByLabel('Nombre del diagrama nuevo').fill('Clientes');
     await form.getByRole('button', { name: 'Crear y abrir' }).click();
     await expect(page).toHaveURL(/modulos\.html\?project=.+&diagram=.+/, { timeout: 20000 });
-    await expect(page.getByRole('tab', { name: 'Datos' })).toHaveAttribute('aria-selected', 'true', { timeout: 20000 });
+    await expect(page.getByRole('button', { name: 'Datos' })).toHaveAttribute('aria-current', 'true', { timeout: 20000 });
     await expect(page.getByRole('combobox', { name: 'Diagrama' })).toContainText('Clientes', { timeout: 20000 });
     await expect(page.getByTestId('save-status')).toHaveText('Guardado en «Banca»');
   });
