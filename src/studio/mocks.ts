@@ -21,6 +21,8 @@ export interface MockEdge {
   from: string;
   to: string;
   label: string;
+  /** Trazo punteado, como un evento o un mensaje asíncrono. */
+  dashed?: boolean;
 }
 
 export interface MockScene {
@@ -60,7 +62,7 @@ export const SCENES: MockScene[] = [
       { id: 'cola', name: 'Cola de eventos', kind: 'Canal', x: 38, y: 18, w: 22, h: 14, fields: [field('Nombre', 'Cola de eventos'), field('Protocolo', 'AMQP'), field('Patrón', 'Publicar / suscribir')] },
       { id: 'pasarela', name: 'Pasarela', kind: 'Sistema', x: 66, y: 46, w: 18, h: 14, fields: [field('Nombre', 'Pasarela'), field('Tecnología', 'Externa'), field('Protocolo', 'HTTPS')] },
     ],
-    edges: [{ id: 'e1', from: 'pedidos', to: 'cola', label: 'evento' }],
+    edges: [{ id: 'e1', from: 'pedidos', to: 'cola', label: 'evento', dashed: true }],
   },
   {
     id: 'data',

@@ -165,7 +165,7 @@ function Canvas({ scene, selectedId, onSelect }: { scene: MockScene; selectedId:
           const y2 = to.y + to.h / 2;
           return (
             <g key={edge.id}>
-              <line x1={`${x1}%`} y1={`${y1}%`} x2={`${x2}%`} y2={`${y2}%`} stroke="var(--c4-relationship)" strokeWidth="1.5" />
+              <line x1={`${x1}%`} y1={`${y1}%`} x2={`${x2}%`} y2={`${y2}%`} stroke="var(--c4-relationship)" strokeWidth="1.5" strokeDasharray={edge.dashed ? '6 4' : undefined} />
               <text x={`${(x1 + x2) / 2}%`} y={`${(y1 + y2) / 2}%`} fill="var(--semi-color-text-2)" fontSize="12" textAnchor="middle">
                 {edge.label}
               </text>
