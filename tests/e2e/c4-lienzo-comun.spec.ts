@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { canvasReady, selectView } from './canvas-helpers';
 
 /**
- * C4 en el lienzo común de la suite (`modulos.html?module=c4`): el mismo lienzo que los demás módulos, con las figuras, los niveles
+ * C4 en el lienzo común de la suite (`modulos.html?bank=1&module=c4`): el mismo lienzo que los demás módulos, con las figuras, los niveles
  * y las operaciones de C4. El editor C4 clásico (`index.html`) sigue teniendo sus propias pruebas.
  */
 
@@ -13,7 +13,7 @@ const asFile = (name: string, doc: unknown) => ({ name, mimeType: 'application/j
 async function open(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/modulos.html?module=c4', { waitUntil: 'domcontentloaded' });
+  await page.goto('/modulos.html?bank=1&module=c4', { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('module-canvas')).toBeVisible({ timeout: 20000 });
   await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 20000 });
   await canvasReady(page, 'contexto');

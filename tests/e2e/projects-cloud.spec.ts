@@ -57,7 +57,7 @@ async function preconnect(context: BrowserContext, server: CloudServer, token?: 
 async function open(page: Page, query = 'module=data'): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`/modulos.html${query ? `?${query}` : ''}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/modulos.html?bank=1${query ? `&${query}` : ''}`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('project-bar')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('editor-status')).toContainText('Válido', { timeout: 20000 });
   return errors;

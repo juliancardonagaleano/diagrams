@@ -121,7 +121,7 @@ test.describe('vista de trazabilidad entre módulos', () => {
   });
 
   test('desde el banco de trabajo y el shell se llega a la vista', async ({ page }) => {
-    await page.goto('/modulos.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('/modulos.html?bank=1', { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: 'Trazabilidad' }).click();
     await expect(page).toHaveURL(/trazabilidad\.html$/);
     await page.goto('/', { waitUntil: 'domcontentloaded' });

@@ -117,12 +117,12 @@ async function auditar(page: Page, superficie: string, tema: Tema): Promise<void
 const TIMEOUT_ARRANQUE = 20000;
 
 async function abrirEditor(page: Page, tema: Tema): Promise<void> {
-  await page.goto(`/?editor=1&theme=${tema}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/?editor=1&classic=1&theme=${tema}`, { waitUntil: 'domcontentloaded' });
   await c4Ready(page);
 }
 
 async function abrirBanco(page: Page, modulo: string, tema: Tema): Promise<void> {
-  await page.goto(`/modulos.html?module=${modulo}&theme=${tema}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/modulos.html?bank=1&module=${modulo}&theme=${tema}`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('tab', { name: 'Lienzo' })).toBeVisible({ timeout: TIMEOUT_ARRANQUE });
   await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: TIMEOUT_ARRANQUE });
   await canvasReady(page);
@@ -312,8 +312,8 @@ for (const tema of TEMAS) {
  */
 test.describe('reflujo con zoom', () => {
   const PAGINAS: Array<[string, string]> = [
-    ['editor clásico', '/?editor=1&theme=light'],
-    ['banco de trabajo', '/modulos.html?module=c4&theme=light'],
+    ['editor clásico', '/?editor=1&classic=1&theme=light'],
+    ['banco de trabajo', '/modulos.html?bank=1&module=c4&theme=light'],
     ['inicio', '/?theme=light'],
     ['trazabilidad', '/trazabilidad.html?examples=1&theme=light'],
   ];

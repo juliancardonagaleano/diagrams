@@ -19,7 +19,7 @@ async function showSvg(page: Page): Promise<void> {
 async function open(page: Page, module: string): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`/modulos.html?module=${module}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/modulos.html?bank=1&module=${module}`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('tablist', { name: 'Paneles' })).toBeVisible({ timeout: 20000 });
   await showSvg(page);
   await expect(diagram(page)).toBeVisible({ timeout: 20000 });
@@ -161,7 +161,7 @@ test.describe('banco de trabajo de módulos', () => {
   });
 
   test('ui=min oculta la marca y las pestañas de módulos pero conserva las acciones', async ({ page }) => {
-    await page.goto('/modulos.html?module=data&ui=min', { waitUntil: 'domcontentloaded' });
+    await page.goto('/modulos.html?bank=1&module=data&ui=min', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('tablist', { name: 'Paneles' })).toBeVisible({ timeout: 20000 });
     await showSvg(page);
     await expect(diagram(page)).toBeVisible({ timeout: 20000 });

@@ -1,6 +1,6 @@
 // Antes que cualquier otro import (se crean esquemas de zod al cargarlos): sin el modo JIT de zod no hay violaciones de la CSP por `new Function`.
 import '@iark/kernel/jitless';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import './workbench.css';
 import { Workbench } from './Workbench';
@@ -15,6 +15,8 @@ import { initLang } from '../i18n';
 
 // El idioma de la interfaz (?lang= > lo elegido > el del navegador) se decide antes de pintar; también pone `<html lang>`.
 initLang();
+
+const StudioApp = lazy(() => import('../studio/StudioApp'));
 
 /**
  * Banco de trabajo de los módulos de la suite (`modulos.html`). Con `?embed=1&proto=json&module=<id>&origin=<origen del
@@ -110,6 +112,15 @@ function Root() {
       instance.dispose();
     };
   }, [controller]);
+
+  // `?bank=1` conserva el banco anterior (las pruebas que aún recorren su barra y su JSON).
+  if (!embed && params.get('bank') !== '1') {
+    return (
+      <Suspense fallback={null}>
+        <StudioApp controller={controller} />
+      </Suspense>
+    );
+  }
 
   return (
     <Workbench

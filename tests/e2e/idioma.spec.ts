@@ -8,7 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 async function openBank(page: Page, query: string): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`/modulos.html?${query}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/modulos.html?bank=1&${query}`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('project-bar')).toBeVisible({ timeout: 20000 });
   return errors;
 }
@@ -61,7 +61,7 @@ test.describe('idioma de la interfaz', () => {
   });
 
   test('editor C4: el selector está en el encabezado y cambia los menús', async ({ page }) => {
-    await page.goto('/?editor=1', { waitUntil: 'domcontentloaded' });
+    await page.goto('/?editor=1&classic=1', { waitUntil: 'domcontentloaded' });
     const header = page.getByRole('banner');
     await expect(header.getByRole('button', { name: 'Archivo' })).toBeVisible({ timeout: 20000 });
     await header.getByRole('combobox', { name: 'Idioma' }).selectOption('en');
@@ -74,7 +74,7 @@ test.describe('idioma de la interfaz', () => {
   test('un navegador en inglés abre la interfaz en inglés sin tocar nada', async ({ browser }) => {
     const context = await browser.newContext({ locale: 'en-US' });
     const page = await context.newPage();
-    await page.goto('/?editor=1', { waitUntil: 'domcontentloaded' });
+    await page.goto('/?editor=1&classic=1', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.getByRole('banner').getByRole('button', { name: 'File' })).toBeVisible({ timeout: 20000 });
     await context.close();
