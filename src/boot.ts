@@ -6,7 +6,8 @@ const params = new URLSearchParams(window.location.search);
 const embed = params.get('embed') === '1';
 const editor = params.get('editor') === '1' || (embed && params.get('surface') !== 'home');
 
-if (params.get('studio') === '1') {
+// `?classic=1` conserva el editor C4 anterior (las pruebas que aún recorren ese lienzo).
+if ((params.get('studio') === '1' || editor) && params.get('classic') !== '1') {
   await import('./studio/main.tsx');
 } else if (editor) {
   await import('./app/main.tsx');

@@ -10,7 +10,7 @@ const K8S = 'tests/fixtures/importar/kubernetes';
 async function open(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/modulos.html?module=platform', { waitUntil: 'domcontentloaded' });
+  await page.goto('/modulos.html?bank=1&module=platform', { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('module-canvas')).toBeVisible({ timeout: 20000 });
   await canvasReady(page);
   return errors;

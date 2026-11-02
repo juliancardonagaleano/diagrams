@@ -72,7 +72,7 @@ async function preconnect(page: Page, server: CloudServer, token: string, last: 
 async function open(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/modulos.html?module=data', { waitUntil: 'domcontentloaded' });
+  await page.goto('/modulos.html?bank=1&module=data', { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('project-bar')).toBeVisible({ timeout: 20000 });
   await expect(saveStatus(page)).toHaveText('Guardado en «Tienda» · servidor', { timeout: 20000 });
   return errors;

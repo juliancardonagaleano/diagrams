@@ -3,7 +3,9 @@ import '@iark/kernel/jitless';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import './workbench.css';
+import '../app/styles.css';
 import { Workbench } from './Workbench';
+import { StudioApp } from '../studio/StudioApp';
 import { createModuleBridge, type ModuleBridge, type RelatedHandlers } from './bridge';
 import { WorkbenchController } from './controller';
 import { localDrafts, MODULE_SOURCES } from './modules';
@@ -110,6 +112,9 @@ function Root() {
       instance.dispose();
     };
   }, [controller]);
+
+  // `?bank=1` conserva el banco anterior (las pruebas que aún recorren su barra y su JSON).
+  if (!embed && params.get('bank') !== '1') return <StudioApp controller={controller} />;
 
   return (
     <Workbench

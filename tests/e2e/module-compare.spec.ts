@@ -8,7 +8,7 @@ const asFile = (name: string, doc: unknown) => ({ name, mimeType: 'application/j
 async function open(page: Page, module: string): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`/modulos.html?module=${module}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/modulos.html?bank=1&module=${module}`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('tab', { name: 'Lienzo' })).toBeVisible({ timeout: 20000 });
   await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 20000 });
   await canvasReady(page);

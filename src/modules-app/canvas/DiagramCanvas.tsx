@@ -57,6 +57,24 @@ export interface DiagramCanvasProps {
   onOpenAttachment?(id: string): void;
   /** Comparando con otra versión: marca los elementos nuevos y modificados y dibuja como fantasmas los que se quitaron. Sin él, el lienzo es el de siempre. */
   compare?: CanvasCompare;
+  /**
+   * `embedded`: el marco de fuera (el estudio) pinta la barra y el panel. El lienzo no repite su barra ni su inspector;
+   * el taladro, la miga y el autolayout siguen aquí y se ofrecen por `onCommands`.
+   */
+  chrome?: 'full' | 'embedded';
+  /** Avisa de las operaciones que el marco embebido puede disparar (deshacer, autolayout, añadir). */
+  onCommands?(commands: CanvasCommands): void;
+}
+
+/** Operaciones del lienzo que un marco externo puede disparar cuando `chrome` es `embedded`. */
+export interface CanvasCommands {
+  undo(): void;
+  redo(): void;
+  autoLayout(): void;
+  fit(): void;
+  addNode(kind: string): void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 /** Sin cajas calculadas: `buildFlow` coloca cada elemento en su cuadrícula de reserva. */
@@ -114,7 +132,7 @@ function boxesOf(nodes: readonly FlowNode[]): Caja[] {
   });
 }
 
-function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, readOnly, history, onText, notify, focusId, links, onBack, onSelect, onOpenAttachment, compare }: DiagramCanvasProps) {
+function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, readOnly, history, onText, notify, focusId, links, onBack, onSelect, onOpenAttachment, compare, chrome = 'full', onCommands }: DiagramCanvasProps) {
   const reactFlow = useReactFlow();
   // Con «reducir movimiento» (WCAG 2.3.3) los encuadres de la cámara no se animan.
   const flow = useMemo(() => ({ ...reactFlow, fitView: (options?: Parameters<typeof reactFlow.fitView>[0]) => reactFlow.fitView(options ? { ...options, duration: duracion(options.duration ?? 0) } : options) }), [reactFlow]);
@@ -423,7 +441,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
         const active = window.document.activeElement;
         if (active && active !== window.document.body && wrapper.current?.contains(active) && !(active as HTMLButtonElement).disabled) return;
         if (next) focusElement(next);
-        else wrapper.current?.querySelector<HTMLElement>('.cv-toolbar button:not(:disabled), .cv-toolbar select')?.focus();
+        else wrapper.current?.querySelector<HTMLElement>('.cv-toolbar button:not(:disabled), .cv-toolbar select, .react-flow__node')?.focus();
       }, 80);
     },
     [focusElement],
@@ -654,6 +672,19 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
     writePositions(key, next);
   };
 
+  useEffect(() => {
+    if (chrome !== 'embedded' || !onCommands) return;
+    onCommands({
+      undo,
+      redo,
+      autoLayout,
+      fit: () => void flow.fitView({ padding: 0.15, duration: 250 }),
+      addNode,
+      canUndo: history.canUndo,
+      canRedo: history.canRedo,
+    });
+  });
+
   if (document === undefined) {
     return (
       <div className="cv-empty" role="status">
@@ -666,7 +697,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
 
   return (
     <div className="cv-root" ref={wrapper} data-testid="module-canvas" data-view={viewId ?? ''} data-layout={settled ? 'ready' : 'pending'} data-culling={cull ? 'on' : 'off'}>
-      <div className="cv-toolbar" role="toolbar" aria-label="Herramientas del lienzo">
+      {chrome === 'full' && <div className="cv-toolbar" role="toolbar" aria-label="Herramientas del lienzo">
         {mainViews.length > 1 && (
           <>
             <label className="cv-edge-kind">
@@ -759,7 +790,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
         <button type="button" className="cv-tool" onClick={() => setShowKeys((s) => !s)} aria-pressed={showKeys} title="Atajos de teclado" aria-label="Atajos de teclado">
           ⌨
         </button>
-      </div>
+      </div>}
 
       <div className="wb-visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-testid="canvas-live">
         {announcement}
@@ -903,6 +934,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
             <MiniMap pannable zoomable nodeColor={(n) => ((n.data as FlowNode['data']).node.fill ?? (n.data as FlowNode['data']).notation.fill)} />
           </ReactFlow>
         </div>
+        {chrome === 'full' && (
         <Inspector
           spec={spec}
           document={document}
@@ -923,6 +955,7 @@ function CanvasInner({ moduleId, spec, document, text, viewId, views, onView, re
             <ConnectForm spec={spec} graph={graph} source={single} kinds={addableEdges} kind={edgeKind} onKind={setEdgeKind} onConnect={(source, target) => onConnect({ source, target, sourceHandle: null, targetHandle: null })} />
           )}
         </Inspector>
+        )}
       </div>
     </div>
   );

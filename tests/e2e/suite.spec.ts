@@ -40,7 +40,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
           schema: 'iark.manifest/1',
           name: 'Instancia de datos',
           version: '9.9.9',
-          modules: [{ id: 'data', name: 'Solo datos', version: '1.0.0', documentVersion: '1.0', importFormats: ['mermaid'], exportFormats: ['svg'], endpoints: { embed: '../../modulos.html?module=data' } }],
+          modules: [{ id: 'data', name: 'Solo datos', version: '1.0.0', documentVersion: '1.0', importFormats: ['mermaid'], exportFormats: ['svg'], endpoints: { embed: '../../modulos.html?bank=1&module=data' } }],
         }),
       }),
     );
@@ -62,7 +62,7 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
           schema: 'iark.manifest/1',
           name: 'Instancia ajena',
           version: '3.1.4',
-          modules: [{ id: 'data', name: 'Datos ajenos', version: '1.0.0', documentVersion: '1.0', importFormats: [], exportFormats: ['svg'], endpoints: { embed: `${baseURL}/modulos.html?module=data` } }],
+          modules: [{ id: 'data', name: 'Datos ajenos', version: '1.0.0', documentVersion: '1.0', importFormats: [], exportFormats: ['svg'], endpoints: { embed: `${baseURL}/modulos.html?bank=1&module=data` } }],
         }),
       });
     });
@@ -145,8 +145,8 @@ test.describe('shell de la suite (federación por manifiesto)', () => {
           version: '9.0.0',
           protocol: '1.7', // una diferencia de menor se acepta
           modules: [
-            { id: 'data', name: 'Datos', version: '1.0.0', contractVersion: 1, documentVersion: '1.0', importFormats: [], exportFormats: [], endpoints: { embed: '../../modulos.html?module=data' } },
-            { id: 'security', name: 'Seguridad nueva', version: '2.0.0', contractVersion: 99, documentVersion: '2.0', importFormats: [], exportFormats: [], endpoints: { embed: '../../modulos.html?module=security' } },
+            { id: 'data', name: 'Datos', version: '1.0.0', contractVersion: 1, documentVersion: '1.0', importFormats: [], exportFormats: [], endpoints: { embed: '../../modulos.html?bank=1&module=data' } },
+            { id: 'security', name: 'Seguridad nueva', version: '2.0.0', contractVersion: 99, documentVersion: '2.0', importFormats: [], exportFormats: [], endpoints: { embed: '../../modulos.html?bank=1&module=security' } },
           ],
         }),
       }),
