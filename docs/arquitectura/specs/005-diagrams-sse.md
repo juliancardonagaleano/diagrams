@@ -10,7 +10,7 @@
 
 `en curso`
 
-Rama `cursor/rearch-specs-003-004-005-58e1`: `createEventsHost` es el único borde HTTP del canal (`src/diagrams-sse/host/eventsApi.ts`; ver `src/diagrams-sse/README.md`). Hub in-process con `diagrams-app` hasta canal probado (spec: límite `LISTEN`/pool y ausencia de broker). `serve.ts` delega solo a `createEventsHost`; `serveEvents.ts` reexporta.
+PR consolidada `cursor/consolidate-rearch-stack-58e1` (origen `cursor/rearch-specs-003-004-005-58e1`): `createEventsHost` es el único borde HTTP del canal (`src/diagrams-sse/host/eventsApi.ts`; ver `src/diagrams-sse/README.md`). Hub in-process con `diagrams-app` hasta canal probado (spec: límite `LISTEN`/pool y ausencia de broker). `serve.ts` delega solo a `createEventsHost`; `serveEvents.ts` reexporta.
 
 ## problema
 

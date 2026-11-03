@@ -10,7 +10,7 @@
 
 `en curso`
 
-Rama `cursor/impl-app-shell-58e1`: un solo `rollupOptions.input` de suite (`index.html`); `/modules/:id` y `/trace` cargan desde `spaRoutes.ts`; copias legacy en build y fallback en dev; enlaces internos y manifiesto apuntan a rutas canónicas.
+PR consolidada `cursor/consolidate-rearch-stack-58e1`: un solo `rollupOptions.input` de suite (`index.html`); `/modules/:id` y `/trace` cargan desde `spaRoutes.ts` (e2e alineados en la misma PR); copias legacy en build y fallback en dev; enlaces internos y manifiesto apuntan a rutas canónicas. La federación de la [007](007-microfrontends.md) monta remotos desde el shell; faltan criterios de cierre de esta spec.
 
 ## problema
 

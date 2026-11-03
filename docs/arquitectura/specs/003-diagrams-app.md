@@ -10,7 +10,7 @@
 
 `en curso`
 
-Rama `cursor/rearch-specs-003-004-005-58e1`: almacenes en `modules/projects/infrastructure/` (`workspace.ts`, `postgresProjects.ts`, `workspaceStore.ts`); `src/cli/workspace*.ts` y `postgresProjects.ts` son shims. Host (`createProjectsHost`) y capas Application/Domain siguen; falta orquestar **todas** las escrituras por Application. `src/diagrams-app/` con Host (`projectsApi`), Application (`queries`), Domain (`saveDiagram`) e Infrastructure (reexport de almacenes en `src/cli/`). `iark serve` delega con `createProjectsHost` como identity. Falta mover por completo `workspace.ts` / `postgresProjects.ts` a Infrastructure y orquestar todas las escrituras por Application.
+PR consolidada `cursor/consolidate-rearch-stack-58e1` (origen `cursor/rearch-specs-003-004-005-58e1`): almacenes en `modules/projects/infrastructure/` (`workspace.ts`, `postgresProjects.ts`, `workspaceStore.ts`); `src/cli/workspace*.ts` y `postgresProjects.ts` son shims. Host (`createProjectsHost`) y capas Application/Domain siguen; falta orquestar **todas** las escrituras por Application. `src/diagrams-app/` con Host (`projectsApi`), Application (`queries`), Domain (`saveDiagram`) e Infrastructure (reexport de almacenes en `src/cli/`). `iark serve` delega con `createProjectsHost` como identity. Falta mover por completo `workspace.ts` / `postgresProjects.ts` a Infrastructure y orquestar todas las escrituras por Application.
 
 ## problema
 
