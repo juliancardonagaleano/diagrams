@@ -8,9 +8,9 @@
 
 ## estado
 
-`aceptada`
+`hecha`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
+Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. Implementación en PR `cursor/impl-borde-009-58e1`.
 
 ## problema
 

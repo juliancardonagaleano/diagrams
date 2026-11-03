@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 import { type ModuleRegistry, type ProjectStore } from '@iark/kernel';
 import { COMPUTE_ACTIONS } from './compute';
 import type { Accounts } from '../diagrams-identity/core/accounts/service';
@@ -10,14 +10,15 @@ import { createIdentityApi } from '../diagrams-identity/host/identityApi';
 import { inlineExecutor, unwrapOutcome, type ComputeExecutor } from './compute';
 import { createModuleApi } from '../diagrams-gateway/moduleApi';
 import { HttpError } from './httpError';
-import { directoryWritable, fileReadable, Readiness, type Check } from './observability/health';
+import { Readiness } from './observability/health';
+import { buildReadinessChecks, type ReadinessProcess } from './observability/readinessChecks';
 import { Observability } from './observability';
 import type { MetricFamily } from './observability/metrics';
 import { createMetricsEndpoint } from './observability/metricsEndpoint';
 import { createAuthenticator, type Authenticator, type FailureLimiterOptions } from '../diagrams-identity/core/authenticator';
 import { createProjectsHost } from '../diagrams-app';
 import { createEventsHost, EventHub, type EventHubOptions } from '../diagrams-sse';
-import { applySecurityHeaders } from './securityHeaders';
+import { applyEdgeSecurityHeaders } from './securityHeaders/edge';
 import { suiteManifest } from './suiteManifest';
 import type { TokenStore } from '../diagrams-identity/core/tokens';
 
@@ -118,6 +119,7 @@ export interface ServeOptions {
   events?: false | Pick<EventHubOptions, 'maxPerPerson' | 'maxTotal' | 'heartbeatMs' | 'maxBufferedBytes'>;
   /** Cuánto tiempo (ms) se reutiliza el resultado de `/readyz`. Por omisión 5000; 0 = siempre se comprueba (pruebas). */
   readyCacheMs?: number;
+  readinessProcess?: ReadinessProcess;
 }
 
 const API = '/api';
@@ -209,25 +211,19 @@ export function createSuiteServer(options: ServeOptions): Server {
   const sendCompact = (res: ServerResponse, status: number, value: unknown): void =>
     send(res, status, `${JSON.stringify(value)}\n`, { 'Content-Type': 'application/json; charset=utf-8' });
 
-  // Salud (`/healthz`, `/readyz`) y métricas (`/metrics`): ver `observability/`. Las comprobaciones de `/readyz` son las que tiene este servidor.
-  const checks: Record<string, Check> = {};
-  const workspaceRoot = (options.projects as { root?: unknown } | undefined)?.root;
-  const workspacePing = (options.projects as { ping?: unknown } | undefined)?.ping;
-  if (typeof workspaceRoot === 'string') checks.workspace = () => directoryWritable(workspaceRoot);
-  // Un almacén sin carpeta (Postgres) dice si responde con `ping`: la base contesta una consulta.
-  else if (typeof workspacePing === 'function') checks.workspace = () => (workspacePing as () => Promise<boolean>).call(options.projects);
-  if (options.tokens) {
-    const tokens = options.tokens;
-    checks.tokens = () => tokens.lookup(undefined).status !== 'unavailable';
-  }
-  if (options.accounts) {
-    const store = options.accounts.store;
-    // El archivo (JSON o base SQLite) se puede leer, el almacén responde a una lectura de verdad y la carpeta admite escribir (el JSON se
-    // reemplaza por renombrado; SQLite crea su diario `-wal` y `-shm` al lado). Con Postgres no hay archivo: basta con que la base responda.
-    checks.accounts = async () => (store.kind === 'postgres' ? store.readable() : (await fileReadable(store.path)) && (await store.readable()) && (await directoryWritable(dirname(store.path))));
-  }
-  if (executor.healthy) checks.compute = () => executor.healthy!();
-  const readiness = new Readiness(checks, { cacheMs: options.readyCacheMs, warn: obs.warn });
+  // Salud (`/healthz`, `/readyz`) y métricas (`/metrics`): ver `observability/`. Las comprobaciones de `/readyz` son las que posee este proceso (spec 009).
+  const readiness = new Readiness(
+    buildReadinessChecks({
+      process: options.readinessProcess,
+      registry: options.registry,
+      projects: options.projects,
+      tokens: options.tokens,
+      accounts: options.accounts,
+      compute: executor,
+      events: options.projects && options.events !== false,
+    }),
+    { cacheMs: options.readyCacheMs, warn: obs.warn },
+  );
   const metricsEndpoint = obs.metrics ? createMetricsEndpoint({ metrics: obs.metrics, token: options.metricsToken, trustProxy: options.trustProxy }) : undefined;
   obs.metrics?.addCollector(async (): Promise<MetricFamily[]> => {
     const families: MetricFamily[] = [];
@@ -399,7 +395,7 @@ export function createSuiteServer(options: ServeOptions): Server {
 
   const server = createServer((req, res) => {
     const context = obs.begin(req, res, { trustProxy: options.trustProxy });
-    applySecurityHeaders(req, res, { trustProxy: options.trustProxy, frameAncestors: options.frameAncestors });
+    applyEdgeSecurityHeaders(req, res, { trustProxy: options.trustProxy, frameAncestors: options.frameAncestors });
     const handle = async (): Promise<void> => {
       const url = new URL(req.url ?? '/', 'http://localhost');
       // Los puntos de control de las máquinas (balanceador, Docker, Prometheus) van antes del CORS y de la autenticación de personas.

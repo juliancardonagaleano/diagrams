@@ -272,3 +272,5 @@ export class Observability {
     await Promise.all([this.accessSink?.close(), this.auditSink?.close()]);
   }
 }
+
+export { buildReadinessChecks, type ReadinessProcess } from './readinessChecks';

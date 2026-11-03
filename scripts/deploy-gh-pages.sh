@@ -15,9 +15,10 @@ repo=$(basename "$(git remote get-url origin 2>/dev/null || echo "$root")" .git)
 
 if [ "${SKIP_BUILD:-}" = "1" ]; then
   [ -f dist/pages/index.html ] || { echo "SKIP_BUILD=1 pero no hay dist/pages/index.html: compila antes." >&2; exit 1; }
+  [ -f dist/pages/_headers ] || { echo "SKIP_BUILD=1 pero no hay dist/pages/_headers: el job build debe generarlo." >&2; exit 1; }
 else
-  # Pages sirve bajo /<repositorio>/; se puede sobrescribir con BASE_PATH.
   BASE_PATH="${BASE_PATH:-/$repo/}" OUT_DIR=dist/pages npm run build:app
+  npx tsx scripts/write-pages-headers.ts > dist/pages/_headers
 fi
 
 # Sin identidad de git configurada (p. ej. el ejecutor de Actions) el commit usaría un autor ficticio, solo para este proceso.

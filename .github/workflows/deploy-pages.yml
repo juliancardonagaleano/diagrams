@@ -71,6 +71,8 @@ jobs:
           OUT_DIR: dist/pages
           # Servidor de proyectos que el sitio propone por omisión (variable del repositorio; vacía, no propone ninguno).
           VITE_IARK_SERVER: ${{ vars.IARK_SERVER_URL }}
+      - name: Cabeceras estáticas (_headers, spec 009)
+        run: npx tsx scripts/write-pages-headers.ts > dist/pages/_headers
       - uses: actions/upload-artifact@v4
         with:
           name: pages-site
