@@ -8,9 +8,9 @@
 
 ## estado
 
-`en curso`
+`hecha`
 
-Implementación en la rama `cursor/impl-gateway-58e1`: `createModuleApi` en `src/diagrams-gateway/` con reexport de la piscina; `serve.ts` delega el borde de módulos.
+Primer corte en master: `createModuleApi` en `src/diagrams-gateway/` (Shared + ocho operaciones y traza); `serve.ts` delega ese borde. La piscina sigue en `src/cli/computePool.ts` dentro del mismo proceso hasta un deploy aparte.
 
 ## problema
 
