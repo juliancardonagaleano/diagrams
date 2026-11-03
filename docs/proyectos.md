@@ -229,7 +229,7 @@ iark serve --workspace ./iark-workspace --cors https://mi-usuario.github.io   # 
 iark serve --workspace ./iark-workspace --cors http://localhost:5173          # desarrollo (npm run dev)
 ```
 
-- Si sirves el propio sitio desde el servidor (`--static dist/app`), la página y la API comparten origen y `--cors` no hace falta.
+- Si el sitio (Pages o CDN) y la API comparten el mismo origen público, `--cors` no hace falta; con orígenes distintos configura `--cors` en `iark serve` (ver [despliegue-render-supabase.md](despliegue-render-supabase.md)).
 - Con `--tokens <archivo>` el servidor exige un token (cabecera `Authorization: Bearer`) y reparte permisos por rol; se configura como se explica en [Servidor para varias personas](servicio.md#servidor-para-varias-personas-nube-autoalojada), que no se repite aquí. Sin él, **quien llegue al puerto lee y escribe los proyectos**: déjalo en `127.0.0.1`.
 - `iark serve` **no habla TLS**. Para usarlo por internet pon delante un proxy con https. Y una página publicada por https no puede llamar a una dirección `http://` que no sea la propia máquina (contenido mixto: el navegador lo bloquea, y el gestor lo avisa al escribir la dirección).
 

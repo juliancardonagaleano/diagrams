@@ -104,6 +104,8 @@ Se verifica con `npm run cli -- validate examples/diagrams-as-is.json`, `npm run
 
 ## Qué queda bloqueado
 
-Hasta que quien mantiene el producto escriba `aceptada` en cada spec, no hay PR de código de esa spec. Hasta que la 001 esté `aceptada`, no hay `examples/diagrams-to-be.json`. Este plan no sustituye ninguna de las dos esperas.
+**Estado (noviembre 2026):** la [001](specs/001-to-be-c4.md) está `aceptada` con [`examples/diagrams-to-be.json`](../../examples/diagrams-to-be.json). Las specs **002–009** están `hecha` en su PR de implementación (primer corte: módulos `diagrams-*` dentro del mismo `iark serve`, con despliegue SSE partido documentado en la 005). Este plan describe el orden histórico; no abre PR nuevas por sí solo.
 
-El manifiesto `GET /.well-known/iark.json` no tiene proceso dueño en el corte. Las fases de arriba no se lo asignan. La ruta sigue respondiendo; elegir el proceso es otra decisión.
+**Siguiente trabajo (fuera de estas specs):** extraer procesos desplegables independientes (gateway, identity, app) si se quiere ir más allá del monolito modular actual; decidir dueño único del manifiesto en despliegues híbridos Pages+API (hoy: Pages sirve el JSON estático; la API lo genera en runtime — ver [servicio.md](../servicio.md)).
+
+El manifiesto `GET /.well-known/iark.json` no tiene un proceso dedicado en el corte. La ruta sigue respondiendo en Pages o en `iark serve`.
