@@ -8,9 +8,9 @@
 
 ## estado
 
-`en curso`
+`hecha`
 
-Rama `cursor/impl-cli-hexagonal-58e1`: puertos declarados en `src/cli/ports/` y adaptadores iniciales sin romper commander.
+Puertos en `src/cli/ports/` con adaptadores para `Modules`, `ProjectStore`, `ModelProvider` y `RepositoryReader`; commander sigue siendo el adaptador de entrada.
 
 ## problema
 
