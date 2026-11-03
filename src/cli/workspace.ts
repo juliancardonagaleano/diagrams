@@ -6,7 +6,6 @@ export {
   HISTORY_FORMAT,
   isWorkspaceId,
   MAX_DOCUMENT_BYTES,
-  PROJECT_BUNDLE_EXTENSION,
   SIDECAR_FORMAT,
   VERSIONS_DIR,
   versionPolicyFromEnv,
