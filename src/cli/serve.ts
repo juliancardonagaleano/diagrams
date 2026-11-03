@@ -122,8 +122,34 @@ export interface ServeOptions {
   readinessProcess?: ReadinessProcess;
   /** Hub, publicador NOTIFY y/o listener ya armados (Postgres, spec 005). Si no se pasa, el hub queda in-process en memoria. */
   eventsStack?: EventPublisherStack;
-  /** Solo `GET /api/events` y autenticación (`iark serve-sse`); sin API de módulos ni de proyectos. */
+  /** @deprecated Use `readinessProcess: 'sse'`. */
   eventsOnly?: boolean;
+}
+
+function effectiveRole(options: ServeOptions): ReadinessProcess {
+  if (options.readinessProcess) return options.readinessProcess;
+  if (options.eventsOnly) return 'sse';
+  return 'suite';
+}
+
+function servesGateway(role: ReadinessProcess): boolean {
+  return role === 'suite' || role === 'gateway';
+}
+
+function servesApp(role: ReadinessProcess): boolean {
+  return role === 'suite' || role === 'app';
+}
+
+function servesIdentity(role: ReadinessProcess): boolean {
+  return role === 'suite' || role === 'identity';
+}
+
+function servesSse(role: ReadinessProcess): boolean {
+  return role === 'suite' || role === 'sse';
+}
+
+function servesManifest(role: ReadinessProcess): boolean {
+  return role === 'suite' || role === 'gateway' || role === 'app';
 }
 
 const API = '/api';
@@ -216,9 +242,10 @@ export function createSuiteServer(options: ServeOptions): Server {
     send(res, status, `${JSON.stringify(value)}\n`, { 'Content-Type': 'application/json; charset=utf-8' });
 
   // Salud (`/healthz`, `/readyz`) y métricas (`/metrics`): ver `observability/`. Las comprobaciones de `/readyz` son las que posee este proceso (spec 009).
+  const role = effectiveRole(options);
   const readiness = new Readiness(
     buildReadinessChecks({
-      process: options.readinessProcess,
+      process: role,
       registry: options.registry,
       projects: options.projects,
       tokens: options.tokens,
@@ -386,13 +413,21 @@ export function createSuiteServer(options: ServeOptions): Server {
 
   async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const parts = url.pathname.slice(API.length).split('/').filter(Boolean).map(decodeSegment);
-    if (!options.eventsOnly) {
-      if (await projectsHost.handle(req, res, parts, url)) return;
-    }
-    if (await eventsHost.handle(req, res, parts, url)) return;
-    if (await identityApi.handle(req, res, parts, url)) return;
-    if (!options.eventsOnly && (await moduleApi.handle(req, res, parts, url))) return;
-    throw new HttpError(404, options.eventsOnly ? 'Ruta de la API desconocida en el proceso SSE.' : 'Ruta de la API desconocida. Ver /api/modules.');
+    if (servesApp(role) && (await projectsHost.handle(req, res, parts, url))) return;
+    if (servesSse(role) && (await eventsHost.handle(req, res, parts, url))) return;
+    if (servesIdentity(role) && (await identityApi.handle(req, res, parts, url))) return;
+    if (servesGateway(role) && (await moduleApi.handle(req, res, parts, url))) return;
+    const hint =
+      role === 'gateway'
+        ? 'Ruta de la API desconocida en el proceso gateway (diagrams-gateway).'
+        : role === 'identity'
+          ? 'Ruta de la API desconocida en el proceso identity (diagrams-identity).'
+          : role === 'app'
+            ? 'Ruta de la API desconocida en el proceso app (diagrams-app).'
+            : role === 'sse'
+              ? 'Ruta de la API desconocida en el proceso SSE (diagrams-sse).'
+              : 'Ruta de la API desconocida. Ver /api/modules.';
+    throw new HttpError(404, hint);
   }
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -434,8 +469,10 @@ export function createSuiteServer(options: ServeOptions): Server {
       if (req.method === 'OPTIONS') return send(res, 204, '');
       if (url.pathname === MANIFEST_PATH) {
         requireMethod(req, 'GET');
-        // Con sitio estático la instancia ofrece los editores embebibles; sin él, solo la API.
-        return sendJson(res, 200, suiteManifest(options.registry, { version: options.version, api: '../api', site: !!staticRoot, projects: !!options.projects, projectsAuth: auth ? 'bearer' : 'none', events: !!hub }));
+        if (!servesManifest(role)) throw new HttpError(404, 'Este proceso no publica el manifiesto de federación.');
+        const announceProjects = servesApp(role) && !!options.projects;
+        const announceEvents = announceProjects && servesSse(role) && !!hub;
+        return sendJson(res, 200, suiteManifest(options.registry, { version: options.version, api: '../api', site: !!staticRoot, projects: announceProjects, projectsAuth: auth ? 'bearer' : 'none', events: announceEvents }));
       }
       if (url.pathname === API || url.pathname.startsWith(`${API}/`)) return api(req, res, url);
       return serveStatic(req, res, url);

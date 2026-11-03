@@ -1,0 +1,45 @@
+# Caddy para despliegue multi-proceso (specs 002–009): gateway, identity, app y SSE en contenedores distintos.
+# Uso con deploy/docker-compose.services.yml (Postgres recomendado; ver comentarios del compose).
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$IARK_DOMAIN} {
+	encode zstd gzip
+	header {
+		>Strict-Transport-Security "max-age=15552000"
+		X-Content-Type-Options nosniff
+	}
+
+	@sse path /api/events
+	handle @sse {
+		reverse_proxy iark-sse:8788 {
+			flush_interval -1
+		}
+	}
+
+	@identity path /api/auth /api/auth/* /api/admin /api/admin/* /api/usage /api/whoami
+	handle @identity {
+		reverse_proxy iark-identity:8789
+	}
+
+	@projects path /api/projects /api/projects/*
+	handle @projects {
+		reverse_proxy iark-app:8790
+	}
+
+	@manifest path /.well-known/iark.json
+	handle @manifest {
+		reverse_proxy iark-gateway:8787
+	}
+
+	handle /api/* {
+		reverse_proxy iark-gateway:8787
+	}
+
+	handle {
+		respond "DIAgrams API (sitio en Pages o CDN)" 404
+	}
+}

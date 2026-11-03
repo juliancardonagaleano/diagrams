@@ -1,4 +1,3 @@
-import { existsSync, statSync } from 'node:fs';
 import { extname } from 'node:path';
 import { Command, InvalidArgumentError } from 'commander';
 import { applyLayoutToView, autoLayoutDocumentWithQuality, layoutView } from '@core/layout/elkLayout';
@@ -19,26 +18,17 @@ import { buildManifest, contractVersionOf, estimateTokens, formatTokens, joinSou
 import { createDefaultRegistry, createRegistry, DEFAULT_MODULE, resolveConfigPlugins } from './registry';
 import { CONFIG_FILE_NAME, ConfigError, readConfig, scanGlobalFlags, selectConfig, type LoadedConfig } from './plugins/config';
 import { PluginError, type ResolvedPlugin } from './plugins/resolve';
-import { ComputePool } from './computePool';
-import { addComputeOptions, resolveComputeSettings } from './computeConfig';
-import { createSuiteServer } from './serve';
-import { addObservabilityOptions, setupObservability } from './observability/options';
-import { isLoopbackHost } from '../diagrams-identity/core/authenticator';
-import { parseFrameAncestors } from './securityHeaders';
+import { addComputeOptions } from './computeConfig';
+import { addObservabilityOptions } from './observability/options';
 import { registerTrace } from './trace';
 import { registerDiff } from './diff';
 import { registerProject } from './project';
 import { registerAuth } from './auth';
 import { registerAccounts } from '../diagrams-identity/core/accounts/cli';
-import { setupAccounts } from '../diagrams-identity/core/accounts/setup';
 import { closeDatabase } from './postgres/shared';
-import { formatBytes } from '../diagrams-identity/core/accounts/usage';
-import { TokenError, TokenStore } from '../diagrams-identity/core/tokens';
-import { FolderProjectStore } from '../diagrams-app/modules/projects/infrastructure/workspace';
-import { releaseDatabase } from './postgres/shared';
+import { TokenError } from '../diagrams-identity/core/tokens';
 import { registerWorkspace } from './workspaceImport';
-import { openPostgresProjects, resolveWorkspaceStore } from './workspaceStore';
-import { openEventsStack } from './eventsStack';
+import { runServeProcess } from './runServeProcess';
 import { addBudgetOptions, EFFORTS, parseEffort, parseProvider, reportGeneration, tokenLimitOptions, withAiErrors } from './ai';
 import { registerCommentary } from './commentary';
 import { genericExport, genericGenerate, genericMigrate, genericPrompt, genericPromptText, genericSchema, genericValidate, parseModuleDocumentText, readModuleDocument } from './generic';
@@ -615,113 +605,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
     )
     .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy (o IARK_TRUST_PROXY=true). No lo active sin proxy', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''));
   addObservabilityOptions(serve);
-  addComputeOptions(serve).action(async (opts) => {
-      if (process.env.IARK_STATIC) throw new CliError('IARK_STATIC ya no sirve el sitio desde iark serve: publique dist/pages en GitHub Pages o use un CDN (spec 009).', 2);
-      if (opts.workspace && existsSync(opts.workspace) && !statSync(opts.workspace).isDirectory()) throw new CliError(`El espacio de trabajo «${opts.workspace}» no es una carpeta.`, 2);
-      let frameAncestors: string[];
-      try {
-        frameAncestors = parseFrameAncestors(opts.frameAncestors);
-      } catch (error) {
-        throw new CliError((error as Error).message, 2);
-      }
-      const cors = typeof opts.cors === 'string' ? opts.cors.split(',').map((o: string) => o.trim()).filter(Boolean) : [];
-      const workspaceStore = resolveWorkspaceStore(opts.workspaceStore, opts.workspace);
-      const hasWorkspace = workspaceStore === 'postgres' || !!opts.workspace;
-      const accounts = await setupAccounts(opts, { workspace: hasWorkspace, cors });
-      const loopback = isLoopbackHost(opts.host);
-      // Fuera de loopback el servicio habla HTTP: con `--trust-proxy` quien lo opera dice que hay un proxy delante, y el aviso pasa a ser un recordatorio.
-      const tlsNote = (why: string): string =>
-        opts.trustProxy ? `  detrás de un proxy de confianza (--trust-proxy): el HTTPS lo pone el proxy, compruebe que la dirección pública es https; ${why}` : `aviso: este servicio no habla TLS: ponga delante un proxy con HTTPS (Caddy, nginx…); ${why}`;
-      if (hasWorkspace && !opts.tokens && !accounts && !loopback) {
-        throw new CliError(
-          `Con un espacio de trabajo, escuchar en ${opts.host} sin autenticación dejaría los proyectos al alcance de quien llegue a ese puerto: el servicio no arranca así. ` +
-            'Elija una de las salidas: exija un token con --tokens <archivo> (o IARK_TOKENS; se crea con `iark auth create <nombre> --role admin --tokens <archivo>`), active el inicio de sesión con GitHub (--accounts, ver docs/cuentas-github.md) o escuche solo en loopback con --host 127.0.0.1.',
-          2,
-        );
-      }
-      const compute = resolveComputeSettings(opts);
-      const streams: number | undefined = opts.maxStreams;
-      if (streams !== undefined && (!Number.isInteger(streams) || streams < 0 || streams > 1000)) throw new CliError('--max-streams debe ser un entero entre 0 (desactiva el canal) y 1000.', 2);
-      // Registros y métricas (apagados por omisión): se abren antes de escuchar, para que un archivo que no se puede abrir sea un error de uso y no un servicio a medias.
-      const observed = setupObservability(opts, { host: opts.host, trustProxy: !!opts.trustProxy, version: CLI_VERSION });
-      // Al arrancar el archivo de tokens debe existir y ser válido (si no, error de uso): después se relee cuando cambia, y un problema deniega todo.
-      // Protege la API de proyectos y, también sin espacio de trabajo, las rutas de cálculo.
-      const tokens = opts.tokens ? TokenStore.open(opts.tokens) : undefined;
-      // El cálculo (ELK, análisis de documentos grandes) corre en hilos aparte, con tiempo límite y cola acotada: ver `computePool.ts`.
-      // Cada hilo construye su propio registro: con los mismos módulos de terceros que el principal, o un plugin funcionaría en el CLI y fallaría aquí.
-      const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue, plugins: settings.plugins }) : undefined;
-      // Los proyectos en Postgres se abren al final de las comprobaciones: el pool de la base (compartido por el proceso) se cierra al parar.
-      const projects = workspaceStore === 'postgres' ? await openPostgresProjects() : opts.workspace ? new FolderProjectStore(opts.workspace) : undefined;
-      const eventsStack = await openEventsStack({ projects, accounts, events: streams === 0 ? false : { maxPerPerson: streams } });
-      const server = createSuiteServer({
-        registry,
-        version: CLI_VERSION,
-        cors,
-        projects,
-        tokens,
-        accounts,
-        trustProxy: opts.trustProxy,
-        frameAncestors,
-        compute: pool,
-        publicCompute: compute.publicCompute,
-        observability: observed.observability,
-        metricsToken: observed.metricsToken,
-        events: streams === 0 ? false : { maxPerPerson: streams },
-        eventsStack,
-      });
-      try {
-        await new Promise<void>((resolveListening, rejectListening) => {
-          server.once('error', rejectListening);
-          server.listen(opts.port, opts.host, resolveListening);
-        });
-      } catch (error) {
-        if (projects?.kind === 'postgres') await releaseDatabase(); // el puerto está ocupado o no se puede escuchar: que no quede el pool abierto
-        throw error;
-      }
-      const address = server.address();
-      const port = typeof address === 'object' && address ? address.port : opts.port;
-      info(`DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port} (solo API; el sitio va en Pages o CDN)`);
-      info(`  manifiesto: /.well-known/iark.json · módulos: /api/modules`);
-      for (const line of observed.lines) info(line);
-      const thirdParty = registry.ids().filter((id) => registry.originOf(id) !== undefined);
-      if (thirdParty.length > 0) info(`  módulos de terceros (se operan por la API y salen en el manifiesto; el sitio web no los trae): ${thirdParty.join(', ')}`);
-      if (pool) info(`  cálculo: hasta ${pool.size} hilo(s) de trabajo · tiempo límite ${pool.timeoutMs / 1000} s por operación · cola de ${pool.maxQueue}`);
-      else info('aviso: --workers 0: el cálculo corre en el hilo principal, sin tiempo límite ni cola; una exportación grande bloquea el servicio entero.');
-      if (tokens || accounts) {
-        info(compute.publicCompute ? 'aviso: --public-compute: las rutas de cálculo (validar, exportar, importar, informes, trazas) están abiertas a quien llegue al puerto, aunque haya autenticación.' : '  las rutas de cálculo (validar, exportar, importar, informes, trazas) exigen credencial; /api/modules, capabilities y schema siguen públicos');
-      }
-      if (projects) {
-        info(`  espacio de trabajo: ${projects instanceof FolderProjectStore ? projects.root : projects.description} · proyectos: /api/projects`);
-        info(streams === 0 ? '  cambios en tiempo real: desactivados (--max-streams 0); los clientes sondean cada 30 s' : `  cambios en tiempo real: /api/events (hasta ${streams ?? 8} canal(es) por persona)`);
-        if (accounts) {
-          info(`  inicio de sesión: GitHub (${accounts.github?.clientId}) · callback ${accounts.callbackUrl} · cuentas: ${accounts.store.path} (${await accounts.store.userCount()}, almacén ${accounts.store.kind}) · entrada: ${accounts.signup === 'open' ? 'abierta' : 'solo por invitación'} · administradores: ${accounts.adminCount}`);
-          const q = accounts.quotas;
-          const shown = (value: number, unit = ''): string => (value === 0 ? 'sin tope' : `${value}${unit}`);
-          info(`  cuotas por persona: espacio ${q.bytes === 0 ? 'sin tope' : formatBytes(q.bytes)} · proyectos ${shown(q.projects)} · diagramas por proyecto ${shown(q.diagramsPerProject)} (ajustables a cada persona desde la administración; /api/usage)`);
-          if (!loopback) info(tlsNote('GitHub solo devuelve a la persona a la dirección pública, y las sesiones viajan por ella.'));
-        }
-      }
-      if (tokens) {
-        info(`  autenticación: tokens de ${tokens.path} (${tokens.size}), roles viewer, editor y admin · /api/whoami`);
-        if (tokens.size === 0) info('aviso: el archivo no tiene ningún token: cree uno con `iark auth create <nombre> --role admin` (no hace falta reiniciar).');
-        if (!loopback) info(tlsNote('si no, los tokens viajan en claro.'));
-      }
-      // `logrotate` rota los registros y avisa con SIGHUP: se vuelven a abrir los archivos (solo si hay alguno; no existe en Windows).
-      if (process.platform !== 'win32' && observed.observability.hasFiles) process.on('SIGHUP', () => observed.observability.reopen());
-      await new Promise<void>((resolveClosed) => {
-        const stop = (): void =>
-          void server.close(
-            () =>
-              void (pool?.close() ?? Promise.resolve())
-                .then(() => observed.observability.close())
-                .then(() => accounts?.store.close()) // cierra la base de cuentas con limpieza: SQLite vuelca el diario WAL al archivo; Postgres suelta su conexión
-                .then(() => (projects?.kind === 'postgres' ? releaseDatabase() : undefined)) // cierra el pool de Postgres cuando ya no hay peticiones en curso
-                .then(() => resolveClosed()),
-          );
-        process.once('SIGINT', stop);
-        process.once('SIGTERM', stop);
-      });
-    });
+  addComputeOptions(serve).action(async (opts) => runServeProcess({ role: 'suite', opts, registry, plugins: settings.plugins ?? [] }));
 
   const serveSse = program
     .command('serve-sse')
@@ -743,59 +627,71 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
   addObservabilityOptions(serveSse);
   serveSse.action(async (opts) => {
     process.env.IARK_EVENTS_ROLE = process.env.IARK_EVENTS_ROLE || 'stream';
-    const cors = typeof opts.cors === 'string' ? opts.cors.split(',').map((o: string) => o.trim()).filter(Boolean) : [];
-    const workspaceStore = resolveWorkspaceStore(opts.workspaceStore, opts.workspace);
-    const hasWorkspace = workspaceStore === 'postgres' || !!opts.workspace;
-    if (!hasWorkspace) throw new CliError('serve-sse exige --workspace o --workspace-store postgres (proyectos para comprobar pertenencia).', 2);
-    const accounts = await setupAccounts(opts, { workspace: hasWorkspace, cors });
-    const observed = setupObservability(opts, { host: opts.host, trustProxy: !!opts.trustProxy, version: CLI_VERSION });
-    const tokens = opts.tokens ? TokenStore.open(opts.tokens) : undefined;
-    const projects = workspaceStore === 'postgres' ? await openPostgresProjects() : new FolderProjectStore(opts.workspace!);
-    const streams: number | undefined = opts.maxStreams;
-    if (streams !== undefined && (!Number.isInteger(streams) || streams < 0 || streams > 1000)) throw new CliError('--max-streams debe ser un entero entre 0 y 1000.', 2);
-    const eventsStack = await openEventsStack({ projects, accounts, events: streams === 0 ? false : { maxPerPerson: streams } });
-    const server = createSuiteServer({
-      registry,
-      version: CLI_VERSION,
-      cors,
-      projects,
-      tokens,
-      accounts,
-      trustProxy: opts.trustProxy,
-      observability: observed.observability,
-      metricsToken: observed.metricsToken,
-      events: streams === 0 ? false : { maxPerPerson: streams },
-      eventsStack,
-      eventsOnly: true,
-      readinessProcess: 'sse',
-    });
-    try {
-      await new Promise<void>((resolveListening, rejectListening) => {
-        server.once('error', rejectListening);
-        server.listen(opts.port, opts.host, resolveListening);
-      });
-    } catch (error) {
-      if (projects.kind === 'postgres') await releaseDatabase();
-      throw error;
-    }
-    const address = server.address();
-    const port = typeof address === 'object' && address ? address.port : opts.port;
-    info(`diagrams-sse escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port} · GET /api/events`);
-    for (const line of observed.lines) info(line);
-    if (projects.kind === 'postgres') info('  canal: Postgres NOTIFY/LISTEN (IARK_DATABASE_SESSION_URL si el pooler no admite LISTEN)');
-    await new Promise<void>((resolveClosed) => {
-      const stop = (): void =>
-        void server.close(() =>
-          void observed.observability
-            .close()
-            .then(() => accounts?.store.close())
-            .then(() => (projects.kind === 'postgres' ? releaseDatabase() : undefined))
-            .then(() => resolveClosed()),
-        );
-      process.once('SIGINT', stop);
-      process.once('SIGTERM', stop);
-    });
+    return runServeProcess({ role: 'sse', opts, registry, plugins: settings.plugins ?? [] });
   });
+
+  const serveGateway = program
+    .command('serve-gateway')
+    .description('Proceso `diagrams-gateway`: solo API de módulos (/api/modules, cálculo, /api/trace). Equivalente a IARK_SERVE_ROLE=gateway.')
+    .option('-p, --port <n>', 'puerto (0 elige uno libre)', parsePort, 8787)
+    .option('--host <host>', 'dirección en la que escucha', '127.0.0.1')
+    .option('--cors <orígenes>', 'orígenes CORS (o IARK_CORS)', process.env.IARK_CORS || undefined)
+    .option('-t, --tokens <archivo>', 'tokens Bearer para rutas de cálculo (o IARK_TOKENS)', process.env.IARK_TOKENS || undefined)
+    .option('--trust-proxy', 'proxy de confianza delante (o IARK_TRUST_PROXY=true)', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''));
+  addObservabilityOptions(serveGateway);
+  addComputeOptions(serveGateway).action(async (opts) => runServeProcess({ role: 'gateway', opts, registry, plugins: settings.plugins ?? [] }));
+
+  const serveIdentity = program
+    .command('serve-identity')
+    .description('Proceso `diagrams-identity`: /api/auth, /api/admin, /api/usage y /api/whoami. Equivalente a IARK_SERVE_ROLE=identity.')
+    .option('-p, --port <n>', 'puerto (0 elige uno libre)', parsePort, 8789)
+    .option('--host <host>', 'dirección en la que escucha', '127.0.0.1')
+    .option('--cors <orígenes>', 'orígenes CORS (o IARK_CORS)', process.env.IARK_CORS || undefined)
+    .option('-t, --tokens <archivo>', 'tokens Bearer (o IARK_TOKENS)', process.env.IARK_TOKENS || undefined)
+    .option('--accounts <archivo>', 'cuentas GitHub (o IARK_ACCOUNTS)', process.env.IARK_ACCOUNTS || undefined)
+    .option('--accounts-store <almacén>', 'json, sqlite o postgres (o IARK_ACCOUNTS_STORE)', process.env.IARK_ACCOUNTS_STORE || undefined)
+    .option('--accounts-import <archivo>', 'importación al arrancar (o IARK_ACCOUNTS_IMPORT)', process.env.IARK_ACCOUNTS_IMPORT || undefined)
+    .option('--github-client-id <id>', 'Client ID OAuth (o IARK_GITHUB_CLIENT_ID)', process.env.IARK_GITHUB_CLIENT_ID || undefined)
+    .option('--github-url <url>', 'GitHub Enterprise (o IARK_GITHUB_URL)', process.env.IARK_GITHUB_URL || undefined)
+    .option('--github-api-url <url>', 'API GitHub Enterprise (o IARK_GITHUB_API_URL)', process.env.IARK_GITHUB_API_URL || undefined)
+    .option('--public-url <url>', 'URL pública (o IARK_PUBLIC_URL)', process.env.IARK_PUBLIC_URL || undefined)
+    .option('--signup <modo>', 'invite u open (o IARK_SIGNUP)', process.env.IARK_SIGNUP || undefined)
+    .option('--admins <lista>', 'administradores (o IARK_ADMINS)', process.env.IARK_ADMINS || undefined)
+    .option('--session-days <n>', 'duración de sesión (o IARK_SESSION_DAYS)', (v: string) => Number(v), process.env.IARK_SESSION_DAYS ? Number(process.env.IARK_SESSION_DAYS) : undefined)
+    .option('--max-projects <n>', 'cuota de proyectos (o IARK_MAX_PROJECTS)', (v: string) => Number(v), process.env.IARK_MAX_PROJECTS ? Number(process.env.IARK_MAX_PROJECTS) : undefined)
+    .option('--max-diagrams <n>', 'cuota de diagramas (o IARK_MAX_DIAGRAMS)', (v: string) => Number(v), process.env.IARK_MAX_DIAGRAMS ? Number(process.env.IARK_MAX_DIAGRAMS) : undefined)
+    .option('--max-bytes <tamaño>', 'cuota de espacio (o IARK_MAX_BYTES)', process.env.IARK_MAX_BYTES || undefined)
+    .option('--trust-proxy', 'proxy de confianza delante (o IARK_TRUST_PROXY=true)', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''));
+  addObservabilityOptions(serveIdentity);
+  serveIdentity.action(async (opts) => runServeProcess({ role: 'identity', opts, registry, plugins: settings.plugins ?? [] }));
+
+  const serveApp = program
+    .command('serve-app')
+    .description('Proceso `diagrams-app`: solo /api/projects. Con IARK_EVENTS_ROLE=publish notifica cambios sin atender SSE.')
+    .option('-p, --port <n>', 'puerto (0 elige uno libre)', parsePort, 8790)
+    .option('--host <host>', 'dirección en la que escucha', '127.0.0.1')
+    .option('--cors <orígenes>', 'orígenes CORS (o IARK_CORS)', process.env.IARK_CORS || undefined)
+    .option('-w, --workspace <carpeta>', 'carpeta de proyectos (o IARK_WORKSPACE)', process.env.IARK_WORKSPACE || undefined)
+    .option('--workspace-store <almacén>', 'folder o postgres (o IARK_WORKSPACE_STORE)', process.env.IARK_WORKSPACE_STORE || undefined)
+    .option('-t, --tokens <archivo>', 'tokens Bearer (o IARK_TOKENS)', process.env.IARK_TOKENS || undefined)
+    .option('--accounts <archivo>', 'cuentas GitHub (o IARK_ACCOUNTS)', process.env.IARK_ACCOUNTS || undefined)
+    .option('--accounts-store <almacén>', 'json, sqlite o postgres (o IARK_ACCOUNTS_STORE)', process.env.IARK_ACCOUNTS_STORE || undefined)
+    .option('--accounts-import <archivo>', 'importación al arrancar (o IARK_ACCOUNTS_IMPORT)', process.env.IARK_ACCOUNTS_IMPORT || undefined)
+    .option('--github-client-id <id>', 'Client ID OAuth (o IARK_GITHUB_CLIENT_ID)', process.env.IARK_GITHUB_CLIENT_ID || undefined)
+    .option('--github-url <url>', 'GitHub Enterprise (o IARK_GITHUB_URL)', process.env.IARK_GITHUB_URL || undefined)
+    .option('--github-api-url <url>', 'API GitHub Enterprise (o IARK_GITHUB_API_URL)', process.env.IARK_GITHUB_API_URL || undefined)
+    .option('--public-url <url>', 'URL pública (o IARK_PUBLIC_URL)', process.env.IARK_PUBLIC_URL || undefined)
+    .option('--signup <modo>', 'invite u open (o IARK_SIGNUP)', process.env.IARK_SIGNUP || undefined)
+    .option('--admins <lista>', 'administradores (o IARK_ADMINS)', process.env.IARK_ADMINS || undefined)
+    .option('--session-days <n>', 'duración de sesión (o IARK_SESSION_DAYS)', (v: string) => Number(v), process.env.IARK_SESSION_DAYS ? Number(process.env.IARK_SESSION_DAYS) : undefined)
+    .option('--max-projects <n>', 'cuota de proyectos (o IARK_MAX_PROJECTS)', (v: string) => Number(v), process.env.IARK_MAX_PROJECTS ? Number(process.env.IARK_MAX_PROJECTS) : undefined)
+    .option('--max-diagrams <n>', 'cuota de diagramas (o IARK_MAX_DIAGRAMS)', (v: string) => Number(v), process.env.IARK_MAX_DIAGRAMS ? Number(process.env.IARK_MAX_DIAGRAMS) : undefined)
+    .option('--max-bytes <tamaño>', 'cuota de espacio (o IARK_MAX_BYTES)', process.env.IARK_MAX_BYTES || undefined)
+    .option('--max-streams <n>', 'canales SSE locales (o IARK_MAX_STREAMS); en despliegue partido use IARK_EVENTS_ROLE=publish', (v: string) => Number(v), process.env.IARK_MAX_STREAMS ? Number(process.env.IARK_MAX_STREAMS) : undefined)
+    .option('--trust-proxy', 'proxy de confianza delante (o IARK_TRUST_PROXY=true)', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''));
+  addObservabilityOptions(serveApp);
+  serveApp.action(async (opts) => runServeProcess({ role: 'app', opts, registry, plugins: settings.plugins ?? [] }));
+
 
   registerTrace(program, registry);
   registerDiff(program, registry, importSource, defaultModule);

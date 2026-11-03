@@ -1,4 +1,5 @@
 # Despliegue Postgres con procesos partidos (spec 005): `iark` publica avisos (NOTIFY); `iark-sse` atiende GET /api/events (LISTEN).
+# Para gateway + identity + app + SSE en contenedores distintos, use docker-compose.services.yml.
 # El compose por omisión (`docker-compose.yml`) sigue siendo monolito con carpeta en volumen.
 #
 # Requisitos: mismo `.env` que la guía de nube, más IARK_DATABASE_URL (pooler transaccional) e IARK_DATABASE_SESSION_URL

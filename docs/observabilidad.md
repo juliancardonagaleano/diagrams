@@ -130,6 +130,10 @@ Sin autenticación, sin CORS, sin detalles, solo `GET` y `HEAD`, y no se anotan 
   | `tokens` | con `--tokens` | Que el archivo de tokens se lee y es válido (si no, el servicio está denegando todo con 503). |
   | `accounts` | con `--accounts` | Que el archivo de cuentas existe y se lee, que el almacén responde a una lectura de verdad (con `--accounts-store sqlite`, una consulta a la base; con `json` el estado está en memoria y basta el archivo) y que se puede escribir en su carpeta (el JSON se reemplaza por renombrado en cada cambio; SQLite crea ahí su diario `-wal` y `-shm`). No toma el candado de escritura de la base. |
   | `compute` | con hilos de cálculo (`--workers` > 0) | Que el pool no está cerrado, que existe el archivo de su hilo y que los últimos tres hilos no se cayeron seguidos sin contestar. No crea ningún hilo para averiguarlo. Un pool ocupado o con la cola llena **sigue vivo**: eso es carga y lo cuentan las métricas. |
+  | `registry` | proceso `diagrams-gateway` (`iark serve-gateway` o `IARK_SERVE_ROLE=gateway`) | Que el registro de módulos tiene al menos un módulo cargado. |
+  | `events` | proceso `diagrams-sse` con canal activo | Que el listener Postgres responde al ping (cuando aplica) o que el hub in-process está disponible. |
+
+  En un despliegue **multi-proceso** (`deploy/docker-compose.services.yml`), cada contenedor solo incluye las comprobaciones de su rol: la app no mira tokens ni cálculo; el gateway no mira la carpeta de proyectos; identity no mira el pool. El balanceador debe consultar el `/readyz` del proceso que enruta, no el del monolito.
 
   Nunca incluye rutas ni secretos. El resultado se **cachea 5 segundos** (varias peticiones a la vez comparten una sola ronda), cada comprobación tiene 2 s de plazo, y cuando una cambia de estado se anota una línea en stderr con su nombre.
 
