@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { allow, bodyObject, isJson, type ReadBody } from '../../../cli/httpBody';
 import { HttpError } from '../../../cli/httpError';
-import type { Authenticator, Identity } from '../../../cli/serveAuth';
+import type { Authenticator, Identity } from '../authenticator';
 import { accountHttpError } from './errors';
 import type { Accounts, QuotaLimits } from './service';
 import { AccountError, isQuotaValue, isSiteRole, parseLogin, QUOTA_FIELDS, SITE_ROLES, type AccountUser, type SiteRole, type UserChange, type UserQuota, type UserQuotaChange } from './store';

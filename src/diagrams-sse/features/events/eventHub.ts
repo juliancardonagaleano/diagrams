@@ -1,6 +1,6 @@
 import type { ServerResponse } from 'node:http';
 import type { Accounts } from '../../../diagrams-identity/core/accounts/service';
-import type { Identity } from '../../../cli/serveAuth';
+import type { Identity } from '../../../diagrams-identity/core/authenticator';
 import type { ChangeEvent, EventPublisher, PublishOptions } from './types';
 
 export interface EventHubOptions {

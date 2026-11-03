@@ -1,6 +1,6 @@
 import { parseVersionId } from '@iark/kernel';
 import { COMPUTE_ACTIONS } from '../compute';
-import { isWorkspaceId } from '../workspace';
+import { isWorkspaceId } from '../../diagrams-app/modules/projects/infrastructure/workspace';
 
 /**
  * Convierte la ruta de una petición en una **plantilla** de un conjunto cerrado y pequeño (`/api/projects/:project/diagrams/:diagram`):

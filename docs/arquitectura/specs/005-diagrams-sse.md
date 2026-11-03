@@ -10,7 +10,7 @@
 
 `en curso`
 
-Rama `cursor/impl-app-shell-58e1`: esqueleto `src/diagrams-sse/` (`EventHub`, `createEventsHost`) y delegación en `serve.ts`. El hub sigue en el mismo proceso hasta existir canal entre app y gateway.
+Rama `cursor/rearch-specs-003-004-005-58e1`: `createEventsHost` es el único borde HTTP del canal (`src/diagrams-sse/host/eventsApi.ts`; ver `src/diagrams-sse/README.md`). Hub in-process con `diagrams-app` hasta canal probado (spec: límite `LISTEN`/pool y ausencia de broker). `serve.ts` delega solo a `createEventsHost`; `serveEvents.ts` reexporta.
 
 ## problema
 
@@ -119,16 +119,18 @@ De la implementación, solo con la spec `aceptada` y en su PR:
 
 ## verificación
 
-Borrador, sin implementación. El path del lineamiento y la frase del punto 3 salen de la spec 001 (`read_document`, `mode` `section`). Esta sesión no llamó al puente. `GetDynamicTools` con patrón `ece` no devolvió namespace. No se imprimen `ECE_MCP_API_KEY` ni `ECE_MCP_URL`.
+Implementación parcial (proceso no partido). Comprobaciones de esta rama:
 
-El límite de `LISTEN` se contrastó con el comentario vigente de `src/cli/postgres/pool.ts` y de `src/cli/postgresProjects.ts`, y con la ausencia de `NOTIFY` en `src/` (búsqueda de `NOTIFY` y `LISTEN` en ese árbol). No se ejecutó un `LISTEN` contra Postgres.
+1. **`createEventsHost` único:** `serve.ts` enruta `/api/events` solo vía `eventsHost.handle` de `createEventsHost`; no hay otro handler SSE en `diagrams-app` ni en `diagrams-gateway`.
+2. **In-process documentado:** `src/diagrams-sse/README.md` describe hub compartido vs canal futuro.
+3. **Pruebas:** `src/cli/serveEvents.test.ts` y `tests/e2e/projects-cloud-eventos.spec.ts` (cuando el entorno las ejecuta).
 
 ```text
 npm run cli -- validate examples/diagrams-as-is.json
 Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
 ```
 
-`examples/diagrams-to-be.json` no está. `git diff --stat -- src packages schema public examples` no imprime nada.
+El límite de `LISTEN` sigue en `src/cli/postgres/pool.ts` y en `src/diagrams-app/modules/projects/infrastructure/postgresProjects.ts`. No hay `NOTIFY` en `src/` hasta elegir el canal.
 
 ## riesgos
 

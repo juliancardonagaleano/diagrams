@@ -5,7 +5,7 @@ type GenerateDocumentInput = Parameters<typeof generateDocument>[0];
 import { formatSummary } from '../repo/format';
 import { scanRepo } from '../repo/scan';
 import type { CliProjectStore, ModelProvider, ModulesPort, RepositoryReader } from './index';
-import { FolderProjectStore } from '../workspace';
+import { FolderProjectStore } from '../../diagrams-app/modules/projects/infrastructure/workspace';
 
 /** Adaptador Infrastructure → puerto `Modules` (registro existente). */
 export function asModulesPort(registry: ModuleRegistry): ModulesPort {

@@ -14,7 +14,7 @@ import { directoryWritable, fileReadable, Readiness, type Check } from './observ
 import { Observability } from './observability';
 import type { MetricFamily } from './observability/metrics';
 import { createMetricsEndpoint } from './observability/metricsEndpoint';
-import { createAuthenticator, type Authenticator, type FailureLimiterOptions } from './serveAuth';
+import { createAuthenticator, type Authenticator, type FailureLimiterOptions } from '../diagrams-identity/core/authenticator';
 import { createProjectsHost } from '../diagrams-app';
 import { createEventsHost, EventHub, type EventHubOptions } from '../diagrams-sse';
 import { applySecurityHeaders } from './securityHeaders';

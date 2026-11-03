@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { commandInfos, moduleCapabilities, type AnyModule, type ModuleRegistry } from '@iark/kernel';
 import { COMPUTE_ACTIONS, type ComputeExecutor, type ComputeJob } from '../cli/compute';
 import { HttpError } from '../cli/httpError';
-import type { Authenticator } from '../cli/serveAuth';
+import type { Authenticator } from '../diagrams-identity/core/authenticator';
 
 export interface ModuleApiOptions {
   registry: ModuleRegistry;

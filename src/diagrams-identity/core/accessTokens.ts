@@ -12,4 +12,14 @@ export {
   type TokenRole,
 } from './tokens';
 
-export { createAuthenticator, FailureLimiter, type Authenticator, type FailureLimiterOptions } from '../../cli/serveAuth';
+export {
+  bearerToken,
+  clientAddress,
+  createAuthenticator,
+  FailureLimiter,
+  isLoopbackHost,
+  type Authenticator,
+  type AuthenticatorOptions,
+  type FailureLimiterOptions,
+  type Identity,
+} from './authenticator';

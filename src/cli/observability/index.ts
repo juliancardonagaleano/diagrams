@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isGithubLogin } from '../../diagrams-identity/core/accounts/store';
 import type { PublicUser } from '../../diagrams-identity/core/accounts/service';
 import { HttpError } from '../httpError';
-import { clientAddress, type Identity } from '../serveAuth';
+import { clientAddress, type Identity } from '../../diagrams-identity/core/authenticator';
 import { AuditLog, deriveAudit, type Actor, type AuditDraft } from './audit';
 import { Metrics } from './metrics';
 import { requestIdFrom } from './requestId';

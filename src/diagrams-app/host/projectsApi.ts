@@ -7,11 +7,11 @@ import type { Quotas } from '../../diagrams-identity/core/accounts/usage';
 import { AccountError, loginKey, projectRoleAllows, type ProjectRole } from '../../diagrams-identity/core/accounts/store';
 import { allow, bodyObject } from '../../cli/httpBody';
 import { HttpError } from '../../cli/httpError';
-import type { Authenticator, Identity } from '../../cli/serveAuth';
+import type { Authenticator, Identity } from '../../diagrams-identity/core/authenticator';
 import type { ChangeEvent, EventPublisher, PublishOptions } from '../../diagrams-sse/features/events/types';
 import { guard, requiredRole } from './projectHttpGuards';
 import { roleAllows } from '../../diagrams-identity/core/tokens';
-import { isWorkspaceId } from '../../cli/workspace';
+import { isWorkspaceId } from '../modules/projects/infrastructure/workspace';
 import { listProjectsQuery } from '../modules/projects/application/queries';
 import { prepareSaveDiagram } from '../modules/projects/domain/saveDiagram';
 
