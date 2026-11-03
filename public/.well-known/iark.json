@@ -44,7 +44,7 @@
         "drawio"
       ],
       "endpoints": {
-        "embed": "../modulos.html?module=integration",
+        "embed": "../modules/integration",
         "schema": "../schema/integration-document.schema.json"
       }
     },
@@ -68,7 +68,7 @@
         "ddl"
       ],
       "endpoints": {
-        "embed": "../modulos.html?module=data",
+        "embed": "../modules/data",
         "schema": "../schema/data-document.schema.json"
       }
     },
@@ -90,7 +90,7 @@
         "drawio"
       ],
       "endpoints": {
-        "embed": "../modulos.html?module=enterprise",
+        "embed": "../modules/enterprise",
         "schema": "../schema/enterprise-document.schema.json"
       }
     },
@@ -114,7 +114,7 @@
         "drawio"
       ],
       "endpoints": {
-        "embed": "../modulos.html?module=platform",
+        "embed": "../modules/platform",
         "schema": "../schema/platform-document.schema.json"
       }
     },
@@ -135,7 +135,7 @@
         "drawio"
       ],
       "endpoints": {
-        "embed": "../modulos.html?module=security",
+        "embed": "../modules/security",
         "schema": "../schema/security-document.schema.json"
       }
     }

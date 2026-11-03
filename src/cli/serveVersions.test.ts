@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { VersionMeta, VersionPolicy } from '@iark/kernel';
 import { createDefaultRegistry } from './registry';
 import { createSuiteServer } from './serve';
-import { createToken } from './tokens';
+import { createToken } from '../diagrams-identity/core/tokens';
 import { FolderProjectStore } from './workspace';
 import { ANA, BETO, call, CARLA, cleanupCloud, signIn, startCloud, tracked, type Cloud } from '../../tests/helpers/cloud';
 

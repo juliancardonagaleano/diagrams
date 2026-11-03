@@ -4,31 +4,31 @@
  * Claro en `:root`. Oscuro en `:root[data-theme='dark']` (banco) y en `body[theme-mode='dark']` (editor).
  */
 :root {
-  --mesa-accent: #175e7a;
-  --mesa-accent-hover: #1b6f90;
-  --mesa-accent-active: #134d64;
-  --mesa-accent-ink: #175e7a;
+  --mesa-accent: #1c3d52;
+  --mesa-accent-hover: #163244;
+  --mesa-accent-active: #102634;
+  --mesa-accent-ink: #1c3d52;
   --mesa-accent-on: #ffffff;
-  --mesa-text: #1f2430;
-  --mesa-text-2: #566070;
-  --mesa-bg: #f6f7f9;
-  --mesa-surface: #ffffff;
-  --mesa-surface-2: #f0f2f5;
-  --mesa-border: #d9dde3;
-  --mesa-border-strong: #6b7686;
-  --mesa-focus: #175e7a;
+  --mesa-text: #1c1915;
+  --mesa-text-2: #5c534a;
+  --mesa-bg: #f3efe6;
+  --mesa-surface: #fbf8f3;
+  --mesa-surface-2: #efe8dc;
+  --mesa-border: #ddd4c6;
+  --mesa-border-strong: #6f6558;
+  --mesa-focus: #1c3d52;
   --mesa-danger: #b42318;
   --mesa-danger-bg: #fdecea;
   --mesa-warning: #9a5b00;
   --mesa-warning-bg: #fff4e0;
-  --mesa-info: #175e7a;
-  --mesa-info-bg: #e6f2f7;
+  --mesa-info: #1c3d52;
+  --mesa-info-bg: #e4eef3;
   --mesa-ok: #166a38;
   --mesa-ok-bg: #e5f6ec;
   --mesa-ok-solid: #166a38;
   --mesa-danger-solid: #b42318;
   --mesa-warning-solid: #8a5200;
-  --mesa-canvas: #ffffff;
+  --mesa-canvas: #f7f3ea;
   --mesa-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --mesa-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
   --mesa-font-meta: 12px;
@@ -107,18 +107,18 @@ body {
 
 :root[data-theme='dark'],
 body[theme-mode='dark'] {
-  --mesa-accent: #1d7295;
-  --mesa-accent-hover: #195f7d;
-  --mesa-accent-active: #154f68;
-  --mesa-accent-ink: #8fd0ea;
-  --mesa-text: #e6e8ec;
+  --mesa-accent: #2a6280;
+  --mesa-accent-hover: #234f68;
+  --mesa-accent-active: #1b3e52;
+  --mesa-accent-ink: #9fd0e6;
+  --mesa-text: #f3eee6;
   --mesa-text-2: #c6c8ce;
-  --mesa-bg: #121418;
-  --mesa-surface: #1a1d23;
-  --mesa-surface-2: #23272f;
-  --mesa-border: #333944;
-  --mesa-border-strong: #7c8594;
-  --mesa-focus: #8fd0ea;
+  --mesa-bg: #141210;
+  --mesa-surface: #1c1916;
+  --mesa-surface-2: #28241f;
+  --mesa-border: #3a342c;
+  --mesa-border-strong: #8a8074;
+  --mesa-focus: #9fd0e6;
   --mesa-danger: #ffb4a8;
   --mesa-danger-bg: #3a1d1b;
   --mesa-warning: #ffc76b;
@@ -127,7 +127,7 @@ body[theme-mode='dark'] {
   --mesa-info-bg: #16303b;
   --mesa-ok: #6fd39a;
   --mesa-ok-bg: #143024;
-  --mesa-canvas: #f4f5f7;
+  --mesa-canvas: #f4efe6;
   color-scheme: dark;
 
   /* Semi pisa estos nombres en `body[theme-mode=dark]`; se vuelven a atar a Mesa. */
@@ -164,7 +164,8 @@ body[theme-mode='dark'] {
 .mesa-bar .wb-title {
   margin: 0;
   font-size: var(--mesa-font-brand);
-  font-weight: 700;
+  font-weight: 650;
+  letter-spacing: -0.03em;
   line-height: 1.2;
 }
 .mesa-bar .wb-brand {
@@ -208,4 +209,22 @@ button.primary {
   background: var(--mesa-surface);
   color: var(--mesa-text);
   font: inherit;
+}
+
+/* El cromo es tinta sobre papel. El diagrama es lo único que grita. */
+.c4-menu-item[aria-current='true'] {
+  color: var(--mesa-accent-ink);
+  box-shadow: inset 0 -2px 0 var(--mesa-accent);
+  border-radius: 0;
+}
+.atelier-float {
+  background: color-mix(in srgb, var(--mesa-surface) 90%, transparent);
+  border: 1px solid var(--mesa-border);
+  border-radius: 999px;
+  box-shadow: none;
+}
+.atelier-mark {
+  background: var(--mesa-accent);
+  color: var(--mesa-accent-on);
+  letter-spacing: -0.04em;
 }

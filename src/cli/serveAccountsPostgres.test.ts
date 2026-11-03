@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Observability } from './observability';
 import { FolderProjectStore } from './workspace';
-import { hashSessionToken } from './accounts/store';
+import { hashSessionToken } from '../diagrams-identity/core/accounts/store';
 import { ANA, BETO, call, CARLA, cleanupCloud, cloudPostgres, signIn, startCloud, tracked } from '../../tests/helpers/cloud';
 import { loginWithGithub } from '../../tests/helpers/githubLogin';
 import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig } from '../../tests/helpers/postgres';

@@ -30,9 +30,12 @@ describe('manifiesto de federación del sitio estático', () => {
       expect(module.endpoints.schema).toBe(`../schema/${module.id}-document.schema.json`);
       expect(existsSync(module.endpoints.schema.replace('../', ''))).toBe(true);
       const embed = new URL(module.endpoints.embed, 'http://sitio/.well-known/iark.json');
-      const page = embed.pathname === '/' ? 'index.html' : embed.pathname.slice(1);
-      expect(existsSync(page), `${module.id}: ${page}`).toBe(true);
-      if (module.id !== 'c4') expect(embed.searchParams.get('module')).toBe(module.id);
+      if (module.id === 'c4') {
+        expect(embed.pathname).toBe('/');
+        expect(existsSync('index.html')).toBe(true);
+      } else {
+        expect(embed.pathname).toBe(`/modules/${module.id}`);
+      }
       expect(module.endpoints.api).toBeUndefined();
     }
   });

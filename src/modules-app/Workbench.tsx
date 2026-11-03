@@ -330,7 +330,7 @@ export function Workbench({ controller, embed = false, ui = 'full', dialog, onDi
                 ))}
               </div>
               {!embed && (
-                <a className="wb-link" href="trazabilidad.html" title={t('wb.traceTitle')}>
+                <a className="wb-link" href="/trace" title={t('wb.traceTitle')}>
                   {t('wb.traceLink')}
                 </a>
               )}

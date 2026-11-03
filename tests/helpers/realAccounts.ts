@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { JsonAccountStore } from '../../src/cli/accounts/jsonStore';
+import { JsonAccountStore } from '../../src/diagrams-identity/core/accounts/jsonStore';
 
 export const OPEN = { signup: 'open', admin: false } as const;
 export const INVITE = { signup: 'invite', admin: false } as const;

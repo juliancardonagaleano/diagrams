@@ -45,7 +45,7 @@ Cada spec tiene estas secciones, con estos nombres:
 
 1. **000 · Conexión con ECE.** Bloquea todo lo demás. Ya está escrita, en `borrador`. La próxima sesión la ejecuta así, sin pasar antes por `aceptada`, porque su trabajo es conseguir las citas que una aceptación necesita y porque no toca código de producto. Al cumplir los criterios pasa a `hecha`. Si ECE no está, se queda en `borrador` y la sesión se detiene.
 2. **001 · To-be C4.** Se redacta en `borrador` cuando 000 está `hecha`. Sigue bloqueada mientras 000 no lo esté. El JSON to-be se crea después de que 001 esté `aceptada`, no en el borrador.
-3. **Specs siguientes.** Cada una lleva sus ids del as-is y sus citas ECE. No empieza hasta que esa spec está `aceptada`.
+3. **Specs siguientes.** Cada una lleva sus ids del as-is y sus citas ECE. No empieza hasta que esa spec está `aceptada`. El orden, cuando lo estén, está en [plan-implementacion.md](plan-implementacion.md). Ese plan no es una spec y no autoriza código.
 
 ## Conectar ECE antes de rediseñar
 

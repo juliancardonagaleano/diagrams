@@ -5,35 +5,68 @@
   font-family: var(--mesa-font);
 }
 .home-main {
-  max-width: 960px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: var(--mesa-space-5) var(--mesa-space-4) 48px;
+  padding: 40px var(--mesa-space-4) 64px;
   display: flex;
   flex-direction: column;
-  gap: var(--mesa-space-5);
+  gap: 36px;
 }
-.home-lead { color: var(--mesa-text-2); margin: 0; font-size: var(--mesa-font-body); }
+.home-kicker {
+  margin: 8px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mesa-accent-ink);
+}
+.home-lead {
+  color: var(--mesa-text);
+  margin: -20px 0 0;
+  max-width: 38rem;
+  font-size: 22px;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--mesa-space-2);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
 }
 .home-card {
   display: flex;
   flex-direction: column;
-  gap: var(--mesa-space-1);
+  gap: 4px;
   text-align: left;
   text-decoration: none;
   color: inherit;
   background: var(--mesa-surface);
   border: 1px solid var(--mesa-border);
-  border-radius: var(--mesa-radius-panel);
-  padding: var(--mesa-space-3);
+  border-radius: 2px;
+  padding: 16px;
 }
-.home-card:hover { border-color: var(--mesa-accent-ink); }
-.home-card strong { font-size: 14px; }
+.home-card:hover {
+  border-color: var(--mesa-accent);
+}
+.home-specialty {
+  min-height: 132px;
+  justify-content: flex-end;
+}
+.home-index {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: var(--mesa-text-2);
+  font-size: 12px;
+}
+.home-card strong { font-size: 18px; letter-spacing: -0.02em; }
 .home-card span { color: var(--mesa-text-2); font-size: var(--mesa-font-body); }
-.home-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--mesa-space-2); }
-.home-form { display: flex; flex-wrap: wrap; gap: var(--mesa-space-2); align-items: center; }
+.home-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.home-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .home-form input { min-width: 240px; flex: 1; }
-.home h2 { margin: 0 0 var(--mesa-space-2); font-size: var(--mesa-font-section); }
+.home h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mesa-text-2);
+  font-weight: 600;
+}

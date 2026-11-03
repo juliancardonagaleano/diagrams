@@ -1,10 +1,10 @@
 import { writeSync } from 'node:fs';
-import { AccountError } from '../../src/cli/accounts/model';
-import { SqliteAccountStore } from '../../src/cli/accounts/sqliteStore';
+import { AccountError } from '../../src/diagrams-identity/core/accounts/model';
+import { SqliteAccountStore } from '../../src/diagrams-identity/core/accounts/sqliteStore';
 
 /**
  * Un proceso de verdad que usa la base de cuentas SQLite, para las pruebas de concurrencia entre procesos
- * (`src/cli/accounts/sqliteProcesses.test.ts`). Se lanza con `node --import tsx tests/helpers/sqliteWorker.ts <modo> <base> <n> [clave]`.
+ * (`src/diagrams-identity/core/accounts/sqliteProcesses.test.ts`). Se lanza con `node --import tsx tests/helpers/sqliteWorker.ts <modo> <base> <n> [clave]`.
  *
  * Escribe una línea JSON por operación **ya confirmada** (`{"ok":true}` o `{"error":"limit"}`) con `writeSync` (sin búfer), de modo
  * que, aunque el proceso muera de golpe, el padre sabe exactamente cuántas operaciones llegaron a confirmarse.

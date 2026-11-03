@@ -2,7 +2,7 @@ import { buildManifest, type ModuleManifest, type ModuleRegistry, type ProjectsA
 
 export const SUITE_NAME = 'DIAgrams';
 
-/** Módulos cuyo editor propio es la aplicación principal (`index.html`); el resto los abre el banco de trabajo (`modulos.html`). */
+/** Módulos cuyo editor propio es la aplicación principal (`/`); el resto los abre el banco en `/modules/<id>`. */
 const OWN_EDITOR = new Set(['c4']);
 
 export interface SuiteManifestOptions {
@@ -30,7 +30,7 @@ export type InstanceManifest = SuiteManifest;
 
 /**
  * Manifiesto de federación de una instancia (`iark.manifest/1`). Las URL de `endpoints` son relativas al propio manifiesto,
- * que se publica en `/.well-known/iark.json`: `../modulos.html` es el banco de trabajo, `../schema/…` los JSON Schema.
+ * que se publica en `/.well-known/iark.json`: `../modules/<id>` es el banco de trabajo, `../schema/…` los JSON Schema.
  * Así el mismo manifiesto vale bajo cualquier ruta base (GitHub Pages sirve bajo `/<repositorio>/`).
  */
 export function suiteManifest(registry: ModuleRegistry, options: SuiteManifestOptions): InstanceManifest {
@@ -43,7 +43,7 @@ export function suiteManifest(registry: ModuleRegistry, options: SuiteManifestOp
     // esquema que sirve la API; la web no puede abrirlo (ver docs/plugins.md, «Límites»).
     const external = registry.originOf(module.id) !== undefined;
     const found = {
-      ...(site && !external ? { embed: OWN_EDITOR.has(module.id) ? '../' : `../modulos.html?module=${module.id}` } : {}),
+      ...(site && !external ? { embed: OWN_EDITOR.has(module.id) ? '../' : `../modules/${module.id}` } : {}),
       ...(site && !external ? { schema: `../schema/${module.id}-document.schema.json` } : api ? { schema: `${api}/${module.id}/schema` } : {}),
       ...(api ? { api: `${api}/${module.id}` } : {}),
     };
