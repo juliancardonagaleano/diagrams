@@ -22,4 +22,15 @@ describe('spaRoutes', () => {
   it('conserva ?editor=1 como estudio', () => {
     expect(resolveSpaBootTarget('/', new URLSearchParams('editor=1'))).toEqual({ kind: 'studio' });
   });
+
+  it('modulos.html legacy resuelve al slot por module', () => {
+    const target = resolveSpaBootTarget('/modulos.html', new URLSearchParams('module=security'));
+    expect(target.kind).toBe('legacy-modules');
+    if (target.kind !== 'legacy-modules') return;
+    expect(target.moduleId).toBe('security');
+  });
+
+  it('trazabilidad.html legacy resuelve a trace', () => {
+    expect(resolveSpaBootTarget('/trazabilidad.html', new URLSearchParams())).toEqual({ kind: 'legacy-trace', search: '' });
+  });
 });

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { bundleFileName, bundleToText, checkProject, createBundle, importBundle, isVersioned, ProjectError, parseBundle, parseVersionId, snapshotProject, unsupportedVersions, type ImportedProject, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
+import { bundleFileName, ProjectError, parseBundle, parseVersionId, type ImportedProject, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
 import { accountHttpError } from '../../diagrams-identity/core/accounts/errors';
 import { createMembersApi } from '../../diagrams-identity/core/accounts/members';
 import type { Accounts } from '../../diagrams-identity/core/accounts/service';
@@ -12,8 +12,29 @@ import type { ChangeEvent, EventPublisher, PublishOptions } from '../../diagrams
 import { guard, requiredRole } from './projectHttpGuards';
 import { roleAllows } from '../../diagrams-identity/core/tokens';
 import { isWorkspaceId } from '../modules/projects/infrastructure/workspace';
-import { listProjectsQuery } from '../modules/projects/application/queries';
-import { prepareSaveDiagram } from '../modules/projects/domain/saveDiagram';
+import {
+  createDiagramCommand,
+  createProjectCommand,
+  deleteDiagramCommand,
+  deleteProjectCommand,
+  deleteVersionCommand,
+  importProjectCommand,
+  labelVersionCommand,
+  renameDiagramCommand,
+  renameProjectCommand,
+  restoreVersionCommand,
+  saveDiagramCommand,
+} from '../modules/projects/application/commands';
+import {
+  getDiagramQuery,
+  getProjectQuery,
+  getVersionQuery,
+  listProjectsQuery,
+  listVersionsQuery,
+  projectBundleQuery,
+  projectCheckQuery,
+  requireVersionedStore,
+} from '../modules/projects/application/queries';
 
 /**
  * API de proyectos de `iark serve` (con `--workspace`): los proyectos y diagramas del espacio de trabajo en carpeta. Todo es
@@ -206,7 +227,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     try {
       await scope.created(projectId);
     } catch (error) {
-      await projects.deleteProject(projectId).catch(() => undefined);
+      await deleteProjectCommand(projects, projectId).catch(() => undefined);
       throw error;
     }
   }
@@ -231,23 +252,21 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
   async function versionsRoute(req: IncomingMessage, res: ServerResponse, projects: ProjectStore, rest: string[], actor: string | undefined): Promise<void> {
     const method = req.method ?? 'GET';
     const [projectId, , diagramId, , rawVersion, action] = rest;
-    if (!isVersioned(projects)) throw unsupportedVersions();
+    requireVersionedStore(projects);
     const p = id(projectId, 'proyecto');
     const d = id(diagramId, 'diagrama');
     if (rest.length === 4) {
       if (method !== 'GET') return allow('GET');
-      return sendJson(res, 200, await projects.listVersions(p, d));
+      return sendJson(res, 200, await listVersionsQuery(projects, p, d));
     }
     const n = versionId(rawVersion);
     if (rest.length === 5) {
       if (method === 'GET') {
-        const version = await projects.getVersion(p, d, n);
-        if (!version) throw new ProjectError('not-found', `No existe la versión ${n} del diagrama «${d}» (¿se descartó al rotar el historial?).`);
-        return sendJson(res, 200, version);
+        return sendJson(res, 200, await getVersionQuery(projects, p, d, n));
       }
-      if (method === 'PATCH') return sendJson(res, 200, await projects.labelVersion(p, d, n, text(await bodyObject(ctx.readBody, req), 'label', { required: true })!));
+      if (method === 'PATCH') return sendJson(res, 200, await labelVersionCommand(projects, p, d, n, text(await bodyObject(ctx.readBody, req), 'label', { required: true })!));
       if (method === 'DELETE') {
-        await projects.deleteVersion(p, d, n);
+        await deleteVersionCommand(projects, p, d, n);
         return sendJson(res, 200, { deleted: n });
       }
       return allow('GET, PATCH, DELETE');
@@ -255,7 +274,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     if (rest.length === 6 && action === 'restore') {
       if (method !== 'POST') return allow('POST');
       const body = await bodyObject(ctx.readBody, req);
-      const restored = await projects.restoreVersion(p, d, n, { ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor });
+      const restored = await restoreVersionCommand(projects, p, d, n, { ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor });
       sendJson(res, 200, restored);
       if (!restored.unchanged) await announce(actor, { type: 'diagram.restored', project: p, diagram: d, updatedAt: restored.diagram.updatedAt });
       return;
@@ -274,7 +293,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       }
       if (method === 'POST') {
         const body = await bodyObject(ctx.readBody, req);
-        const created = await projects.createProject({ name: text(body, 'name', { required: true })!, description: text(body, 'description') });
+        const created = await createProjectCommand(projects, { name: text(body, 'name', { required: true })!, description: text(body, 'description') });
         await register(scope, created.id, projects);
         sendJson(res, 201, scope ? withRole(scope, created) : created, { Location: `/api/projects/${created.id}` });
         return announce(actor, { type: 'project.created', project: created.id, updatedAt: created.updatedAt });
@@ -286,7 +305,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
       const bundle = parseBundle(await ctx.readBody(req));
       const importIt = async (): Promise<ImportedProject> => {
         if (scope) await ctx.quotas?.assertCanImport(scope.userId, bundle);
-        return importBundle(projects, bundle, { name: url.searchParams.get('name') ?? undefined });
+        return importProjectCommand(projects, bundle, { name: url.searchParams.get('name') ?? undefined });
       };
       const imported = await (scope && ctx.quotas ? ctx.quotas.exclusive(scope.userId, importIt) : importIt());
       await register(scope, imported.project.id, projects);
@@ -297,19 +316,19 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     const projectId = id(first, 'proyecto');
     if (parts.length === 1) {
       if (method === 'GET') {
-        const found = await projects.getProject(projectId);
+        const found = await getProjectQuery(projects, projectId);
         if (!found) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
         return sendJson(res, 200, withRole(scope, found));
       }
       if (method === 'PATCH') {
-        const renamed = await projects.renameProject(projectId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!);
+        const renamed = await renameProjectCommand(projects, projectId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!);
         sendJson(res, 200, withRole(scope, renamed));
         return announce(actor, { type: 'project.changed', project: projectId, updatedAt: renamed.updatedAt });
       }
       if (method === 'DELETE') {
         // Quienes pertenecían al proyecto se olvidan al borrarlo (`scope.deleted`): se anotan antes para que el aviso les llegue.
         const belonged = ctx.accounts ? (await ctx.accounts.store.membersOf(projectId)).map((m) => m.user.id) : [];
-        await projects.deleteProject(projectId);
+        await deleteProjectCommand(projects, projectId);
         await scope?.deleted(projectId);
         sendJson(res, 200, { deleted: projectId });
         return announce(actor, { type: 'project.deleted', project: projectId }, { alsoUsers: belonged });
@@ -318,7 +337,7 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     }
 
     if (second === 'members') {
-      if (!(await projects.getProject(projectId))) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
+      if (!(await getProjectQuery(projects, projectId))) throw new ProjectError('not-found', `No existe el proyecto «${projectId}».`);
       // A quien se le quita el acceso se le avisa aunque ya no pertenezca (así su pantalla deja de mostrar el proyecto sin esperar al sondeo).
       const removing = ctx.accounts && req.method === 'DELETE' && parts[2] !== undefined ? (await ctx.accounts.store.membersOf(projectId)).find((m) => loginKey(m.user.login) === loginKey(parts[2])) : undefined;
       await members(req, res, projectId, parts.slice(2), scope?.userId);
@@ -327,44 +346,47 @@ export function createProjectsApi(ctx: ProjectsApiContext): (req: IncomingMessag
     }
     if (second === 'bundle' && parts.length === 2) {
       if (method !== 'GET') return allow('GET');
-      const snapshot = await snapshotProject(projects, projectId);
-      const file = bundleToText(createBundle(snapshot, { generator: 'DIAgrams' }));
+      const { snapshot, file } = await projectBundleQuery(projects, ctx.registry, projectId);
       return ctx.send(res, 200, file, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="${bundleFileName(snapshot.name)}"` });
     }
     if (second === 'check' && parts.length === 2) {
       if (method !== 'GET') return allow('GET');
-      return sendJson(res, 200, checkProject(await snapshotProject(projects, projectId), ctx.registry));
+      return sendJson(res, 200, await projectCheckQuery(projects, ctx.registry, projectId));
     }
     if (second === 'diagrams' && parts.length === 2) {
       if (method !== 'POST') return allow('POST');
       const body = await bodyObject(ctx.readBody, req);
-      const input = { module: text(body, 'module', { required: true }), name: text(body, 'name'), text: text(body, 'text', { required: true })!, by: actor };
-      const created = await withQuota(projectId, { text: input.text }, scope, () => projects.saveDiagram(projectId, input));
+      const input = { module: text(body, 'module', { required: true })!, name: text(body, 'name'), text: text(body, 'text', { required: true })!, by: actor };
+      const created = await withQuota(projectId, { text: input.text }, scope, () => createDiagramCommand(projects, projectId, input));
       sendJson(res, 201, created, { Location: `/api/projects/${projectId}/diagrams/${created.id}` });
       return announce(actor, { type: 'diagram.created', project: projectId, diagram: created.id, updatedAt: created.updatedAt });
     }
     if (second === 'diagrams' && parts.length === 3) {
       const diagramId = id(third, 'diagrama');
       if (method === 'GET') {
-        const diagram = await projects.getDiagram(projectId, diagramId);
+        const diagram = await getDiagramQuery(projects, projectId, diagramId);
         if (!diagram) throw new ProjectError('not-found', `No existe el diagrama «${diagramId}» en el proyecto «${projectId}».`);
         return sendJson(res, 200, diagram);
       }
       if (method === 'PUT') {
         const body = await bodyObject(ctx.readBody, req);
         const rawText = text(body, 'text', { required: true })!;
-        const input = prepareSaveDiagram({ id: diagramId, text: rawText, ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor });
-        const saved = await withQuota(projectId, { diagramId, text: input.text }, scope, () => projects.saveDiagram(projectId, input));
+        const saved = await withQuota(
+          projectId,
+          { diagramId, text: rawText },
+          scope,
+          () => saveDiagramCommand(projects, projectId, { id: diagramId, text: rawText, ifUpdatedAt: text(body, 'ifUpdatedAt'), by: actor }),
+        );
         sendJson(res, 200, saved);
         return announce(actor, { type: 'diagram.saved', project: projectId, diagram: diagramId, updatedAt: saved.updatedAt });
       }
       if (method === 'PATCH') {
-        const renamed = await projects.renameDiagram(projectId, diagramId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!);
+        const renamed = await renameDiagramCommand(projects, projectId, diagramId, text(await bodyObject(ctx.readBody, req), 'name', { required: true })!);
         sendJson(res, 200, renamed);
         return announce(actor, { type: 'diagram.renamed', project: projectId, diagram: diagramId, updatedAt: renamed.updatedAt });
       }
       if (method === 'DELETE') {
-        await projects.deleteDiagram(projectId, diagramId);
+        await deleteDiagramCommand(projects, projectId, diagramId);
         sendJson(res, 200, { deleted: diagramId });
         return announce(actor, { type: 'diagram.deleted', project: projectId, diagram: diagramId });
       }
