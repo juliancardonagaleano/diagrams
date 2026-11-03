@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ProjectStore } from '@iark/kernel';
 import { guard } from '../../diagrams-app/host/projectHttpGuards';
-import type { Accounts } from '../../cli/accounts/service';
+import type { Accounts } from '../../diagrams-identity/core/accounts/service';
 import { HttpError } from '../../cli/httpError';
 import { clientAddress, type Authenticator } from '../../cli/serveAuth';
 import { isWorkspaceId } from '../../cli/workspace';

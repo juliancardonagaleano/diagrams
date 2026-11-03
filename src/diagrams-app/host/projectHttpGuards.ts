@@ -1,7 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 import { isJson } from '../../cli/httpBody';
 import { HttpError } from '../../cli/httpError';
-import type { TokenRole } from '../../cli/tokens';
+import type { TokenRole } from '../../diagrams-identity/core/tokens';
 
 export const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);

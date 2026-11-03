@@ -1,5 +1,5 @@
 import type { ServerResponse } from 'node:http';
-import type { Accounts } from '../../../cli/accounts/service';
+import type { Accounts } from '../../../diagrams-identity/core/accounts/service';
 import type { Identity } from '../../../cli/serveAuth';
 import type { ChangeEvent, EventPublisher, PublishOptions } from './types';
 
