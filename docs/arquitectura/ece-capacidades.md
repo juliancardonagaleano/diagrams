@@ -2,7 +2,7 @@
 
 [← Spec 000](specs/000-conexion-ece.md) · [Origen de la configuración](ece-repositorio-iark.md)
 
-Catálogo del 2 de noviembre de 2026 (UTC), copiado de una llamada real. El texto dentro de cada bloque es el que devolvió el servidor, sin parafrasear.
+Catálogo del 3 de noviembre de 2026 (UTC), copiado de una llamada real. El texto dentro de cada bloque es el que devolvió el servidor, sin parafrasear.
 
 La llamada no es el descubrimiento de esta sesión de Cursor. `GetDynamicTools` no devolvió un namespace ECE. El proceso fue `python3 scripts/mcp_ece.py`: el cliente habla stdio (en la prueba, NDJSON) y el puente `scripts/mcp-ece.py` reenvía por HTTP. La URL y la clave salen de `ECE_MCP_URL` y `ECE_MCP_API_KEY`. Esos valores no están en este archivo.
 
@@ -14,7 +14,7 @@ La prueba fijó `MCP_PCE_CACHE_PATH` a un archivo nuevo, fuera del repo, para no
 |---|---|
 | `initialize` | `result` con `protocolVersion` `2025-03-26` |
 | `notifications/initialized` | notificación; el puente no reenvía cuerpo vacío |
-| `tools/list` | 8 herramientas, sin `nextCursor` |
+| `tools/list` | 10 herramientas, sin `nextCursor` |
 | `resources/list` | 1 recurso, sin `nextCursor` |
 
 `serverInfo` devuelto por `initialize`:
@@ -256,7 +256,7 @@ Parámetros (`inputSchema`):
 Descripción:
 
 ```text
-Úsala cuando la pregunta es abierta y necesitas evidencia citable con relevancia: es la única que publica una puntuación de confianza. Devuelve: `items` con los fragmentos, su ruta de origen y su puntuación de relevancia, `built_systems` con los sistemas construidos que la evidencia materializa (puede ser una lista vacía), y `governance`, que aquí trae `confidence`. No la uses para: el documento entero: `read_document`. Para una entidad de un tipo, `search_catalog` sin `query` es más barato. En su lugar: read_document. Parámetros: `query` es la consulta libre (obligatoria). `top_k` acota los fragmentos. El complemento vivo es obligatorio —salvo las excluidas por la política—: `live_results` trae lo que respondió y `governance.live_sources_unavailable`, lo que no. El recorte por cupo viaja en `governance.pipeline.selection`. Valores por defecto: `top_k`=5. La confianza llega en `governance.confidence`, con el termómetro de seis niveles: Termómetro de confianza — seis niveles sobre el `score` redondeado a 2 decimales: `insufficient` (score < 0.2, no usar); `low` ([0.2, 0.45), usar con cautela / verificar); `medium_low` ([0.45, 0.6), correcta pero floja (verificar fuente)); `medium` ([0.6, 0.75), correcta razonable); `high` ([0.75, 0.9), correcta sólida (usar con citación)); `very_high` (>= 0.9, excelente (usar sin dudar)). En el piso `insufficient`, `cause` dice por qué; su vocabulario vive en el mapa (`ece://navegacion`). Alcance: el universo visible de quien llama — esta tool expone solo la evidencia y las fuentes que tiene autorizadas, nunca lo que se le retiene.
+Úsala cuando la pregunta es abierta y necesitas evidencia citable con relevancia: es la única que publica una puntuación de confianza, con el complemento de fuentes vivas si la política lo permite. Devuelve: `items` con los fragmentos, su ruta de origen y su puntuación de relevancia, `built_systems` con los sistemas construidos que la evidencia materializa (puede ser una lista vacía), y `governance`, que aquí trae `confidence`. No la uses para: el documento entero: `read_document`. Para una entidad de un tipo, `search_catalog` sin `query` es más barato. En su lugar: read_document. Parámetros: `query` es la consulta libre (obligatoria). `top_k` acota los fragmentos. El complemento vivo es obligatorio salvo las excluidas por la política: `live_results` trae lo respondido y `governance.live_sources_unavailable`, lo que no. El recorte por cupo va en `governance.pipeline.selection`. Valores por defecto: `top_k`=5. La confianza llega en `governance.confidence`, con el termómetro de seis niveles: Termómetro de confianza — seis niveles sobre el `score` redondeado a 2 decimales: `insufficient` (score < 0.2, no usar); `low` ([0.2, 0.45), usar con cautela / verificar); `medium_low` ([0.45, 0.6), correcta pero floja (verificar fuente)); `medium` ([0.6, 0.75), correcta razonable); `high` ([0.75, 0.9), correcta sólida (usar con citación)); `very_high` (>= 0.9, excelente (usar sin dudar)). En el piso `insufficient`, `cause` dice por qué; su vocabulario vive en el mapa (`ece://navegacion`). Alcance: el universo visible de quien llama — esta tool expone solo la evidencia y las fuentes que tiene autorizadas, nunca lo que se le retiene.
 ```
 
 Parámetros (`inputSchema`):
@@ -437,6 +437,108 @@ Parámetros (`inputSchema`):
   "type": "object",
   "additionalProperties": true,
   "title": "resolve_contextDictOutput"
+}
+```
+
+### `list_query_pipelines`
+
+Descripción:
+
+```text
+Úsala para enterarte de qué consultas especializadas (pipelines) puedes invocar y cómo: el catálogo de planes nombrados del registro, derivado solo con lo que tu perfil alcanza. Devuelve: `pipelines` con las entradas alcanzables —cada una con su id, su nombre, su descripción, sus parámetros con ejemplo de valor, la invocación completa para copiar, qué devuelve y su presupuesto declarado— y `count` con el conteo. Sin prosa: dato estructurado. Solo aparece lo que tu perfil alcanza en ambas esferas: la ontológica y la de contenido. No la uses para: ejecutar un pipeline: esta tool solo lista lo que existe y cómo se invoca. Tampoco para buscar evidencia: para eso, `retrieve_knowledge`. En su lugar: retrieve_knowledge. Parámetros: `domain` acota a los pipelines de ese dominio; `keyword` acota a los que coinciden en nombre, descripción o dominio. Combinados acotan a la intersección; sin filtros va el listado completo alcanzable. Valores por defecto: `domain`=None, `keyword`=None. Alcance: el universo visible de quien llama — esta tool expone solo la evidencia y las fuentes que tiene autorizadas, nunca lo que se le retiene.
+```
+
+Parámetros (`inputSchema`):
+
+```json
+{
+  "properties": {
+    "domain": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Domain"
+    },
+    "keyword": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Keyword"
+    }
+  },
+  "type": "object",
+  "title": "list_query_pipelinesArguments"
+}
+```
+
+`outputSchema`:
+
+```json
+{
+  "type": "object",
+  "additionalProperties": true,
+  "title": "list_query_pipelinesDictOutput"
+}
+```
+
+### `run_query_pipeline`
+
+Descripción:
+
+```text
+Úsala cuando ya descubriste un pipeline con `list_query_pipelines` y quieres ejecutarlo: invoca un plan nombrado por su id y sus parámetros. Devuelve: La misma forma de la búsqueda estándar: `results` con la evidencia local, `live_results` con lo que respondieron las fuentes vivas, `live_manifest` con toda la evidencia recolectada —referencia citable `{fuente}:{id}`— y `governance`, que trae la traza completa: las etapas que corrieron, el plan invocado (`pipeline: {id, version}`) y el paso que produjo cada evidencia, fallo u omisión. No la uses para: descubrir qué pipelines existen: para eso, `list_query_pipelines`. Tampoco para una pregunta abierta sin plan nombrado: para eso, `retrieve_knowledge`. En su lugar: retrieve_knowledge, list_query_pipelines. Parámetros: `pipeline` (obligatorio) es el id del plan a invocar. `params` lleva los insumos de la invocación: `text` alimenta el insumo `request.text` del plan y la búsqueda base, y el resto de los valores alimentan los insumos `request.params` que el documento declara; un parámetro declarado ausente o no simple rechaza la llamada nombrándolo. Valores por defecto: `params`=None. El plan nombrado se compone SOBRE el pipeline base: la respuesta trae tu búsqueda principal además de la del plan, bajo el mismo presupuesto. Un paso cortado por presupuesto, tiempo o tope llega como omisión con su motivo y su paso dentro de `governance.pipeline` —nunca como error— y el resto de la evidencia viaja igual. Alcance: el universo visible de quien llama — esta tool expone solo la evidencia y las fuentes que tiene autorizadas, nunca lo que se le retiene.
+```
+
+Parámetros (`inputSchema`):
+
+```json
+{
+  "properties": {
+    "pipeline": {
+      "title": "Pipeline",
+      "type": "string"
+    },
+    "params": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Params"
+    }
+  },
+  "required": [
+    "pipeline"
+  ],
+  "type": "object",
+  "title": "run_query_pipelineArguments"
+}
+```
+
+`outputSchema`:
+
+```json
+{
+  "type": "object",
+  "additionalProperties": true,
+  "title": "run_query_pipelineDictOutput"
 }
 ```
 
