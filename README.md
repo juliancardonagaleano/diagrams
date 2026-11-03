@@ -31,12 +31,11 @@ npm run cli -- generate "Banca en línea con app web (React), API (Node.js), Pos
 npm run cli -- generate "Pedidos con Kafka y una pasarela de pagos" --module integration --json pedidos.json
 ```
 
-El servicio y el sitio, en un solo proceso:
+Sitio (Pages o local) y API (proceso aparte):
 
 ```bash
-npm run build
-npm run cli -- serve --static dist/app     # http://127.0.0.1:8787: editor, banco de trabajo, shell y API
-docker build -t diagrams . && docker run --rm -p 8787:8787 diagrams     # lo mismo, en un contenedor
+npm run build:app && npm run cli -- serve --port 8787   # API en http://127.0.0.1:8787; sitio con vite preview o Pages
+docker build -t diagrams . && docker run --rm -p 8787:8787 diagrams     # solo API en el contenedor
 ```
 
 Para comprobar un cambio: `npm run typecheck`, `npm test` (vitest), `npm run e2e` (Playwright, requiere `build:app` previo) o todo junto con `npm run verify`. Los scripts, la estructura del repositorio y las pruebas están en [docs/desarrollo.md](docs/desarrollo.md).

@@ -107,7 +107,7 @@ Julian confirmó el repositorio exacto **`https://github.com/sc-arquitectura/iar
 
 `GetDynamicTools` con patrón `ECE|ece`: **sin namespace ECE**. Catálogo de sesión sin cambios respecto al bloque anterior: `cursor`, `cursor-cloud`, `cursor-subscriptions`, `Fal`, `Figma` (todos `ready` salvo `cursor`, que no trae `namespaceStatus`).
 
-No se añadió `.cursor/mcp.json` ni paquetes MCP desde iark (no hubo fuente legible). `docs/arquitectura/ece-capacidades.md` no existe. Estado: **`borrador`**.
+No se añadió `.cursor/mcp.json` ni paquetes MCP desde iark (no hubo fuente legible). En ese momento `docs/arquitectura/ece-capacidades.md` no existía. *(Histórico; el catálogo existe hoy y el estado vigente es `hecha`, ver § estado.)*
 
 ```text
 npm run cli -- validate examples/diagrams-as-is.json
@@ -142,7 +142,7 @@ Nombres, descripciones y esquemas están en [ece-capacidades.md](../ece-capacida
 
 El comando del cliente ya consta: `python3 scripts/mcp_ece.py` (stdio). La URL consta como nombre de variable `ECE_MCP_URL` (presente, no vacía, `https`, sin userinfo); el valor no se escribe. La autenticación consta como `ECE_MCP_API_KEY` (presente, no vacía; el puente la manda en `X-API-Key` porque no tiene forma JWT). Falta que una sesión nueva cargue `.cursor/mcp.json` y vuelva a descubrir el namespace.
 
-Estado: **`borrador`**. Hay catálogo de una llamada real y no hay ECE en la sesión, así que no se cumplen todos los criterios y no pasa a `hecha`.
+*(Histórico.)* En esa sesión no había namespace ECE en Cursor pese al catálogo por puente. Julian cerró después la spec en **`hecha`** con [ece-capacidades.md](../ece-capacidades.md) (ver § estado y «Resultado (aceptación Julian)»).
 
 ```text
 npm run cli -- validate examples/diagrams-as-is.json
