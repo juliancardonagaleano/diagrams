@@ -8,9 +8,9 @@
 
 ## estado
 
-`aceptada`
+`en curso`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
+Rama `cursor/impl-app-shell-58e1`: esqueleto `src/diagrams-sse/` (`EventHub`, `createEventsHost`) y delegación en `serve.ts`. El hub sigue en el mismo proceso hasta existir canal entre app y gateway.
 
 ## problema
 

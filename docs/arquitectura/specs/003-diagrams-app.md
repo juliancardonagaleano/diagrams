@@ -8,9 +8,9 @@
 
 ## estado
 
-`aceptada`
+`en curso`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
+Rama `cursor/impl-app-shell-58e1`: `src/diagrams-app/` con Host (`projectsApi`), Application (`queries`), Domain (`saveDiagram`) e Infrastructure (reexport de almacenes en `src/cli/`). `iark serve` delega con `createProjectsHost` como identity. Falta mover por completo `workspace.ts` / `postgresProjects.ts` a Infrastructure y orquestar todas las escrituras por Application.
 
 ## problema
 

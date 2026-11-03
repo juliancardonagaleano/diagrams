@@ -26,9 +26,10 @@ export const CHUNK_LIMITS: ChunkLimits = {
    */
   maxInitialBytes: {
     'index.html': 1_560_000,
-    'modulos.html': 1_230_000,
-    'suite.html': 630_000,
-    'trazabilidad.html': 530_000,
+    // Copias legacy del mismo bundle (spec 006); el router resuelve la superficie por pathname.
+    'modulos.html': 1_560_000,
+    'suite.html': 1_560_000,
+    'trazabilidad.html': 1_560_000,
   },
 };
 

@@ -15,8 +15,8 @@ import { Observability } from './observability';
 import type { MetricFamily } from './observability/metrics';
 import { createMetricsEndpoint } from './observability/metricsEndpoint';
 import { createAuthenticator, type Authenticator, type FailureLimiterOptions } from './serveAuth';
-import { createEventsApi, EventHub, type EventHubOptions } from './serveEvents';
-import { createProjectsApi } from './serveProjects';
+import { createProjectsHost } from '../diagrams-app';
+import { createEventsHost, EventHub, type EventHubOptions } from '../diagrams-sse';
 import { applySecurityHeaders } from './securityHeaders';
 import { suiteManifest } from './suiteManifest';
 import type { TokenStore } from '../diagrams-identity/core/tokens';
@@ -342,8 +342,8 @@ export function createSuiteServer(options: ServeOptions): Server {
     if (req.method !== allowed) throw new HttpError(405, `Este endpoint solo admite ${allowed}.`, { allow: allowed });
   };
 
-  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, quotas, events: hub, readBody: observedBody, send, sendJson });
-  const eventsApi = createEventsApi({ hub, store: options.projects, cors, auth, recheck: rawAuth, accounts: options.accounts, trustProxy: options.trustProxy ?? false, streaming: (req, summary) => obs.contextOf(req)?.streaming(summary) });
+  const projectsHost = createProjectsHost({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, quotas, events: hub, readBody: observedBody, send, sendJson });
+  const eventsHost = createEventsHost({ hub, store: options.projects, cors, auth, recheck: rawAuth, accounts: options.accounts, trustProxy: options.trustProxy ?? false, streaming: (req, summary) => obs.contextOf(req)?.streaming(summary) });
   const identityApi = createIdentityApi({
     accounts: options.accounts,
     auth,
@@ -371,8 +371,8 @@ export function createSuiteServer(options: ServeOptions): Server {
 
   async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const parts = url.pathname.slice(API.length).split('/').filter(Boolean).map(decodeSegment);
-    if (parts[0] === 'projects') return projectsApi(req, res, url, parts.slice(1));
-    if (parts[0] === 'events') return eventsApi(req, res, url, parts.slice(1));
+    if (await projectsHost.handle(req, res, parts, url)) return;
+    if (await eventsHost.handle(req, res, parts, url)) return;
     if (await identityApi.handle(req, res, parts, url)) return;
     if (await moduleApi.handle(req, res, parts, url)) return;
     throw new HttpError(404, 'Ruta de la API desconocida. Ver /api/modules.');

@@ -311,7 +311,7 @@ describe('iark serve: límites, CORS y sitio estático', () => {
 
     const manifest = await (await fetch(`${base}/.well-known/iark.json`)).json();
     const security = manifest.modules.find((m: { id: string }) => m.id === 'security');
-    expect(security.endpoints).toEqual({ embed: '../modulos.html?module=security', schema: '../schema/security-document.schema.json', api: '../api/security' });
+    expect(security.endpoints).toEqual({ embed: '../modules/security', schema: '../schema/security-document.schema.json', api: '../api/security' });
     server.close();
   });
 });

@@ -14,8 +14,8 @@ describe('inicio', () => {
     localStorage.clear();
     render(<HomeScreen state={state} />);
     expect(screen.getByRole('heading', { name: 'Especialidades' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Integración/ })).toHaveAttribute('href', 'modulos.html?module=integration');
-    expect(screen.getByRole('link', { name: 'Trazabilidad' })).toHaveAttribute('href', 'trazabilidad.html');
+    expect(screen.getByRole('link', { name: /Integración/ })).toHaveAttribute('href', '/modules/integration');
+    expect(screen.getByRole('link', { name: 'Trazabilidad' })).toHaveAttribute('href', '/trace');
     expect(screen.getByRole('link', { name: 'Editor C4 clásico' })).toHaveAttribute('href', '?editor=1');
     expect(screen.getByText('Todavía no hay proyectos en este almacén.')).toBeInTheDocument();
   });
@@ -38,6 +38,6 @@ describe('inicio', () => {
         last={{ projectId: 'tienda', diagramId: 'ctx' }}
       />,
     );
-    expect(screen.getByTestId('home-continue')).toHaveAttribute('href', 'modulos.html?project=tienda&diagram=ctx');
+    expect(screen.getByTestId('home-continue')).toHaveAttribute('href', '/modules/c4?project=tienda&diagram=ctx');
   });
 });

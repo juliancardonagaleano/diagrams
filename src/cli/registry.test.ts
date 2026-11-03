@@ -201,7 +201,7 @@ describe('los módulos de terceros en las superficies', () => {
     expect(uno).toMatchObject({ id: 'uno', contractVersion: 1, documentVersion: '1.0', endpoints: { api: '../api/uno', schema: '../api/uno/schema' } });
     expect(uno.endpoints).not.toHaveProperty('embed');
     // los incorporados siguen igual
-    expect(withSite.modules.find((m) => m.id === 'security')!.endpoints).toMatchObject({ embed: '../modulos.html?module=security', schema: '../schema/security-document.schema.json', api: '../api/security' });
+    expect(withSite.modules.find((m) => m.id === 'security')!.endpoints).toMatchObject({ embed: '../modules/security', schema: '../schema/security-document.schema.json', api: '../api/security' });
     expect(suiteManifest(registry, { version: '1', api: '../api', site: false }).modules.find((m) => m.id === 'uno')!.endpoints).toEqual({ api: '../api/uno', schema: '../api/uno/schema' });
   });
 

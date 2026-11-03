@@ -20,7 +20,7 @@ function projectHref(project: ProjectSummary): string {
   const params = new URLSearchParams({ project: project.id });
   const first = project.diagrams[0];
   if (first) params.set('diagram', first.id);
-  return `modulos.html?${params.toString()}`;
+  return `/modules/c4?${params.toString()}`;
 }
 
 function continueHref(last: LastOpened | undefined, projects: ProjectSummary[]): string | undefined {
@@ -30,7 +30,7 @@ function continueHref(last: LastOpened | undefined, projects: ProjectSummary[]):
   const params = new URLSearchParams({ project: project.id });
   if (last.diagramId && project.diagrams.some((diagram) => diagram.id === last.diagramId)) params.set('diagram', last.diagramId);
   else if (project.diagrams[0]) params.set('diagram', project.diagrams[0].id);
-  return `modulos.html?${params.toString()}`;
+  return `/modules/c4?${params.toString()}`;
 }
 
 export function HomeScreen({ state, last }: { state: ProjectsState; last?: LastOpened }) {
@@ -47,7 +47,7 @@ export function HomeScreen({ state, last }: { state: ProjectsState; last?: LastO
         <h1 className="wb-title">
           DIAgrams <small>Suite</small>
         </h1>
-        <a href="trazabilidad.html">{t('wb.traceLink')}</a>
+        <a href="/trace">{t('wb.traceLink')}</a>
         <a href="?editor=1">{t('home.editor')}</a>
         <LanguageSelect />
       </header>
@@ -69,7 +69,7 @@ export function HomeScreen({ state, last }: { state: ProjectsState; last?: LastO
           {state.ready && state.error && <p role="alert">{state.error}</p>}
           {state.ready && !state.error && state.projects.length === 0 && (
             <p>
-              {t('home.noProjects')} <a href="modulos.html?module=c4">{t('home.newProject')}</a>
+              {t('home.noProjects')} <a href="/modules/c4">{t('home.newProject')}</a>
             </p>
           )}
           {state.projects.length > 0 && (
@@ -92,7 +92,7 @@ export function HomeScreen({ state, last }: { state: ProjectsState; last?: LastO
           <h2 id="home-modules">{t('home.modules')}</h2>
           <div className="home-grid">
             {MODULE_SOURCES.map((source, index) => (
-              <a key={source.id} className="home-card home-specialty" href={`modulos.html?module=${source.id}`}>
+              <a key={source.id} className="home-card home-specialty" href={`/modules/${source.id}`}>
                 <span className="home-index">{String(index + 1).padStart(2, '0')}</span>
                 <strong>{source.label}</strong>
                 <span>{source.id}</span>
@@ -108,7 +108,7 @@ export function HomeScreen({ state, last }: { state: ProjectsState; last?: LastO
             <ul className="home-list">
               {drafts.map((source) => (
                 <li key={source.id}>
-                  <a className="home-card" href={`modulos.html?module=${source.id}`}>
+                  <a className="home-card" href={`/modules/${source.id}`}>
                     <strong>{source.label}</strong>
                     <span>{source.id}</span>
                   </a>

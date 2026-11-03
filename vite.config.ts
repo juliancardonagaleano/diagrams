@@ -16,6 +16,42 @@ const base = process.env.BASE_PATH ?? '/';
  * Publica los JSON Schema de los módulos (`schema/`) junto al sitio: el manifiesto de federación
  * (`/.well-known/iark.json`) los anuncia como `endpoints.schema` y sirven de `$schema` para editores y agentes.
  */
+/** Copia `index.html` a entradas legacy (spec 006): el router en `boot.ts` resuelve la ruta. */
+function legacyDevFallback(): Plugin {
+  return {
+    name: 'iark-legacy-dev-fallback',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        const raw = req.url ?? '/';
+        const path = raw.split('?')[0] ?? '/';
+        if (path === '/modulos.html' || path === '/trazabilidad.html' || path === '/suite.html') {
+          const q = raw.includes('?') ? raw.slice(raw.indexOf('?')) : '';
+          req.url = `/index.html${q}`;
+        }
+        next();
+      });
+    },
+  };
+}
+
+function legacySuiteHtmlCopies(): Plugin {
+  let outDir = 'dist/app';
+  const legacy = ['modulos.html', 'trazabilidad.html', 'suite.html'] as const;
+  return {
+    name: 'iark-legacy-suite-html',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      const index = resolve(outDir, 'index.html');
+      if (!existsSync(index)) return;
+      for (const name of legacy) cpSync(index, resolve(outDir, name));
+    },
+  };
+}
+
 function publishSchemas(): Plugin {
   let outDir = 'dist/app';
   return {
@@ -32,7 +68,7 @@ function publishSchemas(): Plugin {
 
 export default defineConfig({
   base,
-  plugins: [react(), tailwindcss(), publishSchemas()],
+  plugins: [react(), tailwindcss(), publishSchemas(), legacyDevFallback(), legacySuiteHtmlCopies()],
   resolve: {
     alias: {
       '@core': fileURLToPath(new URL('./packages/domain-c4/src', import.meta.url)),
@@ -55,11 +91,8 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         'embed-host': fileURLToPath(new URL('./examples/embed-host.html', import.meta.url)),
-        modulos: fileURLToPath(new URL('./modulos.html', import.meta.url)),
         'modules-host': fileURLToPath(new URL('./examples/modules-host.html', import.meta.url)),
         'web-component-host': fileURLToPath(new URL('./examples/web-component-host.html', import.meta.url)),
-        suite: fileURLToPath(new URL('./suite.html', import.meta.url)),
-        trazabilidad: fileURLToPath(new URL('./trazabilidad.html', import.meta.url)),
       },
       output: {
         // El módulo C4 lo importa el editor principal de forma estática y el banco de trabajo bajo demanda: si quedara

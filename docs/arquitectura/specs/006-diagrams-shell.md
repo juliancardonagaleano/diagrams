@@ -10,7 +10,7 @@
 
 `en curso`
 
-Rama `cursor/impl-shell-spa-58e1`: router unificado en `src/shell/spaRoutes.ts` usado por `src/boot.ts` (rutas canónicas + consultas legacy; HTML extra de Vite en paso siguiente).
+Rama `cursor/impl-app-shell-58e1`: un solo `rollupOptions.input` de suite (`index.html`); `/modules/:id` y `/trace` cargan desde `spaRoutes.ts`; copias legacy en build y fallback en dev; enlaces internos y manifiesto apuntan a rutas canónicas.
 
 ## problema
 
