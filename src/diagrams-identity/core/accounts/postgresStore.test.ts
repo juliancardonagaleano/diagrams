@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { accountStoreContract } from '../../../tests/helpers/accountStoreContract';
-import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../tests/helpers/postgres';
-import { PostgresDatabase } from '../postgres/pool';
+import { accountStoreContract } from '../../../../tests/helpers/accountStoreContract';
+import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../../tests/helpers/postgres';
+import { PostgresDatabase } from '../../../cli/postgres/pool';
 import { accountHttpError } from './errors';
 import { MAX_MEMBERS_PER_PROJECT, MAX_PENDING_USERS, MAX_SESSIONS_PER_USER, SESSION_PREFIX, AccountError } from './model';
 import { PostgresAccountStore } from './postgresStore';

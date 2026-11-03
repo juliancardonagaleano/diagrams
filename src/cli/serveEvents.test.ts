@@ -8,7 +8,7 @@ import { parseProjectEvent, SseParser, type ProjectEvent, type SseMessage } from
 import { Observability } from './observability';
 import { createDefaultRegistry } from './registry';
 import { createSuiteServer, type ServeOptions } from './serve';
-import { createToken, revokeToken } from './tokens';
+import { createToken, revokeToken } from '../diagrams-identity/core/tokens';
 import { FolderProjectStore } from './workspace';
 import { ANA, BETO, call, CARLA, cleanupCloud, example, signIn, startCloud, tracked, type Cloud, type CloudOptions } from '../../tests/helpers/cloud';
 import { memorySink } from '../../tests/helpers/observability';

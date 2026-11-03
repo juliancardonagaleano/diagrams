@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
 import type { Command } from 'commander';
-import { CliError } from '../io';
-import { DatabaseConfigError } from '../postgres/config';
-import { DatabaseError } from '../postgres/pool';
-import { acquireDatabase, releaseDatabase } from '../postgres/shared';
+import { CliError } from '../../../cli/io';
+import { DatabaseConfigError } from '../../../cli/postgres/config';
+import { DatabaseError } from '../../../cli/postgres/pool';
+import { acquireDatabase, releaseDatabase } from '../../../cli/postgres/shared';
 import { describeImport, importAccounts } from './migrate';
 import { AccountError } from './model';
 import { PostgresAccountStore } from './postgresStore';

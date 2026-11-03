@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { isGithubLogin } from '../accounts/store';
-import type { PublicUser } from '../accounts/service';
+import { isGithubLogin } from '../../diagrams-identity/core/accounts/store';
+import type { PublicUser } from '../../diagrams-identity/core/accounts/service';
 import { HttpError } from '../httpError';
 import { clientAddress, type Identity } from '../serveAuth';
 import { AuditLog, deriveAudit, type Actor, type AuditDraft } from './audit';

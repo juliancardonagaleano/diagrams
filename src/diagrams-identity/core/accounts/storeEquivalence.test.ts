@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../tests/helpers/postgres';
-import { PostgresDatabase } from '../postgres/pool';
+import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../../tests/helpers/postgres';
+import { PostgresDatabase } from '../../../cli/postgres/pool';
 import { asAsync, AccountError, JsonAccountStore, MAX_PENDING_USERS, MAX_SESSIONS_PER_USER, PostgresAccountStore, SqliteAccountStore, type AccountsFile, type AccountStore } from './store';
 
 requirePostgresIfCi();

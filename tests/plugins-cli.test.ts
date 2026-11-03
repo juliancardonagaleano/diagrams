@@ -2,7 +2,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createToken } from '../src/cli/tokens';
+import { createToken } from '../src/diagrams-identity/core/tokens';
 import { buildCliBundle, BUNDLE_TIMEOUT, PROCESS_TEST_TIMEOUT, type CliBundle } from './helpers/cliBundle';
 import { createPluginProject, type PluginProject } from './helpers/pluginProject';
 

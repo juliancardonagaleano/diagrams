@@ -133,7 +133,7 @@ export interface FakeMember {
 const STATUS: Record<ProjectErrorCode, number> = { 'not-found': 404, exists: 409, conflict: 409, invalid: 400, unavailable: 500, unauthorized: 401, forbidden: 403, unsupported: 501 };
 
 const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
-/** El nombre de usuario que acepta la administración de cuentas del servidor (`src/cli/accounts/store.ts`). */
+/** El nombre de usuario que acepta la administración de cuentas del servidor (`src/diagrams-identity/core/accounts/store.ts`). */
 const INSTANCE_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9_]|-(?=[A-Za-z0-9_])){0,38}$/;
 const sameLogin = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
 
@@ -272,7 +272,7 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
   const QUOTA_FIELDS: readonly string[] = ['bytes', 'projects', 'diagramsPerProject'];
   const SITE_ROLES: readonly string[] = ['admin', 'member', 'guest'];
 
-  /** `/api/admin/users` con las mismas reglas que el servidor de verdad (`src/cli/accounts/admin.ts`). */
+  /** `/api/admin/users` con las mismas reglas que el servidor de verdad (`src/diagrams-identity/core/accounts/admin.ts`). */
   const adminUsers = (method: string, parts: string[], body: Record<string, unknown>, caller: FakePerson | undefined): Response => {
     if (parts[0] !== 'users' || parts.length > 2) return json(404, { error: 'Ruta de administración desconocida: use /api/admin/users o /api/admin/users/<usuario de GitHub>.' });
     if (parts.length === 1) {
@@ -411,7 +411,7 @@ export function fakeServer(options: Partial<Pick<FakeServer, 'token' | 'role' | 
       return json(200, { auth: true, name: server.name, role: server.role });
     }
     if (path === '/api/usage') {
-      // Como `src/cli/accounts/usage.ts`: solo una sesión de persona en un servicio con cuentas; si no, 404.
+      // Como `src/diagrams-identity/core/accounts/usage.ts`: solo una sesión de persona en un servicio con cuentas; si no, 404.
       if (!server.accounts || server.noProjects) return json(404, { error: 'Ruta de la API desconocida. Ver /api/modules.' });
       if (!authorized) return unauthorized();
       if (!caller) return json(404, { error: 'Las cuotas son por persona: esta credencial es un token de servicio, sin cuenta ni cuota.', code: 'not-found' });

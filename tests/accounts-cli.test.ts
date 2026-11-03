@@ -10,8 +10,8 @@ import { FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, startFakeGithub, type FakeGithub } 
 import { loginWithGithub } from './helpers/githubLogin';
 import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from './helpers/postgres';
 import { PostgresDatabase } from '../src/cli/postgres/pool';
-import { JsonAccountStore } from '../src/cli/accounts/jsonStore';
-import { SqliteAccountStore } from '../src/cli/accounts/sqliteStore';
+import { JsonAccountStore } from '../src/diagrams-identity/core/accounts/jsonStore';
+import { SqliteAccountStore } from '../src/diagrams-identity/core/accounts/sqliteStore';
 
 // `iark serve` con el inicio de sesión de GitHub, lanzado como proceso con el CLI empaquetado (las opciones y las variables de entorno
 // de verdad) y hablando con un GitHub de mentira.

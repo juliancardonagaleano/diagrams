@@ -1,4 +1,4 @@
-import { acquireDatabase, releaseDatabase } from '../postgres/shared';
+import { acquireDatabase, releaseDatabase } from '../../../cli/postgres/shared';
 import { asAsync } from './asyncStore';
 import { JsonAccountStore } from './jsonStore';
 import type { AccountStore, AccountStoreKind, AccountStoreOptions } from './model';

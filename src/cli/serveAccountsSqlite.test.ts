@@ -1,8 +1,8 @@
 import { rmSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Observability } from './observability';
-import { loadSqlite } from './accounts/sqliteStore';
-import { hashSessionToken } from './accounts/store';
+import { loadSqlite } from '../diagrams-identity/core/accounts/sqliteStore';
+import { hashSessionToken } from '../diagrams-identity/core/accounts/store';
 import { ANA, BETO, call, CARLA, cleanupCloud, signIn, startCloud } from '../../tests/helpers/cloud';
 
 /**

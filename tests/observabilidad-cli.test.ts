@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, wr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createToken } from '../src/cli/tokens';
+import { createToken } from '../src/diagrams-identity/core/tokens';
 import { buildCliBundle, BUNDLE_TIMEOUT, PROCESS_TEST_TIMEOUT, type CliBundle } from './helpers/cliBundle';
 import type { AccessRow, AuditRow } from './helpers/observability';
 

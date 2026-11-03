@@ -2,9 +2,9 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { INVITE, OPEN, realJson } from '../../../tests/helpers/realAccounts';
-import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../tests/helpers/postgres';
-import { PostgresDatabase } from '../postgres/pool';
+import { INVITE, OPEN, realJson } from '../../../../tests/helpers/realAccounts';
+import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../../tests/helpers/postgres';
+import { PostgresDatabase } from '../../../cli/postgres/pool';
 import { describeImport, importAccounts } from './migrate';
 import { PostgresAccountStore } from './postgresStore';
 import { setupAccounts } from './setup';
