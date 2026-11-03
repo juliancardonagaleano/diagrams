@@ -10,7 +10,7 @@
 
 `hecha`
 
-Rama `cursor/rearch-specs-003-004-005-58e1`: Core con `accounts`, `access-tokens` y `authenticator.ts` (antes `serveAuth.ts`); Host con `createIdentityApi` (auth, admin, usage, whoami). `src/cli/serveAuth.ts` es un shim de reexport. El contrato HTTP no cambia. `src/cli/accounts/` y `src/cli/tokens.ts` movidos a `src/diagrams-identity/core/`; borde `createIdentityApi`; `serve.ts` delega auth, admin, usage y whoami.
+PR consolidada `cursor/consolidate-rearch-stack-58e1` (origen `cursor/rearch-specs-003-004-005-58e1`): Core con `accounts`, `access-tokens` y `authenticator.ts` (antes `serveAuth.ts`); Host con `createIdentityApi` (auth, admin, usage, whoami). `src/cli/serveAuth.ts` es un shim de reexport. El contrato HTTP no cambia. `src/cli/accounts/` y `src/cli/tokens.ts` movidos a `src/diagrams-identity/core/`; borde `createIdentityApi`; `serve.ts` delega auth, admin, usage y whoami.
 
 ## problema
 
