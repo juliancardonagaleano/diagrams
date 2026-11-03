@@ -8,9 +8,9 @@
 
 ## estado
 
-`aceptada`
+`en curso`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
+Rama `cursor/impl-shell-spa-58e1`: router unificado en `src/shell/spaRoutes.ts` usado por `src/boot.ts` (rutas canónicas + consultas legacy; HTML extra de Vite en paso siguiente).
 
 ## problema
 
