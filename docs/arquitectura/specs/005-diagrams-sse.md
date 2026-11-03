@@ -123,7 +123,8 @@ Implementación parcial (proceso no partido). Comprobaciones de esta rama:
 
 1. **`createEventsHost` único:** `serve.ts` enruta `/api/events` solo vía `eventsHost.handle` de `createEventsHost`; no hay otro handler SSE en `diagrams-app` ni en `diagrams-gateway`.
 2. **In-process documentado:** `src/diagrams-sse/README.md` describe hub compartido vs canal futuro.
-3. **Pruebas:** `src/cli/serveEvents.test.ts` y `tests/e2e/projects-cloud-eventos.spec.ts` (cuando el entorno las ejecuta).
+3. **Pruebas:** `src/cli/serveEvents.test.ts`, `src/diagrams-sse/features/events/postgresBridge.test.ts` (serialización + NOTIFY/LISTEN con Postgres real cuando `IARK_REQUIRE_POSTGRES=1`, como en CI) y `tests/e2e/projects-cloud-eventos.spec.ts`.
+4. **Despliegue partido:** `src/diagrams-sse/README.md`, `deploy/docker-compose.sse-snippet.yml` e `iark serve-sse`. El proceso monolito sigue siendo válido (hub in-process con carpeta o LISTEN en el mismo proceso con Postgres); separar app y `serve-sse` queda operativo pero no obligatorio — la spec sigue en `en curso` hasta cerrar el criterio de proceso aparte por omisión en producción.
 
 ```text
 npm run cli -- validate examples/diagrams-as-is.json

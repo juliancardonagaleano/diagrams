@@ -84,12 +84,12 @@ describe.skipIf(!postgresAvailable())('iark serve con los proyectos en Postgres'
       const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       const ok = await fetch(`${base}/readyz`);
       expect(ok.status).toBe(200);
-      expect(await ok.json()).toEqual({ status: 'ok', checks: { workspace: 'ok' } });
+      expect(await ok.json()).toEqual({ status: 'ok', checks: { workspace: 'ok', events: 'ok' } });
       // la base deja de contestar (se cierra el pool): el servicio sigue vivo pero ya no está listo
       await connection.close();
       const down = await fetch(`${base}/readyz`);
       expect(down.status).toBe(503);
-      expect(await down.json()).toEqual({ status: 'fail', checks: { workspace: 'fail' } });
+      expect(await down.json()).toEqual({ status: 'fail', checks: { workspace: 'fail', events: 'ok' } });
       expect((await fetch(`${base}/healthz`)).status).toBe(200);
       // y la API contesta con un error limpio, sin la dirección de la base
       const failed = await fetch(`${base}/api/projects`);
