@@ -8,9 +8,9 @@
 
 ## estado
 
-`aceptada`
+`en curso`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
+Rama `cursor/impl-identity-58e1`: borde `createIdentityApi` en `src/diagrams-identity/`; Core reexporta `accounts` y `access-tokens`; `serve.ts` delega auth, admin, usage y whoami.
 
 ## problema
 

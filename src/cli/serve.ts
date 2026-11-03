@@ -4,10 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { type ModuleRegistry, type ProjectStore } from '@iark/kernel';
 import { COMPUTE_ACTIONS } from './compute';
-import { createAdminApi } from './accounts/admin';
-import { createAuthApi } from './accounts/routes';
 import type { Accounts } from './accounts/service';
-import { createUsageApi, QUOTA_KINDS, Quotas } from './accounts/usage';
+import { QUOTA_KINDS, Quotas } from './accounts/usage';
+import { createIdentityApi } from '../diagrams-identity/host/identityApi';
 import { inlineExecutor, unwrapOutcome, type ComputeExecutor } from './compute';
 import { createModuleApi } from '../diagrams-gateway/moduleApi';
 import { HttpError } from './httpError';
@@ -339,25 +338,25 @@ export function createSuiteServer(options: ServeOptions): Server {
         ]
       : [],
   );
-  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, quotas, events: hub, readBody: observedBody, send, sendJson });
-  const eventsApi = createEventsApi({ hub, store: options.projects, cors, auth, recheck: rawAuth, accounts: options.accounts, trustProxy: options.trustProxy ?? false, streaming: (req, summary) => obs.contextOf(req)?.streaming(summary) });
-  const adminApi = createAdminApi({ accounts: options.accounts, auth, quotas, readBody: observedBody, sendJson });
-  const usageApi = createUsageApi({ accounts: options.accounts, auth, quotas, sendJson });
-  const authApi = createAuthApi({
-    accounts: options.accounts,
-    auth,
-    tokens: !!options.tokens,
-    trustProxy: options.trustProxy ?? false,
-    readBody: observedBody,
-    send,
-    sendJson,
-    onLogin: (req, user) => obs.contextOf(req)?.loggedIn(user),
-    onLoginFailed: (req, failure) => obs.contextOf(req)?.loginFailed(failure),
-  });
-
   const requireMethod = (req: IncomingMessage, allowed: 'GET' | 'POST'): void => {
     if (req.method !== allowed) throw new HttpError(405, `Este endpoint solo admite ${allowed}.`, { allow: allowed });
   };
+
+  const projectsApi = createProjectsApi({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, quotas, events: hub, readBody: observedBody, send, sendJson });
+  const eventsApi = createEventsApi({ hub, store: options.projects, cors, auth, recheck: rawAuth, accounts: options.accounts, trustProxy: options.trustProxy ?? false, streaming: (req, summary) => obs.contextOf(req)?.streaming(summary) });
+  const identityApi = createIdentityApi({
+    accounts: options.accounts,
+    auth,
+    tokensEnabled: !!options.tokens,
+    trustProxy: options.trustProxy ?? false,
+    quotas,
+    readBody: observedBody,
+    send,
+    sendJson,
+    requireMethod,
+    onLogin: (req, user) => obs.contextOf(req)?.loggedIn(user),
+    onLoginFailed: (req, failure) => obs.contextOf(req)?.loginFailed(failure),
+  });
 
   const moduleApi = createModuleApi({
     registry: options.registry,
@@ -374,16 +373,7 @@ export function createSuiteServer(options: ServeOptions): Server {
     const parts = url.pathname.slice(API.length).split('/').filter(Boolean).map(decodeSegment);
     if (parts[0] === 'projects') return projectsApi(req, res, url, parts.slice(1));
     if (parts[0] === 'events') return eventsApi(req, res, url, parts.slice(1));
-    if (parts[0] === 'auth') return authApi(req, res, url, parts.slice(1));
-    if (parts[0] === 'admin') return adminApi(req, res, url, parts.slice(1));
-    if (parts[0] === 'usage') return usageApi(req, res, url, parts.slice(1));
-    if (parts.length === 1 && parts[0] === 'whoami') {
-      requireMethod(req, 'GET');
-      if (!auth) return sendJson(res, 200, { auth: false });
-      const who = await auth.identify(req);
-      if (who.kind === 'token') return sendJson(res, 200, { auth: true, name: who.name, role: who.role });
-      return sendJson(res, 200, { auth: true, name: who.user.name ?? who.user.login, role: who.siteRole, user: who.user });
-    }
+    if (await identityApi.handle(req, res, parts, url)) return;
     if (await moduleApi.handle(req, res, parts, url)) return;
     throw new HttpError(404, 'Ruta de la API desconocida. Ver /api/modules.');
   }
