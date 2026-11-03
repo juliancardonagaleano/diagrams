@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ProjectStore } from '@iark/kernel';
-import type { Accounts } from './accounts/service';
+import type { Accounts } from '../diagrams-identity/core/accounts/service';
 import { HttpError } from './httpError';
 import { clientAddress, type Authenticator, type Identity } from './serveAuth';
 import { guard } from './serveProjects';

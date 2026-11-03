@@ -88,7 +88,7 @@ export function safeAvatarUrl(url: string | undefined): string | undefined {
 export const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 
 /**
- * El nombre de usuario como lo valida el servicio al administrar cuentas (`src/cli/accounts/store.ts`): igual que el de GitHub, pero admite `_`
+ * El nombre de usuario como lo valida el servicio al administrar cuentas (`src/diagrams-identity/core/accounts/store.ts`): igual que el de GitHub, pero admite `_`
  * (lo usan las cuentas gestionadas de GitHub Enterprise) y no admite dos guiones seguidos. Es lo que decide si una cuenta se puede tocar desde la
  * API: el servicio aparta con un `~` el nombre que dejó alguien que cambió de nombre en GitHub, y a esa cuenta no se la puede nombrar.
  */

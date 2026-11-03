@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { CliError, info } from '../io';
-import { DatabaseConfigError, hasDatabaseSetting } from '../postgres/config';
-import { DatabaseError } from '../postgres/pool';
-import { acquireDatabase, releaseDatabase } from '../postgres/shared';
+import { CliError, info } from '../../../cli/io';
+import { DatabaseConfigError, hasDatabaseSetting } from '../../../cli/postgres/config';
+import { DatabaseError } from '../../../cli/postgres/pool';
+import { acquireDatabase, releaseDatabase } from '../../../cli/postgres/shared';
 import { GithubOAuth } from './github';
 import { describeImport, importAccounts, type ImportTarget } from './migrate';
 import { Accounts, normalizePublicUrl, parseAdminList, type QuotaLimits, type SignupMode } from './service';

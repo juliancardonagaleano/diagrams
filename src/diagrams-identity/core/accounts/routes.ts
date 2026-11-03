@@ -1,8 +1,8 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { HttpError } from '../httpError';
-import { bearerToken, clientAddress, FailureLimiter, type Authenticator } from '../serveAuth';
+import { HttpError } from '../../../cli/httpError';
+import { bearerToken, clientAddress, FailureLimiter, type Authenticator } from '../../../cli/serveAuth';
 import { accountHttpError } from './errors';
 import { GithubError } from './github';
 import type { Accounts, PublicUser } from './service';

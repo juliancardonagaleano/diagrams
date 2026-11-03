@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createToken, revokeToken } from '../../src/cli/tokens';
+import { createToken, revokeToken } from '../../src/diagrams-identity/core/tokens';
 import { FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, startFakeGithub, type FakeGithub, type FakeProfile } from '../helpers/fakeGithub';
 
 /**

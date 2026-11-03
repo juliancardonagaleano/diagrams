@@ -1,10 +1,10 @@
 import type { IncomingMessage } from 'node:http';
 import { performance } from 'node:perf_hooks';
-import { accountHttpError } from './accounts/errors';
-import type { Accounts, PublicUser } from './accounts/service';
-import { AccountError, SESSION_PREFIX, type AccountUser, type SiteRole } from './accounts/store';
+import { accountHttpError } from '../diagrams-identity/core/accounts/errors';
+import type { Accounts, PublicUser } from '../diagrams-identity/core/accounts/service';
+import { AccountError, SESSION_PREFIX, type AccountUser, type SiteRole } from '../diagrams-identity/core/accounts/store';
 import { HttpError } from './httpError';
-import type { TokenIdentity, TokenStore } from './tokens';
+import type { TokenIdentity, TokenStore } from '../diagrams-identity/core/tokens';
 
 /**
  * Autenticación por token de `iark serve --tokens` (la API de proyectos y `/api/whoami`): la cabecera

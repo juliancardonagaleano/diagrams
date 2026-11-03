@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { hashToken } from '../src/cli/tokens';
+import { hashToken } from '../src/diagrams-identity/core/tokens';
 import { buildCliBundle, BUNDLE_TIMEOUT, PROCESS_TEST_TIMEOUT, type CliBundle } from './helpers/cliBundle';
 
 // `iark auth` lanza el CLI empaquetado como proceso, igual que `tests/project-cli.test.ts`.

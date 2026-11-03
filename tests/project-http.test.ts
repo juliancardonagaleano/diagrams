@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { HttpProjectStore, ProjectError } from '@iark/kernel';
 import { createDefaultRegistry } from '../src/cli/registry';
 import { createSuiteServer } from '../src/cli/serve';
-import { createToken, revokeToken, TokenStore, type TokenRole } from '../src/cli/tokens';
+import { createToken, revokeToken, TokenStore, type TokenRole } from '../src/diagrams-identity/core/tokens';
 import { FolderProjectStore } from '../src/cli/workspace';
 import { projectStoreContract } from './helpers/projectStoreContract';
 import { projectVersionsContract } from './helpers/projectVersionsContract';

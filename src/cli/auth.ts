@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 import { CliError, info } from './io';
-import { createToken, listTokens, revokeToken, TOKEN_ROLES } from './tokens';
+import { createToken, listTokens, revokeToken, TOKEN_ROLES } from '../diagrams-identity/core/tokens';
 
 /**
  * `iark auth`: administra los tokens que `iark serve --tokens <archivo>` exige a quien llama a la API de proyectos. Una «cuenta»

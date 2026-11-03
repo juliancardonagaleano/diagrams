@@ -6,7 +6,7 @@ import { bundleToText, createBundle } from '@iark/kernel';
 import { Observability } from './observability';
 import { FolderProjectStore } from './workspace';
 import { ANA, BETO, call, CARLA, cleanupCloud, JSON_TYPE, signIn, startCloud, tracked, type Cloud, type CloudOptions } from '../../tests/helpers/cloud';
-import type { AccountStoreKind } from './accounts/store';
+import type { AccountStoreKind } from '../diagrams-identity/core/accounts/store';
 import { postgresAvailable, requirePostgresIfCi } from '../../tests/helpers/postgres';
 
 requirePostgresIfCi();

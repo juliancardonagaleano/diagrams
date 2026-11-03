@@ -10,7 +10,7 @@
 
 `en curso`
 
-Rama `cursor/impl-identity-58e1`: borde `createIdentityApi` en `src/diagrams-identity/`; Core reexporta `accounts` y `access-tokens`; `serve.ts` delega auth, admin, usage y whoami.
+Rama `cursor/impl-identity-core-move-58e1`: `src/cli/accounts/` y `src/cli/tokens.ts` movidos a `src/diagrams-identity/core/`; borde `createIdentityApi`; `serve.ts` delega auth, admin, usage y whoami.
 
 ## problema
 

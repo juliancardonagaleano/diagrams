@@ -9,7 +9,7 @@ import { createDefaultRegistry } from './registry';
 import { createSuiteServer, type ServeOptions } from './serve';
 import { bearerToken, clientAddress, FailureLimiter, isLoopbackHost } from './serveAuth';
 import { requiredRole } from './serveProjects';
-import { createToken, hashToken, revokeToken, TokenStore, type TokenRole } from './tokens';
+import { createToken, hashToken, revokeToken, TokenStore, type TokenRole } from '../diagrams-identity/core/tokens';
 import { FolderProjectStore } from './workspace';
 
 const JSON_TYPE = { 'Content-Type': 'application/json' };

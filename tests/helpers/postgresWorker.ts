@@ -1,11 +1,11 @@
 import { writeSync } from 'node:fs';
-import { AccountError } from '../../src/cli/accounts/model';
-import { PostgresAccountStore } from '../../src/cli/accounts/postgresStore';
+import { AccountError } from '../../src/diagrams-identity/core/accounts/model';
+import { PostgresAccountStore } from '../../src/diagrams-identity/core/accounts/postgresStore';
 import { acquireDatabase, releaseDatabase } from '../../src/cli/postgres/shared';
 
 /**
  * Un proceso de verdad que usa las cuentas en Postgres, para las pruebas de concurrencia entre procesos
- * (`src/cli/accounts/postgresProcesses.test.ts`). Se lanza con `node --import tsx tests/helpers/postgresWorker.ts <modo> <n> [clave]`; la
+ * (`src/diagrams-identity/core/accounts/postgresProcesses.test.ts`). Se lanza con `node --import tsx tests/helpers/postgresWorker.ts <modo> <n> [clave]`; la
  * conexión sale del entorno (`IARK_DATABASE_URL` y `IARK_DATABASE_SCHEMA`), como en el servicio, y se abre con el pool compartido del proceso.
  *
  * Escribe una línea JSON por operación **ya confirmada** (`{"ok":true,"i":3}` o `{"error":"limit","i":3}`) con `writeSync` (sin búfer), de

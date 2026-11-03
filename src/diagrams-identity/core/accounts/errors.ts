@@ -1,4 +1,4 @@
-import { HttpError } from '../httpError';
+import { HttpError } from '../../../cli/httpError';
 import { AccountError } from './store';
 
 /**
