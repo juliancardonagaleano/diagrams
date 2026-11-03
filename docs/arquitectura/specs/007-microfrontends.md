@@ -8,9 +8,9 @@
 
 ## estado
 
-`aceptada`
+`hecha`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. La implementación va en su propia PR (`en curso` → `hecha`).
+Rama `cursor/impl-mfe-remotes-58e1`: contrato en `src/mfe/contract.ts`, federación en `src/shell/federation/`, remotos `mfe-*` en `src/mfe/`; el shell SPA compone por `/modules/:id` y `/trace` en un solo build.
 
 ## problema
 

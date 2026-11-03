@@ -74,18 +74,14 @@ export async function bootSpaTarget(target: SpaBootTarget): Promise<void> {
   switch (target.kind) {
     case 'legacy-modules': {
       syncUrl(`/modules/${encodeURIComponent(target.moduleId)}`, target.search);
-      await import('../modules-app/main.tsx');
+      const { mountModuleRemoteInShell } = await import('./federation/mountInShell');
+      await mountModuleRemoteInShell(target.moduleId, target.search);
       return;
     }
     case 'legacy-trace': {
-      document.title = 'DIAgrams · Trazabilidad';
       syncUrl('/trace', target.search);
-      const root = document.getElementById('root');
-      if (root) {
-        const shell = await import('../trace-app/shell.html?raw');
-        root.outerHTML = shell.default;
-      }
-      await import('../trace-app/main.ts');
+      const { mountTraceRemoteInShell } = await import('./federation/mountInShell');
+      await mountTraceRemoteInShell(target.search);
       return;
     }
     case 'studio':
