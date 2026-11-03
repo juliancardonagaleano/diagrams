@@ -30,7 +30,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 |---|---|
 | [suite-web.md](suite-web.md) | Banco de trabajo, widget, trazabilidad, shell y servicio: qué es cada superficie. |
 | [embebido.md](embebido.md) | Embeber en otra aplicación: iframe + `postMessage`, SDK de anfitrión, protocolo de módulos, Web Component `<iark-module>`, federación por manifiesto e idioma (`lang`). |
-| [servicio.md](servicio.md) | `iark serve`: rutas de la API, imagen Docker y servidor para varias personas con tokens (roles, CORS, HTTPS, límites). |
+| [servicio.md](servicio.md) | `iark serve` (solo API): rutas, imagen Docker sin SPA y servidor para varias personas con tokens (roles, CORS, HTTPS, límites). El sitio va en [Pages](despliegue-pages.md). |
 | [cuentas-github.md](cuentas-github.md) | Servicio gestionado con inicio de sesión de GitHub: flujo, quién ve qué, compartir proyectos y administrar cuentas. |
 | [observabilidad.md](observabilidad.md) | Operar `iark serve`: `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz` y `/readyz`, métricas de Prometheus, rotación de registros y datos personales. |
 
@@ -54,8 +54,11 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 | [versionado-documentos.md](versionado-documentos.md) | Cómo evoluciona un esquema sin romper lo guardado: `documentVersion` y migraciones por módulo (`iark migrate`), `contractVersion` del contrato `DomainModule` (el que cumple un [módulo de terceros](plugins.md)) y negociación de la versión del protocolo embebido y del manifiesto. |
 | [roadmap.md](roadmap.md) | Visión, estado actual, pendientes reales, límites conocidos y el plan de robustecimiento en cuatro fases. |
 | [arquitectura/as-is.md](arquitectura/as-is.md) | Modelo C4 as-is de la suite (contexto, contenedores y componentes) leído del código de `master` en `9343c75`, y cómo validarlo. |
+| [arquitectura/ece-capacidades.md](arquitectura/ece-capacidades.md) | Catálogo ECE (herramientas y recursos) vía `python3 scripts/mcp-ece.py`; spec [000](arquitectura/specs/000-conexion-ece.md). |
+| [`examples/diagrams-to-be.json`](../examples/diagrams-to-be.json) | Modelo C4 to-be (spec [001](arquitectura/specs/001-to-be-c4.md), `aceptada`). |
 | [arquitectura/protocolo-sdd.md](arquitectura/protocolo-sdd.md) | Protocolo para rediseñar la arquitectura: el as-is queda congelado, cada cambio lleva una spec en `docs/arquitectura/specs/`, y ECE se conecta antes de tocar código. |
-| [arquitectura/plan-implementacion.md](arquitectura/plan-implementacion.md) | Orden de implementación del corte to-be. No es una spec y no autoriza código: cada fase espera su spec en `aceptada`. |
+| [arquitectura/plan-implementacion.md](arquitectura/plan-implementacion.md) | Orden de implementación del corte to-be (fases 1–8; specs 002–009 en primer corte). No es una spec y no autoriza código: cada fase espera su spec en `aceptada`. |
+| [arquitectura/ramas-historicas.md](arquitectura/ramas-historicas.md) | Ramas remotas `cursor/*` ya fusionadas en master (candidatas a borrar) y las que conviene revisar antes. |
 | [historial.md](historial.md) | Lo ya hecho, por fases y por tandas, y el plan original de la suite. |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) · [SECURITY.md](../SECURITY.md) · [CHANGELOG.md](../CHANGELOG.md) · [LICENSE](../LICENSE) | Cómo contribuir, cómo informar de una vulnerabilidad, qué cambió en cada versión y la licencia. |
 

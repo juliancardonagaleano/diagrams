@@ -454,6 +454,19 @@ def _envelope_cached(response_bytes: bytes, layer: str, age_ms: int, request_id:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if "--check-credential" in argv:
+        import importlib.util
+
+        launcher = ROOT / "scripts" / "mcp_ece.py"
+        spec = importlib.util.spec_from_file_location("mcp_ece_launcher", launcher)
+        if spec is None or spec.loader is None:
+            print("mcp-ece: no se pudo cargar el launcher", file=sys.stderr)
+            return 1
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return int(mod.main(["--check-credential"]))
+
     parser = argparse.ArgumentParser(
         description="Bridge stdio↔HTTP para ECE con caché semántica local opcional",
         add_help=True,

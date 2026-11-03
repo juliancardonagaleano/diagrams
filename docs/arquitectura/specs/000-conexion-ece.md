@@ -38,7 +38,7 @@ Ninguno. Esta spec no modifica [`examples/diagrams-as-is.json`](../../../example
 
 ## capacidades ECE que aplican
 
-La sesión de Cursor no tiene un namespace ECE, así que estas citas no salen del descubrimiento de la sesión y el estado no pasa a `aceptada`. Sí hubo una llamada stdio al proceso `python3 scripts/mcp_ece.py`. `initialize` devolvió `serverInfo.name` `ece-knowledge-router` (`0.1.0`). Los nombres que devolvieron `tools/list` y `resources/list` están copiados en [ece-capacidades.md](../ece-capacidades.md): `search_catalog`, `read_document`, `traverse_knowledge`, `retrieve_knowledge`, `resolve_entity`, `get_related`, `get_source_status`, `resolve_context` y el recurso `mapa-de-navegacion` (`ece://navegacion`). No se llamó `prompts/list` ni `resources/read`.
+La sesión de Cursor no tiene un namespace ECE, así que estas citas no salen del descubrimiento de la sesión y el estado no pasa a `aceptada`. Sí hubo una llamada stdio al proceso `python3 scripts/mcp_ece.py`. `initialize` devolvió `serverInfo.name` `ece-knowledge-router` (`0.1.0`). Los nombres que devolvieron `tools/list` y `resources/list` están copiados en [ece-capacidades.md](../ece-capacidades.md): `search_catalog`, `read_document`, `traverse_knowledge`, `retrieve_knowledge`, `resolve_entity`, `get_related`, `get_source_status`, `resolve_context`, `list_query_pipelines`, `run_query_pipeline` y el recurso `mapa-de-navegacion` (`ece://navegacion`). No se llamó `prompts/list` ni `resources/read`.
 
 ## decisión
 
@@ -107,7 +107,7 @@ Julian confirmó el repositorio exacto **`https://github.com/sc-arquitectura/iar
 
 `GetDynamicTools` con patrón `ECE|ece`: **sin namespace ECE**. Catálogo de sesión sin cambios respecto al bloque anterior: `cursor`, `cursor-cloud`, `cursor-subscriptions`, `Fal`, `Figma` (todos `ready` salvo `cursor`, que no trae `namespaceStatus`).
 
-No se añadió `.cursor/mcp.json` ni paquetes MCP desde iark (no hubo fuente legible). `docs/arquitectura/ece-capacidades.md` no existe. Estado: **`borrador`**.
+No se añadió `.cursor/mcp.json` ni paquetes MCP desde iark (no hubo fuente legible). En ese momento `docs/arquitectura/ece-capacidades.md` no existía. *(Histórico; el catálogo existe hoy y el estado vigente es `hecha`, ver § estado.)*
 
 ```text
 npm run cli -- validate examples/diagrams-as-is.json
@@ -142,7 +142,7 @@ Nombres, descripciones y esquemas están en [ece-capacidades.md](../ece-capacida
 
 El comando del cliente ya consta: `python3 scripts/mcp_ece.py` (stdio). La URL consta como nombre de variable `ECE_MCP_URL` (presente, no vacía, `https`, sin userinfo); el valor no se escribe. La autenticación consta como `ECE_MCP_API_KEY` (presente, no vacía; el puente la manda en `X-API-Key` porque no tiene forma JWT). Falta que una sesión nueva cargue `.cursor/mcp.json` y vuelva a descubrir el namespace.
 
-Estado: **`borrador`**. Hay catálogo de una llamada real y no hay ECE en la sesión, así que no se cumplen todos los criterios y no pasa a `hecha`.
+*(Histórico.)* En esa sesión no había namespace ECE en Cursor pese al catálogo por puente. Julian cerró después la spec en **`hecha`** con [ece-capacidades.md](../ece-capacidades.md) (ver § estado y «Resultado (aceptación Julian)»).
 
 ```text
 npm run cli -- validate examples/diagrams-as-is.json
@@ -163,6 +163,21 @@ Julian aprobó cerrar 000 en `hecha` con catálogo existente aunque `GetDynamicT
 npm run cli -- validate examples/diagrams-as-is.json
 Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
 ```
+
+### Resultado (higiene ECE, 3 nov 2026 UTC)
+
+Rama `cursor/ece-hygiene-58e1`. Comprobación de configuración: [`.cursor/mcp.json`](../../../.cursor/mcp.json) sigue apuntando a `python3` + `scripts/mcp_ece.py` con `${env:ECE_MCP_API_KEY}` y `${env:ECE_MCP_URL}`. `python3 scripts/mcp_ece.py --check-credential` y `python3 scripts/mcp-ece.py --check-credential` (delegado al launcher) imprimieron `credential: present` y salieron 0.
+
+`GetDynamicTools` con patrón `ece`: **sin namespace ECE**. Catálogo de sesión sin cambios: `cursor`, `cursor-cloud`, `cursor-subscriptions`, `Fal`, `Figma`.
+
+Se repitió la sonda stdio NDJSON (`python3 scripts/mcp_ece.py --no-cache`, caché en `/tmp/…`). `tools/list` devolvió **10** herramientas (añadidas `list_query_pipelines` y `run_query_pipeline` respecto al catálogo del 2 de noviembre). [ece-capacidades.md](../ece-capacidades.md) se actualizó solo con esa salida. `serverInfo` sigue siendo `ece-knowledge-router` `0.1.0`.
+
+```text
+npm run cli -- validate examples/diagrams-as-is.json
+Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+```
+
+`git diff --stat -- src packages schema public examples` vacío en esta sesión.
 
 ## riesgos
 

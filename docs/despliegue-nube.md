@@ -130,7 +130,7 @@ docker compose logs caddy          # busca «certificate obtained successfully»
 El registro de `iark` debe parecerse a esto (con tus valores):
 
 ```
-DIAgrams escuchando en http://0.0.0.0:8787 (sitio: dist/app)
+DIAgrams escuchando en http://0.0.0.0:8787 (solo API; el sitio va aparte en Pages o CDN)
   manifiesto: /.well-known/iark.json · módulos: /api/modules
   registro de accesos: stdout (JSON por línea; sin query string, cuerpos ni credenciales)
   auditoría: /data/audit.jsonl (JSON por línea, solo se añade; modo 0600)
@@ -167,7 +167,7 @@ curl https://api.github.com/users/TU_USUARIO     # busca la línea "id": 583231,
 
 Ponlo en `deploy/.env` (`IARK_ADMINS=583231`; varias personas, separadas por comas) y aplica con `docker compose up -d`.
 
-**Entrar.** Abre `https://iark.tudominio.org/modulos.html` (banco de trabajo: **Proyectos…**) o `https://iark.tudominio.org/` (editor C4: **Archivo ▸ Proyectos…**) y ve a **Dónde se guardan ▸ Conectar a un servidor…** ([Guardar en la nube (servidor propio) desde el navegador](proyectos.md#guardar-en-la-nube-servidor-propio-desde-el-navegador)). La dirección aparece ya escrita cuando el sitio lo sirve la propia instancia; pulsa **Iniciar sesión con GitHub**, acepta en GitHub y vuelves con tu ficha (@usuario, rol `admin`).
+**Entrar.** Abre el sitio donde lo publiques (por omisión [GitHub Pages](despliegue-pages.md): `https://juliancardonagaleano.github.io/diagrams/` — banco en `/modulos.html`, suite en `/`) y ve a **Dónde se guardan ▸ Conectar a un servidor…** ([Guardar en la nube (servidor propio) desde el navegador](proyectos.md#guardar-en-la-nube-servidor-propio-desde-el-navegador)). Escribe la dirección de esta instancia (`https://iark.tudominio.org`) si no viene ya rellenada (`IARK_CORS` y `IARK_SERVER_URL` en Pages); pulsa **Iniciar sesión con GitHub**, acepta en GitHub y vuelves con tu ficha (@usuario, rol `admin`).
 
 **Quién puede entrar (`IARK_SIGNUP`):**
 
@@ -190,7 +190,7 @@ y `docker compose up -d`. Es el **origen** (esquema y dominio, **sin ruta ni bar
 
 - La **dirección pública sigue siendo la de la instancia** (`IARK_DOMAIN`, la *callback URL* de la OAuth App): GitHub devuelve a tu servicio, que redirige después al sitio de Pages. No pongas `github.io` en la OAuth App.
 - En *Dónde se guardan* de ese sitio escribe la dirección de la instancia (`https://iark.tudominio.org`).
-- **Cuándo conviene**: si la gente ya usa el sitio de Pages y quieres darle la nube sin cambiar de dirección. **Si no, usa directamente el sitio de tu instancia** (`https://iark.tudominio.org/`): ya sirve el editor y el banco de trabajo, con el mismo origen y sin CORS. Los proyectos que alguien tenga guardados **en el navegador** pertenecen al origen donde los creó: no los verá en el sitio de otra dirección (cópialos a la nube antes desde *Copiar a…*).
+- **Cuándo conviene**: si la gente ya usa el sitio de Pages y quieres darle la nube sin cambiar de dirección. El contenedor **no sirve el SPA**: el editor y el banco siguen en Pages (o en otro CDN); la instancia solo expone la API. Los proyectos que alguien tenga guardados **en el navegador** pertenecen al origen donde los creó: no los verá en el sitio de otra dirección (cópialos a la nube antes desde *Copiar a…*).
 
 ## 6. Copias de seguridad y restaurar — *Lo haces tú*
 

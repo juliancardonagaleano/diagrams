@@ -2,7 +2,7 @@
 
 [← Índice de la documentación](indice.md)
 
-Qué es la suite hoy, adónde va y qué falta. Lo que ya está hecho, fase por fase y tanda por tanda, está en [historial.md](historial.md); aquí solo hay lo vigente. Última revisión: 2026-10-09.
+Qué es la suite hoy, adónde va y qué falta. Lo que ya está hecho, fase por fase y tanda por tanda, está en [historial.md](historial.md); aquí solo hay lo vigente. Última revisión: 2026-11-03.
 
 - [Visión TO-BE](#visión-to-be)
 - [Estado actual](#estado-actual)
@@ -34,7 +34,8 @@ El TO-BE tiene cuatro rasgos, que son las cuatro fases del plan de abajo:
 | Trazabilidad | **Hecho** (v1 y v2): referencias por URN con tipo de enlace, `iark trace` (huérfanos, matriz y cobertura), `POST /api/trace` y vista web | [trazabilidad.md](trazabilidad.md) |
 | Versionado de diagramas | **Hecho**: `iark diff`, pestaña «Versiones» e **historial de versiones** de cada diagrama guardado en un proyecto (restaurar, nombrar, comparar; carpeta, navegador y servidor) | [cli.md](cli.md#comparar-versiones-de-un-diagrama-iark-diff) · [proyectos.md](proyectos.md#historial-de-versiones) |
 | Proyectos y nube | **Hecho**: carpeta de trabajo, navegador, servidor propio con tokens, inicio de sesión de GitHub, compartir proyectos, API y pantalla de administración de cuentas | [proyectos.md](proyectos.md) · [servicio.md](servicio.md) · [cuentas-github.md](cuentas-github.md) |
-| Despliegue | **Hecho**: GitHub Pages automático, imagen Docker y `deploy/` con Caddy | [despliegue-pages.md](despliegue-pages.md) · [despliegue-nube.md](despliegue-nube.md) |
+| Despliegue | **Hecho**: GitHub Pages para el SPA, imagen Docker solo API y `deploy/` con Caddy ([spec 009](arquitectura/specs/009-borde-y-operacion.md)) | [despliegue-pages.md](despliegue-pages.md) · [despliegue-nube.md](despliegue-nube.md) |
+| Arquitectura (SDD) | **Hecho** (corte nov. 2026): specs [002–009](arquitectura/specs/) implementadas; modelo to-be en [`examples/diagrams-to-be.json`](../examples/diagrams-to-be.json) | [plan-implementacion.md](arquitectura/plan-implementacion.md) · [historial.md](historial.md#rediseño-sdd-specs-002-009-noviembre-2026) |
 | Observabilidad | **Hecho** (v1, apagada por omisión): `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz`, `/readyz` y métricas de Prometheus en `iark serve` | [observabilidad.md](observabilidad.md) |
 | Interfaz es/en | **En parte**: infraestructura, gestor de proyectos y sus diálogos, errores por código y encabezados traducidos; faltan los paneles y el lienzo | [desarrollo.md](desarrollo.md#internacionalización) |
 | Pruebas | **Hecho**: unitarias, e2e estables y prueba real de la imagen (`docker:smoke`) | [desarrollo.md](desarrollo.md) |
@@ -100,10 +101,11 @@ Que una instancia gestionada se pueda operar y medir.
 
 ## Pendientes
 
-Los pendientes menores y límites conocidos al 2026-10-09, con la fase en la que se resuelven (propuesta; se revisa al empezar cada fase).
+Los pendientes menores y límites conocidos al 2026-11-03, con la fase en la que se resuelven (propuesta; se revisa al empezar cada fase).
 
 | Área | Pendiente | Fase |
 |---|---|---|
+| Arquitectura | El primer corte post-rearch sigue en un solo `iark serve` modular (`src/diagrams-*`); procesos desplegables separados (gateway, identity, app) y un dueño único del manifiesto en Pages+API quedan fuera de las specs 002–009 | — |
 | Docker | No se ha probado un build en una máquina con red normal (sin el proxy del entorno de desarrollo); la imagen tampoco se ha probado con `--tokens` | 1 |
 | Servicio | Un diagrama muy grande exportado por la API bloquea el servicio mientras se calcula la distribución (~90 s con 300 contenedores) | 1 |
 | Seguridad | Un token guardado en el navegador queda expuesto a un XSS del sitio que lo use; `iark serve` no habla TLS (hace falta un proxy con https) | 1 |
