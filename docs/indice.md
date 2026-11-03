@@ -30,7 +30,7 @@ Mapa de `docs/`. Para empezar, el [README](../README.md); para saber qué viene,
 |---|---|
 | [suite-web.md](suite-web.md) | Banco de trabajo, widget, trazabilidad, shell y servicio: qué es cada superficie. |
 | [embebido.md](embebido.md) | Embeber en otra aplicación: iframe + `postMessage`, SDK de anfitrión, protocolo de módulos, Web Component `<iark-module>`, federación por manifiesto e idioma (`lang`). |
-| [servicio.md](servicio.md) | `iark serve`: rutas de la API, imagen Docker y servidor para varias personas con tokens (roles, CORS, HTTPS, límites). |
+| [servicio.md](servicio.md) | `iark serve` (solo API): rutas, imagen Docker sin SPA y servidor para varias personas con tokens (roles, CORS, HTTPS, límites). El sitio va en [Pages](despliegue-pages.md). |
 | [cuentas-github.md](cuentas-github.md) | Servicio gestionado con inicio de sesión de GitHub: flujo, quién ve qué, compartir proyectos y administrar cuentas. |
 | [observabilidad.md](observabilidad.md) | Operar `iark serve`: `X-Request-Id`, registro de accesos, auditoría de cambios, `/healthz` y `/readyz`, métricas de Prometheus, rotación de registros y datos personales. |
 

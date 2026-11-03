@@ -214,6 +214,14 @@ Campo opcional `Resource.counterpartOf` (id del recurso de otro entorno que es e
 
 `.github/workflows/deploy-pages.yml` compila el sitio (`npm run build:app` con `BASE_PATH=/<repositorio>/`) en cada pull request hacia `master` y, en cada push a `master` o ejecución manual, lo publica en `gh-pages` con `scripts/deploy-gh-pages.sh` (que ahora admite `SKIP_BUILD=1` y funciona sin identidad de git) y lo comprueba con `scripts/verify-pages.sh` (espera a que Pages sirva el `assets/main-*.js` nuevo y que `/`, `modulos.html`, `suite.html`, `trazabilidad.html` y `/.well-known/iark.json` respondan 200). El origen de Pages sigue siendo la rama `gh-pages`. Detalle y ajustes de permisos en [Despliegue en GitHub Pages](despliegue-pages.md).
 
+### Rediseño SDD (specs 002–009, noviembre 2026)
+
+*2026-11-02 — 2026-11-03; protocolo [protocolo-sdd.md](arquitectura/protocolo-sdd.md), modelo as-is congelado en [`examples/diagrams-as-is.json`](../examples/diagrams-as-is.json), corte to-be [`examples/diagrams-to-be.json`](../examples/diagrams-to-be.json) (spec [001](arquitectura/specs/001-to-be-c4.md), `aceptada`).*
+
+Julian aprobó el corte to-be el 2 de noviembre de 2026. Las specs **002** (gateway de módulos), **003** (app / proyectos), **004** (identity), **005** (SSE), **006** (shell SPA), **007** (microfrontends), **008** (CLI hexagonal) y **009** (borde: estáticos en Pages/CDN, cabeceras en proxy, observabilidad repartida) quedaron **`hecha`** en el primer corte de implementación (módulos `src/diagrams-*` dentro del mismo proceso `iark serve`, con la política de despliegue SSE documentada en la 005). La spec **009** retira `--static` del contrato operativo: el SPA no se sirve desde el contenedor ni desde el proceso de dominio; GitHub Pages (o un CDN) publica el shell y los editores, y la imagen Docker expone solo API.
+
+Documentación alineada en esta tanda: [servicio.md](servicio.md), [suite-web.md](suite-web.md), [despliegue-nube.md](despliegue-nube.md), [cli.md](cli.md), [desarrollo.md](desarrollo.md), [cuentas-github.md](cuentas-github.md), [plugins.md](plugins.md), [plan-implementacion.md](arquitectura/plan-implementacion.md) y el [README](../README.md). El modelo as-is del JSON no cambia (el componente `estaticos` sigue describiendo el monolito histórico).
+
 ## Plan original de la suite (obsoleto)
 
 El plan aprobado el 2026-09-29 ocupaba las secciones 1 a 8 de la antigua hoja de ruta. Se ejecutó (las fases 0 a 5 de arriba lo cumplen), y su texto citaba nombres que ya no existen: aquí se conserva solo lo que sigue siendo útil, con los nombres de hoy.

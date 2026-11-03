@@ -6,7 +6,7 @@ Con `--accounts`, el mismo `iark serve --workspace` ofrece **«Iniciar sesión c
 
 ```bash
 export IARK_GITHUB_CLIENT_SECRET=…            # solo por entorno o por IARK_GITHUB_CLIENT_SECRET_FILE: nunca por la línea de comandos
-iark serve --host 0.0.0.0 --port 8787 --static dist/app \
+iark serve --host 0.0.0.0 --port 8787 \
   --workspace ./iark-workspace --accounts ./iark-accounts.json \
   --github-client-id Iv1.abc123 --public-url https://iark.ejemplo.org \
   --admins 583231 --signup invite
