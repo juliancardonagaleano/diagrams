@@ -17,12 +17,22 @@ export function normalizePathname(pathname: string): string {
   return pathname || '/';
 }
 
-/**
- * Decide qué superficie cargar. Las rutas `/modules/*` y `/trace` siguen en sus HTML legacy
- * hasta quitar entradas extra de Vite (spec 006, paso siguiente).
- */
+/** Decide qué superficie cargar (spec 006: rutas canónicas en un solo build). */
 export function resolveSpaBootTarget(pathname: string, params: URLSearchParams): SpaBootTarget {
   const path = normalizePathname(pathname);
+
+  if (path === '/modulos.html' || path.endsWith('/modulos.html')) {
+    const moduleId = params.get('module') ?? 'c4';
+    const search = new URLSearchParams(params);
+    search.set('module', moduleId);
+    return { kind: 'legacy-modules', moduleId, search: search.toString() };
+  }
+  if (path === '/trazabilidad.html' || path.endsWith('/trazabilidad.html')) {
+    return { kind: 'legacy-trace', search: params.toString() };
+  }
+  if (path === '/suite.html' || path.endsWith('/suite.html')) {
+    return { kind: 'home' };
+  }
 
   const modules = /^\/modules\/([^/]+)$/.exec(path);
   if (modules) {
@@ -53,16 +63,29 @@ export function resolveSpaBootTarget(pathname: string, params: URLSearchParams):
   return { kind: 'home' };
 }
 
+function syncUrl(pathname: string, search: string): void {
+  const next = `${pathname}${search ? `?${search}` : ''}${window.location.hash}`;
+  if (`${window.location.pathname}${window.location.search}` !== `${pathname}${search ? `?${search}` : ''}`) {
+    window.history.replaceState(null, '', next);
+  }
+}
+
 export async function bootSpaTarget(target: SpaBootTarget): Promise<void> {
   switch (target.kind) {
     case 'legacy-modules': {
-      const suffix = target.search ? `?${target.search}` : '';
-      window.location.replace(`/modulos.html${suffix}`);
+      syncUrl(`/modules/${encodeURIComponent(target.moduleId)}`, target.search);
+      await import('../modules-app/main.tsx');
       return;
     }
     case 'legacy-trace': {
-      const suffix = target.search ? `?${target.search}` : '';
-      window.location.replace(`/trazabilidad.html${suffix}`);
+      document.title = 'DIAgrams · Trazabilidad';
+      syncUrl('/trace', target.search);
+      const root = document.getElementById('root');
+      if (root) {
+        const shell = await import('../trace-app/shell.html?raw');
+        root.outerHTML = shell.default;
+      }
+      await import('../trace-app/main.ts');
       return;
     }
     case 'studio':

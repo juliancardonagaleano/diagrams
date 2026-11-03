@@ -6,7 +6,7 @@ describe('spaRoutes', () => {
     expect(normalizePathname('/studio/')).toBe('/studio');
   });
 
-  it('ruta /modules redirige al banco legacy', () => {
+  it('ruta /modules carga el banco (module en la consulta)', () => {
     const target = resolveSpaBootTarget('/modules/data', new URLSearchParams('embed=1'));
     expect(target.kind).toBe('legacy-modules');
     if (target.kind !== 'legacy-modules') return;

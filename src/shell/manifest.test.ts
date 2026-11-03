@@ -14,7 +14,7 @@ describe('descubrimiento de módulos por manifiesto', () => {
     const c4 = manifest.modules.find((m) => m.id === 'c4')!;
     expect(c4.embedUrl).toBe('https://juliancardonagaleano.github.io/diagrams/');
     const security = manifest.modules.find((m) => m.id === 'security')!;
-    expect(security.embedUrl).toBe('https://juliancardonagaleano.github.io/diagrams/modulos.html?module=security');
+    expect(security.embedUrl).toBe('https://juliancardonagaleano.github.io/diagrams/modules/security');
     expect(security.schemaUrl).toBe('https://juliancardonagaleano.github.io/diagrams/schema/security-document.schema.json');
     expect(security.apiUrl).toBeUndefined();
   });
