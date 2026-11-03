@@ -2,7 +2,35 @@
 
 [← Índice](../indice.md) · [Plan de implementación](plan-implementacion.md)
 
-Inventario del **3 de noviembre de 2026 (UTC)** sobre `origin/master`. Sirve para decidir qué ramas `cursor/*` ya no aportan trabajo pendiente. **Este documento no borra nada en el remoto**: quien mantenga el repositorio puede eliminarlas a mano cuando convenga.
+Inventario del **3 de noviembre de 2026 (UTC)** sobre `origin/master`. Sirve para decidir qué ramas `cursor/*` ya no aportan trabajo pendiente.
+
+## Limpieza remota (3 nov 2026)
+
+Se eliminaron en `origin` las ramas de la tabla «Seguras para borrar» que **aún existían**, tras comprobar con `git merge-base --is-ancestor` que seguían fusionadas en `origin/master`:
+
+| Rama remota | Resultado |
+|---|---|
+| `cursor/fix-e2e-spa-routes-58e1` | Eliminada |
+| `cursor/impl-app-shell-58e1` | Eliminada |
+| `cursor/impl-app-shell-deep-58e1` | Eliminada |
+| `cursor/impl-identity-58e1` | Eliminada |
+| `cursor/impl-mfe-remotes-58e1` | Eliminada |
+| `cursor/impl-shell-spa-58e1` | Eliminada |
+| `cursor/impl-sse-multiprocess-58e1` | Eliminada |
+| `cursor/rearch-specs-003-004-005-58e1` | Eliminada |
+| `cursor/spec-002-hecha-58e1` | Eliminada |
+| `cursor/spec-008-hecha-58e1` | Eliminada |
+| `cursor/specs-planeacion-58e1` | Eliminada |
+| `cursor/consolidate-rearch-stack-58e1` | Ya no existía en remoto |
+| `cursor/post-rearch-continue-58e1` | Ya no existía en remoto |
+| `cursor/ece-mcp-iark-58e1` | Ya no existía en remoto |
+| `cursor/impl-borde-009-58e1` | Ya no existía en remoto |
+| `cursor/impl-cli-hexagonal-58e1` | Ya no existía en remoto |
+| `cursor/impl-gateway-58e1` | Ya no existía en remoto |
+| `cursor/impl-identity-core-move-58e1` | Ya no existía en remoto |
+| `cursor/spec-005-hecha-58e1` | Ya no existía en remoto |
+
+Las ramas de «Revisar antes de borrar» **no** se tocaron.
 
 ## Criterio
 
@@ -18,9 +46,9 @@ git merge-base --is-ancestor origin/cursor/NOMBRE-58e1 origin/master && echo mer
 git log --oneline origin/master..origin/cursor/NOMBRE-58e1   # vacío ⇒ segura
 ```
 
-## Seguras para borrar (`git push origin --delete …`)
+## Seguras para borrar (inventario original; limpiadas el 3 nov 2026)
 
-Todas estas ramas están **100 % fusionadas** en master (0 commits por delante de master al momento del inventario):
+Estas ramas estaban **100 % fusionadas** en master al momento del inventario. Tras la limpieza del 3 nov 2026 **ya no deberían existir** en `origin`; si reaparecen, repetir la comprobación antes de borrar.
 
 | Rama remota | Notas |
 |---|---|
@@ -44,10 +72,8 @@ Todas estas ramas están **100 % fusionadas** en master (0 commits por delante d
 | `cursor/spec-008-hecha-58e1` | Spec 008 cerrada |
 | `cursor/specs-planeacion-58e1` | Planeación de specs |
 
-Ejemplo (una sola rama; repetir solo tras confirmar con los comandos de arriba):
-
 ```bash
-git push origin --delete cursor/consolidate-rearch-stack-58e1
+git push origin --delete cursor/NOMBRE-58e1   # solo tras confirmar merged
 ```
 
 ## Revisar antes de borrar (commits no en master)
