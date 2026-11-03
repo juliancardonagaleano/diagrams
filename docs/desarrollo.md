@@ -20,7 +20,7 @@ npm run schema     # regenera schema/*.schema.json a partir de los esquemas zod 
 npm run manifest   # regenera public/.well-known/iark.json (manifiesto de federación) a partir de los módulos registrados
 npm run packages:build   # prepara @iark/kernel y @iark/domain-* para publicarse, en dist-packages/ (JS ESM + tipos; ver «Paquetes publicables»)
 npm run packages:check   # los empaqueta (npm pack), los instala en una carpeta limpia y comprueba que funcionan solos (pesado; necesita red)
-npm run cli -- serve --static dist/app   # servicio HTTP + sitio en http://127.0.0.1:8787 (tras npm run build)
+npm run cli -- serve --port 8787         # solo API (tras npm run build); sitio: npm run dev o npm run build:app + preview/Pages
 npm run deploy:pages   # publica el sitio en la rama gh-pages desde un equipo con permiso de escritura (ver despliegue-pages.md)
 npm run docker:smoke   # construye la imagen y la prueba de verdad como servicio gestionado (necesita Docker y Linux)
 npm run evals      # evals de prompts de la IA, offline con respuestas grabadas (sin red ni claves; lo corre también npm test)

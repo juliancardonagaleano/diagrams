@@ -212,7 +212,7 @@ Los siete comparten la versión de la raíz (`0.1.0`) y tienen **JavaScript ESM 
 
 ## Lo que no hace (todavía)
 
-- **El sitio web no carga módulos de terceros.** El banco de trabajo, el shell y el editor son estáticos (GitHub Pages o `--static`) y se compilan con los seis módulos incorporados; un navegador no puede ni debe ejecutar código arbitrario de una configuración. Un módulo de terceros se opera por CLI y API; el manifiesto lo anuncia sin `embed`, de modo que un anfitrión que consuma `/.well-known/iark.json` sabe que no hay editor que embeber. Cargar módulos en el navegador (con aislamiento y confianza explícita) queda como trabajo futuro de la [hoja de ruta](roadmap.md).
+- **El sitio web no carga módulos de terceros.** El banco de trabajo, el shell y el editor son estáticos (GitHub Pages o un CDN; `iark serve` no sirve el SPA) y se compilan con los seis módulos incorporados; un navegador no puede ni debe ejecutar código arbitrario de una configuración. Un módulo de terceros se opera por CLI y API; el manifiesto lo anuncia sin `embed`, de modo que un anfitrión que consuma `/.well-known/iark.json` sabe que no hay editor que embeber. Cargar módulos en el navegador (con aislamiento y confianza explícita) queda como trabajo futuro de la [hoja de ruta](roadmap.md).
 - No hay descarga ni instalación de módulos: `iark` no ejecuta `npm install` por ti.
 - No hay recarga en caliente: al cambiar la configuración o el módulo se reinicia el comando (o el servicio).
 - La configuración no acepta importadores o paquetes de iconos sueltos: se cargan **módulos** completos.

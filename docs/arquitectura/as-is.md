@@ -241,4 +241,4 @@ for (const v of doc.views) {
 '
 ```
 
-ECE no se consultó: no había servidor que consultar. El modelo sale del código.
+ECE no se consultó al redactar el as-is: no había servidor que consultar. El modelo sale del código. El corte to-be está en [`examples/diagrams-to-be.json`](../../examples/diagrams-to-be.json) (spec [001](specs/001-to-be-c4.md)); la primera implementación vive en `src/diagrams-app/`, `diagrams-gateway/`, `diagrams-identity/`, `diagrams-sse/`, el shell federado y las specs [002–009](specs/) marcadas `hecha`.

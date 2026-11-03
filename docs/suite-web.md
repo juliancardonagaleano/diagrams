@@ -11,7 +11,7 @@ Los seis módulos comparten una interfaz genérica que se genera a partir del co
 | Widget embebible | `modulos.html?embed=1&proto=json&origin=…` | Mismo banco de trabajo dentro de un `<iframe>`, con un protocolo `postMessage` propio (`src/embed/moduleProtocol.ts`). `openRelated` pide los destinos de un elemento y el banco responde `relatedDestinations`. |
 | Trazabilidad | `trazabilidad.html` | Vista transversal: enlaces `urn:iark:…` entre los documentos de varios módulos, referencias sin resolver y alcance de un elemento (ver [Trazabilidad entre módulos](trazabilidad.md)). |
 | Federación | `/?manifest=<url>` | Descubre los módulos de una instancia leyendo su manifiesto y monta el editor C4 o el widget del módulo elegido. Acepta una URL de manifiesto de otra instancia y rechaza con un mensaje claro la de una versión del manifiesto o del protocolo que no entiende; aparta los módulos que exigen un contrato más nuevo (ver [Federación por manifiesto](embebido.md#federación-por-manifiesto)). |
-| Servicio HTTP | `iark serve` | La misma API para todos los módulos y el sitio estático, en un proceso Node sin dependencias. |
+| Servicio HTTP | `iark serve` | La API para todos los módulos (validate, export, import, proyectos, auth, eventos…). El shell y los editores viven en [GitHub Pages](despliegue-pages.md) o en un CDN; el proceso de dominio no sirve el build del sitio ([spec 009](arquitectura/specs/009-borde-y-operacion.md)). |
 
 ## Banco de trabajo
 
