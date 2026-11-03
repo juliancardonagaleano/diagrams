@@ -130,7 +130,7 @@ describe('iark serve: sin opciones, la observabilidad está apagada', () => {
     expect(res.status).toBe(201);
     expect(res.headers.get('x-request-id')).toMatch(UUID);
     expect(await (await fetch(`${cli.url}/healthz`)).json()).toEqual({ status: 'ok' });
-    expect(await (await fetch(`${cli.url}/readyz`)).json()).toEqual({ status: 'ok', checks: { workspace: 'ok', tokens: 'ok', compute: 'ok' } });
+    expect(await (await fetch(`${cli.url}/readyz`)).json()).toEqual({ status: 'ok', checks: { workspace: 'ok', tokens: 'ok', compute: 'ok', events: 'ok' } });
     expect((await fetch(`${cli.url}/metrics`, { headers: bearer(METRICS_TOKEN) })).status).toBe(404);
     expect(await cli.stop()).toBe(0);
     expect(cli.stdout()).toBe('');

@@ -544,7 +544,7 @@ describe('/healthz y /readyz', () => {
     const w = await watched();
     const res = await fetch(`${w.base}/readyz`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok', checks: { workspace: 'ok', tokens: 'ok', accounts: 'ok' } });
+    expect(await res.json()).toEqual({ status: 'ok', checks: { workspace: 'ok', tokens: 'ok', accounts: 'ok', events: 'ok' } });
     expect(readdirNames(w.root)).toEqual([]);
     // sin nada que comprobar (ni espacio de trabajo, ni tokens, ni cuentas), solo responde que está viva
     const bare = await startCloud({ signup: 'open' });
@@ -560,7 +560,7 @@ describe('/healthz y /readyz', () => {
     let res = await fetch(`${w.base}/readyz`);
     expect(res.status).toBe(503);
     const body = (await res.json()) as { status: string; checks: Record<string, string> };
-    expect(body).toEqual({ status: 'fail', checks: { workspace: 'fail', tokens: 'ok', accounts: 'ok' } });
+    expect(body).toEqual({ status: 'fail', checks: { workspace: 'fail', tokens: 'ok', accounts: 'ok', events: 'ok' } });
     expect(JSON.stringify(body)).not.toContain(root);
     // los chequeos fallidos sí dejan línea en el registro de accesos
     expect((await rows<AccessRow>(w.access, 1)).map((r) => [r.route, r.status])).toEqual([['/readyz', 503]]);

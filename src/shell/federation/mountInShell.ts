@@ -13,7 +13,8 @@ function hostFromSearch(moduleId: string, search: string): ModuleSlotHost {
 
 export async function mountModuleRemoteInShell(moduleId: string, search: string): Promise<void> {
   const params = new URLSearchParams(search);
-  if (params.get('bank') === '1') {
+  // El protocolo embebido (`?embed=1`) necesita el banco completo (todas las especialidades en `MODULE_SOURCES`), no solo el remoto MFE.
+  if (params.get('bank') === '1' || params.get('embed') === '1') {
     await import('../../modules-app/main.tsx');
     return;
   }
