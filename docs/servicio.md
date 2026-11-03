@@ -17,6 +17,8 @@ curl -X POST 'localhost:8787/api/security/export?format=svg&view=dfd' -d @exampl
 | Ruta | Descripción |
 |---|---|
 | `GET /.well-known/iark.json` · `GET /api/modules` | Manifiesto de la instancia y capacidades de los módulos |
+
+**Dueño del manifiesto:** con `--static`, el archivo compilado vive en el sitio (`public/.well-known/iark.json`, Pages o CDN). Con solo API (`iark serve` sin estático), lo genera el mismo proceso en `GET /.well-known/iark.json` (`src/cli/suiteManifest.ts`). El corte to-be no asigna un proceso dedicado; la ruta debe seguir respondiendo donde hoy anuncia la API de módulos y de proyectos (spec 001, plan fase 5).
 | `GET /api/<módulo>/capabilities` · `/schema[?kind=generation]` | Formatos, informes, vistas de traza; JSON Schema del documento o de la salida de IA |
 | `POST /api/<módulo>/validate` · `/views` · `/export?format=&view=` | Cuerpo: el documento JSON |
 | `POST /api/<módulo>/import?importer=&name=` | Cuerpo: texto (Mermaid, OpenAPI, AsyncAPI, Threat Dragon, Terraform, Kubernetes, CloudFormation, Helm, DDL, dbt, OpenLineage, ArchiMate, BPMN según el módulo) → documento y avisos |

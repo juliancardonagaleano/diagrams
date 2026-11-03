@@ -2,9 +2,9 @@
 
 [← Índice de la documentación](../indice.md) · [Protocolo](protocolo-sdd.md) · [As-is](as-is.md) · [Spec 001](specs/001-to-be-c4.md)
 
-Este plan ordena el corte que fija la [spec 001](specs/001-to-be-c4.md), hoy en `borrador`, y que detallan las specs 002 a 009, también en `borrador`. No es una spec. No autoriza código. No cambia el estado de ninguna spec: quien mantiene el producto escribe `aceptada`, en una PR que no trae implementación. La PR que implementa una spec la pasa de `en curso` a `hecha` y no mezcla otra.
+Este plan ordena el corte que fija la [spec 001](specs/001-to-be-c4.md), hoy `aceptada`, y que detallan las specs 002 a 009 (cada una con su propio estado en su archivo). No es una spec. No autoriza código. No cambia el estado de ninguna spec: quien mantiene el producto escribe `aceptada`, en una PR que no trae implementación. La PR que implementa una spec la pasa de `en curso` a `hecha` y no mezcla otra.
 
-Una spec implementada es una PR. El código de producto (`src/`, `packages/`, `schema/`, `public/`, pruebas, imagen, `deploy/` y cualquier JSON de modelo) espera a esa aceptación. `examples/diagrams-to-be.json` espera, además, a que la 001 esté `aceptada`. La PR que escribe `aceptada` no lo crea: el protocolo cuenta ese JSON como código de producto, y la 001 ya le puso el nombre.
+Una spec implementada es una PR. El código de producto (`src/`, `packages/`, `schema/`, `public/`, pruebas, imagen, `deploy/` y cualquier JSON de modelo) espera a esa aceptación salvo lo ya materializado con la 001 `aceptada` (`examples/diagrams-to-be.json`). La PR que escribe `aceptada` no crea el JSON to-be: el protocolo lo cuenta como código de producto.
 
 Las rutas de abajo son las de hoy. Ninguna se edita en la PR de este plan.
 
@@ -48,17 +48,13 @@ Se verifica con `npm run cli -- validate examples/diagrams-as-is.json` y con `sr
 
 ## Fase 4 · SSE
 
-La autoriza la [spec 005](specs/005-diagrams-sse.md). Depende de las fases 2 y 3: la app publica el aviso y identity dice quién pertenece al proyecto. El gateway de módulos no sirve este canal.
+**Cerrada** (spec [005](specs/005-diagrams-sse.md) en `hecha`). Depende de las fases 2 y 3.
 
-Hoy no hay bus. `announce` en `src/cli/serveProjects.ts` llama a `EventPublisher.publish` y el hub vive en memoria en `src/cli/serveEvents.ts`. En `src/` no hay `NOTIFY`. `LISTEN` solo aparece en los comentarios de `src/cli/postgres/pool.ts` y `src/cli/postgresProjects.ts`, que están escritos para el pooler de Supabase en modo transacción y no pueden usarlo.
-
-Antes de separar el proceso falta ese canal. El candidato que no añade contenedor es `NOTIFY` de Postgres por una conexión de sesión, al margen de ese pool. Otro canal vale si tampoco es un contenedor nuevo: la spec 001 no añade el broker del lineamiento. Hasta que el canal esté elegido y probado, esta fase no arranca `diagrams-sse` como proceso. Puede dejar el feature delimitado en el proceso que publica, y la spec sigue en `en curso`.
-
-Cuando el canal existe, toca `src/cli/serveEvents.ts` y el `announce` de `src/cli/serveProjects.ts`. La app publica. El gateway abre `GET /api/events`. El cuerpo del aviso no cambia.
+Canal **`NOTIFY`/`LISTEN`** en `src/diagrams-sse/features/events/postgresBridge.ts`: la app publica tras cada escritura confirmada; `PostgresEventListener` usa `IARK_DATABASE_SESSION_URL` fuera del pool transaccional. Feature HTTP en `createEventsHost` (`src/diagrams-sse/host/eventsApi.ts`); `iark serve-sse` es el proceso aparte. Roles: `IARK_EVENTS_ROLE=publish|stream`, puente `IARK_EVENTS_BRIDGE=postgres|memory`. Despliegue partido documentado en `deploy/docker-compose.split.yml`, `deploy/Caddyfile.split` y `src/diagrams-sse/README.md`. El monolito (hub in-process con carpeta o LISTEN en el mismo proceso con Postgres) sigue siendo válido.
 
 No mezcla la extracción del gateway, las capas de `projects` ni el estático.
 
-Se verifica con `npm run cli -- validate examples/diagrams-as-is.json`, `src/cli/serveEvents.test.ts` y `tests/e2e/projects-cloud-eventos.spec.ts`.
+Se verifica con `npm run cli -- validate examples/diagrams-as-is.json`, `src/cli/serveEvents.test.ts`, `src/diagrams-sse/features/events/postgresBridge.test.ts` y `tests/e2e/projects-cloud-eventos.spec.ts`.
 
 ## Fase 5 · Borde
 

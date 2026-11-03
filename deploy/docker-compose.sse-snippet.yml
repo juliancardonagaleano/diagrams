@@ -1,6 +1,6 @@
 # Fragmento opcional (spec 005): segundo contenedor `diagrams-sse` junto al servicio `iark` principal.
-# Copie las líneas de `iark-sse` dentro de deploy/docker-compose.yml cuando los proyectos usen Postgres
-# (`IARK_WORKSPACE_STORE=postgres`) y quiera separar GET /api/events del proceso que escribe proyectos.
+# Preferible: use el stack completo en `deploy/docker-compose.split.yml` y `deploy/Caddyfile.split` (app + sse + Caddy).
+# Este archivo queda como referencia mínima si ya tiene un compose propio con Postgres.
 #
 # El proceso principal publica avisos con NOTIFY; este escucha con LISTEN (IARK_DATABASE_SESSION_URL apunta al
 # puerto de sesión de Postgres, no al pooler transaccional de Supavisor).

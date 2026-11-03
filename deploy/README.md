@@ -2,6 +2,8 @@
 
 Esta carpeta deja a DIAgrams listo para una máquina con Docker: `docker-compose.yml` (DIAgrams con inicio de sesión de GitHub + Caddy con HTTPS automático), `Caddyfile`, `.env.example` (toda la configuración, sin secretos) y `secrets/` (el secreto de la OAuth App, que git ignora).
 
+Con **Postgres** y canal SSE en proceso aparte (spec 005), use `docker-compose.split.yml` y `Caddyfile.split`: el servicio `iark` lleva `IARK_EVENTS_ROLE=publish`; `iark-sse` ejecuta `serve-sse` con `IARK_EVENTS_ROLE=stream` y `IARK_DATABASE_SESSION_URL` para `LISTEN`. Variables y comentarios en `.env.example` y en [`src/diagrams-sse/README.md`](../src/diagrams-sse/README.md).
+
 **La guía, paso a paso, está en [`docs/despliegue-nube.md`](../docs/despliegue-nube.md)**: registrar la OAuth App en GitHub, elegir dónde alojar, el primer arranque, entrar como administrador, copias de seguridad, actualizar y solución de problemas.
 
 **¿Sin máquina propia?** [`render.yaml`](render.yaml) es un Blueprint de Render para el servicio solo (sitio en GitHub Pages, datos en Supabase); la guía está en [`docs/despliegue-render-supabase.md`](../docs/despliegue-render-supabase.md). No se ha probado contra Render.
