@@ -8,9 +8,9 @@
 
 ## estado
 
-`en curso`
+`hecha`
 
-Rama `cursor/impl-app-shell-deep-58e1`: un solo `rollupOptions.input` de suite; `modulos.html` y `trazabilidad.html` arrancan `boot.ts`; `/modules/:id` y `/trace` vía `spaRoutes.ts` y `federation/mountInShell.ts`; copias legacy en build. Pendiente `hecha` tras e2e de la spec.
+Rama `cursor/post-rearch-continue-58e1`: un solo `rollupOptions.input` de suite; `modulos.html` y `trazabilidad.html` arrancan `boot.ts`; `/modules/:id` y `/trace` vía `spaRoutes.ts` y `federation/mountInShell.ts` (`?embed=1` conserva el banco completo para el protocolo embebido); copias legacy en build. E2e de la spec en CI (job `e2e` de `.github/workflows/deploy-pages.yml`).
 
 ## problema
 
@@ -140,7 +140,9 @@ Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(
 npx vitest run src/shell/spaRoutes.test.ts
 ```
 
-Faltan e2e (`tests/e2e/suite.spec.ts`, `modules.spec.ts`, `trace.spec.ts`, `embed.spec.ts`, …) antes de `hecha`.
+```text
+npx playwright test tests/e2e/suite.spec.ts tests/e2e/modules.spec.ts tests/e2e/trace.spec.ts tests/e2e/embed.spec.ts
+```
 
 ## riesgos
 

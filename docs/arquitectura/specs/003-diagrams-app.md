@@ -8,9 +8,9 @@
 
 ## estado
 
-`en curso`
+`hecha`
 
-Rama `cursor/impl-app-shell-deep-58e1`: almacenes en `modules/projects/infrastructure/`; shims en `src/cli/`. Host (`createProjectsHost`) usa `application/queries.ts` para lecturas y `application/commands.ts` para **todas** las escrituras (Domain: `saveDiagram`, `projectWrites`, `diagramWrites`, `versionWrites`). Pendiente `hecha` tras pruebas HTTP/e2e listadas abajo y spec `aceptada`.
+Rama `cursor/post-rearch-continue-58e1`: almacenes en `modules/projects/infrastructure/`; shims en `src/cli/`. Host (`createProjectsHost`) usa `application/queries.ts` para lecturas y `application/commands.ts` para **todas** las escrituras (Domain: `saveDiagram`, `projectWrites`, `diagramWrites`, `versionWrites`). Verificación: typecheck, validate as-is, `tests/project-http*.ts`, `tests/project-check.test.ts` y suite de proyectos en vitest (CI con `IARK_REQUIRE_POSTGRES=1`).
 
 ## problema
 
@@ -156,7 +156,9 @@ npx vitest run src/cli/serveProjects.test.ts src/cli/serveVersions.test.ts \
   src/diagrams-app/modules/projects/domain/diagramWrites.test.ts
 ```
 
-Faltan en esta sesión las de `tests/project-http*.ts`, `tests/project-check.test.ts` y e2e antes de `hecha`.
+```text
+npx vitest run tests/project-http.test.ts tests/project-http-postgres.test.ts tests/project-check.test.ts
+```
 
 ## riesgos
 
