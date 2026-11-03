@@ -5,7 +5,7 @@ test.describe('vista de trazabilidad entre módulos', () => {
   test('carga los ejemplos, dibuja el grafo y lista los enlaces por par de módulos', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto('/trazabilidad.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('/trace', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#summary')).toContainText('sin documentos');
     await expect(page.getByText('Carga los documentos de al menos dos módulos')).toBeVisible();
 
@@ -27,7 +27,7 @@ test.describe('vista de trazabilidad entre módulos', () => {
   });
 
   test('alcance de un elemento: el impacto atraviesa los módulos y se acota por saltos', async ({ page }) => {
-    await page.goto('/trazabilidad.html?examples=1&tab=reach', { waitUntil: 'domcontentloaded' });
+    await page.goto('/trace?examples=1&tab=reach', { waitUntil: 'domcontentloaded' });
     await expect(page.getByLabel('Elemento de partida')).toBeVisible();
     await page.getByLabel('Elemento de partida').selectOption('urn:iark:integration:pedidos');
     await page.getByLabel('Sentido').selectOption('referrers');
@@ -45,7 +45,7 @@ test.describe('vista de trazabilidad entre módulos', () => {
   test('enlaces tipados: filtro por tipo, matriz con desglose, huérfanos y cobertura sobre los ejemplos', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto('/trazabilidad.html?examples=1&tab=links', { waitUntil: 'domcontentloaded' });
+    await page.goto('/trace?examples=1&tab=links', { waitUntil: 'domcontentloaded' });
     const summary = page.locator('#summary');
     await expect(summary).toContainText('6 documentos · 15 enlaces');
 
@@ -96,7 +96,7 @@ test.describe('vista de trazabilidad entre módulos', () => {
   });
 
   test('documentos por archivo o pegados: un módulo sin su destino deja la referencia sin resolver y un JSON roto no borra nada', async ({ page }) => {
-    await page.goto('/trazabilidad.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('/trace', { waitUntil: 'domcontentloaded' });
     const security = page.locator('section[data-module="security"]');
     await security.locator('input[type="file"]').setInputFiles({ name: 'seguridad.json', mimeType: 'application/json', buffer: readFileSync('examples/seguridad-ejemplo.json') });
     await expect(security.locator('.wb-chip')).toContainText('elementos');
@@ -121,10 +121,10 @@ test.describe('vista de trazabilidad entre módulos', () => {
   });
 
   test('desde el banco de trabajo y el shell se llega a la vista', async ({ page }) => {
-    await page.goto('/modulos.html?bank=1', { waitUntil: 'domcontentloaded' });
+    await page.goto('/modules/c4?bank=1', { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: 'Trazabilidad' }).click();
-    await expect(page).toHaveURL(/trazabilidad\.html$/);
+    await expect(page).toHaveURL(/\/trace$/);
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('link', { name: 'Trazabilidad' })).toHaveAttribute('href', 'trazabilidad.html');
+    await expect(page.getByRole('link', { name: 'Trazabilidad' })).toHaveAttribute('href', '/trace');
   });
 });

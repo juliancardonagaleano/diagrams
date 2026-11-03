@@ -38,7 +38,7 @@ async function anotherPerson(browser: Browser, origin: string): Promise<Page> {
 async function open(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/modulos.html?bank=1&module=data', { waitUntil: 'domcontentloaded' });
+  await page.goto('/modules/data?bank=1', { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('project-bar')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('editor-status')).toContainText('Válido', { timeout: 20000 });
   return errors;

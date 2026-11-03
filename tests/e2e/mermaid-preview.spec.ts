@@ -42,7 +42,7 @@ test.describe('vista previa renderizada de Mermaid', () => {
   test('banco de trabajo: exportar ▸ Mermaid ▸ Ver dibuja el diagrama junto al texto', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto('/modulos.html?bank=1&module=platform', { waitUntil: 'domcontentloaded' });
+    await page.goto('/modules/platform?bank=1', { waitUntil: 'domcontentloaded' });
     await canvasReady(page);
     await page.getByRole('tab', { name: 'Exportar' }).click();
     await page.locator('[data-format="json"]').getByRole('button', { name: 'Ver' }).click();

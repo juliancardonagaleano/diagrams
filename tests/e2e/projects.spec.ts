@@ -10,7 +10,16 @@ const example = (file: string): string => readFileSync(new URL(`../../examples/$
 async function open(page: Page, query = 'module=data'): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`/modulos.html?bank=1${query ? `&${query}` : ''}`, { waitUntil: 'domcontentloaded' });
+  const href = (() => {
+    if (!query) return '/modules/c4?bank=1';
+    const params = new URLSearchParams(query);
+    const moduleId = params.get('module') ?? 'data';
+    params.delete('module');
+    if (!params.has('bank')) params.set('bank', '1');
+    const qs = params.toString();
+    return `/modules/${moduleId}${qs ? `?${qs}` : ''}`;
+  })();
+  await page.goto(href, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('project-bar')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('editor-status')).toContainText('Válido', { timeout: 20000 });
   return errors;

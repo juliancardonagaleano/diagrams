@@ -13,7 +13,7 @@ const asFile = (name: string, doc: unknown) => ({ name, mimeType: 'application/j
 async function open(page: Page): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/modulos.html?bank=1&module=c4', { waitUntil: 'domcontentloaded' });
+  await page.goto('/modules/c4?bank=1', { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('module-canvas')).toBeVisible({ timeout: 20000 });
   await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 20000 });
   await canvasReady(page, 'contexto');

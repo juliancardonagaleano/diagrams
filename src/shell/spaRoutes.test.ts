@@ -6,12 +6,12 @@ describe('spaRoutes', () => {
     expect(normalizePathname('/studio/')).toBe('/studio');
   });
 
-  it('ruta /modules carga el banco (module en la consulta)', () => {
+  it('ruta /modules carga el banco (el id va en el pathname)', () => {
     const target = resolveSpaBootTarget('/modules/data', new URLSearchParams('embed=1'));
     expect(target.kind).toBe('legacy-modules');
     if (target.kind !== 'legacy-modules') return;
     expect(target.moduleId).toBe('data');
-    expect(new URLSearchParams(target.search).get('module')).toBe('data');
+    expect(new URLSearchParams(target.search).get('module')).toBeNull();
     expect(new URLSearchParams(target.search).get('embed')).toBe('1');
   });
 

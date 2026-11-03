@@ -36,7 +36,7 @@ async function openLarge(page: Page): Promise<{ workers: string[]; downloads: st
     },
     { key: 'iark.workbench.integration', text: JSON.stringify(generated.document) },
   );
-  await page.goto('/modulos.html?bank=1&module=integration', { waitUntil: 'domcontentloaded' });
+  await page.goto('/modules/integration?bank=1', { waitUntil: 'domcontentloaded' });
   return { workers, downloads, nodes: (generated.document as { nodes: unknown[] }).nodes.length };
 }
 
