@@ -1,0 +1,33 @@
+# Caddy para despliegue partido (spec 005): `GET /api/events` va a `iark-sse`; el resto a `iark`.
+# Uso con deploy/docker-compose.split.yml (Postgres + IARK_EVENTS_ROLE publish/stream).
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$IARK_DOMAIN} {
+	@sinsse not path /api/events
+	encode @sinsse zstd gzip
+	header {
+		>Strict-Transport-Security "max-age=15552000"
+		X-Content-Type-Options nosniff
+	}
+	@html path *.html / /index.html /modulos.html /suite.html /trazabilidad.html
+	header @html {
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; frame-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+		X-Frame-Options "SAMEORIGIN"
+	}
+
+	@sse path /api/events
+	handle @sse {
+		reverse_proxy iark-sse:8788 {
+			flush_interval -1
+		}
+	}
+	handle {
+		reverse_proxy iark:8787
+	}
+}

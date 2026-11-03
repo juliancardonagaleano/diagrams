@@ -8,9 +8,9 @@
 
 ## estado
 
-`en curso`
+`hecha`
 
-Rama `cursor/rearch-specs-003-004-005-58e1`: `createEventsHost` es el único borde HTTP del canal (`src/diagrams-sse/host/eventsApi.ts`; ver `src/diagrams-sse/README.md`). Hub in-process con `diagrams-app` hasta canal probado (spec: límite `LISTEN`/pool y ausencia de broker). `serve.ts` delega solo a `createEventsHost`; `serveEvents.ts` reexporta.
+Canal Postgres probado (`postgresBridge.ts`); `createEventsHost` es el único borde HTTP del canal. `iark serve-sse` + `IARK_EVENTS_ROLE=publish|stream` permiten separar app y gateway SSE en producción (`deploy/docker-compose.split.yml`). Monolito con carpeta o Postgres en un solo proceso sigue soportado. `serveEvents.ts` reexporta tipos por compatibilidad.
 
 ## problema
 
@@ -119,19 +119,19 @@ De la implementación, solo con la spec `aceptada` y en su PR:
 
 ## verificación
 
-Implementación parcial (proceso no partido). Comprobaciones de esta rama:
-
-1. **`createEventsHost` único:** `serve.ts` enruta `/api/events` solo vía `eventsHost.handle` de `createEventsHost`; no hay otro handler SSE en `diagrams-app` ni en `diagrams-gateway`.
-2. **In-process documentado:** `src/diagrams-sse/README.md` describe hub compartido vs canal futuro.
-3. **Pruebas:** `src/cli/serveEvents.test.ts`, `src/diagrams-sse/features/events/postgresBridge.test.ts` (serialización + NOTIFY/LISTEN con Postgres real cuando `IARK_REQUIRE_POSTGRES=1`, como en CI) y `tests/e2e/projects-cloud-eventos.spec.ts`.
-4. **Despliegue partido:** `src/diagrams-sse/README.md`, `deploy/docker-compose.sse-snippet.yml` e `iark serve-sse`. El proceso monolito sigue siendo válido (hub in-process con carpeta o LISTEN en el mismo proceso con Postgres); separar app y `serve-sse` queda operativo pero no obligatorio — la spec sigue en `en curso` hasta cerrar el criterio de proceso aparte por omisión en producción.
+1. **`createEventsHost` único:** `serve.ts` enruta `/api/events` solo vía `eventsHost.handle`; no hay otro handler SSE en `diagrams-app` ni en `diagrams-gateway`.
+2. **Canal Postgres:** publicación en el pool; escucha en conexión de sesión (`IARK_DATABASE_SESSION_URL`). Límite del pool transaccional documentado en `src/cli/postgres/pool.ts`.
+3. **Proceso aparte:** `iark serve-sse`, roles `IARK_EVENTS_ROLE=publish|stream`, variables en `src/diagrams-sse/README.md`. Stack de referencia: `deploy/docker-compose.split.yml`, `deploy/Caddyfile.split`, `deploy/.env.example`.
+4. **Pruebas:**
 
 ```text
+npm run typecheck
 npm run cli -- validate examples/diagrams-as-is.json
 Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+npx vitest run src/cli/serveEvents.test.ts src/diagrams-sse/features/events/postgresBridge.test.ts src/cli/observability/readinessChecks.test.ts
 ```
 
-El límite de `LISTEN` en el pool transaccional sigue en `src/cli/postgres/pool.ts` y en `src/diagrams-app/modules/projects/infrastructure/postgresProjects.ts`. El canal elegido es **`NOTIFY`/`LISTEN`** en `src/diagrams-sse/features/events/postgresBridge.ts` (publicación en el pool; escucha en conexión de sesión). Ver `src/diagrams-sse/README.md` e `iark serve-sse`.
+`postgresBridge.test.ts` ejecuta NOTIFY/LISTEN contra Postgres real cuando `IARK_REQUIRE_POSTGRES=1` (como en CI). E2E del canal: `tests/e2e/projects-cloud-eventos.spec.ts`.
 
 ## riesgos
 

@@ -33,7 +33,15 @@ iark serve-sse --workspace-store postgres --host 0.0.0.0 --port 8788 \
 
 Expone `/healthz`, `/readyz`, `/metrics` (si están activados) y **`GET /api/events`**, más las rutas de autenticación necesarias. No sirve `/api/projects` ni la API de módulos.
 
-Fragmento de compose opcional: `deploy/docker-compose.sse-snippet.yml`.
+Referencias de despliegue:
+
+| Archivo | Uso |
+|---|---|
+| `deploy/docker-compose.split.yml` | Stack Postgres: app (`publish`) + `iark-sse` (`stream`) + Caddy (`Caddyfile.split` enruta `/api/events`) |
+| `deploy/docker-compose.sse-snippet.yml` | Fragmento mínimo si ya tiene compose propio |
+| `deploy/.env.example` | `IARK_DATABASE_URL`, `IARK_DATABASE_SESSION_URL`, `IARK_EVENTS_*` |
+
+**Política:** el monolito (`iark serve` con carpeta o Postgres en un solo proceso) sigue siendo válido. Con Postgres y varias réplicas, separe procesos: la app publica con NOTIFY; el gateway SSE escucha con una conexión de sesión. Sin `IARK_DATABASE_SESSION_URL`, el pooler transaccional no admite `LISTEN` (ver `src/cli/postgres/pool.ts`).
 
 ## Carpeta local (sin Postgres)
 
