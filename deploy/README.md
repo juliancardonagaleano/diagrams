@@ -4,6 +4,8 @@ Esta carpeta deja a DIAgrams listo para una máquina con Docker: `docker-compose
 
 Con **Postgres** y canal SSE en proceso aparte (spec 005), use `docker-compose.split.yml` y `Caddyfile.split`: el servicio `iark` lleva `IARK_EVENTS_ROLE=publish`; `iark-sse` ejecuta `serve-sse` con `IARK_EVENTS_ROLE=stream` y `IARK_DATABASE_SESSION_URL` para `LISTEN`. Variables y comentarios en `.env.example` y en [`src/diagrams-sse/README.md`](../src/diagrams-sse/README.md).
 
+Para repartir también **gateway**, **identity** y **app** (specs 002–004 y 009), use `docker-compose.services.yml` y `Caddyfile.services`: cuatro procesos (`iark serve-gateway`, `serve-identity`, `serve-app`, `serve-sse`) detrás del mismo Caddy. El monolito `iark serve` (compose por omisión) no cambia. En local puede usar los mismos roles con `IARK_SERVE_ROLE=gateway|identity|app|sse` o los comandos dedicados; cada proceso publica su propio `/readyz` (ver [`docs/observabilidad.md`](../docs/observabilidad.md)).
+
 **La guía, paso a paso, está en [`docs/despliegue-nube.md`](../docs/despliegue-nube.md)**: registrar la OAuth App en GitHub, elegir dónde alojar, el primer arranque, entrar como administrador, copias de seguridad, actualizar y solución de problemas.
 
 **¿Sin máquina propia?** [`render.yaml`](render.yaml) es un Blueprint de Render para el servicio solo (sitio en GitHub Pages, datos en Supabase); la guía está en [`docs/despliegue-render-supabase.md`](../docs/despliegue-render-supabase.md). No se ha probado contra Render.
