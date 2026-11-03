@@ -35,6 +35,19 @@ while true; do
 done
 echo "Sirviendo la compilación nueva tras ~${SECONDS}s."
 
+if [ ! -f "$dist/_headers" ]; then
+  echo "Falta dist/pages/_headers (cabeceras del sitio estático, spec 009)." >&2
+  exit 1
+fi
+if ! grep -q "Content-Security-Policy" "$dist/_headers"; then
+  echo "_headers no incluye Content-Security-Policy." >&2
+  exit 1
+fi
+if grep -q "unsafe-eval" "$dist/_headers"; then
+  echo "_headers no debe incluir unsafe-eval." >&2
+  exit 1
+fi
+
 fail=0
 for path in "" modulos.html suite.html trazabilidad.html .well-known/iark.json "$main"; do
   code=$(status "${base}${path}")

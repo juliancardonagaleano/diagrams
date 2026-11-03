@@ -349,7 +349,7 @@ describe('iark serve (comando)', () => {
     expect(await exited).toBe(0);
   });
 
-  it('rechaza un puerto inválido y una carpeta de sitio que no existe', async () => {
+  it('rechaza un puerto inválido y ya no admite --static (sitio en Pages o CDN)', async () => {
     const run = (args: string[]) =>
       new Promise<{ code: number | null; stderr: string }>((resolve) => {
         const child = spawn(process.execPath, [bundle.cli, 'serve', ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -360,8 +360,8 @@ describe('iark serve (comando)', () => {
     const port = await run(['--port', 'abc']);
     expect(port.code).not.toBe(0);
     expect(port.stderr).toMatch(/puerto debe ser un entero/);
-    const site = await run(['--port', '0', '--static', '/no/existe']);
+    const site = await run(['--static', 'dist/app']);
     expect(site.code).not.toBe(0);
-    expect(site.stderr).toMatch(/no existe/);
+    expect(site.stderr).toMatch(/unknown option|opción desconocida/i);
   });
 });

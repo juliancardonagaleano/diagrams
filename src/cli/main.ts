@@ -570,11 +570,10 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
   const serve = program
     .command('serve')
     .description(
-      'Servicio HTTP de la suite: API por módulo (validar, vistas, exportar, importar, informes), manifiesto de federación /.well-known/iark.json y, con --static, el sitio y, con --workspace, la API de proyectos (/api/projects). Con --config (o IARK_CONFIG) sirve también los módulos de terceros de esa configuración',
+      'Servicio HTTP de la suite: API por módulo (validar, vistas, exportar, importar, informes), manifiesto de federación /.well-known/iark.json y, con --workspace, la API de proyectos (/api/projects). El sitio compilado se publica en GitHub Pages o en un CDN (spec 009). Con --config (o IARK_CONFIG) sirve también los módulos de terceros de esa configuración',
     )
     .option('-p, --port <n>', 'puerto (0 elige uno libre)', parsePort, 8787)
     .option('--host <host>', 'dirección en la que escucha (en un contenedor, 0.0.0.0)', '127.0.0.1')
-    .option('--static <carpeta>', 'sirve también el sitio compilado (p. ej. dist/app), con el editor, el banco de trabajo y el shell', process.env.IARK_STATIC)
     .option('--cors <orígenes>', 'orígenes autorizados a llamar a la API desde un navegador, separados por comas, o * (por defecto, ninguno; o la variable IARK_CORS). Para la API de proyectos hay que nombrar el origen: un * no basta', process.env.IARK_CORS || undefined)
     .option(
       '-w, --workspace <carpeta>',
@@ -616,7 +615,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
     .option('--trust-proxy', 'hay un proxy de confianza delante (Caddy, nginx…): el freno de intentos fallidos usa la última dirección de X-Forwarded-For en vez de la del proxy (o IARK_TRUST_PROXY=true). No lo active sin proxy', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''));
   addObservabilityOptions(serve);
   addComputeOptions(serve).action(async (opts) => {
-      if (opts.static && !existsSync(opts.static)) throw new CliError(`La carpeta del sitio «${opts.static}» no existe (¿falta \`npm run build\`?).`);
+      if (process.env.IARK_STATIC) throw new CliError('IARK_STATIC ya no sirve el sitio desde iark serve: publique dist/pages en GitHub Pages o use un CDN (spec 009).', 2);
       if (opts.workspace && existsSync(opts.workspace) && !statSync(opts.workspace).isDirectory()) throw new CliError(`El espacio de trabajo «${opts.workspace}» no es una carpeta.`, 2);
       let frameAncestors: string[];
       try {
@@ -652,7 +651,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue, plugins: settings.plugins }) : undefined;
       // Los proyectos en Postgres se abren al final de las comprobaciones: el pool de la base (compartido por el proceso) se cierra al parar.
       const projects = workspaceStore === 'postgres' ? await openPostgresProjects() : opts.workspace ? new FolderProjectStore(opts.workspace) : undefined;
-      const server = createSuiteServer({ registry, version: CLI_VERSION, staticDir: opts.static, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute, observability: observed.observability, metricsToken: observed.metricsToken, events: streams === 0 ? false : { maxPerPerson: streams } });
+      const server = createSuiteServer({ registry, version: CLI_VERSION, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute, observability: observed.observability, metricsToken: observed.metricsToken, events: streams === 0 ? false : { maxPerPerson: streams } });
       try {
         await new Promise<void>((resolveListening, rejectListening) => {
           server.once('error', rejectListening);
@@ -664,7 +663,7 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       }
       const address = server.address();
       const port = typeof address === 'object' && address ? address.port : opts.port;
-      info(`DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port}${opts.static ? ` (sitio: ${opts.static})` : ' (solo API)'}`);
+      info(`DIAgrams escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port} (solo API; el sitio va en Pages o CDN)`);
       info(`  manifiesto: /.well-known/iark.json · módulos: /api/modules`);
       for (const line of observed.lines) info(line);
       const thirdParty = registry.ids().filter((id) => registry.originOf(id) !== undefined);

@@ -14,10 +14,18 @@
 	# Sin comprimir el canal de cambios en tiempo real (GET /api/events, Server-Sent Events): una conexión larga que debe salir al instante.
 	@sinsse not path /api/events
 	encode @sinsse zstd gzip
-	# HSTS: el navegador no vuelve a pedir este dominio por http durante 180 días. Se pone aquí para que valga también en las respuestas
-	# que da Caddy (un 502 si DIAgrams está caído); DIAgrams lo envía igual cuando ve `X-Forwarded-Proto: https` (con --trust-proxy), y el
-	# prefijo `>` fija el valor al final, así que no sale duplicado. Sin `includeSubDomains` ni `preload`: son decisiones del dominio.
-	header >Strict-Transport-Security "max-age=15552000"
+	# Cabeceras de borde (spec 009): política de src/cli/securityHeaders.ts. Pages usa dist/pages/_headers con la misma CSP.
+	header {
+		>Strict-Transport-Security "max-age=15552000"
+		X-Content-Type-Options nosniff
+	}
+	@html path *.html / /index.html /modulos.html /suite.html /trazabilidad.html
+	header @html {
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; frame-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+		X-Frame-Options "SAMEORIGIN"
+	}
 	# `iark` es el nombre del servicio en el compose; su puerto no se publica fuera. Caddy añade X-Forwarded-For con la dirección
 	# del cliente, y por eso DIAgrams arranca con --trust-proxy (el freno de intentos fallidos distingue a cada cliente).
 	# Caddy no activa su propio registro de accesos (es lo normal en Caddy): la dirección de vuelta de GitHub lleva un código de un solo uso en la
