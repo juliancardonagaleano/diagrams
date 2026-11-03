@@ -1,0 +1,1 @@
+export{t as default}from"./mfe-integration-BiO6tK4x.js";

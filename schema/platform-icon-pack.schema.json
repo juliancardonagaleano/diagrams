@@ -1,0 +1,114 @@
+{
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/platform-icon-pack.schema.json",
+  "title": "Paquete de iconos de plataforma (DIAgrams)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "provider": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "aliases": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 60
+      }
+    },
+    "icons": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "paths": {
+            "minItems": 1,
+            "maxItems": 24,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 800,
+              "pattern": "^[MmLlHhVvCcSsQqTtAaZz0-9\\s,.eE+-]+$"
+            }
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "cluster",
+                    "vm",
+                    "database",
+                    "cache",
+                    "queue",
+                    "storage",
+                    "load-balancer",
+                    "gateway",
+                    "dns",
+                    "secret-store",
+                    "registry",
+                    "region",
+                    "namespace",
+                    "certificate",
+                    "monitoring",
+                    "other"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "const": "network"
+                }
+              ]
+            }
+          },
+          "keywords": {
+            "maxItems": 40,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          }
+        },
+        "required": [
+          "label",
+          "paths"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "provider",
+    "color",
+    "icons"
+  ]
+}

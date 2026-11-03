@@ -1,0 +1,1 @@
+import"./mfe-c4-BZMh7nUR.js";export{t as c4Module,i as standalonePrompt}from"./domain-c4-CjjvD42p.js";

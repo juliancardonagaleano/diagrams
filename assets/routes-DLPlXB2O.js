@@ -1,0 +1,1 @@
+export{t as default}from"./mfe-data-HKHB96us.js";

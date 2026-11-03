@@ -1,0 +1,1 @@
+export{ot as createEmptyDocument,ct as createView}from"./domain-c4-CjjvD42p.js";

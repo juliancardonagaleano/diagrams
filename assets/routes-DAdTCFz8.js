@@ -1,0 +1,1 @@
+export{t as default}from"./mfe-enterprise-BsNircd1.js";

@@ -1,0 +1,1 @@
+import{n as e}from"./mfe-c4-BZMh7nUR.js";var t=e({remoteId:`mfe-integration`,moduleId:`integration`,shellMountPath:`/modules/integration`});export{t};

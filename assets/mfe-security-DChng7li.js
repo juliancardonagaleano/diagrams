@@ -1,0 +1,1 @@
+import{n as e}from"./mfe-c4-BZMh7nUR.js";var t=e({remoteId:`mfe-security`,moduleId:`security`,shellMountPath:`/modules/security`});export{t};

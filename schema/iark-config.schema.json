@@ -1,0 +1,27 @@
+{
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/iark-config.schema.json",
+  "title": "Configuración de DIAgrams (iark.config.json)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Dirección del JSON Schema de este archivo (para el editor); DIAgrams la ignora.",
+      "type": "string"
+    },
+    "modules": {
+      "default": [],
+      "description": "Módulos de terceros que se cargan, en este orden: un nombre de paquete npm (@acme/iark-module-riesgos, resuelto desde la carpeta de este archivo), una ruta a un archivo .mjs/.js o a la carpeta de un paquete (relativa a la carpeta de este archivo) o una URL file:. Cargar un módulo ejecuta su código con los permisos del proceso.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "defaultModule": {
+      "description": "Módulo que usan por omisión los comandos con --module (por omisión, c4). Debe ser un módulo incorporado o uno de los cargados.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,62 @@
+var e=`{
+  "version": "1.0",
+  "workspace": { "name": "Seguridad de la tienda en línea", "description": "Zonas de confianza, flujos de datos, amenazas STRIDE y controles de la plataforma de pedidos" },
+  "zones": [
+    { "id": "internet", "name": "Internet", "trust": "untrusted" },
+    { "id": "perimetro", "name": "Perímetro", "trust": "dmz", "description": "Balanceador y WAF expuestos al público" },
+    { "id": "interna", "name": "Red interna", "trust": "internal", "description": "Clúster de aplicaciones" },
+    { "id": "datos", "name": "Zona de datos", "trust": "restricted", "parentId": "interna", "description": "Bases de datos y secretos, sin acceso desde fuera del clúster" }
+  ],
+  "assets": [
+    { "id": "cliente", "name": "Cliente", "kind": "actor", "zoneId": "internet" },
+    { "id": "pasarela-pagos", "name": "Pasarela de pagos", "kind": "external", "zoneId": "internet", "owner": "Proveedor de pagos" },
+    { "id": "proveedor-correo", "name": "Proveedor de correo", "kind": "external", "zoneId": "internet", "owner": "Proveedor de correo" },
+    { "id": "waf-lb", "name": "Balanceador y WAF", "kind": "process", "zoneId": "perimetro", "technology": "AWS ALB + WAF", "owner": "Plataforma", "classification": "internal" },
+    { "id": "tienda-web", "name": "Tienda web", "kind": "process", "zoneId": "interna", "technology": "React SSR", "owner": "Equipo Web", "classification": "confidential" },
+    { "id": "pedidos", "name": "Servicio de pedidos", "kind": "process", "zoneId": "interna", "technology": "Java, Spring Boot", "owner": "Equipo Pedidos", "classification": "restricted", "ref": "urn:iark:platform:pedidos", "refType": "protects" },
+    { "id": "facturacion", "name": "Facturación", "kind": "process", "zoneId": "interna", "technology": ".NET", "owner": "Equipo Finanzas", "classification": "confidential", "ref": "urn:iark:platform:facturacion", "refType": "protects" },
+    { "id": "notificaciones", "name": "Notificaciones", "kind": "process", "zoneId": "interna", "technology": "Node.js", "owner": "Equipo Web", "classification": "internal", "ref": "urn:iark:platform:notificaciones", "refType": "protects" },
+    { "id": "kafka", "name": "Bus de eventos", "kind": "process", "zoneId": "interna", "technology": "Kafka", "owner": "Plataforma", "classification": "confidential", "ref": "urn:iark:platform:kafka-prod", "refType": "protects" },
+    { "id": "pedidos-db", "name": "Base de pedidos", "kind": "datastore", "zoneId": "datos", "technology": "PostgreSQL 15", "owner": "Equipo Pedidos", "classification": "confidential", "encryptedAtRest": true, "ref": "urn:iark:platform:pedidos-db-prod", "refType": "protects" },
+    { "id": "secretos", "name": "Almacén de secretos", "kind": "datastore", "zoneId": "datos", "technology": "Vault", "owner": "Plataforma", "classification": "restricted", "encryptedAtRest": true }
+  ],
+  "flows": [
+    { "id": "cliente-navega", "sourceId": "cliente", "targetId": "waf-lb", "protocol": "HTTPS", "description": "Navegación y compra", "classification": "internal", "encrypted": true, "authentication": "token" },
+    { "id": "borde-a-web", "sourceId": "waf-lb", "targetId": "tienda-web", "protocol": "HTTPS", "encrypted": true, "authentication": "mtls" },
+    { "id": "web-a-pedidos", "sourceId": "tienda-web", "targetId": "pedidos", "protocol": "HTTPS", "description": "Datos del pedido", "classification": "confidential", "encrypted": true, "authentication": "token" },
+    { "id": "pedidos-a-db", "sourceId": "pedidos", "targetId": "pedidos-db", "protocol": "SQL sobre TLS", "description": "Pedidos y datos del cliente", "classification": "confidential", "encrypted": true, "authentication": "password" },
+    { "id": "pedidos-a-secretos", "sourceId": "pedidos", "targetId": "secretos", "protocol": "HTTPS", "description": "Credenciales de la base", "classification": "restricted", "encrypted": true, "authentication": "mtls" },
+    { "id": "pedidos-a-kafka", "sourceId": "pedidos", "targetId": "kafka", "protocol": "Kafka sobre TLS", "description": "Eventos de pedido", "classification": "confidential", "encrypted": true, "authentication": "mtls" },
+    { "id": "kafka-a-facturacion", "sourceId": "kafka", "targetId": "facturacion", "protocol": "Kafka sobre TLS", "classification": "confidential", "encrypted": true, "authentication": "mtls" },
+    { "id": "kafka-a-notificaciones", "sourceId": "kafka", "targetId": "notificaciones", "protocol": "Kafka sobre TLS", "classification": "internal", "encrypted": true, "authentication": "mtls" },
+    { "id": "facturacion-a-pagos", "sourceId": "facturacion", "targetId": "pasarela-pagos", "protocol": "HTTPS", "description": "Cobro del pedido", "classification": "confidential", "encrypted": true, "authentication": "token" },
+    { "id": "notificaciones-a-correo", "sourceId": "notificaciones", "targetId": "proveedor-correo", "protocol": "SMTP", "description": "Confirmación del pedido", "classification": "internal", "encrypted": false, "authentication": "password" }
+  ],
+  "threats": [
+    { "id": "robo-credenciales", "title": "Robo de credenciales de clientes (credential stuffing)", "category": "spoofing", "targetId": "cliente", "likelihood": "high", "impact": "high", "status": "open", "controlIds": ["mfa", "limitacion-tasa"] },
+    { "id": "interceptacion", "title": "Interceptación del tráfico del cliente", "category": "information-disclosure", "targetId": "cliente-navega", "likelihood": "low", "impact": "high", "status": "mitigated", "controlIds": ["tls-borde"] },
+    { "id": "ddos", "title": "Denegación de servicio distribuida contra la tienda", "category": "denial-of-service", "targetId": "waf-lb", "likelihood": "high", "impact": "medium", "status": "accepted", "description": "Se delega en la protección del proveedor cloud; se revisa cada trimestre.", "controlIds": ["limitacion-tasa"] },
+    { "id": "inyeccion-sql", "title": "Inyección SQL en el servicio de pedidos", "category": "tampering", "targetId": "pedidos", "likelihood": "medium", "impact": "critical", "status": "mitigated", "controlIds": ["consultas-parametrizadas", "waf-owasp"] },
+    { "id": "idor-pedidos", "title": "Acceso a pedidos de otros clientes (IDOR)", "category": "elevation-of-privilege", "targetId": "pedidos", "likelihood": "medium", "impact": "high", "status": "open", "controlIds": ["autorizacion-propietario"] },
+    { "id": "repudio-pedido", "title": "El cliente niega haber hecho un pedido", "category": "repudiation", "targetId": "pedidos", "likelihood": "low", "impact": "medium", "status": "mitigated", "controlIds": ["auditoria-pedidos"] },
+    { "id": "exfiltracion-db", "title": "Exfiltración de datos personales de la base de pedidos", "category": "information-disclosure", "targetId": "pedidos-db", "likelihood": "medium", "impact": "critical", "status": "mitigated", "controlIds": ["cifrado-reposo", "segmentacion-datos"] },
+    { "id": "lectura-secretos", "title": "Lectura de secretos desde un servicio comprometido", "category": "information-disclosure", "targetId": "secretos", "likelihood": "low", "impact": "critical", "status": "mitigated", "controlIds": ["secretos-rbac", "mtls-servicios"] },
+    { "id": "mensajes-falsos", "title": "Publicación de mensajes falsos en el bus de eventos", "category": "tampering", "targetId": "kafka", "likelihood": "medium", "impact": "high", "status": "open", "controlIds": ["mtls-servicios", "acl-kafka"] },
+    { "id": "correo-en-claro", "title": "Correos con datos del pedido en claro", "category": "information-disclosure", "targetId": "notificaciones-a-correo", "likelihood": "medium", "impact": "medium", "status": "open" }
+  ],
+  "controls": [
+    { "id": "mfa", "name": "Autenticación multifactor para clientes", "kind": "authentication", "status": "planned", "owner": "Equipo Web" },
+    { "id": "limitacion-tasa", "name": "Limitación de intentos y de tasa en el balanceador", "kind": "rate-limit", "owner": "Plataforma" },
+    { "id": "tls-borde", "name": "TLS 1.3 obligatorio en el borde", "kind": "encryption", "owner": "Plataforma" },
+    { "id": "consultas-parametrizadas", "name": "Consultas parametrizadas y validación de entradas", "kind": "validation", "owner": "Equipo Pedidos" },
+    { "id": "waf-owasp", "name": "WAF con las reglas OWASP", "kind": "network", "owner": "Plataforma" },
+    { "id": "autorizacion-propietario", "name": "Comprobar el propietario en cada consulta de pedido", "kind": "authorization", "status": "planned", "owner": "Equipo Pedidos" },
+    { "id": "auditoria-pedidos", "name": "Registro de auditoría firmado de los pedidos", "kind": "logging", "owner": "Equipo Pedidos" },
+    { "id": "cifrado-reposo", "name": "Cifrado en reposo con claves gestionadas (KMS)", "kind": "encryption", "owner": "Plataforma" },
+    { "id": "segmentacion-datos", "name": "Zona de datos solo accesible desde el servicio de pedidos", "kind": "network", "owner": "Plataforma" },
+    { "id": "secretos-rbac", "name": "Secretos con RBAC y rotación automática", "kind": "secrets", "owner": "Plataforma" },
+    { "id": "mtls-servicios", "name": "mTLS entre servicios (malla de servicios)", "kind": "authentication", "owner": "Plataforma" },
+    { "id": "acl-kafka", "name": "ACL por tópico en Kafka", "kind": "authorization", "status": "planned", "owner": "Plataforma" }
+  ]
+}
+`;export{e as default};

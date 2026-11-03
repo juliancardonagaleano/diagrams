@@ -1,0 +1,380 @@
+{
+  "$id": "https://github.com/juliancardonagaleano/diagrams/schema/integration-generation.schema.json",
+  "title": "Modelo de integración (salida de IA)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "workspace": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "system",
+              "api",
+              "gateway",
+              "broker",
+              "queue",
+              "topic",
+              "store",
+              "connector",
+              "scheduler",
+              "user",
+              "mcp",
+              "pattern"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "technology": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contractId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "content-based-router",
+                  "message-translator",
+                  "splitter",
+                  "aggregator",
+                  "filter",
+                  "enricher",
+                  "publish-subscribe",
+                  "polling-consumer",
+                  "idempotent-receiver",
+                  "dead-letter-channel",
+                  "saga",
+                  "circuit-breaker",
+                  "wire-tap",
+                  "claim-check",
+                  "scatter-gather",
+                  "resequencer",
+                  "transactional-outbox",
+                  "retry"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "description",
+          "technology",
+          "owner",
+          "external",
+          "parentId",
+          "contractId",
+          "pattern",
+          "domain"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "openapi",
+              "asyncapi",
+              "graphql",
+              "protobuf",
+              "avro",
+              "json-schema",
+              "wsdl",
+              "cloudevents",
+              "mcp",
+              "other"
+            ]
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "format",
+          "version",
+          "url",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "interactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "request-response",
+              "async-message",
+              "event",
+              "batch",
+              "stream"
+            ]
+          },
+          "protocol": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "content-based-router",
+                  "message-translator",
+                  "splitter",
+                  "aggregator",
+                  "filter",
+                  "enricher",
+                  "publish-subscribe",
+                  "polling-consumer",
+                  "idempotent-receiver",
+                  "dead-letter-channel",
+                  "saga",
+                  "circuit-breaker",
+                  "wire-tap",
+                  "claim-check",
+                  "scatter-gather",
+                  "resequencer",
+                  "transactional-outbox",
+                  "retry"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contractId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dataObjects": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "order": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sourceId",
+          "targetId",
+          "style",
+          "protocol",
+          "pattern",
+          "contractId",
+          "description",
+          "dataObjects",
+          "criticality",
+          "order"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "interactionId": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "interactionId",
+                "note"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "steps"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "workspace",
+    "nodes",
+    "contracts",
+    "interactions",
+    "flows"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,1 @@
+export{t as default}from"./mfe-platform-L4mE7W5n.js";
