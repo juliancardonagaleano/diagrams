@@ -18,7 +18,7 @@ interface Instance {
 }
 
 async function serve(args: string[]): Promise<Instance & { port: number }> {
-  const child: ChildProcess = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'src/cli/index.ts', 'serve', '--static', 'dist/app', '--port', '0', ...args], {
+  const child: ChildProcess = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'tests/e2e/serve-with-static.mts', 'dist/app', ...args], {
     cwd: process.cwd(),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -97,20 +97,20 @@ function watch(page: Page): { violations(): Promise<string[]>; problems: string[
 
 test.describe('las páginas con la CSP puesta', () => {
   test('las respuestas HTML llevan la CSP y las demás no', async ({ request }) => {
-    const page = await request.get(`${A.url}/modulos.html?bank=1&module=data`);
+    const page = await request.get(`${A.url}/modules/data?bank=1`);
     expect(page.headers()['content-security-policy']).toContain("script-src 'self'");
     expect(page.headers()['content-security-policy']).toContain("frame-ancestors 'self'");
     expect(page.headers()['referrer-policy']).toBe('no-referrer');
-    const embed = await request.get(`${A.url}/modulos.html?bank=1&embed=1&module=data`);
+    const embed = await request.get(`${A.url}/modules/data?bank=1&embed=1&module=data`);
     expect(embed.headers()['content-security-policy']).toContain('frame-ancestors *');
     expect((await request.get(`${A.url}/api/modules`)).headers()['content-security-policy']).toBeUndefined();
     // El HTML que compila Vite no trae scripts en línea: por eso `script-src 'self'` basta, sin hashes ni 'unsafe-inline'.
-    for (const path of ['/', '/modulos.html?bank=1', '/suite.html', '/trazabilidad.html']) expect(await (await request.get(`${A.url}${path}`)).text(), path).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/i);
+    for (const path of ['/', '/modules/c4?bank=1', '/suite.html', '/trace']) expect(await (await request.get(`${A.url}${path}`)).text(), path).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/i);
   });
 
   test('la política es efectiva: un script en línea no se ejecuta y queda anotada su violación', async ({ page }) => {
     const w = watch(page);
-    await page.goto(`${A.url}/trazabilidad.html`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/trace`, { waitUntil: 'domcontentloaded' });
     // (Un `eval` no sirve de prueba: lo que se evalúa por el protocolo de Playwright no pasa por la CSP de la página.)
     const ran = await page.evaluate(() => {
       const script = document.createElement('script');
@@ -149,14 +149,14 @@ test.describe('las páginas con la CSP puesta', () => {
 
   test('banco de módulos: lienzo, autolayout y vista previa de Mermaid, sin violaciones', async ({ page }) => {
     const w = watch(page);
-    await page.goto(`${A.url}/modulos.html?bank=1&module=platform`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/modules/platform?bank=1`, { waitUntil: 'domcontentloaded' });
     await canvasReady(page);
     await page.getByRole('tab', { name: 'Exportar' }).click();
     await page.locator('[data-format="mermaid"]').getByRole('button', { name: 'Ver' }).click();
     const drawing = page.getByRole('img', { name: /Vista previa de Mermaid/ });
     await expect(drawing).toBeVisible({ timeout: 20000 });
     await expect.poll(() => drawing.evaluate((el: HTMLImageElement) => (el.complete ? el.naturalWidth : 0))).toBeGreaterThan(0);
-    await page.goto(`${A.url}/modulos.html?bank=1&module=data`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/modules/data?bank=1`, { waitUntil: 'domcontentloaded' });
     await canvasReady(page);
     expect(await w.violations()).toEqual([]);
     expect(w.problems).toEqual([]);
@@ -168,7 +168,7 @@ test.describe('las páginas con la CSP puesta', () => {
     const downloads: string[] = [];
     page.on('worker', (worker) => workers.push(worker.url()));
     page.on('response', (response) => downloads.push(response.url()));
-    await page.goto(`${A.url}/modulos.html?bank=1&module=platform`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/modules/platform?bank=1`, { waitUntil: 'domcontentloaded' });
     await canvasReady(page);
     await expect.poll(() => workers.some((url) => /\/assets\/elkWorker-[^/]+\.js$/.test(url))).toBe(true);
     // Si la política hubiera bloqueado el hilo, el cálculo habría pasado a la salida de emergencia, que se descarga aparte.
@@ -181,13 +181,16 @@ test.describe('las páginas con la CSP puesta', () => {
     const w = watch(page);
     await page.goto(`${A.url}/?manifest=${encodeURIComponent('/.well-known/iark.json')}`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('status')).toContainText('6 módulos');
-    await expect(page.locator('#info')).toContainText('Informes'); // el handshake `capabilities` llegó desde el iframe
+    const frameFor = (fragment: string) => page.frames().find((f) => f.url().includes(fragment));
+    await expect.poll(() => frameFor('/modules/integration')?.url()).toContain('embed=1');
+    await expect(page.locator('#info')).toContainText('Arquitectura de integraciones');
+    await expect(page.locator('#info')).toContainText('Informes', { timeout: 20000 }); // el handshake `capabilities` llegó desde el iframe
     await page.getByRole('navigation', { name: 'Módulos' }).getByRole('button', { name: /Arquitectura de soluciones \(C4\)/ }).click();
     const c4 = () => page.frames().find((f) => f.url().includes('embed=1') && !f.url().includes('module='));
     await expect.poll(c4).toBeTruthy();
     await c4Ready(c4()!);
 
-    await page.goto(`${A.url}/trazabilidad.html`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/trace`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('body')).not.toBeEmpty();
     expect(await w.violations()).toEqual([]);
     expect(w.problems).toEqual([]);
@@ -260,20 +263,20 @@ test.describe('frame-ancestors', () => {
 
   test('una carga embebida se puede incrustar desde otro origen si la lista lo permite, y no si no', async ({ page }) => {
     const w = watch(page);
-    await page.goto(`${A.url}/trazabilidad.html`, { waitUntil: 'domcontentloaded' });
-    const allowed = await frameInto(page, `${origin(B)}/modulos.html?bank=1&embed=1&module=data&origin=${encodeURIComponent(A.url)}`);
+    await page.goto(`${A.url}/trace`, { waitUntil: 'domcontentloaded' });
+    const allowed = await frameInto(page, `${origin(B)}/modules/data?bank=1&embed=1&module=data&origin=${encodeURIComponent(A.url)}`);
     expect(allowed.refused, 'B autoriza a A: se muestra').toBe(false);
-    const probe = page.frames().find((f) => f.url().startsWith(`${origin(B)}/modulos.html`))!;
+    const probe = page.frames().find((f) => f.url().includes('/modules/'))!;
     // Sin documento cargado el banco muestra el aviso de «documento no válido»: basta ver que arrancó (la pestaña del módulo).
     await expect(probe.getByRole('tab', { name: 'Datos', selected: true })).toBeVisible({ timeout: 20000 });
     expect(await w.violations(), 'sin violaciones de la CSP').toEqual([]);
 
-    const denied = await frameInto(page, `${origin(C)}/modulos.html?bank=1&embed=1&module=data&origin=${encodeURIComponent(A.url)}`);
+    const denied = await frameInto(page, `${origin(C)}/modules/data?bank=1&embed=1&module=data&origin=${encodeURIComponent(A.url)}`);
     expect(denied.refused, 'C solo autoriza a otro.example: el navegador se niega a mostrarla').toBe(true);
   });
 
   test('una página normal (sin ?embed=1) no se puede incrustar desde otro origen aunque la instancia sea de las que autorizan a A', async ({ page }) => {
-    await page.goto(`${A.url}/trazabilidad.html`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/trace`, { waitUntil: 'domcontentloaded' });
     const refused = await frameInto(page, `${origin(B)}/suite.html`);
     expect(refused.refused).toBe(true);
     // Ni añadiendo ?embed=1: solo el editor y el banco tienen modo embebido, y de lo contrario un enlace bastaría para enmarcar cualquier página.
@@ -283,12 +286,12 @@ test.describe('frame-ancestors', () => {
 
   test('el banco incrustado desde otro origen sigue pudiendo incrustar el editor C4: los ancestros se comprueban todos, y el propio origen va siempre en la lista', async ({ page }) => {
     const w = watch(page);
-    await page.goto(`${A.url}/trazabilidad.html`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${A.url}/trace`, { waitUntil: 'domcontentloaded' });
     // El banco abre C4 en su propio lienzo, sin iframe. Un anfitrión que quiera el editor clásico lo anida dentro del banco, así que la
     // cadena de ancestros sigue siendo editor (B) → banco (B) → página anfitriona (A): `--frame-ancestors` de B solo nombra a A; B entra por `'self'`.
-    const bench = await frameInto(page, `${origin(B)}/modulos.html?bank=1&embed=1&module=c4&origin=${encodeURIComponent(A.url)}`);
+    const bench = await frameInto(page, `${origin(B)}/modules/c4?bank=1&embed=1&module=c4&origin=${encodeURIComponent(A.url)}`);
     expect(bench.refused).toBe(false);
-    const benchFrame = page.frames().find((f) => f.url().startsWith(`${origin(B)}/modulos.html`))!;
+    const benchFrame = page.frames().find((f) => f.url().includes('/modules/'))!;
     // Embebido y sin documento cargado, el banco avisa de que no hay documento válido: basta ver que arrancó (la pestaña del módulo).
     await expect(benchFrame.getByRole('tab', { name: 'C4', selected: true })).toBeVisible({ timeout: 20000 });
     expect(await benchFrame.locator('iframe').count(), 'C4 ya no se incrusta en el banco').toBe(0);
@@ -313,7 +316,7 @@ test.describe('federación con la CSP puesta', () => {
     await expect(page.getByRole('status')).toContainText('pendiente de confirmar'); // otro origen: no se conecta solo
     await page.getByRole('button', { name: 'Conectar' }).click();
     await expect(page.getByRole('status')).toContainText('6 módulos', { timeout: 20000 });
-    await expect.poll(() => page.frames().some((f) => f.url().startsWith(`${origin(B)}/modulos.html`) && f.url().includes('embed=1')), { timeout: 20000 }).toBe(true);
+    await expect.poll(() => page.frames().some((f) => f.url().includes('/modules/') && f.url().includes('embed=1')), { timeout: 20000 }).toBe(true);
     await expect(page.locator('#info')).toContainText('Informes', { timeout: 20000 }); // el handshake entre A y el iframe de B funciona
     expect(await w.violations(), 'sin violaciones de la CSP').toEqual([]);
     expect(w.problems).toEqual([]);

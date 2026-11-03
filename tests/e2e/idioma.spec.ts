@@ -8,7 +8,12 @@ import { expect, test, type Page } from '@playwright/test';
 async function openBank(page: Page, query: string): Promise<string[]> {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`/modulos.html?bank=1&${query}`, { waitUntil: 'domcontentloaded' });
+  const params = new URLSearchParams(query);
+  const moduleId = params.get('module') ?? 'data';
+  params.delete('module');
+  if (!params.has('bank')) params.set('bank', '1');
+  const qs = params.toString();
+  await page.goto(`/modules/${moduleId}${qs ? `?${qs}` : ''}`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('project-bar')).toBeVisible({ timeout: 20000 });
   return errors;
 }

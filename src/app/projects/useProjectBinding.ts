@@ -12,8 +12,9 @@ export const C4_MODULE = 'c4';
 
 const serialize = (doc: C4Document): string => JSON.stringify(doc, null, 2);
 
-/** Enlace al banco de trabajo con ese diagrama abierto (`modulos.html` está junto al editor, en la misma carpeta del sitio). */
-export const workbenchUrl = (projectId: string, diagramId: string): string => `modulos.html?project=${encodeURIComponent(projectId)}&diagram=${encodeURIComponent(diagramId)}`;
+/** Enlace al banco de trabajo con ese diagrama abierto (ruta canónica del shell SPA, spec 006), en la misma carpeta del sitio). */
+export const workbenchUrl = (module: string, projectId: string, diagramId: string): string =>
+  `/modules/${encodeURIComponent(module)}?project=${encodeURIComponent(projectId)}&diagram=${encodeURIComponent(diagramId)}`;
 
 /**
  * La sesión de proyectos de esta pestaña (una sola, de la fábrica compartida con el banco de trabajo: guarda en este navegador
@@ -89,7 +90,7 @@ export function useProjectBinding(): ProjectBinding {
         await session.flush();
         // Queda como lo último abierto: el banco de trabajo lo reabre desde ahí.
         await session.openDiagram(projectId, diagram.id);
-        window.location.assign(workbenchUrl(projectId, diagram.id));
+        window.location.assign(workbenchUrl(diagram.module, projectId, diagram.id));
         return;
       }
       const opened = await session.openDiagram(projectId, diagram.id);
