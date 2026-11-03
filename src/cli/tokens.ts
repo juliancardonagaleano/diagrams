@@ -144,7 +144,7 @@ export function parseTokenFile(text: string): TokenFile {
 }
 
 /** Cambia si el archivo cambia: su fecha de modificación y de cambio, su tamaño y su inodo (un guardado atómico estrena inodo, aunque el reloj del sistema de archivos sea grueso). */
-const signatureOf = (stat: Stats): string => `${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}:${stat.ino}`;
+const signatureOf = (stat: Stats): string => `${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}:${stat.ino}:${stat.mode}`;
 
 const errno = (error: unknown): string | undefined => (error as NodeJS.ErrnoException | undefined)?.code;
 
