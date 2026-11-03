@@ -32,4 +32,32 @@ describe('buildReadinessChecks (spec 009)', () => {
     );
     expect(await ready.status()).toMatchObject({ ok: true, checks: { registry: 'ok', compute: 'ok' } });
   });
+
+  it('diagrams-identity: tokens y cuentas cuando se pasan', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'iark-id-ready-'));
+    const tokens = join(root, 'tokens.json');
+    createToken(tokens, { name: 'admin', role: 'admin' });
+    const ready = new Readiness(
+      buildReadinessChecks({ process: 'identity', tokens: TokenStore.open(tokens) }),
+      { cacheMs: 0 },
+    );
+    expect((await ready.status()).checks).toEqual({ tokens: 'ok' });
+  });
+
+  it('diagrams-sse: comprueba el listener Postgres si se pasa', async () => {
+    let pings = 0;
+    const ready = new Readiness(
+      buildReadinessChecks({
+        process: 'sse',
+        events: true,
+        eventsListener: async () => {
+          pings += 1;
+          return pings > 0;
+        },
+      }),
+      { cacheMs: 0 },
+    );
+    expect(await ready.status()).toMatchObject({ ok: true, checks: { events: 'ok' } });
+    expect(pings).toBe(1);
+  });
 });

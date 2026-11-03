@@ -15,7 +15,7 @@ export function renderSuiteShell(): void {
         <input id="manifest-url" type="text" spellcheck="false" />
         <button type="submit" class="primary">Conectar</button>
       </form>
-      <a class="sh-link" href="trazabilidad.html">Trazabilidad</a>
+      <a class="sh-link" href="/trace">Trazabilidad</a>
       <span class="wb-chip info" id="state" role="status">conectando…</span>
     </header>
     <div class="sh-body">

@@ -3,7 +3,7 @@ import { createAdminApi } from '../core/accounts/admin';
 import { createAuthApi } from '../core/accounts/routes';
 import type { Accounts, PublicUser } from '../core/accounts/service';
 import { createUsageApi, type Quotas } from '../core/accounts/usage';
-import type { Authenticator } from '../../cli/serveAuth';
+import type { Authenticator } from '../core/authenticator';
 
 export interface IdentityApiOptions {
   accounts?: Accounts;

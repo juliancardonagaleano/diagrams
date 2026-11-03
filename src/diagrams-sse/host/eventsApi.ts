@@ -3,8 +3,8 @@ import type { ProjectStore } from '@iark/kernel';
 import { guard } from '../../diagrams-app/host/projectHttpGuards';
 import type { Accounts } from '../../diagrams-identity/core/accounts/service';
 import { HttpError } from '../../cli/httpError';
-import { clientAddress, type Authenticator } from '../../cli/serveAuth';
-import { isWorkspaceId } from '../../cli/workspace';
+import { clientAddress, type Authenticator } from '../../diagrams-identity/core/authenticator';
+import { isWorkspaceId } from '../../diagrams-app/modules/projects/infrastructure/workspace';
 import { EventHub, type StreamSummary } from '../features/events/eventHub';
 import type { EventPublisher } from '../features/events/types';
 

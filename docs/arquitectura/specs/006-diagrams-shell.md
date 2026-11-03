@@ -10,7 +10,7 @@
 
 `en curso`
 
-Rama `cursor/impl-app-shell-58e1`: un solo `rollupOptions.input` de suite (`index.html`); `/modules/:id` y `/trace` cargan desde `spaRoutes.ts`; copias legacy en build y fallback en dev; enlaces internos y manifiesto apuntan a rutas canónicas.
+Rama `cursor/impl-app-shell-deep-58e1`: un solo `rollupOptions.input` de suite; `modulos.html` y `trazabilidad.html` arrancan `boot.ts`; `/modules/:id` y `/trace` vía `spaRoutes.ts` y `federation/mountInShell.ts`; copias legacy en build. Pendiente `hecha` tras e2e de la spec.
 
 ## problema
 
@@ -130,16 +130,17 @@ De la implementación, solo con la spec `aceptada` y en su PR:
 
 ## verificación
 
-Borrador, sin implementación. Las citas salen de la spec 001. Esta sesión no llamó al puente. `GetDynamicTools` con patrón `ece` no devolvió namespace. No se imprimen `ECE_MCP_API_KEY` ni `ECE_MCP_URL`.
-
-Las tres entradas HTML y el `input` de Vite se contrastaron con `vite.config.ts`, `index.html`, `modulos.html`, `trazabilidad.html` y `suite.html`, que existen en el árbol. No se arrancó el sitio.
+Implementación parcial (rama `cursor/impl-app-shell-deep-58e1`). `vite.config.ts` declara solo `index.html` como entrada de suite (más hosts de ejemplo). Legacy HTML en dev/build redirige o copia el mismo bundle.
 
 ```text
+npm run typecheck
+npm run build:app
 npm run cli -- validate examples/diagrams-as-is.json
 Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+npx vitest run src/shell/spaRoutes.test.ts
 ```
 
-`examples/diagrams-to-be.json` no está. `git diff --stat -- src packages schema public examples` no imprime nada.
+Faltan e2e (`tests/e2e/suite.spec.ts`, `modules.spec.ts`, `trace.spec.ts`, `embed.spec.ts`, …) antes de `hecha`.
 
 ## riesgos
 

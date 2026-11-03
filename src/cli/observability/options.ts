@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Command } from 'commander';
 import { CliError } from '../io';
-import { isLoopbackHost } from '../serveAuth';
+import { isLoopbackHost } from '../../diagrams-identity/core/authenticator';
 import { Observability } from './index';
 import { openLogSink, type LogSink } from './sink';
 

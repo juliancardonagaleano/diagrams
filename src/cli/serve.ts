@@ -15,9 +15,9 @@ import { buildReadinessChecks, type ReadinessProcess } from './observability/rea
 import { Observability } from './observability';
 import type { MetricFamily } from './observability/metrics';
 import { createMetricsEndpoint } from './observability/metricsEndpoint';
-import { createAuthenticator, type Authenticator, type FailureLimiterOptions } from './serveAuth';
+import { createAuthenticator, type Authenticator, type FailureLimiterOptions } from '../diagrams-identity/core/authenticator';
 import { createProjectsHost } from '../diagrams-app';
-import { createEventsHost, EventHub, type EventHubOptions } from '../diagrams-sse';
+import { createEventsHost, EventHub, type EventHubOptions, type EventPublisherStack } from '../diagrams-sse';
 import { applyEdgeSecurityHeaders } from './securityHeaders/edge';
 import { suiteManifest } from './suiteManifest';
 import type { TokenStore } from '../diagrams-identity/core/tokens';
@@ -120,6 +120,10 @@ export interface ServeOptions {
   /** Cuánto tiempo (ms) se reutiliza el resultado de `/readyz`. Por omisión 5000; 0 = siempre se comprueba (pruebas). */
   readyCacheMs?: number;
   readinessProcess?: ReadinessProcess;
+  /** Hub, publicador NOTIFY y/o listener ya armados (Postgres, spec 005). Si no se pasa, el hub queda in-process en memoria. */
+  eventsStack?: EventPublisherStack;
+  /** Solo `GET /api/events` y autenticación (`iark serve-sse`); sin API de módulos ni de proyectos. */
+  eventsOnly?: boolean;
 }
 
 const API = '/api';
@@ -221,6 +225,7 @@ export function createSuiteServer(options: ServeOptions): Server {
       accounts: options.accounts,
       compute: executor,
       events: options.projects && options.events !== false,
+      eventsListener: options.eventsStack?.listener ? () => options.eventsStack!.listener!.ping() : undefined,
     }),
     { cacheMs: options.readyCacheMs, warn: obs.warn },
   );
@@ -322,7 +327,10 @@ export function createSuiteServer(options: ServeOptions): Server {
   };
 
   // Cambios en tiempo real: solo con espacio de trabajo y si no se desactivaron. Los canales abiertos no cuentan como peticiones en curso (ver `RequestContext.streaming`).
-  const hub = options.projects && options.events !== false ? new EventHub({ accounts: options.accounts, ...options.events }) : undefined;
+  const hub =
+    options.eventsStack?.hub ??
+    (options.projects && options.events !== false ? new EventHub({ accounts: options.accounts, ...options.events }) : undefined);
+  const eventPublisher = options.eventsStack?.publisher ?? hub;
   obs.metrics?.addCollector((): MetricFamily[] =>
     hub
       ? [
@@ -338,7 +346,18 @@ export function createSuiteServer(options: ServeOptions): Server {
     if (req.method !== allowed) throw new HttpError(405, `Este endpoint solo admite ${allowed}.`, { allow: allowed });
   };
 
-  const projectsHost = createProjectsHost({ store: options.projects, registry: options.registry, cors, auth, accounts: options.accounts, quotas, events: hub, readBody: observedBody, send, sendJson });
+  const projectsHost = createProjectsHost({
+    store: options.projects,
+    registry: options.registry,
+    cors,
+    auth,
+    accounts: options.accounts,
+    quotas,
+    events: eventPublisher,
+    readBody: observedBody,
+    send,
+    sendJson,
+  });
   const eventsHost = createEventsHost({ hub, store: options.projects, cors, auth, recheck: rawAuth, accounts: options.accounts, trustProxy: options.trustProxy ?? false, streaming: (req, summary) => obs.contextOf(req)?.streaming(summary) });
   const identityApi = createIdentityApi({
     accounts: options.accounts,
@@ -367,11 +386,13 @@ export function createSuiteServer(options: ServeOptions): Server {
 
   async function api(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const parts = url.pathname.slice(API.length).split('/').filter(Boolean).map(decodeSegment);
-    if (await projectsHost.handle(req, res, parts, url)) return;
+    if (!options.eventsOnly) {
+      if (await projectsHost.handle(req, res, parts, url)) return;
+    }
     if (await eventsHost.handle(req, res, parts, url)) return;
     if (await identityApi.handle(req, res, parts, url)) return;
-    if (await moduleApi.handle(req, res, parts, url)) return;
-    throw new HttpError(404, 'Ruta de la API desconocida. Ver /api/modules.');
+    if (!options.eventsOnly && (await moduleApi.handle(req, res, parts, url))) return;
+    throw new HttpError(404, options.eventsOnly ? 'Ruta de la API desconocida en el proceso SSE.' : 'Ruta de la API desconocida. Ver /api/modules.');
   }
 
   async function serveStatic(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -440,10 +461,11 @@ export function createSuiteServer(options: ServeOptions): Server {
     });
   });
   // Los canales de eventos no terminan solos y `server.close()` espera a que terminen todas las conexiones: al parar se cierran con un aviso (`bye`).
-  if (hub) {
+  if (hub || options.eventsStack) {
     const close = server.close.bind(server);
     server.close = ((callback?: (error?: Error) => void) => {
-      hub.closeAll();
+      hub?.closeAll();
+      void options.eventsStack?.close();
       return close(callback);
     }) as Server['close'];
   }

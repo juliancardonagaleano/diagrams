@@ -15,6 +15,8 @@ export interface ReadinessCheckInput {
   accounts?: Accounts;
   compute?: ComputeExecutor;
   events?: boolean;
+  /** Con puente Postgres LISTEN activo: comprueba la conexión de sesión del canal SSE. */
+  eventsListener?: () => Promise<boolean>;
 }
 
 function workspaceCheck(projects: ProjectStore | undefined): Check | undefined {
@@ -47,7 +49,8 @@ function registryCheck(registry: ModuleRegistry | undefined): Check | undefined 
   return () => registry.ids().length > 0;
 }
 
-function sseCheck(events: boolean | undefined): Check | undefined {
+function sseCheck(events: boolean | undefined, listener: (() => Promise<boolean>) | undefined): Check | undefined {
+  if (listener) return listener;
   if (!events) return undefined;
   return () => true;
 }
@@ -79,8 +82,8 @@ export function buildReadinessChecks(input: ReadinessCheckInput): Record<string,
     if (accounts) checks.accounts = accounts;
   }
 
-  if (process === 'sse') {
-    const sse = sseCheck(input.events);
+  if (process === 'sse' || process === 'suite') {
+    const sse = sseCheck(input.events, input.eventsListener);
     if (sse) checks.events = sse;
   }
 

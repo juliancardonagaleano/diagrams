@@ -1,6 +1,6 @@
 /**
- * Adaptadores de persistencia de `projects` (spec 003). Los almacenes siguen en `src/cli/` hasta moverlos por completo.
+ * Adaptadores de persistencia de `projects` (spec 003).
  */
-export { FolderProjectStore, type FolderProjectStoreOptions } from '../../../../cli/workspace';
-export { PostgresProjectStore, type PostgresProjectStoreOptions } from '../../../../cli/postgresProjects';
-export { openPostgresProjects, resolveWorkspaceStore, type WorkspaceStoreKind } from '../../../../cli/workspaceStore';
+export { FolderProjectStore, HISTORY_FORMAT, isWorkspaceId, MAX_DOCUMENT_BYTES, PROJECT_BUNDLE_EXTENSION, SIDECAR_FORMAT, VERSIONS_DIR, versionPolicyFromEnv, type FolderProjectStoreOptions } from './workspace';
+export { PostgresProjectStore, type ImportableProject, type PostgresProjectStoreOptions } from './postgresProjects';
+export { asCliError, openPostgresProjects, resolveWorkspaceStore, WORKSPACE_STORES, type WorkspaceStoreKind } from './workspaceStore';

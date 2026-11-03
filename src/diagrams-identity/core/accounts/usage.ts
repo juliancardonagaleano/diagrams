@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isVersioned, ProjectError, type ProjectBundle, type ProjectStore } from '@iark/kernel';
 import { HttpError } from '../../../cli/httpError';
-import type { Authenticator } from '../../../cli/serveAuth';
+import type { Authenticator } from '../authenticator';
 import type { Accounts, QuotaLimits } from './service';
 import type { AccountUser } from './store';
 

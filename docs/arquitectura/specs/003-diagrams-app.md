@@ -10,7 +10,7 @@
 
 `en curso`
 
-Rama `cursor/impl-app-shell-58e1`: `src/diagrams-app/` con Host (`projectsApi`), Application (`queries`), Domain (`saveDiagram`) e Infrastructure (reexport de almacenes en `src/cli/`). `iark serve` delega con `createProjectsHost` como identity. Falta mover por completo `workspace.ts` / `postgresProjects.ts` a Infrastructure y orquestar todas las escrituras por Application.
+Rama `cursor/impl-app-shell-deep-58e1`: almacenes en `modules/projects/infrastructure/`; shims en `src/cli/`. Host (`createProjectsHost`) usa `application/queries.ts` para lecturas y `application/commands.ts` para **todas** las escrituras (Domain: `saveDiagram`, `projectWrites`, `diagramWrites`, `versionWrites`). Pendiente `hecha` tras pruebas HTTP/e2e listadas abajo y spec `aceptada`.
 
 ## problema
 
@@ -143,14 +143,20 @@ De la implementación, solo con la spec en `aceptada` y en su propia PR:
 
 ## verificación
 
-Borrador, sin implementación. Las citas salen de la spec 001 (`read_document`, puente `python3 scripts/mcp-ece.py --no-cache`). Esta sesión no repitió la lectura. `GetDynamicTools` con patrón `ece` no devolvió namespace. La spec 000 sigue en `borrador`. No se imprimen `ECE_MCP_API_KEY` ni `ECE_MCP_URL`.
+Implementación parcial (rama `cursor/impl-app-shell-deep-58e1`). Escrituras HTTP en `host/projectsApi.ts` solo llaman a `application/commands.ts`; lecturas a `application/queries.ts`. Domain no importa HTTP ni `pg`.
 
 ```text
+npm run typecheck
 npm run cli -- validate examples/diagrams-as-is.json
 Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
+npx vitest run src/cli/serveProjects.test.ts src/cli/serveVersions.test.ts \
+  src/cli/workspace.test.ts src/cli/workspaceCoarseTime.test.ts src/cli/postgresProjects.test.ts \
+  src/diagrams-app/modules/projects/domain/saveDiagram.test.ts \
+  src/diagrams-app/modules/projects/domain/projectWrites.test.ts \
+  src/diagrams-app/modules/projects/domain/diagramWrites.test.ts
 ```
 
-`examples/diagrams-to-be.json` no está. `git diff --stat -- src packages schema public examples` no imprime nada.
+Faltan en esta sesión las de `tests/project-http*.ts`, `tests/project-check.test.ts` y e2e antes de `hecha`.
 
 ## riesgos
 

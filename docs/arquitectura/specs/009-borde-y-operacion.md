@@ -10,7 +10,7 @@
 
 `hecha`
 
-Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. Implementación en PR `cursor/impl-borde-009-58e1`.
+Julian aprobó explícitamente esta spec el 2 de noviembre de 2026. Implementación en PR consolidada `cursor/consolidate-rearch-stack-58e1` (origen `cursor/impl-borde-009-58e1`).
 
 ## problema
 

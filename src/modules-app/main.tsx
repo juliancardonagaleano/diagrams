@@ -25,7 +25,12 @@ const StudioApp = lazy(() => import('../studio/StudioApp'));
  */
 const params = new URLSearchParams(window.location.search);
 const embed = params.get('embed') === '1' && window.parent !== window;
-const moduleParam = params.get('module') ?? undefined;
+const moduleQuery = params.get('module') ?? undefined;
+const pathModule = ((): string | undefined => {
+  const match = /^\/modules\/([^/]+)$/.exec(window.location.pathname.replace(/\/$/, '') || '/');
+  return match ? decodeURIComponent(match[1]) : undefined;
+})();
+const moduleParam = moduleQuery ?? pathModule;
 /** `?project=<id>&diagram=<id>`: abre ese diagrama de un proyecto (así enlaza el editor C4 a los diagramas de otros módulos). */
 const projectParam = params.get('project') ?? undefined;
 const diagramParam = params.get('diagram') ?? undefined;
@@ -68,7 +73,7 @@ function Root() {
         // Un enlace a un diagrama manda; si no, se reabre lo último que se estaba editando (salvo que la URL pida un módulo).
         if (projects && projectParam && diagramParam && projects.getState().projects.some((p) => p.id === projectParam)) {
           await controller.openDiagram(projectParam, diagramParam);
-        } else if (projects && !moduleParam && last?.projectId) {
+        } else if (projects && !moduleQuery && last?.projectId) {
           if (last.diagramId) await controller.openDiagram(last.projectId, last.diagramId);
           else await controller.enterProject(last.projectId);
         }

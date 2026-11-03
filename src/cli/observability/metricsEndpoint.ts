@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { HttpError } from '../httpError';
-import { bearerToken, clientAddress, FailureLimiter } from '../serveAuth';
+import { bearerToken, clientAddress, FailureLimiter } from '../../diagrams-identity/core/authenticator';
 import { hostName, isLoopbackAddress, LOOPBACK_HOSTS } from '../serveProjects';
 import type { Metrics } from './metrics';
 
