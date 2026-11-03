@@ -77,4 +77,4 @@ EXPOSE 8787
 # (ni que Caddy, que espera a que esté sano, no arranque); de eso se ocupan /readyz, el registro y las métricas (docs/observabilidad.md).
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s CMD wget -qO- "http://127.0.0.1:${PORT:-8787}/healthz" >/dev/null || exit 1
 # `sh -c` solo expande $PORT; `exec` deja a node como proceso 1 (recibe SIGTERM) y "$@" añade los argumentos de `docker run`.
-ENTRYPOINT ["sh", "-c", "exec node dist/cli/index.js serve --host 0.0.0.0 --port \"${PORT:-8787}\" --static dist/app \"$@\"", "iark"]
+ENTRYPOINT ["sh", "-c", "exec node dist/cli/index.js serve --host 0.0.0.0 --port \"${PORT:-8787}\" \"$@\"", "iark"]

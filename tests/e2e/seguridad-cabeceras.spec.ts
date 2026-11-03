@@ -18,7 +18,7 @@ interface Instance {
 }
 
 async function serve(args: string[]): Promise<Instance & { port: number }> {
-  const child: ChildProcess = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'src/cli/index.ts', 'serve', '--static', 'dist/app', '--port', '0', ...args], {
+  const child: ChildProcess = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'tests/e2e/serve-with-static.mts', 'dist/app', ...args], {
     cwd: process.cwd(),
     stdio: ['ignore', 'pipe', 'pipe'],
   });

@@ -157,7 +157,11 @@ describe('iark serve --frame-ancestors / IARK_FRAME_ANCESTORS (comando)', () => 
 
   /** Arranca el CLI, deja que `check` consulte el servicio y lo para; devuelve lo que `check` devolvió. */
   async function withServer<T>(args: string[], env: Record<string, string>, check: (url: string) => Promise<T>): Promise<T> {
-    const child = spawn(process.execPath, [bundle.cli, 'serve', '--port', '0', '--static', site, ...args], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...env } });
+    const child = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'tests/e2e/serve-with-static.mts', site, ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...env },
+      cwd: process.cwd(),
+    });
     let stderr = '';
     const url = await new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => {
