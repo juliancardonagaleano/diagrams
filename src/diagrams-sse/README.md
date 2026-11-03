@@ -1,11 +1,40 @@
 # diagrams-sse
 
-Gateway de avisos (`GET /api/events`, spec 005). El único punto de entrada HTTP es **`createEventsHost`** en `host/eventsApi.ts`; `iark serve` delega ahí y no registra rutas SSE en otro módulo.
+Gateway de avisos (`GET /api/events`, spec 005). El único punto de entrada HTTP del feature es **`createEventsHost`** en `host/eventsApi.ts`.
 
 ## Proceso actual (in-process)
 
-Hoy `EventHub` y `EventPublisher.publish` (desde `diagrams-app` tras una escritura) comparten el mismo proceso y el mismo objeto en memoria. `src/cli/serveEvents.ts` solo reexporta tipos por compatibilidad histórica.
+Con `iark serve`, `EventHub` y `EventPublisher.publish` (desde `diagrams-app` tras una escritura) comparten el mismo proceso. `src/cli/serveEvents.ts` solo reexporta tipos por compatibilidad histórica.
 
-## Límite futuro (proceso aparte)
+Con **`--workspace-store postgres`**, el puente **`NOTIFY`/`LISTEN`** de Postgres reparte avisos entre réplicas y prepara separar el proceso:
 
-Separar `diagrams-sse` de `diagrams-app` exige un canal entre la publicación (escrituras confirmadas) y este gateway (conexiones abiertas). Hasta que exista y esté probado — candidato documentado en la spec 005: `NOTIFY` en Postgres con conexión de sesión al margen del pool transaccional — **no** se arranca un segundo proceso; el feature queda delimitado en código y la spec permanece `en curso`.
+| Pieza | Dónde | Conexión |
+|---|---|---|
+| Publicación | Tras cada escritura confirmada | `NOTIFY` en el pool transaccional (`notifyProjectChange`) |
+| Reparto al hub | Mismo proceso o `iark serve-sse` | `LISTEN` en conexión de **sesión** (`PostgresEventListener`) |
+
+Variables:
+
+- `IARK_EVENTS_BRIDGE=postgres|memory` — por omisión `postgres` si los proyectos están en Postgres.
+- `IARK_DATABASE_SESSION_URL` — URL directa al servidor (p. ej. puerto 5432 en Supabase), cuando el pooler transaccional no admite `LISTEN`.
+- `IARK_EVENTS_ROLE=publish` — solo publica NOTIFY (proceso app partido; desactiva SSE en ese proceso).
+- `IARK_EVENTS_ROLE=stream` — solo atiende SSE (`iark serve-sse`).
+
+Con LISTEN activo en el mismo proceso, el hub **solo** recibe avisos por NOTIFY (no se duplican en memoria).
+
+## Proceso aparte (`iark serve-sse`)
+
+Comando del CLI (equivalente a `node dist/cli/main.js serve-sse`):
+
+```bash
+iark serve-sse --workspace-store postgres --host 0.0.0.0 --port 8788 \
+  --tokens /data/tokens.json --trust-proxy
+```
+
+Expone `/healthz`, `/readyz`, `/metrics` (si están activados) y **`GET /api/events`**, más las rutas de autenticación necesarias. No sirve `/api/projects` ni la API de módulos.
+
+Fragmento de compose opcional: `deploy/docker-compose.sse-snippet.yml`.
+
+## Carpeta local (sin Postgres)
+
+El puente NOTIFY no aplica: el hub sigue en memoria del único proceso. Separar `serve-sse` en ese despliegue no reparte avisos entre instancias hasta usar Postgres (o otro canal acordado en la spec 005).

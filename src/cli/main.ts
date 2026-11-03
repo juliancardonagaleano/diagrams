@@ -38,6 +38,7 @@ import { FolderProjectStore } from '../diagrams-app/modules/projects/infrastruct
 import { releaseDatabase } from './postgres/shared';
 import { registerWorkspace } from './workspaceImport';
 import { openPostgresProjects, resolveWorkspaceStore } from './workspaceStore';
+import { openEventsStack } from './eventsStack';
 import { addBudgetOptions, EFFORTS, parseEffort, parseProvider, reportGeneration, tokenLimitOptions, withAiErrors } from './ai';
 import { registerCommentary } from './commentary';
 import { genericExport, genericGenerate, genericMigrate, genericPrompt, genericPromptText, genericSchema, genericValidate, parseModuleDocumentText, readModuleDocument } from './generic';
@@ -651,7 +652,23 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
       const pool = compute.workers > 0 ? new ComputePool({ size: compute.workers, timeoutMs: compute.timeoutMs, maxQueue: compute.maxQueue, plugins: settings.plugins }) : undefined;
       // Los proyectos en Postgres se abren al final de las comprobaciones: el pool de la base (compartido por el proceso) se cierra al parar.
       const projects = workspaceStore === 'postgres' ? await openPostgresProjects() : opts.workspace ? new FolderProjectStore(opts.workspace) : undefined;
-      const server = createSuiteServer({ registry, version: CLI_VERSION, cors, projects, tokens, accounts, trustProxy: opts.trustProxy, frameAncestors, compute: pool, publicCompute: compute.publicCompute, observability: observed.observability, metricsToken: observed.metricsToken, events: streams === 0 ? false : { maxPerPerson: streams } });
+      const eventsStack = await openEventsStack({ projects, accounts, events: streams === 0 ? false : { maxPerPerson: streams } });
+      const server = createSuiteServer({
+        registry,
+        version: CLI_VERSION,
+        cors,
+        projects,
+        tokens,
+        accounts,
+        trustProxy: opts.trustProxy,
+        frameAncestors,
+        compute: pool,
+        publicCompute: compute.publicCompute,
+        observability: observed.observability,
+        metricsToken: observed.metricsToken,
+        events: streams === 0 ? false : { maxPerPerson: streams },
+        eventsStack,
+      });
       try {
         await new Promise<void>((resolveListening, rejectListening) => {
           server.once('error', rejectListening);
@@ -705,6 +722,80 @@ export function buildProgram(registry: ModuleRegistry = createDefaultRegistry(),
         process.once('SIGTERM', stop);
       });
     });
+
+  const serveSse = program
+    .command('serve-sse')
+    .description(
+      'Proceso `diagrams-sse` (spec 005): solo GET /api/events y autenticación. Con proyectos en Postgres usa LISTEN/NOTIFY; con carpeta, hub in-process (una sola instancia). Variables: IARK_EVENTS_ROLE=stream, IARK_DATABASE_SESSION_URL para LISTEN fuera del pooler transaccional.',
+    )
+    .option('-p, --port <n>', 'puerto (0 elige uno libre)', parsePort, 8788)
+    .option('--host <host>', 'dirección en la que escucha', '127.0.0.1')
+    .option('--cors <orígenes>', 'orígenes CORS (o IARK_CORS)', process.env.IARK_CORS || undefined)
+    .option('-w, --workspace <carpeta>', 'carpeta de proyectos para comprobar pertenencia (o IARK_WORKSPACE)', process.env.IARK_WORKSPACE || undefined)
+    .option('--workspace-store <almacén>', 'folder o postgres (o IARK_WORKSPACE_STORE)', process.env.IARK_WORKSPACE_STORE || undefined)
+    .option('-t, --tokens <archivo>', 'tokens Bearer (o IARK_TOKENS)', process.env.IARK_TOKENS || undefined)
+    .option('--accounts <archivo>', 'cuentas GitHub (o IARK_ACCOUNTS)', process.env.IARK_ACCOUNTS || undefined)
+    .option('--accounts-store <almacén>', 'json, sqlite o postgres (o IARK_ACCOUNTS_STORE)', process.env.IARK_ACCOUNTS_STORE || undefined)
+    .option('--github-client-id <id>', 'Client ID OAuth (o IARK_GITHUB_CLIENT_ID)', process.env.IARK_GITHUB_CLIENT_ID || undefined)
+    .option('--public-url <url>', 'URL pública (o IARK_PUBLIC_URL)', process.env.IARK_PUBLIC_URL || undefined)
+    .option('--trust-proxy', 'proxy de confianza delante (o IARK_TRUST_PROXY=true)', /^(1|true|yes|on)$/i.test(process.env.IARK_TRUST_PROXY ?? ''))
+    .option('--max-streams <n>', 'canales SSE por persona (o IARK_MAX_STREAMS)', (v: string) => Number(v), process.env.IARK_MAX_STREAMS ? Number(process.env.IARK_MAX_STREAMS) : undefined);
+  addObservabilityOptions(serveSse);
+  serveSse.action(async (opts) => {
+    process.env.IARK_EVENTS_ROLE = process.env.IARK_EVENTS_ROLE || 'stream';
+    const cors = typeof opts.cors === 'string' ? opts.cors.split(',').map((o: string) => o.trim()).filter(Boolean) : [];
+    const workspaceStore = resolveWorkspaceStore(opts.workspaceStore, opts.workspace);
+    const hasWorkspace = workspaceStore === 'postgres' || !!opts.workspace;
+    if (!hasWorkspace) throw new CliError('serve-sse exige --workspace o --workspace-store postgres (proyectos para comprobar pertenencia).', 2);
+    const accounts = await setupAccounts(opts, { workspace: hasWorkspace, cors });
+    const observed = setupObservability(opts, { host: opts.host, trustProxy: !!opts.trustProxy, version: CLI_VERSION });
+    const tokens = opts.tokens ? TokenStore.open(opts.tokens) : undefined;
+    const projects = workspaceStore === 'postgres' ? await openPostgresProjects() : new FolderProjectStore(opts.workspace!);
+    const streams: number | undefined = opts.maxStreams;
+    if (streams !== undefined && (!Number.isInteger(streams) || streams < 0 || streams > 1000)) throw new CliError('--max-streams debe ser un entero entre 0 y 1000.', 2);
+    const eventsStack = await openEventsStack({ projects, accounts, events: streams === 0 ? false : { maxPerPerson: streams } });
+    const server = createSuiteServer({
+      registry,
+      version: CLI_VERSION,
+      cors,
+      projects,
+      tokens,
+      accounts,
+      trustProxy: opts.trustProxy,
+      observability: observed.observability,
+      metricsToken: observed.metricsToken,
+      events: streams === 0 ? false : { maxPerPerson: streams },
+      eventsStack,
+      eventsOnly: true,
+      readinessProcess: 'sse',
+    });
+    try {
+      await new Promise<void>((resolveListening, rejectListening) => {
+        server.once('error', rejectListening);
+        server.listen(opts.port, opts.host, resolveListening);
+      });
+    } catch (error) {
+      if (projects.kind === 'postgres') await releaseDatabase();
+      throw error;
+    }
+    const address = server.address();
+    const port = typeof address === 'object' && address ? address.port : opts.port;
+    info(`diagrams-sse escuchando en http://${opts.host.includes(':') ? `[${opts.host}]` : opts.host}:${port} · GET /api/events`);
+    for (const line of observed.lines) info(line);
+    if (projects.kind === 'postgres') info('  canal: Postgres NOTIFY/LISTEN (IARK_DATABASE_SESSION_URL si el pooler no admite LISTEN)');
+    await new Promise<void>((resolveClosed) => {
+      const stop = (): void =>
+        void server.close(() =>
+          void observed.observability
+            .close()
+            .then(() => accounts?.store.close())
+            .then(() => (projects.kind === 'postgres' ? releaseDatabase() : undefined))
+            .then(() => resolveClosed()),
+        );
+      process.once('SIGINT', stop);
+      process.once('SIGTERM', stop);
+    });
+  });
 
   registerTrace(program, registry);
   registerDiff(program, registry, importSource, defaultModule);

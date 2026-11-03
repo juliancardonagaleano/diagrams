@@ -311,6 +311,11 @@ export class PostgresProjectStore implements ProjectStore {
     return `Postgres ${this.db.config.description}, esquema ${this.db.config.schema}`;
   }
 
+  /** Pool transaccional para NOTIFY y operaciones del almacén (spec 005). */
+  postgres(): PostgresDatabase {
+    return this.db;
+  }
+
   /** ¿Contesta la base ahora mismo? Es lo que mira la comprobación `workspace` de `/readyz`. */
   ping(): Promise<boolean> {
     return this.db.ping();

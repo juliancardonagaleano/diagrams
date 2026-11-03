@@ -10,7 +10,7 @@
 
 `en curso`
 
-PR consolidada `cursor/consolidate-rearch-stack-58e1` (origen `cursor/rearch-specs-003-004-005-58e1`): `createEventsHost` es el único borde HTTP del canal (`src/diagrams-sse/host/eventsApi.ts`; ver `src/diagrams-sse/README.md`). Hub in-process con `diagrams-app` hasta canal probado (spec: límite `LISTEN`/pool y ausencia de broker). `serve.ts` delega solo a `createEventsHost`; `serveEvents.ts` reexporta.
+Rama `cursor/rearch-specs-003-004-005-58e1`: `createEventsHost` es el único borde HTTP del canal (`src/diagrams-sse/host/eventsApi.ts`; ver `src/diagrams-sse/README.md`). Hub in-process con `diagrams-app` hasta canal probado (spec: límite `LISTEN`/pool y ausencia de broker). `serve.ts` delega solo a `createEventsHost`; `serveEvents.ts` reexporta.
 
 ## problema
 
@@ -130,7 +130,7 @@ npm run cli -- validate examples/diagrams-as-is.json
 Documento válido: 59 elementos, 112 relaciones, 7 vistas. 0 error(es), 0 aviso(s).
 ```
 
-El límite de `LISTEN` sigue en `src/cli/postgres/pool.ts` y en `src/diagrams-app/modules/projects/infrastructure/postgresProjects.ts`. No hay `NOTIFY` en `src/` hasta elegir el canal.
+El límite de `LISTEN` en el pool transaccional sigue en `src/cli/postgres/pool.ts` y en `src/diagrams-app/modules/projects/infrastructure/postgresProjects.ts`. El canal elegido es **`NOTIFY`/`LISTEN`** en `src/diagrams-sse/features/events/postgresBridge.ts` (publicación en el pool; escucha en conexión de sesión). Ver `src/diagrams-sse/README.md` e `iark serve-sse`.
 
 ## riesgos
 

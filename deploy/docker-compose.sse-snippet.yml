@@ -1,0 +1,27 @@
+# Fragmento opcional (spec 005): segundo contenedor `diagrams-sse` junto al servicio `iark` principal.
+# Copie las líneas de `iark-sse` dentro de deploy/docker-compose.yml cuando los proyectos usen Postgres
+# (`IARK_WORKSPACE_STORE=postgres`) y quiera separar GET /api/events del proceso que escribe proyectos.
+#
+# El proceso principal publica avisos con NOTIFY; este escucha con LISTEN (IARK_DATABASE_SESSION_URL apunta al
+# puerto de sesión de Postgres, no al pooler transaccional de Supavisor).
+#
+#   iark-sse:
+#     image: diagrams
+#     restart: unless-stopped
+#     command: ['node', 'dist/cli/main.js', 'serve-sse', '--host', '0.0.0.0', '--port', '8788', '--trust-proxy']
+#     environment:
+#       IARK_EVENTS_ROLE: stream
+#       IARK_WORKSPACE_STORE: postgres
+#       IARK_DATABASE_URL: ${IARK_DATABASE_URL}
+#       IARK_DATABASE_SESSION_URL: ${IARK_DATABASE_SESSION_URL:-}
+#       IARK_TOKENS: /data/tokens.json
+#       IARK_ACCOUNTS_STORE: ${IARK_ACCOUNTS_STORE:-sqlite}
+#       IARK_ACCOUNTS: /data/accounts.db
+#       IARK_TRUST_PROXY: "true"
+#       IARK_CORS: ${IARK_CORS:-}
+#     volumes:
+#       - iark-data:/data
+#     expose:
+#       - "8788"
+#     depends_on:
+#       - iark
