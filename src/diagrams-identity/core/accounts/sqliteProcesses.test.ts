@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PROCESS_TEST_TIMEOUT } from '../../../tests/helpers/cliBundle';
+import { PROCESS_TEST_TIMEOUT } from '../../../../tests/helpers/cliBundle';
 import { loadSqlite, MIGRATIONS, SqliteAccountStore } from './sqliteStore';
 import { MAX_PENDING_USERS, MAX_SESSIONS_PER_USER } from './store';
 

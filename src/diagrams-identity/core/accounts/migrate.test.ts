@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { describeImport, importAccounts } from './migrate';
 import { loadSqlite, MIGRATIONS } from './sqliteStore';
-import { OPEN, INVITE, realJson } from '../../../tests/helpers/realAccounts';
+import { OPEN, INVITE, realJson } from '../../../../tests/helpers/realAccounts';
 import { JsonAccountStore, SqliteAccountStore, type AccountsFile } from './store';
 
 const folders: string[] = [];

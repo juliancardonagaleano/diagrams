@@ -1,15 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { bundleFileName, bundleToText, checkProject, createBundle, importBundle, isVersioned, ProjectError, parseBundle, parseVersionId, snapshotProject, unsupportedVersions, type ImportedProject, type ModuleRegistry, type ProjectStore } from '@iark/kernel';
-import { accountHttpError } from './accounts/errors';
-import { createMembersApi } from './accounts/members';
-import type { Accounts } from './accounts/service';
-import type { Quotas } from './accounts/usage';
-import { AccountError, loginKey, projectRoleAllows, type ProjectRole } from './accounts/store';
+import { accountHttpError } from '../diagrams-identity/core/accounts/errors';
+import { createMembersApi } from '../diagrams-identity/core/accounts/members';
+import type { Accounts } from '../diagrams-identity/core/accounts/service';
+import type { Quotas } from '../diagrams-identity/core/accounts/usage';
+import { AccountError, loginKey, projectRoleAllows, type ProjectRole } from '../diagrams-identity/core/accounts/store';
 import { allow, bodyObject, isJson } from './httpBody';
 import { HttpError } from './httpError';
 import type { Authenticator, Identity } from './serveAuth';
 import type { ChangeEvent, EventPublisher, PublishOptions } from './serveEvents';
-import { roleAllows, type TokenRole } from './tokens';
+import { roleAllows, type TokenRole } from '../diagrams-identity/core/tokens';
 import { isWorkspaceId } from './workspace';
 
 /**

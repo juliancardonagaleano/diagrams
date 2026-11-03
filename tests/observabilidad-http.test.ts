@@ -8,7 +8,7 @@ import { ComputePool } from '../src/cli/computePool';
 import { Observability } from '../src/cli/observability';
 import type { Actor } from '../src/cli/observability/audit';
 import { FileSink, type LogSink } from '../src/cli/observability/sink';
-import { createToken } from '../src/cli/tokens';
+import { createToken } from '../src/diagrams-identity/core/tokens';
 import { FolderProjectStore } from '../src/cli/workspace';
 import { ANA, BETO, call, cleanupCloud, signIn, startCloud, tracked, type Cloud, type CloudOptions } from './helpers/cloud';
 import { challengeOf, newVerifier, type FakeProfile } from './helpers/fakeGithub';

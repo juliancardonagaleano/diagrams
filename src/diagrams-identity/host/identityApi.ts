@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createAdminApi } from '../../cli/accounts/admin';
-import { createAuthApi } from '../../cli/accounts/routes';
-import type { Accounts, PublicUser } from '../../cli/accounts/service';
-import { createUsageApi, type Quotas } from '../../cli/accounts/usage';
+import { createAdminApi } from '../core/accounts/admin';
+import { createAuthApi } from '../core/accounts/routes';
+import type { Accounts, PublicUser } from '../core/accounts/service';
+import { createUsageApi, type Quotas } from '../core/accounts/usage';
 import type { Authenticator } from '../../cli/serveAuth';
 
 export interface IdentityApiOptions {
@@ -22,7 +22,7 @@ export interface IdentityApiOptions {
 
 /**
  * Host `diagrams-identity`: traduce HTTP a comandos/consultas de `accounts` y `access-tokens`.
- * El almacén y los hashes siguen en Core (`src/cli/accounts/*`, `src/cli/tokens.ts`) hasta moverlos.
+ * El almacén y los hashes viven en Core (`src/diagrams-identity/core/accounts/*`, `src/diagrams-identity/core/tokens.ts`).
  */
 export function createIdentityApi(options: IdentityApiOptions) {
   const {

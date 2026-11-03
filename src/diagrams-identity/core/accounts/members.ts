@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { allow, bodyObject, type ReadBody } from '../httpBody';
-import { HttpError } from '../httpError';
+import { allow, bodyObject, type ReadBody } from '../../../cli/httpBody';
+import { HttpError } from '../../../cli/httpError';
 import type { Accounts } from './service';
 import { isProjectRole, loginKey, PROJECT_ROLES, type AccountUser, type ProjectRole } from './store';
 

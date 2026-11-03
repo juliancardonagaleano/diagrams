@@ -1,4 +1,4 @@
-import { isProjectRole, isSiteRole } from '../accounts/store';
+import { isProjectRole, isSiteRole } from '../../diagrams-identity/core/accounts/store';
 import { classifyRoute, type RouteInfo, type RouteParams } from './route';
 import { jsonLine, type LogSink } from './sink';
 import type { Metrics } from './metrics';

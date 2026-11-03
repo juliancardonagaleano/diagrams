@@ -12,7 +12,7 @@ import {
   type AccountStore,
   type AccountStoreKind,
   type AccountStoreOptions,
-} from '../../src/cli/accounts/store';
+} from '../../src/diagrams-identity/core/accounts/store';
 
 /**
  * El contrato de `AccountStore`: lo que cualquier almacén de cuentas (JSON, SQLite…) debe cumplir igual, con el mismo comportamiento

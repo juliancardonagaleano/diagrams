@@ -1,10 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { PROCESS_TEST_TIMEOUT } from '../../../tests/helpers/cliBundle';
-import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../tests/helpers/postgres';
-import { currentVersion } from '../postgres/migrate';
-import { PostgresDatabase } from '../postgres/pool';
+import { PROCESS_TEST_TIMEOUT } from '../../../../tests/helpers/cliBundle';
+import { postgresAvailable, requirePostgresIfCi, startTestPostgres, testConfig, uniqueSchema, type TestPostgres } from '../../../../tests/helpers/postgres';
+import { currentVersion } from '../../../cli/postgres/migrate';
+import { PostgresDatabase } from '../../../cli/postgres/pool';
 import { MIGRATIONS, PostgresAccountStore } from './postgresStore';
 import { MAX_PENDING_USERS, MAX_SESSIONS_PER_USER } from './store';
 

@@ -1,6 +1,5 @@
 /**
  * Core `access-tokens`: hashes y comprobación Bearer (spec 004).
- * Implementación actual en `src/cli/tokens.ts` y `src/cli/serveAuth.ts`.
  */
 export {
   createToken,
@@ -11,6 +10,6 @@ export {
   TokenStore,
   type TokenIdentity,
   type TokenRole,
-} from '../../cli/tokens';
+} from './tokens';
 
 export { createAuthenticator, FailureLimiter, type Authenticator, type FailureLimiterOptions } from '../../cli/serveAuth';

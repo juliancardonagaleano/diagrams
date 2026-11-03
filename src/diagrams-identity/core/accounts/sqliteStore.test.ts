@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { accountStoreContract, ana, beto, INVITE, OPEN } from '../../../tests/helpers/accountStoreContract';
+import { accountStoreContract, ana, beto, INVITE, OPEN } from '../../../../tests/helpers/accountStoreContract';
 import { loadSqlite, MIGRATIONS, SQLITE_APPLICATION_ID, SqliteAccountStore, type SqliteMigration } from './sqliteStore';
 import { AccountError, asAsync, hashSessionToken, MAX_PENDING_USERS } from './store';
 

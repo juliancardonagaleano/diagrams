@@ -11,7 +11,7 @@ import type { ComputeExecutor } from './compute';
 import { ComputePool, type ComputePoolOptions } from './computePool';
 import { createDefaultRegistry } from './registry';
 import { createSuiteServer, type ServeOptions } from './serve';
-import { createToken, TokenStore } from './tokens';
+import { createToken, TokenStore } from '../diagrams-identity/core/tokens';
 
 /**
  * El cálculo de la API de `iark serve` (validar, vistas, exportar, importar, comparar, informes y trazas) corre en hilos de trabajo, con

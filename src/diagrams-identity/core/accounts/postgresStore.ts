@@ -29,8 +29,8 @@ import {
   type UserChange,
   type UserQuota,
 } from './model';
-import { migrate, type PgMigration } from '../postgres/migrate';
-import { DatabaseError, sqlState, type PostgresDatabase, type Tx } from '../postgres/pool';
+import { migrate, type PgMigration } from '../../../cli/postgres/migrate';
+import { DatabaseError, sqlState, type PostgresDatabase, type Tx } from '../../../cli/postgres/pool';
 import type { ImportCounts, ImportProvenance } from './sqliteStore';
 
 /**

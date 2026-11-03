@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { type ModuleRegistry, type ProjectStore } from '@iark/kernel';
 import { COMPUTE_ACTIONS } from './compute';
-import type { Accounts } from './accounts/service';
-import { QUOTA_KINDS, Quotas } from './accounts/usage';
+import type { Accounts } from '../diagrams-identity/core/accounts/service';
+import { QUOTA_KINDS, Quotas } from '../diagrams-identity/core/accounts/usage';
 import { createIdentityApi } from '../diagrams-identity/host/identityApi';
 import { inlineExecutor, unwrapOutcome, type ComputeExecutor } from './compute';
 import { createModuleApi } from '../diagrams-gateway/moduleApi';
@@ -19,7 +19,7 @@ import { createEventsApi, EventHub, type EventHubOptions } from './serveEvents';
 import { createProjectsApi } from './serveProjects';
 import { applySecurityHeaders } from './securityHeaders';
 import { suiteManifest } from './suiteManifest';
-import type { TokenStore } from './tokens';
+import type { TokenStore } from '../diagrams-identity/core/tokens';
 
 /**
  * Servicio HTTP de la suite (`iark serve`): la misma API para todos los módulos, construida sobre las operaciones del
