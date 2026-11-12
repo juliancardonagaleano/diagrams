@@ -47,8 +47,8 @@
   "dependencies": {
     "@iark/kernel": "*",
     "elkjs": "^0.12.0",
-    "fast-xml-parser": "^5.3.4",
+    "fast-xml-parser": "^5.12.0",
     "nanoid": "^5.1.6",
-    "zod": "^4.3.3"
+    "zod": "^4.6.7"
   }
 }
